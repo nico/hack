@@ -1,0 +1,26 @@
+punt for now
+------------
+
+i/o api
+  read_int32() etc
+  does endianness conversion by default
+    issue: can't do it for unknown blocks
+
+sax api
+  on_tag() etc
+
+
+do
+--
+
+dom api
+  tree
+
+query api for tree
+  resolve_path() etc
+
+some api for nested structs etc
+
+some api for image data conversion
+
+some error handling piece
