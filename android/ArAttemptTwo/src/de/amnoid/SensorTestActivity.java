@@ -82,7 +82,7 @@ public class SensorTestActivity extends Activity implements SensorEventListener,
         setContentView(new Preview(this));
     }
 
-	@Override
+	//@Override
 	public void onLocationChanged(Location location) {
 		if (location != null) {
 			double lat = location.getLatitude();
@@ -91,15 +91,15 @@ public class SensorTestActivity extends Activity implements SensorEventListener,
 		}
 	}
 
-	@Override
+	//@Override
 	public void onProviderDisabled(String provider) {
 	}
 
-	@Override
+	//@Override
 	public void onProviderEnabled(String provider) {		
 	}
 
-	@Override
+	//@Override
 	public void onStatusChanged(String provider, int status, Bundle extras) {
 		// TODO Auto-generated method stub
 		
