@@ -1,0 +1,4 @@
+rule cc
+  command = clang -c $in -o $out -fcolor-diagnostics
+
+build build/graymap.o: cc graymap.c
