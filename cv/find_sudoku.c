@@ -1,3 +1,4 @@
+#include "blur_box.h"
 #include "graymap.h"
 #include "graymap_pgm.h"
 #include "threshold.h"
