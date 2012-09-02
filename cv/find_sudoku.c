@@ -27,7 +27,6 @@ int main(int argc, char* argv[]) {
   threshold_on_constant(graymap, average_pixel(graymap));
 #else
   graymap_t* dst = alloc_graymap(graymap->w, graymap->h);
-  //blur_box1(dst, graymap);
   blur_box_k(dst, graymap, 11);
   scale(dst, 94, 100);
   save_graymap_to_pgm("avg.pgm", dst);

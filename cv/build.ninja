@@ -1,6 +1,7 @@
 rule cc
   command = clang -O2 -Wall -c $in -o $out -fcolor-diagnostics -std=c11
 
+build build/blur_box.o: cc blur_box.c
 build build/find_sudoku.o: cc find_sudoku.c
 build build/graymap.o: cc graymap.c
 build build/graymap_pgm.o: cc graymap_pgm.c
@@ -9,5 +10,5 @@ build build/threshold.o: cc threshold.c
 rule ld
   command = clang $in -o $out
 
-build build/find_sudoku: ld build/find_sudoku.o build/graymap.o $
-    build/graymap_pgm.o build/threshold.o
+build build/find_sudoku: ld build/blur_box.o build/find_sudoku.o $
+    build/graymap.o build/graymap_pgm.o build/threshold.o
