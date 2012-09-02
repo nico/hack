@@ -19,21 +19,19 @@ static void union_(unsigned p, unsigned q, unsigned* id, unsigned* sz) {
   else                { id[j] = i; sz[i] += sz[j]; }  
 }
 
-#include <stdio.h>
-
 void find_biggest_connected_component(graymap_t* graymap) {
   const int w = graymap->w, h = graymap->h;
   const unsigned n = w*h;
   const uint8_t* prev = 0,
                * curr = graymap->data;
 
-  unsigned * components = malloc(n*sizeof(unsigned));
-  for (unsigned i = 0; i < n; ++i) components[i] = i;
+  unsigned * id = malloc(n*sizeof(unsigned));
+  for (unsigned i = 0; i < n; ++i) id[i] = i;
   unsigned* sz = malloc(n*sizeof(unsigned));
   for (unsigned i = 0; i < n; ++i) sz[i] = 1;
 
-  unsigned* prev_component = 0,
-          * curr_component = components;
+  unsigned* prev_id = 0,
+          * curr_id = id;
   unsigned max_component = 0, max_component_size = 0;
 
   // First pass: Find equivalence classes, keep track of the biggest class.
@@ -42,33 +40,30 @@ void find_biggest_connected_component(graymap_t* graymap) {
       if (curr[x] != 0) continue;
 
       if (x > 0 && curr[x-1] == 0)
-        union_(curr_component[x], curr_component[x-1], components, sz);
+        union_(curr_id[x], curr_id[x-1], id, sz);
       if (prev && prev[x] == 0) {
         // curr[x] and prev[x] could already be in the same class. sz assumes
         // that union_() is never called for two elements that are already in
         // the same component, so check first.
-        if (find(y*w + x, components) != find((y-1)*w + x, components))
-          union_(curr_component[x], prev_component[x], components, sz);
+        if (find(curr_id[x], id) != find(prev_id[x], id))
+          union_(curr_id[x], prev_id[x], id, sz);
       }
 
-      unsigned cur = find(y*w + x, components);
+      unsigned cur = find(curr_id[x], id);
       if (sz[cur] > max_component_size) {
         max_component_size = sz[cur];
         max_component = cur;
       }
     }
 
-    prev = curr;
-    curr += w;
-
-    prev_component = curr_component;
-    curr_component += w;
+    prev = curr; curr += w;
+    prev_id = curr_id; curr_id += w;
   }
   free(sz);
 
   // Second pass: Wipe out everything that isn't in the biggest class.
   for (unsigned i = 0; i < n; ++i)
-    if (find(i, components) != max_component)
+    if (find(i, id) != max_component)
       graymap->data[i] = 255;
-  free(components);
+  free(id);
 }
