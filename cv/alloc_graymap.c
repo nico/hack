@@ -1,3 +1,5 @@
+#include "alloc_graymap.h"
+
 #include "graymap.h"
 
 #include <stdlib.h>
