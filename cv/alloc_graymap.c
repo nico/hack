@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 graymap_t* alloc_graymap(int w, int h) {
-  graymap_t* graymap = malloc(sizeof(graymap));
+  graymap_t* graymap = malloc(sizeof(graymap_t));
   graymap->w = w;
   graymap->h = h;
   graymap->data = malloc(w * h);
