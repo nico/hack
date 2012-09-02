@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-typedef struct {
+typedef struct graymap_t_ {
   int w, h;
   uint8_t* data;
 } graymap_t;
