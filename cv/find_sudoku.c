@@ -1,4 +1,6 @@
+#include "alloc_graymap.h"
 #include "blur_box.h"
+#include "connected_component.h"
 #include "graymap.h"
 #include "graymap_pgm.h"
 #include "threshold.h"
@@ -24,16 +26,16 @@ int main(int argc, char* argv[]) {
   
   // http://sudokugrab.blogspot.com/2009/07/how-does-it-all-work.html
 
-#if 0
-  threshold_on_constant(graymap, average_pixel(graymap));
-#else
-  graymap_t* dst = alloc_graymap(graymap->w, graymap->h);
-  blur_box_k(dst, graymap, 11);
-  scale(dst, 94, 100);
-  save_graymap_to_pgm("avg.pgm", dst);
-  threshold_on_local_average(graymap, dst);
-  free_graymap(dst);
-#endif
+  graymap_t* threshold = alloc_graymap(graymap->w, graymap->h);
+  blur_box_k(threshold, graymap, 11);
+  scale(threshold, 94, 100);
+  //save_graymap_to_pgm("avg.pgm", threshold);
+  threshold_on_local_average(graymap, threshold);
+  free_graymap(threshold);
+
+  // TODO: Maybe run a few open iterations to clean up noise pixels.
+
+  find_biggest_connected_component(graymap);
 
   save_graymap_to_pgm("out.pgm", graymap);
   printf("Wrote out.png\n");

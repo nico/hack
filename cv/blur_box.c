@@ -6,8 +6,9 @@ static int imin(int a, int b) { return a < b ? a : b; }
 static int imax(int a, int b) { return a > b ? a : b; }
 
 void blur_box_k(graymap_t* dst, graymap_t* src, int k) {
-  int w = src->w, h = src->h;
-  uint8_t* curr = src->data;
+  // TODO: Exploit separability.
+  const int w = src->w, h = src->h;
+  const uint8_t* curr = src->data;
   uint8_t* curr_dst = dst->data;
 
   for (int y = 0; y < h; ++y) {
@@ -35,11 +36,11 @@ void blur_box_k(graymap_t* dst, graymap_t* src, int k) {
   }
 }
 
-void blur_box1(graymap_t* dst, graymap_t* src) {
-  int w = src->w, h = src->h;
-  uint8_t* prev = 0,
-         * curr = src->data,
-         * next = src->data + w;
+void blur_box_n8(graymap_t* dst, graymap_t* src) {
+  const int w = src->w, h = src->h;
+  const uint8_t* prev = 0,
+               * curr = src->data,
+               * next = src->data + w;
   uint8_t* curr_dst = dst->data;
 
   // +4 to round up.

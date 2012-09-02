@@ -8,7 +8,4 @@ typedef struct graymap_t_ {
   uint8_t* data;
 } graymap_t;
 
-graymap_t* alloc_graymap(int w, int h);
-void free_graymap(graymap_t*);
-
 #endif  // GRAYMAP_H_

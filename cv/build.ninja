@@ -1,19 +1,21 @@
 builddir = build
 
-cflags = -O2 -Wall -fcolor-diagnostics -std=c11
+cflags = -O2 -Wall -Werror -fcolor-diagnostics -std=c11
 
 rule cc
   depfile = $out.d
   command = clang -c $in -o $out -MMD -MF $out.d $cflags
 
+build $builddir/alloc_graymap.o: cc alloc_graymap.c
 build $builddir/blur_box.o: cc blur_box.c
+build $builddir/connected_component.o: cc connected_component.c
 build $builddir/find_sudoku.o: cc find_sudoku.c
-build $builddir/graymap.o: cc graymap.c
 build $builddir/graymap_pgm.o: cc graymap_pgm.c
 build $builddir/threshold.o: cc threshold.c
 
 rule ld
   command = clang $in -o $out
 
-build $builddir/find_sudoku: ld $builddir/blur_box.o $builddir/find_sudoku.o $
-    $builddir/graymap.o $builddir/graymap_pgm.o $builddir/threshold.o
+build $builddir/find_sudoku: ld $builddir/alloc_graymap.o $
+    $builddir/blur_box.o $builddir/connected_component.o $
+    $builddir/find_sudoku.o $builddir/graymap_pgm.o $builddir/threshold.o
