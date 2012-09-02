@@ -1,7 +1,10 @@
 builddir = build
 
+cflags = -O2 -Wall -fcolor-diagnostics -std=c11
+
 rule cc
-  command = clang -O2 -Wall -c $in -o $out -fcolor-diagnostics -std=c11
+  depfile = $out.d
+  command = clang -c $in -o $out -MMD -MF $out.d $cflags
 
 build $builddir/blur_box.o: cc blur_box.c
 build $builddir/find_sudoku.o: cc find_sudoku.c
