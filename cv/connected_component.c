@@ -41,13 +41,10 @@ void find_biggest_connected_component(graymap_t* graymap) {
 
       if (x > 0 && curr[x-1] == 0)
         union_(curr_id[x], curr_id[x-1], id, sz);
-      if (prev && prev[x] == 0) {
-        // curr[x] and prev[x] could already be in the same class. sz assumes
-        // that union_() is never called for two elements that are already in
-        // the same component, so check first.
-        if (find(curr_id[x], id) != find(prev_id[x], id))
-          union_(curr_id[x], prev_id[x], id, sz);
-      }
+      // The sz logic assumes that union_() is never called for two elements
+      // already in the same class, so check first.
+      if (prev && prev[x] == 0 && find(curr_id[x], id) != find(prev_id[x], id))
+        union_(curr_id[x], prev_id[x], id, sz);
 
       unsigned cur = find(curr_id[x], id);
       if (sz[cur] > max_component_size) {
