@@ -26,7 +26,7 @@ void threshold_on_local_average(graymap_t* graymap, graymap_t* thres) {
     else                                   graymap->data[i] = 255;
 }
 
-void average_8(graymap_t* dst, graymap_t* src) {
+void blur_box1(graymap_t* dst, graymap_t* src) {
   int w = src->w, h = src->h;
   uint8_t* prev = 0,
          * curr = src->data,
@@ -34,8 +34,11 @@ void average_8(graymap_t* dst, graymap_t* src) {
   uint8_t* curr_dst = dst->data;
 
   // +4 to round up.
-  int local_avg = curr[1] + next[0] + next[1] + 4;
   for (int y = 0; y < h; ++y) {
+    int local_avg = curr[1] + 4;  // To round.
+    if (prev) local_avg += prev[0] + prev[1];
+    if (next) local_avg += next[0] + next[1];
+
     for (int x = 0; x < w; ++x) {
       curr_dst[x] = local_avg / 8;
 
@@ -57,10 +60,47 @@ void average_8(graymap_t* dst, graymap_t* src) {
     curr = next;
     next = (y + 1 == src->h) ? 0 : next + w;
 
-    local_avg = curr[1];
-    if (prev) local_avg += prev[0] + prev[1];
-    if (next) local_avg += next[0] + next[1];
-
     curr_dst += w;
   }
+}
+
+static int imin(int a, int b) { return a < b ? a : b; }
+static int imax(int a, int b) { return a > b ? a : b; }
+
+#include <stdio.h>
+
+void blur_box_k(graymap_t* dst, graymap_t* src, int k) {
+  int w = src->w, h = src->h;
+  uint8_t* curr = src->data;
+  uint8_t* curr_dst = dst->data;
+
+  for (int y = 0; y < h; ++y) {
+    const int lymin = imax(   -y, -k/2);
+    const int lymax = imin(h-1-y, +k/2);
+
+    int accum = k * k / 2;  // To round.
+    for (int ly = lymin; ly <= lymax; ++ly)
+      for (int x = 0; x <= imin(k/2, w-1); ++x)
+        accum += curr[x + ly * w];
+
+    for (int x = 0; x < w; ++x) {
+      curr_dst[x] = accum / (k * k);
+
+      if (x - k/2 >= 0)
+        for (int ly = lymin; ly <= lymax; ++ly)
+          accum -= curr[x - k/2 + ly * w];
+      if (x + k/2 + 1 < w)
+        for (int ly = lymin; ly <= lymax; ++ly)
+          accum += curr[x + k/2 + 1 + ly * w];
+    }
+
+    curr += w;
+    curr_dst += w;
+  }
+}
+
+void scale(graymap_t* graymap, int num, int denom) {
+  int n = graymap->w * graymap->h;
+  for (int i = 0; i < n; ++i)
+    graymap->data[i] = graymap->data[i] * num / denom;
 }
