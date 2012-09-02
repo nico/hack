@@ -24,12 +24,12 @@ int main(int argc, char* argv[]) {
   // http://sudokugrab.blogspot.com/2009/07/how-does-it-all-work.html
 
 #if 0
-  threshold_on_average(graymap);
+  threshold_on_constant(graymap, average_pixel(graymap));
 #else
   graymap_t* dst = alloc_graymap(graymap->w, graymap->h);
-  threshold_on_local_average(dst, graymap);
-  free_graymap(graymap);
-  graymap = dst;
+  average_8(dst, graymap);
+  threshold_on_local_average(graymap, dst);
+  free_graymap(dst);
 #endif
 
   save_graymap_to_pgm("out.pgm", graymap);

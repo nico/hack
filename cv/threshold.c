@@ -12,26 +12,32 @@ int average_pixel(graymap_t* graymap) {
   return (int)((avg + n/2) / n);
 }
 
-void threshold_on_average(graymap_t* graymap) {
-  int avg = average_pixel(graymap);
+void threshold_on_constant(graymap_t* graymap, int c) {
   int n = graymap->w * graymap->h;
   for (int i = 0; i < n; ++i)
-    if (graymap->data[i] < avg) graymap->data[i] = 0;
+    if (graymap->data[i] < c) graymap->data[i] = 0;
     else                        graymap->data[i] = 255;
 }
 
-void threshold_on_local_average(graymap_t* dst, graymap_t* src) {
+void threshold_on_local_average(graymap_t* graymap, graymap_t* thres) {
+  int n = graymap->w * graymap->h;
+  for (int i = 0; i < n; ++i)
+    if (graymap->data[i] < thres->data[i]) graymap->data[i] = 0;
+    else                                   graymap->data[i] = 255;
+}
+
+void average_8(graymap_t* dst, graymap_t* src) {
   int w = src->w, h = src->h;
   uint8_t* prev = 0,
          * curr = src->data,
          * next = src->data + w;
   uint8_t* curr_dst = dst->data;
 
-  int local_avg = curr[1] + next[0] + next[1];
+  // +4 to round up.
+  int local_avg = curr[1] + next[0] + next[1] + 4;
   for (int y = 0; y < h; ++y) {
     for (int x = 0; x < w; ++x) {
-      if (curr[x] < 9 * local_avg / 80) curr_dst[x] = 0;
-      else                              curr_dst[x] = 255;
+      curr_dst[x] = local_avg / 8;
 
       local_avg += curr[x];
       if (x - 1 >= 0) {
