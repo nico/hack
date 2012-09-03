@@ -37,6 +37,9 @@ bool find_corners(graymap_t* graymap, float corners[4][2]) {
     }
   }
 
+  float lines[4][2];
+  bool line_set[2] = {};
+
   //graymap_t* grayhough = alloc_graymap(kNumAngles, kNumRadii);
   unsigned maxhough = 1;
   for (int i = 0; i < kNumRadii*kNumAngles; ++i)
@@ -66,9 +69,39 @@ bool find_corners(graymap_t* graymap, float corners[4][2]) {
         float deg = besta * 180.f / kNumAngles;
         float radius = bestr * kMaxRadius / kNumRadii;
         fprintf(stderr, "r %f a %f\n", radius, deg);
+
+        if (!line_set[0]) {
+          for (int j = 0; j < 2; ++j) {
+            lines[j][0] = deg; 
+            lines[j][1] = radius; 
+          }
+          line_set[0] = true;
+        } else {
+          if (fabs(deg - lines[0][0]) < 10) {
+            if (radius > lines[1][1]) {
+              lines[1][0] = deg;
+              lines[1][1] = radius;
+            }
+          } else {
+            if (!line_set[1]) {
+              for (int j = 2; j < 4; ++j) {
+                lines[j][0] = deg; 
+                lines[j][1] = radius; 
+              }
+              line_set[1] = true;
+            } else {
+              if (radius > lines[3][1]) {
+                lines[3][0] = deg;
+                lines[3][1] = radius;
+              }
+            }
+          }
+        }
       }
     }
   }
+  for (int i = 0; i < 4; ++i)
+    fprintf(stderr, "%f/%f\n", lines[i][0], lines[i][1]);
   //save_graymap_to_pgm("hough.pgm", grayhough);
   //free_graymap(grayhough);
 
