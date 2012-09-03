@@ -28,7 +28,7 @@ static bool intersect(float point[2], const float l1[2], const float l2[2]) {
 
 bool find_corners(graymap_t* graymap, float corners[4][2]) {
   const int kNumAngles = 360;
-  const int kNumRadii = graymap->h / 2;
+  const int kNumRadii = graymap->h;
 
   float kSin[kNumAngles];
   float kCos[kNumAngles];
@@ -99,6 +99,8 @@ bool find_corners(graymap_t* graymap, float corners[4][2]) {
         float deg = besta * M_PI / kNumAngles;
         float radius = bestr * 2 * kMaxRadius / (kNumRadii - 1) - kMaxRadius;
 
+printf("candidate ang %f r %f\n", deg, radius);
+
         if (!line_set[0]) {
           for (int j = 0; j < 2; ++j) {
             lines[j][0] = deg; 
@@ -106,8 +108,8 @@ bool find_corners(graymap_t* graymap, float corners[4][2]) {
           }
           line_set[0] = true;
         } else {
-          // XXX fmod
-          if (fabs(deg - lines[0][0]) < 10 * M_PI / 180) {
+          // XXX fmod?
+          if (fabs(fmod(deg - lines[0][0], M_PI)) < 10 * M_PI / 180) {
             if (radius > lines[1][1]) {
               lines[1][0] = deg;
               lines[1][1] = radius;
@@ -138,7 +140,7 @@ bool find_corners(graymap_t* graymap, float corners[4][2]) {
     float r = lines[i][1];
     for (int y = 0; y < graymap->h; ++y) {
       for (int x = 0; x < graymap->w; ++x) {
-        if (fabs(x*nx + y*ny) < r)
+        if (x*nx + y*ny < r)
           graymap->data[y*graymap->w + x] *= (i + 1) * 17;
       }
     }
