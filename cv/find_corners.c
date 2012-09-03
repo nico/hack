@@ -57,14 +57,26 @@ bool find_corners(graymap_t* graymap, float corners[4][2]) {
   float lines[4][2];
   bool line_set[2] = {};
 
-  //graymap_t* grayhough = alloc_graymap(kNumAngles, kNumRadii);
   unsigned maxhough = 1;
   for (int i = 0; i < kNumRadii*kNumAngles; ++i)
     if (houghmap[i] > maxhough)
       maxhough = houghmap[i];
+
+#if 0
+  graymap_t* alloc_graymap(int w, int h);
+  void free_graymap(graymap_t*);
+  bool save_graymap_to_pgm(const char* filename, const graymap_t*);
+
+  graymap_t* grayhough = alloc_graymap(kNumAngles, kNumRadii);
+  for (int ri = 0, i = 0; ri < kNumRadii; ++ri)
+    for (int ai = 0; ai < kNumAngles; ++ai, ++i)
+      grayhough->data[i] = houghmap[i] * 255 / maxhough;
+  save_graymap_to_pgm("hough.pgm", grayhough);
+  free_graymap(grayhough);
+#endif
+
   for (int ri = 0, i = 0; ri < kNumRadii; ++ri) {
     for (int ai = 0; ai < kNumAngles; ++ai, ++i) {
-      //grayhough->data[i] = houghmap[i] * 255 / maxhough;
       if (houghmap[i] > 75 * maxhough / 100) {
         // Candidate! Find max in neighborhood, zero out remainder.
         const int k = 31;
@@ -73,7 +85,7 @@ bool find_corners(graymap_t* graymap, float corners[4][2]) {
              rd <= imin(ri + k/2, kNumRadii - 1);
              ++rd) {
           for (int ad = ai - k/2; ad <= ai + k/2; ++ad) {
-            int aii = ad < 0 ? ai + kNumAngles : ad;
+            int aii = ad < 0 ? ad + kNumAngles : ad;
             if (houghmap[rd*kNumAngles + aii] > best) {
               best = houghmap[rd*kNumAngles + aii];
               besta = aii;
@@ -85,7 +97,7 @@ bool find_corners(graymap_t* graymap, float corners[4][2]) {
 
         // XXX: could use kCos / kSin
         float deg = besta * M_PI / kNumAngles;
-        float radius = bestr * kMaxRadius / kNumRadii;
+        float radius = bestr * kMaxRadius / (kNumRadii - 1);
 
         if (!line_set[0]) {
           for (int j = 0; j < 2; ++j) {
@@ -117,8 +129,13 @@ bool find_corners(graymap_t* graymap, float corners[4][2]) {
       }
     }
   }
-  //save_graymap_to_pgm("hough.pgm", grayhough);
-  //free_graymap(grayhough);
+
+#if 1
+  int printf(const char*, ...);
+  for (int i = 0; i < 4; ++i) {
+    printf("angle %frad, radius %f\n", lines[i][0], lines[i][1]);
+  }
+#endif
 
   free(houghmap);
 
