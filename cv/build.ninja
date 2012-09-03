@@ -1,6 +1,6 @@
 builddir = build
 
-cflags = -O2 -Wall -Werror -fcolor-diagnostics -std=c11
+cflags = -O2 -Wall -Werror -fcolor-diagnostics -std=c11 -g
 
 rule cc
   depfile = $out.d
