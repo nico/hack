@@ -46,10 +46,7 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "Failed to find corners\n");
     return 1;
   }
-  printf("Corners:\n");
-  for (int i = 0; i < 4; ++i)
-    printf("%f, %f\n", projected_corners[i][0], projected_corners[i][1]);
-  printf("\n");
+
   for (int i = 0; i < 4; ++i) {
     const int k = 11;
     for (int y = projected_corners[i][1] - k/2;
@@ -77,25 +74,6 @@ int main(int argc, char* argv[]) {
   };
   float projmat[3][3];
   compute_projection_matrix(projmat, unprojected_corners, projected_corners);
-
-
-  for (int r = 0; r < 3; ++r) {
-    printf("%4.2f ", projmat[r][0]);
-    for (int c = 1; c < 3; ++c)
-      printf(" %4.2f", projmat[r][c]);
-    printf("\n");
-  }
-  printf("\n");
-
-  for (int i = 0; i < 4; ++i) {
-    float p[3] = {};
-    for (int j = 0; j < 3; ++j) {
-      for (int k = 0; k < 2; ++k)
-        p[j] += projmat[j][k] * unprojected_corners[i][k];
-      p[j] += projmat[j][2];
-    }
-    printf("%f %f\n", p[0] / p[2], p[1] / p[2]);
-  }
 
   graymap_t* orig = alloc_graymap_from_pgm(argv[1]);
   graymap_t* sudoku = alloc_graymap(kSudokuWidth, kSudokuHeight);
