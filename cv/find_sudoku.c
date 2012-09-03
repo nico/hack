@@ -48,6 +48,23 @@ int main(int argc, char* argv[]) {
   for (int i = 0; i < 4; ++i)
     printf("%f, %f\n", projected_corners[i][0], projected_corners[i][1]);
   printf("\n");
+  for (int i = 0; i < 4; ++i) {
+    const int k = 11;
+    for (int y = projected_corners[i][1] - k/2;
+         y <= projected_corners[i][1] + k/2;
+         ++y) {
+      for (int x = projected_corners[i][0] - k/2;
+           x <= projected_corners[i][0] + k/2;
+           ++x) {
+        graymap->data[y*graymap->w + x] = 128;
+      }
+    }
+  }
+
+  save_graymap_to_pgm("out.pgm", graymap);
+  printf("Wrote out.png\n");
+
+  free_graymap(graymap);
 
   const int kSudokuWidth = 16 * 9;
   const int kSudokuHeight = 16 * 9;
@@ -90,6 +107,7 @@ int main(int argc, char* argv[]) {
       };
       int sx = p[0] / p[2];
       int sy = p[1] / p[2];
+      // XXX nicer sampling
       sudoku->data[y * kSudokuWidth + x] = orig->data[sy * graymap->w + sx];
     }
   }
@@ -97,9 +115,4 @@ int main(int argc, char* argv[]) {
 
   save_graymap_to_pgm("sudoku.pgm", sudoku);
   free_graymap(sudoku);
-
-  save_graymap_to_pgm("out.pgm", graymap);
-  printf("Wrote out.png\n");
-
-  free_graymap(graymap);
 }
