@@ -57,13 +57,14 @@ int main(int argc, char* argv[]) {
     { 0, kSudokuHeight - 1 },
     { kSudokuWidth - 1, kSudokuHeight - 1 },
   };
-  float projection_matrix[3][3];
-  compute_projection_matrix(projection_matrix, projected_corners,
-                            unprojected_corners);
+  float projmat[3][3];
+  compute_projection_matrix(projmat, unprojected_corners, projected_corners);
+
+
   for (int r = 0; r < 3; ++r) {
-    printf("%4.2f ", projection_matrix[r][0]);
+    printf("%4.2f ", projmat[r][0]);
     for (int c = 1; c < 3; ++c)
-      printf(" %4.2f", projection_matrix[r][c]);
+      printf(" %4.2f", projmat[r][c]);
     printf("\n");
   }
   printf("\n");
@@ -72,13 +73,30 @@ int main(int argc, char* argv[]) {
     float p[3] = {};
     for (int j = 0; j < 3; ++j) {
       for (int k = 0; k < 2; ++k)
-        p[j] += projection_matrix[j][k] * projected_corners[i][k];
-      p[j] += projection_matrix[j][2];
+        p[j] += projmat[j][k] * unprojected_corners[i][k];
+      p[j] += projmat[j][2];
     }
-    //printf("%f %f %f\n", p[0], p[1], p[2]);
     printf("%f %f\n", p[0] / p[2], p[1] / p[2]);
   }
 
+  graymap_t* orig = alloc_graymap_from_pgm(argv[1]);
+  graymap_t* sudoku = alloc_graymap(kSudokuWidth, kSudokuHeight);
+  for (int y = 0; y < kSudokuHeight; ++y) {
+    for (int x = 0; x < kSudokuWidth; ++x) {
+      float p[3] = {
+        projmat[0][0]*x + projmat[0][1]*y + projmat[0][2],
+        projmat[1][0]*x + projmat[1][1]*y + projmat[1][2],
+        projmat[2][0]*x + projmat[2][1]*y + projmat[2][2],
+      };
+      int sx = p[0] / p[2];
+      int sy = p[1] / p[2];
+      sudoku->data[y * kSudokuWidth + x] = orig->data[sy * graymap->w + sx];
+    }
+  }
+  free_graymap(orig);
+
+  save_graymap_to_pgm("sudoku.pgm", sudoku);
+  free_graymap(sudoku);
 
   save_graymap_to_pgm("out.pgm", graymap);
   printf("Wrote out.png\n");
