@@ -148,9 +148,6 @@ bool find_corners(graymap_t* graymap, float corners[4][2]) {
   // Move horizonal lines first.
   if (fabs(rad_dist_mod_pi(lines[0][0], M_PI/2)) >
       fabs(rad_dist_mod_pi(lines[2][0], M_PI/2))) {
-int printf(const char*, ...);
-printf("swap %f %f\n", rad_dist_mod_pi(lines[0][0], 0),
-                       rad_dist_mod_pi(lines[2][0], 0));
     float tmp[2];
     memcpy(tmp, lines[0], sizeof(tmp));
     memcpy(lines[0], lines[2], sizeof(tmp));

@@ -8,6 +8,7 @@
 #include "threshold.h"
 
 #include <stdio.h>
+#include <string.h>
 
 int usage(const char* program_name) {
   fprintf(stderr, "Usage: %s file.pgm\n", program_name);
@@ -93,5 +94,39 @@ int main(int argc, char* argv[]) {
   free_graymap(orig);
 
   save_graymap_to_pgm("4_sudoku.pgm", sudoku);
+
+  threshold_pixels(sudoku);
+  save_graymap_to_pgm("5_thresh.pgm", sudoku);
+
+  graymap_t* tile = alloc_graymap(16, 16);
+  for (int r = 0; r < 9; ++r) {
+    for (int c = 0; c < 9; ++c) {
+      // XXX give graymap a stride? Then this copying isn't needed.
+      for (int y = 0; y < tile->h; ++y)
+        for (int x = 0; x < tile->w; ++x) {
+          tile->data[y*tile->w + x] =
+              sudoku->data[(y + r*16)*sudoku->w + (x + c*16)];
+        }
+
+      // Clean 2px wide border.
+      memset(tile->data, 255, 2*16);
+      memset(&tile->data[14 * 16], 255, 2*16);
+      for (int i = 2; i < 14; ++i) {
+        tile->data[i*16 + 0]  = 255;
+        tile->data[i*16 + 1]  = 255;
+        tile->data[i*16 + 14] = 255;
+        tile->data[i*16 + 15] = 255;
+      }
+
+      for (int y = 0; y < tile->h; ++y)
+        for (int x = 0; x < tile->w; ++x) {
+          sudoku->data[(y + r*16)*sudoku->w + (x + c*16)] =
+              tile->data[y*tile->w + x];
+        }
+    }
+  }
+  free_graymap(tile);
+  save_graymap_to_pgm("6_comp.pgm", sudoku);
+
   free_graymap(sudoku);
 }
