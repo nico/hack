@@ -114,6 +114,6 @@ int main(int argc, char* argv[]) {
   }
   free_graymap(orig);
 
-  save_graymap_to_pgm("sudoku.pgm", sudoku);
+  save_graymap_to_pgm("4_sudoku.pgm", sudoku);
   free_graymap(sudoku);
 }

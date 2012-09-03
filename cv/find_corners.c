@@ -62,7 +62,7 @@ bool find_corners(graymap_t* graymap, float corners[4][2]) {
     if (houghmap[i] > maxhough)
       maxhough = houghmap[i];
 
-#if 1
+#if 0
   graymap_t* alloc_graymap(int w, int h);
   void free_graymap(graymap_t*);
   bool save_graymap_to_pgm(const char* filename, const graymap_t*);
@@ -149,7 +149,7 @@ printf("candidate ang %f r %f\n", deg, radius);
   }
 #endif
 
-#if 1
+#if 0
   int printf(const char*, ...);
   for (int i = 0; i < 4; ++i) {
     printf("angle %frad, radius %f\n", lines[i][0], lines[i][1]);
