@@ -39,7 +39,13 @@ int main(int argc, char* argv[]) {
   find_biggest_connected_component(graymap);
 
   float corners[4][2];
-  find_corners(graymap, corners);
+  if (!find_corners(graymap, corners)) {
+    fprintf(stderr, "Failed to find corners\n");
+    return 1;
+  }
+  printf("Corners:\n");
+  for (int i = 0; i < 4; ++i)
+    printf("%f, %f\n", corners[i][0], corners[i][1]);
 
   save_graymap_to_pgm("out.pgm", graymap);
   printf("Wrote out.png\n");

@@ -3,11 +3,28 @@
 #include "graymap.h"
 
 #include <math.h>
-#include <stdio.h>
 #include <stdlib.h>
 
 static int imin(int a, int b) { return a < b ? a : b; }
 static int imax(int a, int b) { return a > b ? a : b; }
+
+static bool intersect(float point[2], float l1[2], float l2[2]) {
+  float nx1 = cos(l1[0]);
+  float ny1 = sin(l1[0]);
+
+  float nx2 = cos(l2[0]);
+  float ny2 = sin(l2[0]);
+
+  float d = nx1 * ny2 - nx2 * ny1;
+  if (fabs(d) < 0.0001f)
+    return false;
+
+  // fabs() due to mod 180 in line orientation.
+  point[0] = fabs((ny2 * l1[1] - ny1 * l2[1]) / d);
+  point[1] = fabs((nx1 * l2[1] - nx2 * l1[1]) / d);
+
+  return true;
+}
 
 bool find_corners(graymap_t* graymap, float corners[4][2]) {
   const int kNumAngles = 360;
@@ -66,9 +83,9 @@ bool find_corners(graymap_t* graymap, float corners[4][2]) {
           }
         }
 
-        float deg = besta * 180.f / kNumAngles;
+        // XXX: could use kCos / kSin
+        float deg = besta * M_PI / kNumAngles;
         float radius = bestr * kMaxRadius / kNumRadii;
-        fprintf(stderr, "r %f a %f\n", radius, deg);
 
         if (!line_set[0]) {
           for (int j = 0; j < 2; ++j) {
@@ -77,7 +94,7 @@ bool find_corners(graymap_t* graymap, float corners[4][2]) {
           }
           line_set[0] = true;
         } else {
-          if (fabs(deg - lines[0][0]) < 10) {
+          if (fabs(deg - lines[0][0]) < 10 * M_PI / 180) {
             if (radius > lines[1][1]) {
               lines[1][0] = deg;
               lines[1][1] = radius;
@@ -100,12 +117,13 @@ bool find_corners(graymap_t* graymap, float corners[4][2]) {
       }
     }
   }
-  for (int i = 0; i < 4; ++i)
-    fprintf(stderr, "%f/%f\n", lines[i][0], lines[i][1]);
   //save_graymap_to_pgm("hough.pgm", grayhough);
   //free_graymap(grayhough);
 
   free(houghmap);
 
-  return true;
+  return intersect(corners[0], lines[0], lines[2]) &&
+         intersect(corners[1], lines[0], lines[3]) &&
+         intersect(corners[2], lines[1], lines[2]) &&
+         intersect(corners[3], lines[1], lines[3]);
 }
