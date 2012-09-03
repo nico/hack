@@ -65,8 +65,9 @@ int main(int argc, char* argv[]) {
 
   free_graymap(graymap);
 
-  const int kSudokuWidth = 16 * 9;
-  const int kSudokuHeight = 16 * 9;
+  const int kTileSize = 16;
+  const int kSudokuWidth = kTileSize * 9;
+  const int kSudokuHeight = kTileSize * 9;
   float unprojected_corners[4][2] = {
     { 0, 0 },
     { kSudokuWidth - 1 , 0 },
@@ -98,29 +99,29 @@ int main(int argc, char* argv[]) {
   threshold_pixels(sudoku);
   save_graymap_to_pgm("5_thresh.pgm", sudoku);
 
-  graymap_t* tile = alloc_graymap(16, 16);
+  graymap_t* tile = alloc_graymap(kTileSize, kTileSize);
   for (int r = 0; r < 9; ++r) {
     for (int c = 0; c < 9; ++c) {
       // XXX give graymap a stride? Then this copying isn't needed.
       for (int y = 0; y < tile->h; ++y)
         for (int x = 0; x < tile->w; ++x) {
           tile->data[y*tile->w + x] =
-              sudoku->data[(y + r*16)*sudoku->w + (x + c*16)];
+              sudoku->data[(y + r*kTileSize)*sudoku->w + (x + c*kTileSize)];
         }
 
       // Clean 2px wide border.
-      memset(tile->data, 255, 2*16);
-      memset(&tile->data[14 * 16], 255, 2*16);
+      memset(tile->data, 255, 2*kTileSize);
+      memset(&tile->data[14 * kTileSize], 255, 2*kTileSize);
       for (int i = 2; i < 14; ++i) {
-        tile->data[i*16 + 0]  = 255;
-        tile->data[i*16 + 1]  = 255;
-        tile->data[i*16 + 14] = 255;
-        tile->data[i*16 + 15] = 255;
+        tile->data[i*kTileSize + 0]  = 255;
+        tile->data[i*kTileSize + 1]  = 255;
+        tile->data[i*kTileSize + 14] = 255;
+        tile->data[i*kTileSize + 15] = 255;
       }
 
       for (int y = 0; y < tile->h; ++y)
         for (int x = 0; x < tile->w; ++x) {
-          sudoku->data[(y + r*16)*sudoku->w + (x + c*16)] =
+          sudoku->data[(y + r*kTileSize)*sudoku->w + (x + c*kTileSize)] =
               tile->data[y*tile->w + x];
         }
     }
