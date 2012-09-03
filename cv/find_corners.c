@@ -28,7 +28,7 @@ static bool intersect(float point[2], const float l1[2], const float l2[2]) {
 
 bool find_corners(graymap_t* graymap, float corners[4][2]) {
   const int kNumAngles = 360;
-  const int kNumRadii = graymap->h;
+  const int kNumRadii = graymap->h / 2;
 
   float kSin[kNumAngles];
   float kCos[kNumAngles];
@@ -77,7 +77,7 @@ bool find_corners(graymap_t* graymap, float corners[4][2]) {
 
   for (int ri = 0, i = 0; ri < kNumRadii; ++ri) {
     for (int ai = 0; ai < kNumAngles; ++ai, ++i) {
-      if (houghmap[i] > 75 * maxhough / 100) {
+      if (houghmap[i] > 25 * maxhough / 100) {
         // Candidate! Find max in neighborhood, zero out remainder.
         const int k = 21;
         unsigned best = houghmap[i], besta = ai, bestr = ri;
