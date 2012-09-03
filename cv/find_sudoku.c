@@ -4,6 +4,7 @@
 #include "find_corners.h"
 #include "graymap.h"
 #include "graymap_pgm.h"
+#include "linear.h"
 #include "threshold.h"
 
 #include <stdio.h>
@@ -38,14 +39,46 @@ int main(int argc, char* argv[]) {
   // TODO: Maybe run a few open iterations to clean up noise pixels?
   find_biggest_connected_component(graymap);
 
-  float corners[4][2];
-  if (!find_corners(graymap, corners)) {
+  float projected_corners[4][2];
+  if (!find_corners(graymap, projected_corners)) {
     fprintf(stderr, "Failed to find corners\n");
     return 1;
   }
   printf("Corners:\n");
   for (int i = 0; i < 4; ++i)
-    printf("%f, %f\n", corners[i][0], corners[i][1]);
+    printf("%f, %f\n", projected_corners[i][0], projected_corners[i][1]);
+  printf("\n");
+
+  const int kSudokuWidth = 16 * 9;
+  const int kSudokuHeight = 16 * 9;
+  float unprojected_corners[4][2] = {
+    { 0, 0 },
+    { kSudokuWidth - 1 , 0 },
+    { 0, kSudokuHeight - 1 },
+    { kSudokuWidth - 1, kSudokuHeight - 1 },
+  };
+  float projection_matrix[3][3];
+  compute_projection_matrix(projection_matrix, projected_corners,
+                            unprojected_corners);
+  for (int r = 0; r < 3; ++r) {
+    printf("%4.2f ", projection_matrix[r][0]);
+    for (int c = 1; c < 3; ++c)
+      printf(" %4.2f", projection_matrix[r][c]);
+    printf("\n");
+  }
+  printf("\n");
+
+  for (int i = 0; i < 4; ++i) {
+    float p[3] = {};
+    for (int j = 0; j < 3; ++j) {
+      for (int k = 0; k < 2; ++k)
+        p[j] += projection_matrix[j][k] * projected_corners[i][k];
+      p[j] += projection_matrix[j][2];
+    }
+    //printf("%f %f %f\n", p[0], p[1], p[2]);
+    printf("%f %f\n", p[0] / p[2], p[1] / p[2]);
+  }
+
 
   save_graymap_to_pgm("out.pgm", graymap);
   printf("Wrote out.png\n");
