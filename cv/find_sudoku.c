@@ -23,6 +23,10 @@ void threshold_pixels(graymap_t* graymap) {
   free_graymap(threshold);
 }
 
+static float lerp(float s, float a, float b) {
+  return (1 - s)*a + s*b;
+}
+
 int main(int argc, char* argv[]) {
   if (argc != 2) {
     return usage(argv[0]);
@@ -86,10 +90,27 @@ int main(int argc, char* argv[]) {
         projmat[1][0]*x + projmat[1][1]*y + projmat[1][2],
         projmat[2][0]*x + projmat[2][1]*y + projmat[2][2],
       };
-      int sx = p[0] / p[2];
-      int sy = p[1] / p[2];
-      // XXX nicer sampling
-      sudoku->data[y * kSudokuWidth + x] = orig->data[sy * graymap->w + sx];
+      float sx = p[0] / p[2];
+      float sy = p[1] / p[2];
+      int ix = (int)sx;
+      int iy = (int)sy;
+
+      // XXX nicer sampling?
+#if 1
+      sx -= ix;
+      sy -= iy;
+      int ix2 = ix < orig->w-1 ? ix + 1 : ix;
+      int iy2 = iy < orig->h-1 ? iy + 1 : iy;
+      float p1 = lerp(sx, orig->data[iy*graymap->w + ix],
+                          orig->data[iy*graymap->w + ix2]);
+      float p2 = lerp(sx, orig->data[iy2*graymap->w + ix],
+                          orig->data[iy2*graymap->w + ix2]);
+      float p3 = lerp(sy, p1, p2);
+
+      sudoku->data[y * kSudokuWidth + x] = p3 + 0.5;
+#else
+      sudoku->data[y * kSudokuWidth + x] = orig->data[iy*graymap->w + ix];
+#endif
     }
   }
   free_graymap(orig);
