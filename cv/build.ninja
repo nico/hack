@@ -9,6 +9,7 @@ rule cc
 build $builddir/alloc_graymap.o: cc alloc_graymap.c
 build $builddir/blur_box.o: cc blur_box.c
 build $builddir/connected_component.o: cc connected_component.c
+build $builddir/find_corners.o: cc find_corners.c
 build $builddir/find_sudoku.o: cc find_sudoku.c
 build $builddir/graymap_pgm.o: cc graymap_pgm.c
 build $builddir/threshold.o: cc threshold.c
@@ -18,4 +19,5 @@ rule ld
 
 build $builddir/find_sudoku: ld $builddir/alloc_graymap.o $
     $builddir/blur_box.o $builddir/connected_component.o $
-    $builddir/find_sudoku.o $builddir/graymap_pgm.o $builddir/threshold.o
+    $builddir/find_sudoku.o $builddir/find_corners.o $
+    $builddir/graymap_pgm.o $builddir/threshold.o
