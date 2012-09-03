@@ -4,11 +4,18 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 static int imin(int a, int b) { return a < b ? a : b; }
 static int imax(int a, int b) { return a > b ? a : b; }
 
-#include <stdio.h>
+static float rad_dist_mod_pi(float a1, float a2) {
+  float d = a1 - a2;
+  if (d > 0.5*M_PI) d -= M_PI;
+  if (d < -0.5*M_PI) d += M_PI;
+  return d;
+}
+
 static bool intersect(float point[2], const float l1[2], const float l2[2]) {
   float nx1 = cos(l1[0]);
   float ny1 = sin(l1[0]);
@@ -99,8 +106,6 @@ bool find_corners(graymap_t* graymap, float corners[4][2]) {
         float deg = besta * M_PI / kNumAngles;
         float radius = bestr * 2 * kMaxRadius / (kNumRadii - 1) - kMaxRadius;
 
-printf("candidate ang %f r %f\n", deg, radius);
-
         if (!line_set[0]) {
           for (int j = 0; j < 2; ++j) {
             lines[j][0] = deg; 
@@ -135,7 +140,36 @@ printf("candidate ang %f r %f\n", deg, radius);
     }
   }
 
-#if 1
+  free(houghmap);
+
+  if (!line_set[0] || !line_set[1] || !line_set[2] || !line_set[3])
+    return false;
+
+  // Move horizonal lines first.
+  if (fabs(rad_dist_mod_pi(lines[0][0], M_PI/2)) >
+      fabs(rad_dist_mod_pi(lines[2][0], M_PI/2))) {
+int printf(const char*, ...);
+printf("swap %f %f\n", rad_dist_mod_pi(lines[0][0], 0),
+                       rad_dist_mod_pi(lines[2][0], 0));
+    float tmp[2];
+    memcpy(tmp, lines[0], sizeof(tmp));
+    memcpy(lines[0], lines[2], sizeof(tmp));
+    memcpy(lines[2], tmp, sizeof(tmp));
+
+    memcpy(tmp, lines[1], sizeof(tmp));
+    memcpy(lines[1], lines[3], sizeof(tmp));
+    memcpy(lines[3], tmp, sizeof(tmp));
+  }
+  // Within a pair, move the line closer to the origin first.
+  for (int i = 0; i < 2; ++i)
+    if (fabs(lines[2*i][1]) > fabs(lines[2*i+1][1])) {
+      float tmp[2];
+      memcpy(tmp, lines[2*i], sizeof(tmp));
+      memcpy(lines[2*i], lines[2*i+1], sizeof(tmp));
+      memcpy(lines[2*i+1], tmp, sizeof(tmp));
+    }
+
+#if 0
   for (int i = 0; i < 4; ++i ) {
     float nx = cos(lines[i][0]);
     float ny = sin(lines[i][0]);
@@ -155,11 +189,6 @@ printf("candidate ang %f r %f\n", deg, radius);
     printf("angle %frad, radius %f\n", lines[i][0], lines[i][1]);
   }
 #endif
-
-  free(houghmap);
-
-  if (!line_set[0] || !line_set[1] || !line_set[2] || !line_set[3])
-    return false;
 
   return intersect(corners[0], lines[0], lines[2]) &&
          intersect(corners[1], lines[0], lines[3]) &&
