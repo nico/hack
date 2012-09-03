@@ -55,7 +55,7 @@ bool find_corners(graymap_t* graymap, float corners[4][2]) {
   }
 
   float lines[4][2];
-  bool line_set[2] = {};
+  bool line_set[4] = {};
 
   unsigned maxhough = 1;
   for (int i = 0; i < kNumRadii*kNumAngles; ++i)
@@ -113,6 +113,7 @@ printf("candidate ang %f r %f\n", deg, radius);
             if (radius > lines[1][1]) {
               lines[1][0] = deg;
               lines[1][1] = radius;
+              line_set[2] = true;
             }
           } else {
             if (!line_set[1]) {
@@ -125,6 +126,7 @@ printf("candidate ang %f r %f\n", deg, radius);
               if (radius > lines[3][1]) {
                 lines[3][0] = deg;
                 lines[3][1] = radius;
+                line_set[3] = true;
               }
             }
           }
@@ -155,6 +157,9 @@ printf("candidate ang %f r %f\n", deg, radius);
 #endif
 
   free(houghmap);
+
+  if (!line_set[0] || !line_set[1] || !line_set[2] || !line_set[3])
+    return false;
 
   return intersect(corners[0], lines[0], lines[2]) &&
          intersect(corners[1], lines[0], lines[3]) &&

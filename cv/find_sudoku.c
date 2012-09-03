@@ -36,8 +36,10 @@ int main(int argc, char* argv[]) {
   
   // http://sudokugrab.blogspot.com/2009/07/how-does-it-all-work.html
   threshold_pixels(graymap);
+  save_graymap_to_pgm("1_thresh.pgm", graymap);
   // TODO: Maybe run a few open iterations to clean up noise pixels?
   find_biggest_connected_component(graymap);
+  save_graymap_to_pgm("2_component.pgm", graymap);
 
   float projected_corners[4][2];
   if (!find_corners(graymap, projected_corners)) {
@@ -61,8 +63,7 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  save_graymap_to_pgm("out.pgm", graymap);
-  printf("Wrote out.png\n");
+  save_graymap_to_pgm("3_corners.pgm", graymap);
 
   free_graymap(graymap);
 
