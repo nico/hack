@@ -16,9 +16,13 @@ build $builddir/linear.o: cc linear.c
 build $builddir/threshold.o: cc threshold.c
 
 rule ld
-  command = clang $in -o $out
+  command = clang $in -o $out $ldflags
 
 build $builddir/find_sudoku: ld $builddir/alloc_graymap.o $
     $builddir/blur_box.o $builddir/connected_component.o $
     $builddir/find_sudoku.o $builddir/find_corners.o $
     $builddir/graymap_pgm.o $builddir/linear.o $builddir/threshold.o
+
+build $builddir/train_mac.o: cc train_mac.m
+build $builddir/train_mac: ld $builddir/train_mac.o
+  ldflags = -framework Cocoa
