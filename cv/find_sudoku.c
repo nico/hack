@@ -60,7 +60,8 @@ int main(int argc, char* argv[]) {
       for (int x = projected_corners[i][0] - k/2;
            x <= projected_corners[i][0] + k/2;
            ++x) {
-        graymap->data[y*graymap->w + x] = 128 + 30 * i;
+        if (x >= 0 && x < graymap->w && y >= 0 && y < graymap->h)
+          graymap->data[y*graymap->w + x] = 128 + 30 * i;
       }
     }
   }

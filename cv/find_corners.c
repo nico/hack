@@ -84,7 +84,7 @@ bool find_corners(graymap_t* graymap, float corners[4][2]) {
 
   for (int ri = 0, i = 0; ri < kNumRadii; ++ri) {
     for (int ai = 0; ai < kNumAngles; ++ai, ++i) {
-      if (houghmap[i] > 25 * maxhough / 100) {
+      if (houghmap[i] > 45 * maxhough / 100) {
         // Candidate! Find max in neighborhood, zero out remainder.
         const int k = 21;
         unsigned best = houghmap[i], besta = ai, bestr = ri;
@@ -92,19 +92,33 @@ bool find_corners(graymap_t* graymap, float corners[4][2]) {
              rd <= imin(ri + k/2, kNumRadii - 1);
              ++rd) {
           for (int ad = ai - k/2; ad <= ai + k/2; ++ad) {
-            int aii = ad < 0 ? ad + kNumAngles : ad;
-            if (houghmap[rd*kNumAngles + aii] > best) {
-              best = houghmap[rd*kNumAngles + aii];
-              besta = aii;
-              bestr = rd;
+            int aii = ad;
+            int rdd = rd;
+            if (aii < 0) {
+              aii += kNumAngles;
+              rdd = kNumRadii - rd;
             }
-            houghmap[rd*kNumAngles + aii] = 0;
+            if (aii >= kNumAngles) {
+              aii -= kNumAngles;
+              rdd = kNumRadii - rd;
+            }
+            if (houghmap[rdd*kNumAngles + aii] > best) {
+              best = houghmap[rdd*kNumAngles + aii];
+              besta = aii;
+              bestr = rdd;
+            }
+            houghmap[rdd*kNumAngles + aii] = 0;
           }
         }
 
         // XXX: could use kCos / kSin
         float deg = besta * M_PI / kNumAngles;
         float radius = bestr * 2 * kMaxRadius / (kNumRadii - 1) - kMaxRadius;
+
+#if 0
+        int printf(const char*, ...);
+        printf("candidate %d %d: %f rad, %f\n", besta, bestr, deg, radius);
+#endif
 
         if (!line_set[0]) {
           for (int j = 0; j < 2; ++j) {
@@ -113,9 +127,13 @@ bool find_corners(graymap_t* graymap, float corners[4][2]) {
           }
           line_set[0] = true;
         } else {
-          // XXX fmod?
-          if (fabs(fmod(deg - lines[0][0], M_PI)) < 10 * M_PI / 180) {
-            if (radius > lines[1][1]) {
+          if (fabs(rad_dist_mod_pi(deg, lines[0][0])) < 10 * M_PI / 180) {
+            if (fabs(radius) < fabs(lines[0][1])) {
+              lines[0][0] = deg;
+              lines[0][1] = radius;
+              line_set[2] = true;
+            }
+            if (fabs(radius) > fabs(lines[1][1])) {
               lines[1][0] = deg;
               lines[1][1] = radius;
               line_set[2] = true;
@@ -128,7 +146,12 @@ bool find_corners(graymap_t* graymap, float corners[4][2]) {
               }
               line_set[1] = true;
             } else {
-              if (radius > lines[3][1]) {
+              if (fabs(radius) < fabs(lines[2][1])) {
+                lines[2][0] = deg;
+                lines[2][1] = radius;
+                line_set[3] = true;
+              }
+              if (fabs(radius) > fabs(lines[3][1])) {
                 lines[3][0] = deg;
                 lines[3][1] = radius;
                 line_set[3] = true;
