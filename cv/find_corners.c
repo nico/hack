@@ -34,8 +34,8 @@ static bool intersect(float point[2], const float l1[2], const float l2[2]) {
 }
 
 bool find_corners(graymap_t* graymap, float corners[4][2]) {
-  const int kNumAngles = 360;
-  const int kNumRadii = graymap->h / 2;
+  const int kNumAngles = 720;
+  const int kNumRadii = graymap->h;
 
   float kSin[kNumAngles];
   float kCos[kNumAngles];
