@@ -1,23 +1,17 @@
 #import <Cocoa/Cocoa.h>
 
-void save(NSBitmapImageRep* bitmapRep, NSString* name) {
-  //NSSize s = [img size];
-  //[img lockFocus];
-  //NSBitmapImageRep* bitmapRep = [[NSBitmapImageRep alloc]
-      //initWithFocusedViewRect:NSMakeRect(0, 0, s.width, s.height)];
-  //[img unlockFocus];
+const int kSize = 16;
 
+void save(NSBitmapImageRep* bitmapRep, NSString* name) {
   [[bitmapRep representationUsingType:NSPNGFileType properties:nil]
       writeToFile:name atomically:YES];
-
-  //[bitmapRep release];
 }
 
-void i() {
+NSBitmapImageRep* chr(int num) {
   NSBitmapImageRep* rep = [[[NSBitmapImageRep alloc]
       initWithBitmapDataPlanes:NULL
-                    pixelsWide:16
-                    pixelsHigh:16
+                    pixelsWide:kSize
+                    pixelsHigh:kSize
                  bitsPerSample:8
                samplesPerPixel:4
                       hasAlpha:YES
@@ -41,23 +35,23 @@ void i() {
   NSMutableParagraphStyle* style =
       [[[NSMutableParagraphStyle alloc] init] autorelease];
   [style setAlignment:NSCenterTextAlignment];
-  NSFont* font = [NSFont fontWithName:@"Helvetica" size:16.0];
+  NSFont* font = [NSFont fontWithName:@"Helvetica" size:kSize];
   NSDictionary* attributes = @{
     NSFontAttributeName: font,
     NSParagraphStyleAttributeName: style,
   };
   NSRect txrect = imgrect;
   txrect.origin.y = (NSHeight(imgrect) - [font capHeight]) / 2;
-  [@"3" drawInRect:txrect withAttributes:attributes];
+  [[NSString stringWithFormat:@"%d", num]
+      drawInRect:txrect withAttributes:attributes];
 
   [NSGraphicsContext restoreGraphicsState];
-
-  save(rep, @"test.png");
+  return rep;
 }
 
 int main() {
   @autoreleasepool {
     NSApplicationLoad();
-    i();
+    save(chr(4), @"test.png");
   }
 }
