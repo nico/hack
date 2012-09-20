@@ -14,7 +14,7 @@ void save(NSBitmapImageRep* bitmapRep, NSString* name) {
 }
 
 void i() {
-  NSBitmapImageRep* r = [[NSBitmapImageRep alloc]
+  NSBitmapImageRep* rep = [[[NSBitmapImageRep alloc]
       initWithBitmapDataPlanes:NULL
                     pixelsWide:16
                     pixelsHigh:16
@@ -25,24 +25,39 @@ void i() {
                 colorSpaceName:NSDeviceRGBColorSpace
                   bitmapFormat:0
                    bytesPerRow:0
-                  bitsPerPixel:0];
+                  bitsPerPixel:0] autorelease];
 
   [NSGraphicsContext saveGraphicsState];
   NSGraphicsContext* context = [NSGraphicsContext
-    graphicsContextWithBitmapImageRep:r];
+    graphicsContextWithBitmapImageRep:rep];
   [context setShouldAntialias:YES];
   [context setImageInterpolation:NSImageInterpolationHigh];
   [NSGraphicsContext setCurrentContext:context];
 
-  // ...
+  [[NSColor whiteColor] set];
+  NSRect imgrect = NSMakeRect(0, 0, [rep size].width, [rep size].height);
+  NSRectFill(imgrect);
+
+  NSMutableParagraphStyle* style =
+      [[[NSMutableParagraphStyle alloc] init] autorelease];
+  [style setAlignment:NSCenterTextAlignment];
+  NSFont* font = [NSFont fontWithName:@"Helvetica" size:16.0];
+  NSDictionary* attributes = @{
+    NSFontAttributeName: font,
+    NSParagraphStyleAttributeName: style,
+  };
+  NSRect txrect = imgrect;
+  txrect.origin.y = (NSHeight(imgrect) - [font capHeight]) / 2;
+  [@"3" drawInRect:txrect withAttributes:attributes];
 
   [NSGraphicsContext restoreGraphicsState];
 
-  save(r, @"test.png");
-  [r release];
+  save(rep, @"test.png");
 }
 
 int main() {
-  NSApplicationLoad();
-  i();
+  @autoreleasepool {
+    NSApplicationLoad();
+    i();
+  }
 }
