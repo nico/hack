@@ -34,11 +34,10 @@ uint32_t crc(const unsigned char *buf, int len) {
   return update_crc(0, buf, len);
 }
 
+void fput_n(uint32_t u, FILE* f, int n) {
+  for (int i = 0; i < n; i++) fputc(u >> (8*i), f);
+}
 int main() {
-  // XXX happens to work on little-endian x86s; make portable.
-  uint32_t d;
-  uint16_t h;
-
   make_crc_table();
 
   const unsigned char data[] = "Hello gzip\n";
@@ -48,17 +47,17 @@ int main() {
   fputc(139, stdout);  // magic number 2
   fputc(8, stdout);    // compression method: deflate
   fputc(0, stdout);    // flags
-  d = 0; fwrite(&d, 4, 1, stdout);  // mtime
+  fput_n(0, stdout, 4);  // mtime
   fputc(0, stdout);    // extra flags
   fputc(0xff, stdout); // OS
 
   // data
   fputc(1, stdout); // Final block, compression method: uncompressed
-  h = sizeof(data); fwrite(&h, 2, 1, stdout);
-  h = ~h; fwrite(&h, 2, 1, stdout);
+  fput_n(sizeof(data), stdout, 2);
+  fput_n(~(uint16_t)sizeof(data), stdout, 2);
   fwrite(data, 1, sizeof(data), stdout);
 
   // footer
-  d = crc(data, sizeof(data)); fwrite(&d, 4, 1, stdout);  // crc32
-  d = sizeof(data); fwrite(&d, 4, 1, stdout);  // ISIZE
+  fput_n(crc(data, sizeof(data)), stdout, 4);  // crc32
+  fput_n(sizeof(data), stdout, 4);  // ISIZE
 }
