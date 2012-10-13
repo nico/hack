@@ -108,14 +108,17 @@ void wpng(int w, int h, unsigned* pix, FILE* f) {
   pngblock_end(&b);  // IHDR crc32
 
   // image data
-  uint32_t data_size = 0;
-  data_size += w * h * 4;  // image data
-  data_size += h;  // one filter byte per scanline
+  // the uncompressed "size" field for a zlib stream is just 2 byte. to
+  // support images bigger than 65kB, use one zlib stream block per scanline.
+  // 65kB per scanline should be enough for everybody.
+  uint32_t scanline_size = 0;
+  scanline_size += w * 4;  // image data
+  scanline_size += 1;  // one filter byte per scanline
 
   uint32_t idat_size = 0;
   idat_size += 2;  // zlib header
-  idat_size += 1 + 2 + 2;  // uncompressed data block header
-  idat_size += data_size;
+  idat_size += (1 + 2 + 2) * h;  // uncompressed data block header
+  idat_size += scanline_size * h;
   idat_size += 4;  // adler32 of compressed data
 
   pngblock_start(&b, idat_size, "IDAT");
@@ -132,11 +135,11 @@ void wpng(int w, int h, unsigned* pix, FILE* f) {
   pngblock_putc(29, &b);  // flags. previous byte * 256 + this % 31 should be 0
 
   // zlib data
-  pngblock_putc(1, &b); // Final block, compression method: uncompressed
-  pngblock_put_n_le(data_size, &b, 2);
-  pngblock_put_n_le(~data_size, &b, 2);
   uint32_t adler = 1;
   for (int y = 0; y < h; ++y) {
+    pngblock_putc(y == h - 1 ? 1 : 0, &b); // Final block?
+    pngblock_put_n_le(scanline_size, &b, 2);
+    pngblock_put_n_le(~scanline_size, &b, 2);
     const uint8_t zero = 0;
     pngblock_putc(zero, &b);  // Filter used for this scanline
     adler = update_adler32(adler, &zero, 1);
