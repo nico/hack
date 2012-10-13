@@ -9,23 +9,15 @@ void fput_n_be(uint32_t u, FILE* f, int n) {
   for (int i = 0; i < n; i++) fputc((u << (8*i)) >> 24, f);
 }
 
-typedef struct {
-  FILE* f;
-  uint32_t* crc_table;
-  uint32_t crc;
-} pngblock;
+typedef struct { FILE* f; uint32_t* crc_table; uint32_t crc; } pngblock;
 
-void pngblock_update_crc(const uint8_t* buf, int len, pngblock* b) {
+void pngblock_write(const uint8_t* d, int len, pngblock* b) {
+  fwrite(d, 1, len, b->f);
   for (int n = 0; n < len; n++)
-    b->crc = b->crc_table[(b->crc ^ buf[n]) & 0xff] ^ (b->crc >> 8);
+    b->crc = b->crc_table[(b->crc ^ d[n]) & 0xff] ^ (b->crc >> 8);
 }
 
-void pngblock_write(const void* d, int n, pngblock* b) {
-  fwrite(d, 1, n, b->f);
-  pngblock_update_crc(d, n, b);
-}
-
-void pngblock_start(pngblock* b, uint32_t size, const char* tag) {
+void pngblock_start(pngblock* b, uint32_t size, const void* tag) {
   fput_n_be(size, b->f, 4);
   b->crc = 0xffffffff;
   pngblock_write(tag, 4, b);
@@ -33,7 +25,7 @@ void pngblock_start(pngblock* b, uint32_t size, const char* tag) {
 
 void pngblock_putc(uint8_t c, pngblock* b) {
   fputc(c, b->f);
-  pngblock_update_crc(&c, 1, b);
+  b->crc = b->crc_table[(b->crc ^ c) & 0xff] ^ (b->crc >> 8);
 }
 
 void pngblock_put_n_be(uint32_t u, pngblock* b, int n) {
