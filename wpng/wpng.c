@@ -35,10 +35,6 @@ void pngblock_put_n_le(uint32_t u, pngblock* b, int n) {
   for (int i = 0; i < n; i++) pngblock_putc(u >> (8*i), b);
 }
 
-void pngblock_end(pngblock* b) {
-  fput_n_be(b->crc ^ 0xffffffff, b->f, 4);
-}
-
 // http://www.libpng.org/pub/png/spec/1.2/PNG-Contents.html
 // http://www.ietf.org/rfc/rfc1950.txt
 // http://www.ietf.org/rfc/rfc1951.txt
@@ -52,14 +48,14 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
     crc_table[n] = c;
   }
 
+  pngblock b = { f, crc_table };
   fwrite("\x89PNG\r\n\x1a\n", 1, 8, f);
   // header
-  pngblock b = { f, crc_table };
   pngblock_start(&b, 13, "IHDR");  // size: IHDR has two uint32 + 5 bytes = 13
   pngblock_put_n_be(w, &b, 4);
   pngblock_put_n_be(h, &b, 4);
   pngblock_write("\x8\6\0\0\0", 5, &b);  // 8bpp rgba, default flags
-  pngblock_end(&b);  // IHDR crc32
+  fput_n_be(b.crc ^ 0xffffffff, f, 4);  // IHDR crc32
 
   // image zlib data
   uint32_t data_size = w*h*4 + h;  // image data + one filter byte per scanline
@@ -78,13 +74,12 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
       a2 = (a1 + a2) % BASE;
     }
   }
-
   pngblock_put_n_be((a2 << 16) + a1, &b, 4);  // adler32 of uncompressed data
-  pngblock_end(&b);  // IDAT crc32
+  fput_n_be(b.crc ^ 0xffffffff, f, 4);  // IDAT crc32
 
   // footer
   pngblock_start(&b, 0, "IEND");
-  pngblock_end(&b);  // IEND crc32
+  fput_n_be(b.crc ^ 0xffffffff, f, 4);  // IEND crc32
 }
 
 int main() {
