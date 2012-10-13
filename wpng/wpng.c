@@ -11,13 +11,13 @@ void fput_n_be(uint32_t u, FILE* f, int n) {
 
 typedef struct { FILE* f; uint32_t* crc_table; uint32_t crc; } pngblock;
 
-void pngblock_write(const uint8_t* d, int len, pngblock* b) {
+void pngblock_write(const void* d, int len, pngblock* b) {
   fwrite(d, 1, len, b->f);
   for (int n = 0; n < len; n++)
-    b->crc = b->crc_table[(b->crc ^ d[n]) & 0xff] ^ (b->crc >> 8);
+    b->crc = b->crc_table[(b->crc ^ ((uint8_t*)d)[n]) & 0xff] ^ (b->crc >> 8);
 }
 
-void pngblock_start(pngblock* b, uint32_t size, const void* tag) {
+void pngblock_start(pngblock* b, uint32_t size, const char* tag) {
   fput_n_be(size, b->f, 4);
   b->crc = 0xffffffff;
   pngblock_write(tag, 4, b);
@@ -58,19 +58,13 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   pngblock_start(&b, 13, "IHDR");  // size: IHDR has two uint32 + 5 bytes = 13
   pngblock_put_n_be(w, &b, 4);
   pngblock_put_n_be(h, &b, 4);
-  pngblock_putc(8, &b);  // bits per channel
-  pngblock_putc(6, &b);  // color type: truecolor rgba
-  pngblock_putc(0, &b);  // compression method: deflate
-  pngblock_putc(0, &b);  // filter method: 1 byte subfilter before each scanline
-  pngblock_putc(0, &b);  // interlace method: no interlace
+  pngblock_write("\x8\6\0\0\0", 5, &b);  // 8bpp rgba, default flags
   pngblock_end(&b);  // IHDR crc32
 
   // image zlib data
   uint32_t data_size = w*h*4 + h;  // image data + one filter byte per scanline
   pngblock_start(&b, 11 + data_size, "IDAT");
-  pngblock_putc(8, &b);  // zlib compression method (8: deflate), small window
-  pngblock_putc(29, &b); // flags. previous byte * 256 + this % 31 should be 0
-  pngblock_putc(1, &b); // final block, compression method: uncompressed
+  pngblock_write("\x8\x1d\1", 3, &b);  // deflate data, in one single block
   pngblock_put_n_le(data_size, &b, 2);
   pngblock_put_n_le(~data_size, &b, 2);
   uint32_t a1 = 1, a2 = 0;
