@@ -23,10 +23,6 @@ void pngblock_start(pngblock* b, uint32_t size, const char* tag) {
   pngblock_write(tag, 4, b);
 }
 
-void pngblock_putu32_le(uint32_t u, pngblock* b) {
-  uint8_t d[] = { u, u >> 8, u >> 16, u >> 24 }; pngblock_write(d, 4, b);
-}
-
 void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   // http://www.libpng.org/pub/png/spec/1.2/PNG-Contents.html
   pngblock b = { f };
@@ -38,19 +34,20 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   }
 
   fwrite("\x89PNG\r\n\x1a\n", 1, 8, f);
-  pngblock_start(&b, 13, "IHDR");  // size: IHDR has two uint32 + 5 bytes = 13
+  pngblock_start(&b, 13, "IHDR");
   pngblock_putu32_be(w, &b);
   pngblock_putu32_be(h, &b);
   pngblock_write("\x8\6\0\0\0", 5, &b);  // 8bpp rgba, default flags
   pngblock_putu32_be(b.crc ^ 0xffffffff, &b);  // IHDR crc32
 
-  uint16_t data_size = w*4 + 1;  // image data + one filter byte per scanline
-  pngblock_start(&b, 6 + (5 + data_size)*h, "IDAT");
-  pngblock_write("\x8\x1d", 2, &b);  // deflate data, in one single block
+  uint16_t scanline_size = w*4 + 1;  // one filter byte per scanline
+  pngblock_start(&b, 6 + (5 + scanline_size)*h, "IDAT");
+  pngblock_write("\x8\x1d", 2, &b);  // deflate data, 255 byte sliding window
   uint32_t a1 = 1, a2 = 0;
   for (int y = 0; y < h; ++y) {
     pngblock_write(y == h - 1 ? "\1" : "\0", 1, &b);
-    pngblock_putu32_le(data_size + (~data_size << 16), &b);
+    uint32_t s = scanline_size | (~scanline_size << 16);
+    uint8_t le[] = { s, s >> 8, s >> 16, s >> 24 }; pngblock_write(le, 4, &b);
     pngblock_write(&b.crc_table, 1, &b);  // filter for scanline (0: no filter)
     pngblock_write(pix + y*4*w, 4*w, &b);
     const int BASE = 65521;  // largest prime smaller than 65536
