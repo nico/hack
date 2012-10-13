@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-typedef struct { FILE* f; uint32_t crc_table[256]; uint32_t crc; } pngblock;
+typedef struct { FILE* f; uint32_t crc; uint32_t crc_table[256]; } pngblock;
 
 void pngblock_write(const void* d, int len, pngblock* b) {
   fwrite(d, 1, len, b->f);
@@ -19,7 +19,7 @@ void pngblock_putu32_be(uint32_t u, pngblock* b) {
 
 void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   // http://www.libpng.org/pub/png/spec/1.2/PNG-Contents.html
-  pngblock b = { f };
+  pngblock b = { f, 0x575e51f5 };  // == update_crc(0xffffffff, "IHDR")
   for (int n = 0; n < 256; n++) {
     uint32_t c = n;
     for (int k = 0; k < 8; k++)
@@ -28,7 +28,6 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   }
 
   fwrite("\x89PNG\r\n\x1a\n\0\0\0\xdIHDR", 1, 16, f);
-  b.crc = 0x575e51f5;  // == update_crc(0xffffffff, "IHDR")
   pngblock_putu32_be(w, &b);
   pngblock_putu32_be(h, &b);
   pngblock_write("\x8\6\0\0\0", 5, &b);  // 8bpp rgba, default flags
