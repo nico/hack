@@ -27,10 +27,8 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
     b.crc_table[n] = c;
   }
 
-  fwrite("\x89PNG\r\n\x1a\n", 1, 8, f);
-  pngblock_putu32_be(13, &b);
-  b.crc = 0xffffffff;
-  pngblock_write("IHDR", 4, &b);
+  fwrite("\x89PNG\r\n\x1a\n\0\0\0\xdIHDR", 1, 16, f);
+  b.crc = 0x575e51f5;  // == update_crc(0xffffffff, "IHDR")
   pngblock_putu32_be(w, &b);
   pngblock_putu32_be(h, &b);
   pngblock_write("\x8\6\0\0\0", 5, &b);  // 8bpp rgba, default flags
