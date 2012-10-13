@@ -9,23 +9,11 @@ Bare-bones png writer. Just uncompressed rgba png, no frills. Build like:
 #include <stdint.h>
 #include <stdio.h>
 
-unsigned long crc_table[256];
-void make_crc_table(void) {
-  for (int n = 0; n < 256; n++) {
-    unsigned long c = (unsigned long) n;
-    for (int k = 0; k < 8; k++)
-      if (c & 1)
-        c = 0xedb88320L ^ (c >> 1);
-      else
-        c = c >> 1;
-    crc_table[n] = c;
-  }
-}
-unsigned long update_crc(unsigned long crc, const unsigned char *buf, int len) {
-  unsigned long c = crc;
+unsigned long update_crc(unsigned long* crc_table, unsigned long crc,
+                         const unsigned char *buf, int len) {
   for (int n = 0; n < len; n++)
-    c = crc_table[(c ^ buf[n]) & 0xff] ^ (c >> 8);
-  return c;
+    crc = crc_table[(crc ^ buf[n]) & 0xff] ^ (crc >> 8);
+  return crc;
 }
 
 unsigned long update_adler32(unsigned long adler,
@@ -46,12 +34,13 @@ void fput_n_be(uint32_t u, FILE* f, int n) {
 
 typedef struct {
   FILE* f;
+  unsigned long* crc_table;
   uint32_t crc;
 } pngblock;
 
 void pngblock_write(const void* d, int n, pngblock* b) {
   fwrite(d, 1, n, b->f);
-  b->crc = update_crc(b->crc, d, n);
+  b->crc = update_crc(b->crc_table, b->crc, d, n);
 }
 
 void pngblock_start(pngblock* b, uint32_t size, const char* tag) {
@@ -69,7 +58,7 @@ void pngblock_start(pngblock* b, uint32_t size, const char* tag) {
 void pngblock_putc(int c, pngblock* b) {
   fputc(c, b->f);
   unsigned char c8 = c;
-  b->crc = update_crc(b->crc, &c8, 1);
+  b->crc = update_crc(b->crc_table, b->crc, &c8, 1);
 }
 
 void pngblock_put_n_be(uint32_t u, pngblock* b, int n) {
@@ -93,10 +82,19 @@ void wpng(int w, int h, unsigned* pix, FILE* f) {
   const char header[] = "\x89PNG\r\n\x1a\n";
   fwrite(header, 1, 8, f);
 
-  make_crc_table();
+  unsigned long crc_table[256];
+  for (int n = 0; n < 256; n++) {
+    unsigned long c = (unsigned long) n;
+    for (int k = 0; k < 8; k++)
+      if (c & 1)
+        c = 0xedb88320L ^ (c >> 1);
+      else
+        c = c >> 1;
+    crc_table[n] = c;
+  }
 
   // header
-  pngblock b = { f };
+  pngblock b = { f, crc_table };
   pngblock_start(&b, 13, "IHDR");  // size: IHDR has two uint32 + 5 bytes = 13
   pngblock_put_n_be(w, &b, 4);
   pngblock_put_n_be(h, &b, 4);
