@@ -29,15 +29,15 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   crc = 0xffffffff;
   CRCWRITE("IDAT\x8\x1d", 6);
   uint32_t a1 = 1, a2 = 0;
-  for (int y = 0; y < h; ++y) {
+  for (int y = 0; y < h; ++y, pix += 4*w) {
     uint32_t s = scanline_size | (~scanline_size << 16);
     uint8_t le[] = { y == h - 1 ? 1 : 0, s, s >> 8, s >> 16, s >> 24, 0 };
     CRCWRITE(le, 6);
-    CRCWRITE(pix + y*4*w, 4*w);
+    CRCWRITE(pix, 4*w);
     const int BASE = 65521;
     a2 = (a1 + a2) % BASE;
     for (int n = 0; n < 4*w; n++) {
-      a1 = (a1 + pix[y*4*w + n]) % BASE;
+      a1 = (a1 + pix[n]) % BASE;
       a2 = (a1 + a2) % BASE;
     }
   }
