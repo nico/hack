@@ -34,7 +34,7 @@ uint32_t crc(const unsigned char *buf, int len) {
   return update_crc(0, buf, len);
 }
 
-void fput_n(uint32_t u, FILE* f, int n) {
+void fput_n_le(uint32_t u, FILE* f, int n) {
   for (int i = 0; i < n; i++) fputc(u >> (8*i), f);
 }
 int main() {
@@ -47,17 +47,17 @@ int main() {
   fputc(139, stdout);  // magic number 2
   fputc(8, stdout);    // compression method: deflate
   fputc(0, stdout);    // flags
-  fput_n(0, stdout, 4);  // mtime
+  fput_n_le(0, stdout, 4);  // mtime
   fputc(0, stdout);    // extra flags
   fputc(0xff, stdout); // OS
 
   // data
   fputc(1, stdout); // Final block, compression method: uncompressed
-  fput_n(sizeof(data), stdout, 2);
-  fput_n(~(uint16_t)sizeof(data), stdout, 2);
+  fput_n_le(sizeof(data), stdout, 2);
+  fput_n_le(~(uint16_t)sizeof(data), stdout, 2);
   fwrite(data, 1, sizeof(data), stdout);
 
   // footer
-  fput_n(crc(data, sizeof(data)), stdout, 4);  // crc32
-  fput_n(sizeof(data), stdout, 4);  // ISIZE
+  fput_n_le(crc(data, sizeof(data)), stdout, 4);  // crc32
+  fput_n_le(sizeof(data), stdout, 4);  // ISIZE
 }
