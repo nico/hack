@@ -28,7 +28,7 @@ void make_crc_table(void) {
   }
   crc_table_computed = 1;
 }
-unsigned long update_crc(unsigned long crc, unsigned char *buf,
+unsigned long update_crc(unsigned long crc, const unsigned char *buf,
                          int len) {
   unsigned long c = crc;
   if (!crc_table_computed)
@@ -38,10 +38,6 @@ unsigned long update_crc(unsigned long crc, unsigned char *buf,
   }
   return c;
 }
-unsigned long crc(unsigned char *buf, int len) {
-  return update_crc(0xffffffffL, buf, len) ^ 0xffffffffL;
-}
-
 
 // Header: 137 80 78 71 13 10 26 10
 // hex: \x89 P N G \r \n \x1a \n
@@ -126,13 +122,35 @@ void fput_n_be(uint32_t u, FILE* f, int n) {
   for (int i = 0; i < n; i++) fputc((u << (8*i)) >> 24, f);
 }
 
-void ncrc(FILE* f, int n) {
-  // XXX silly
-  fseek(f, -n, SEEK_CUR);
-  uint8_t buf[n];
-  fread(buf, 1, n, f);
-  uint32_t crc32 = crc(buf, n);
-  fput_n_be(crc32, f, 4);
+typedef struct {
+  FILE* f;
+  uint32_t crc;
+} pngblock;
+
+void pngblock_write(const void* d, int n, pngblock* b) {
+  fwrite(d, 1, n, b->f);
+  b->crc = update_crc(b->crc, d, n);
+}
+
+void pngblock_start(pngblock* b, uint32_t size, const char* tag) {
+  fput_n_be(size, b->f, 4);
+  b->crc = 0xffffffff;
+  pngblock_write(tag, 4, b);
+}
+
+void pngblock_putc(int c, pngblock* b) {
+  fputc(c, b->f);
+  unsigned char c8 = c;
+  b->crc = update_crc(b->crc, &c8, 1);
+}
+
+void pngblock_put_n_be(uint32_t u, pngblock* b, int n) {
+  for (int i = 0; i < n; i++) pngblock_putc((u << (8*i)) >> 24, b);
+}
+
+void pngblock_end(pngblock* b) {
+  uint32_t crc32 = b->crc ^ 0xffffffff;
+  fput_n_be(crc32, b->f, 4);
 }
 
 // XXX or char*?
@@ -141,16 +159,16 @@ void wpng(int w, int h, unsigned* pix, FILE* f) {
   fwrite(header, 1, 8, f);
 
   // header
-  fput_n_be(13, f, 4);
-  fwrite("IHDR", 1, 4, f);
-  fput_n_be(w, f, 4);
-  fput_n_be(h, f, 4);
-  fputc(8, f);  // bits per channel
-  fputc(6, f);  // color type: truecolor rgba
-  fputc(0, f);  // compression method: deflate
-  fputc(0, f);  // filter method: XXX
-  fputc(0, f);  // interlace method: no interlace
-  fput_n_be(0, f, 4);  // IHDR crc32  XXX
+  pngblock b = { f };
+  pngblock_start(&b, 13, "IHDR");
+  pngblock_put_n_be(w, &b, 4);
+  pngblock_put_n_be(h, &b, 4);
+  pngblock_putc(8, &b);  // bits per channel
+  pngblock_putc(6, &b);  // color type: truecolor rgba
+  pngblock_putc(0, &b);  // compression method: deflate
+  pngblock_putc(0, &b);  // filter method: XXX
+  pngblock_putc(0, &b);  // interlace method: no interlace
+  pngblock_end(&b);  // IHDR crc32  XXX
 
   // image data
   uint32_t data_size = 0;
@@ -182,10 +200,8 @@ void wpng(int w, int h, unsigned* pix, FILE* f) {
   // IDAT crc32  XXX
 
   // footer
-  fput_n_be(0, f, 4);
-  fwrite("IEND", 1, 4, f);
-  fput_n_be(crc("IEND", 4), f, 4);  // IEND crc32
-  //ncrc(f, 4);
+  pngblock_start(&b, 0, "IEND");
+  pngblock_end(&b);
 }
 
 int main() {
