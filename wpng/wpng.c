@@ -96,28 +96,19 @@ void wpng(int w, int h, unsigned* pix, FILE* f) {
   pngblock_end(&b);  // IHDR crc32
 
   // image data
-  uint32_t data_size = 0;
-  data_size += w * h * 4;  // image data
-  data_size += h;  // one filter byte per scanline
-
-  uint32_t idat_size = 0;
-  idat_size += 2;  // zlib header
-  idat_size += 1 + 2 + 2;  // uncompressed data block header
-  idat_size += data_size;
-  idat_size += 4;  // adler32 of compressed data
-
-  pngblock_start(&b, idat_size, "IDAT");
+  uint32_t data_size = w*h*4 + h;  // image data + one filter byte per scanline
+  pngblock_start(&b, 11 + data_size, "IDAT");
   pngblock_putc(8, &b);  // zlib compression method (8: deflate), small window
   pngblock_putc(29, &b); // flags. previous byte * 256 + this % 31 should be 0
 
   // zlib data
-  pngblock_putc(1, &b); // Final block, compression method: uncompressed
+  pngblock_putc(1, &b); // final block, compression method: uncompressed
   pngblock_put_n_le(data_size, &b, 2);
   pngblock_put_n_le(~data_size, &b, 2);
   uint32_t adler = 1;
   for (int y = 0; y < h; ++y) {
     const uint8_t zero = 0;
-    pngblock_putc(zero, &b);  // Filter used for this scanline
+    pngblock_putc(zero, &b);  // filter used for this scanline (0: no filter)
     adler = update_adler32(adler, &zero, 1);
     pngblock_write(pix + y*w, 4*w, &b);  // XXX endianess
     adler = update_adler32(adler, (uint8_t*)(pix + y*w), 4*w);
