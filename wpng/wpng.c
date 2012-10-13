@@ -9,8 +9,7 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   uint32_t crc_table[256];
   for (int n = 0; n < 256; n++) {
     uint32_t c = n;
-    for (int k = 0; k < 8; k++)
-      c = (c & 1) ? 0xedb88320L ^ (c >> 1) : c >> 1;
+    for (int k = 0; k < 8; k++) c = (c & 1) ? 0xedb88320L ^ (c >> 1) : c >> 1;
     crc_table[n] = c;
   }
 #define CRCWRITE(d, len) fwrite(d, 1, len, f); for (int n = 0; n < len; n++) \
@@ -23,20 +22,19 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   U32BE(h); CRCWRITE(B, 4);
   CRCWRITE("\x8\6\0\0\0", 5);
   U32BE(crc ^ 0xffffffff); fwrite(B, 1, 4, f); // IHDR crc32
-
   uint16_t scanline_size = w*4 + 1;
   U32BE(6 + (5 + scanline_size)*h); fwrite(B, 1, 4, f);
   crc = 0xffffffff;
   CRCWRITE("IDAT\x8\x1d", 6);
   uint32_t a1 = 1, a2 = 0;
-  for (int y = 0; y < h; ++y, pix += 4*w) {
+  for (int y = 0; y < h; ++y, pix += w*4) {
     uint32_t s = scanline_size | (~scanline_size << 16);
     uint8_t le[] = { y == h - 1 ? 1 : 0, s, s >> 8, s >> 16, s >> 24, 0 };
     CRCWRITE(le, 6);
-    CRCWRITE(pix, 4*w);
+    CRCWRITE(pix, w*4);
     const int P = 65521;
     a2 = (a1 + a2) % P;
-    for (int n = 0; n < 4*w; n++) { a1 = (a1+pix[n]) % P; a2 = (a1+a2) % P; }
+    for (int n = 0; n < w*4; n++) { a1 = (a1+pix[n]) % P; a2 = (a1+a2) % P; }
   }
   U32BE((a2 << 16) + a1); CRCWRITE(B, 4); // adler32 of uncompressed data
   U32BE(crc ^ 0xffffffff); fwrite(B, 1, 4, f); // IDAT crc32
