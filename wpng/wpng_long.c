@@ -130,6 +130,23 @@ void wpng(int w, int h, unsigned* pix, FILE* f) {
   // 1 byte additional flags, shall not specify preset dict
   // n bytes compressed data
   // 4 bytes adler32 check value
+
+  // http://www.libpng.org/pub/png/spec/1.2/PNG-Compression.html:
+  // """It is important to emphasize that the boundaries between IDAT chunks
+  //    are arbitrary and can fall anywhere in the zlib datastream. There is
+  //    not necessarily any correlation between IDAT chunk boundaries and
+  //    deflate block boundaries or any other feature of the zlib data. For
+  //    example, it is entirely possible for the terminating zlib check value
+  //    to be split across IDAT chunks.
+  //
+  //    In the same vein, there is no required correlation between the
+  //    structure of the image data (i.e., scanline boundaries) and deflate
+  //    block boundaries or IDAT chunk boundaries. The complete image data is
+  //    represented by a single zlib datastream that is stored in some number
+  //    of IDAT chunks; a decoder that assumes any more than this is incorrect.
+  //    (Of course, some encoder implementations may emit files in which some
+  //    of these structures are indeed related. But decoders cannot rely on
+  //    this.)"""
   pngblock_putc(0x08, &b);  // zlib compression method (8: deflate) and
                             // window size (0: 256 bytes, as small as possible)
   pngblock_putc(29, &b);  // flags. previous byte * 256 + this % 31 should be 0
