@@ -13,10 +13,6 @@ void pngblock_write(const void* d, int len, pngblock* b) {
     b->crc = b->crc_table[(b->crc ^ ((uint8_t*)d)[n]) & 0xff] ^ (b->crc >> 8);
 }
 
-void pngblock_putu32_be(uint32_t u, pngblock* b) {
-  uint8_t d[] = { u >> 24, u >> 16, u >> 8, u }; pngblock_write(d, 4, b);
-}
-
 void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   // http://www.libpng.org/pub/png/spec/1.2/PNG-Contents.html
   pngblock b = { f, 0x575e51f5 };  // == update_crc(0xffffffff, "IHDR")
@@ -26,15 +22,16 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
       c = (c & 1) ? 0xedb88320L ^ (c >> 1) : c >> 1;
     b.crc_table[n] = c;
   }
-
+  uint8_t BE[4];
+#define PUTU32_BE(u) BE[0] = (u) >> 24; BE[1] = (u) >> 16; BE[2] = (u) >> 8; \
+                     BE[3] = (u); pngblock_write(BE, 4, &b)
   fwrite("\x89PNG\r\n\x1a\n\0\0\0\xdIHDR", 1, 16, f);
-  pngblock_putu32_be(w, &b);
-  pngblock_putu32_be(h, &b);
+  PUTU32_BE(w); PUTU32_BE(h);
   pngblock_write("\x8\6\0\0\0", 5, &b);  // 8bpp rgba, default flags
-  pngblock_putu32_be(b.crc ^ 0xffffffff, &b);  // IHDR crc32
+  PUTU32_BE(b.crc ^ 0xffffffff);  // IHDR crc32
 
   uint16_t scanline_size = w*4 + 1;  // one filter byte per scanline
-  pngblock_putu32_be(6 + (5 + scanline_size)*h, &b);
+  PUTU32_BE(6 + (5 + scanline_size)*h);
   b.crc = 0xffffffff;
   pngblock_write("IDAT\x8\x1d", 6, &b); // deflate data, 255 byte sliding window
   uint32_t a1 = 1, a2 = 0;
@@ -50,9 +47,9 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
       a2 = (a1 + a2) % BASE;
     }
   }
-  pngblock_putu32_be((a2 << 16) + a1, &b);  // adler32 of uncompressed data
-  pngblock_putu32_be(b.crc ^ 0xffffffff, &b);  // IDAT crc32
-
+  PUTU32_BE((a2 << 16) + a1);  // adler32 of uncompressed data
+  PUTU32_BE(b.crc ^ 0xffffffff);  // IDAT crc32
+#undef PUTU32_BE
   fwrite("\0\0\0\0IEND\xae\x42\x60\x82", 1, 12, f);  // IEND + crc32
 }
 
