@@ -44,12 +44,6 @@ void pngblock_write(const void* d, int n, pngblock* b) {
 }
 
 void pngblock_start(pngblock* b, uint32_t size, const char* tag) {
-  // chunk:
-  // uint32_t length (not including itself, type, crc)
-  // uint32_t chunk type
-  // data
-  // uint32_t crc code (including type and data, but not length)
-
   fput_n_be(size, b->f, 4);
   b->crc = 0xffffffff;
   pngblock_write(tag, 4, b);
@@ -73,12 +67,12 @@ void pngblock_end(pngblock* b) {
   fput_n_be(crc32, b->f, 4);
 }
 
+// http://www.libpng.org/pub/png/spec/1.2/PNG-Contents.html
+// http://www.ietf.org/rfc/rfc1950.txt
+// http://www.ietf.org/rfc/rfc1951.txt
+
 // XXX or char*?
 void wpng(int w, int h, unsigned* pix, FILE* f) {
-  // png spec
-  // http://www.libpng.org/pub/png/spec/1.2/PNG-Contents.html
-  // http://www.w3.org/TR/PNG/
-
   const char header[] = "\x89PNG\r\n\x1a\n";
   fwrite(header, 1, 8, f);
 
@@ -117,17 +111,8 @@ void wpng(int w, int h, unsigned* pix, FILE* f) {
   idat_size += 4;  // adler32 of compressed data
 
   pngblock_start(&b, idat_size, "IDAT");
-  // IDAT
-  // zlib format:
-  // http://www.ietf.org/rfc/rfc1950.txt
-  // http://www.ietf.org/rfc/rfc1951.txt
-  // 1 byte zlib compression method, shall be "8 deflate" for png
-  // 1 byte additional flags, shall not specify preset dict
-  // n bytes compressed data
-  // 4 bytes adler32 check value
-  pngblock_putc(0x08, &b);  // zlib compression method (8: deflate) and
-                            // window size (0: 256 bytes, as small as possible)
-  pngblock_putc(29, &b);  // flags. previous byte * 256 + this % 31 should be 0
+  pngblock_putc(8, &b);  // zlib compression method (8: deflate), small window
+  pngblock_putc(29, &b); // flags. previous byte * 256 + this % 31 should be 0
 
   // zlib data
   pngblock_putc(1, &b); // Final block, compression method: uncompressed
