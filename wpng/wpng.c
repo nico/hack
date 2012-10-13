@@ -58,10 +58,7 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   pngblock_putu32_be((a2 << 16) + a1, &b);  // adler32 of uncompressed data
   pngblock_putu32_be(b.crc ^ 0xffffffff, &b);  // IDAT crc32
 
-  pngblock_putu32_be(0, &b);
-  b.crc = 0xffffffff;
-  pngblock_write("IEND", 4, &b);
-  pngblock_putu32_be(b.crc ^ 0xffffffff, &b);  // IEND crc32
+  fwrite("\0\0\0\0IEND\xae\x42\x60\x82", 1, 12, f);  // IEND + crc32
 }
 
 int main() {
