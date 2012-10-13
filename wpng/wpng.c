@@ -36,8 +36,7 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   uint16_t scanline_size = w*4 + 1;  // one filter byte per scanline
   pngblock_putu32_be(6 + (5 + scanline_size)*h, &b);
   b.crc = 0xffffffff;
-  pngblock_write("IDAT", 4, &b);
-  pngblock_write("\x8\x1d", 2, &b);  // deflate data, 255 byte sliding window
+  pngblock_write("IDAT\x8\x1d", 6, &b); // deflate data, 255 byte sliding window
   uint32_t a1 = 1, a2 = 0;
   for (int y = 0; y < h; ++y) {
     pngblock_write(y == h - 1 ? "\1" : "\0", 1, &b);
