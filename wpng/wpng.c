@@ -9,13 +9,6 @@ Bare-bones png writer. Just uncompressed rgba png, no frills. Build like:
 #include <stdint.h>
 #include <stdio.h>
 
-uint32_t update_crc(uint32_t* crc_table, uint32_t crc,
-                    const uint8_t* buf, int len) {
-  for (int n = 0; n < len; n++)
-    crc = crc_table[(crc ^ buf[n]) & 0xff] ^ (crc >> 8);
-  return crc;
-}
-
 uint32_t update_adler32(uint32_t adler, const uint8_t* buf, int len) {
   const int BASE = 65521; /* largest prime smaller than 65536 */
   uint32_t s1 = adler & 0xffff;
@@ -37,9 +30,14 @@ typedef struct {
   uint32_t crc;
 } pngblock;
 
+void pngblock_update_crc(const uint8_t* buf, int len, pngblock* b) {
+  for (int n = 0; n < len; n++)
+    b->crc = b->crc_table[(b->crc ^ buf[n]) & 0xff] ^ (b->crc >> 8);
+}
+
 void pngblock_write(const void* d, int n, pngblock* b) {
   fwrite(d, 1, n, b->f);
-  b->crc = update_crc(b->crc_table, b->crc, d, n);
+  pngblock_update_crc(d, n, b);
 }
 
 void pngblock_start(pngblock* b, uint32_t size, const char* tag) {
@@ -50,7 +48,7 @@ void pngblock_start(pngblock* b, uint32_t size, const char* tag) {
 
 void pngblock_putc(uint8_t c, pngblock* b) {
   fputc(c, b->f);
-  b->crc = update_crc(b->crc_table, b->crc, &c, 1);
+  pngblock_update_crc(&c, 1, b);
 }
 
 void pngblock_put_n_be(uint32_t u, pngblock* b, int n) {
