@@ -27,8 +27,8 @@ void pngblock_putu32_be(uint32_t u, pngblock* b) {
   uint8_t d[] = { u >> 24, u >> 16, u >> 8, u }; pngblock_write(d, 4, b);
 }
 
-void pngblock_putu16_le(uint32_t u, pngblock* b) {
-  uint8_t d[] = { u, u >> 8 }; pngblock_write(d, 2, b);
+void pngblock_putu32_le(uint32_t u, pngblock* b) {
+  uint8_t d[] = { u, u >> 8, u >> 16, u >> 24 }; pngblock_write(d, 4, b);
 }
 
 void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
@@ -48,11 +48,11 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   pngblock_write("\x8\6\0\0\0", 5, &b);  // 8bpp rgba, default flags
   fput_n_be(b.crc ^ 0xffffffff, f, 4);  // IHDR crc32
 
+  // XXX support images bigger than 65kb
   uint32_t data_size = w*h*4 + h;  // image data + one filter byte per scanline
   pngblock_start(&b, 11 + data_size, "IDAT");
   pngblock_write("\x8\x1d\1", 3, &b);  // deflate data, in one single block
-  pngblock_putu16_le(data_size, &b);
-  pngblock_putu16_le(~data_size, &b);
+  pngblock_putu32_le(data_size + (~data_size << 16), &b);
   uint32_t a1 = 1, a2 = 0;
   for (int y = 0; y < h; ++y) {
     pngblock_write(&b.crc_table, 1, &b);  // filter for scanline (0: no filter)
