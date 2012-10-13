@@ -63,7 +63,13 @@ typedef struct {
   // 0: inflate/deflate with window size <= 32768 bytes
   uint8_t compression_method;
 
-  // 
+  // 0: Every scanline is prefixed with a filter subtype for that scanline
+  // Subtypes:
+  //    0       None
+  //    1       Sub  (difference to left)
+  //    2       Up   (difference to up)
+  //    3       Average  (difference to (up + left)/2)
+  //    4       Paeth    (difference to paeth(left, up, upleft))
   uint8_t filter_method;
 
   // 0: no interlace
@@ -80,23 +86,10 @@ typedef struct {
 // 1 byte additional flags, shall not specify preset dict
 // n bytes compressed data
 // 4 bytes adler32 check value
-#define BASE 65521 /* largest prime smaller than 65536 */
 
-/*
-   Update a running Adler-32 checksum with the bytes buf[0..len-1]
- and return the updated checksum. The Adler-32 checksum should be
- initialized to 1.
-
- Usage example:
-
-   unsigned long adler = 1L;
-
-   while (read_buffer(buffer, length) != EOF) {
-     adler = update_adler32(adler, buffer, length);
-   }
-   if (adler != original_adler) error();
-*/
-unsigned long update_adler32(unsigned long adler, unsigned char *buf, int len) {
+unsigned long update_adler32(unsigned long adler,
+                             const unsigned char *buf, int len) {
+  const int BASE = 65521; /* largest prime smaller than 65536 */
   unsigned long s1 = adler & 0xffff;
   unsigned long s2 = (adler >> 16) & 0xffff;
   for (int n = 0; n < len; n++) {
@@ -106,18 +99,9 @@ unsigned long update_adler32(unsigned long adler, unsigned char *buf, int len) {
   return (s2 << 16) + s1;
 }
 
-/* Return the adler32 of the bytes buf[0..len-1] */
-unsigned long adler32(unsigned char *buf, int len) {
-  return update_adler32(1L, buf, len);
-}
-
-
 
 // IEND is empty
 
-void fput_n_le(uint32_t u, FILE* f, int n) {
-  for (int i = 0; i < n; i++) fputc(u >> (8*i), f);
-}
 void fput_n_be(uint32_t u, FILE* f, int n) {
   for (int i = 0; i < n; i++) fputc((u << (8*i)) >> 24, f);
 }
@@ -146,6 +130,9 @@ void pngblock_putc(int c, pngblock* b) {
 
 void pngblock_put_n_be(uint32_t u, pngblock* b, int n) {
   for (int i = 0; i < n; i++) pngblock_putc((u << (8*i)) >> 24, b);
+}
+void pngblock_put_n_le(uint32_t u, pngblock* b, int n) {
+  for (int i = 0; i < n; i++) pngblock_putc(u >> (8*i), b);
 }
 
 void pngblock_end(pngblock* b) {
@@ -181,23 +168,26 @@ void wpng(int w, int h, unsigned* pix, FILE* f) {
   idat_size += data_size;
   idat_size += 4;  // adler32 of compressed data
 
-  fput_n_be(idat_size, f, 4);
-  fwrite("IDAT", 1, 4, f);
-  fputc(0x80, f);  // zlib compression method and window size  (XXX: 0x08?)
-                   // data isn't compressed at all, so keep the window small
-  fputc(30, f);  // flags. previous byte * 256 + this % 31 should be 0
+  pngblock_start(&b, idat_size, "IDAT");
+  pngblock_putc(0x08, &b);  // zlib compression method (8: deflate) and
+                            // window size (0: 256 bytes, as small as possible)
+  pngblock_putc(29, &b);  // flags. previous byte * 256 + this % 31 should be 0
 
   // zlib data
-  fputc(1, f); // Final block, compression method: uncompressed
-  fput_n_le(data_size, f, 2);
-  fput_n_le(~data_size, f, 2);
+  pngblock_putc(1, &b); // Final block, compression method: uncompressed
+  pngblock_put_n_le(data_size, &b, 2);
+  pngblock_put_n_le(~data_size, &b, 2);
+  uint32_t adler = 1;
   for (int y = 0; y < h; ++y) {
-    fputc(0, f);  // Filter used for this scanline
-    fwrite(pix + y*w, 4, w, f);  // XXX endianess
+    const uint8_t zero = 0;
+    pngblock_putc(zero, &b);  // Filter used for this scanline
+    adler = update_adler32(adler, &zero, 1);
+    pngblock_write(pix + y*w, 4*w, &b);  // XXX endianess
+    adler = update_adler32(adler, (uint8_t*)(pix + y*w), 4*w);
   }
 
-  fput_n_be(0, f, 4);  // adler32 of uncompressed data  XXX
-  // IDAT crc32  XXX
+  pngblock_put_n_be(adler, &b, 4);  // adler32 of uncompressed data
+  pngblock_end(&b);
 
   // footer
   pngblock_start(&b, 0, "IEND");
@@ -205,6 +195,6 @@ void wpng(int w, int h, unsigned* pix, FILE* f) {
 }
 
 int main() {
-  unsigned pix[] = { 0xff0000ff, 0x00ff00ff, 0x0000ffff, 0x0000ff00 };
+  unsigned pix[] = { 0xff0000ff, 0xff00ff00, 0xffff0000, 0x8000ff00 };
   wpng(2, 2, pix, stdout);
 }
