@@ -1,9 +1,5 @@
-/*
-
-Bare-bones png writer. Just uncompressed rgba png, no frills. Build like:
-
-  clang -o wpng wpng.c -Wall
-
+/* Bare-bones png writer. Just uncompressed rgba png, no frills. Build like:
+     clang -o wpng wpng.c -Wall
 */
 
 #include <stdint.h>
@@ -59,18 +55,14 @@ void pngblock_put_n_le(uint32_t u, pngblock* b, int n) {
 }
 
 void pngblock_end(pngblock* b) {
-  uint32_t crc32 = b->crc ^ 0xffffffff;
-  fput_n_be(crc32, b->f, 4);
+  fput_n_be(b->crc ^ 0xffffffff, b->f, 4);
 }
 
 // http://www.libpng.org/pub/png/spec/1.2/PNG-Contents.html
 // http://www.ietf.org/rfc/rfc1950.txt
 // http://www.ietf.org/rfc/rfc1951.txt
 
-// XXX or char*?
-void wpng(int w, int h, unsigned* pix, FILE* f) {
-  fwrite("\x89PNG\r\n\x1a\n", 1, 8, f);
-
+void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   uint32_t crc_table[256];
   for (int n = 0; n < 256; n++) {
     uint32_t c = n;
@@ -79,6 +71,7 @@ void wpng(int w, int h, unsigned* pix, FILE* f) {
     crc_table[n] = c;
   }
 
+  fwrite("\x89PNG\r\n\x1a\n", 1, 8, f);
   // header
   pngblock b = { f, crc_table };
   pngblock_start(&b, 13, "IHDR");  // size: IHDR has two uint32 + 5 bytes = 13
@@ -91,13 +84,11 @@ void wpng(int w, int h, unsigned* pix, FILE* f) {
   pngblock_putc(0, &b);  // interlace method: no interlace
   pngblock_end(&b);  // IHDR crc32
 
-  // image data
+  // image zlib data
   uint32_t data_size = w*h*4 + h;  // image data + one filter byte per scanline
   pngblock_start(&b, 11 + data_size, "IDAT");
   pngblock_putc(8, &b);  // zlib compression method (8: deflate), small window
   pngblock_putc(29, &b); // flags. previous byte * 256 + this % 31 should be 0
-
-  // zlib data
   pngblock_putc(1, &b); // final block, compression method: uncompressed
   pngblock_put_n_le(data_size, &b, 2);
   pngblock_put_n_le(~data_size, &b, 2);
@@ -106,8 +97,8 @@ void wpng(int w, int h, unsigned* pix, FILE* f) {
     const uint8_t zero = 0;
     pngblock_putc(zero, &b);  // filter used for this scanline (0: no filter)
     adler = update_adler32(adler, &zero, 1);
-    pngblock_write(pix + y*w, 4*w, &b);  // XXX endianess
-    adler = update_adler32(adler, (uint8_t*)(pix + y*w), 4*w);
+    pngblock_write(pix + y*4*w, 4*w, &b);
+    adler = update_adler32(adler, pix + y*4*w, 4*w);
   }
 
   pngblock_put_n_be(adler, &b, 4);  // adler32 of uncompressed data
@@ -120,5 +111,5 @@ void wpng(int w, int h, unsigned* pix, FILE* f) {
 
 int main() {
   unsigned pix[] = { 0xff0000ff, 0xff00ff00, 0xffff0000, 0x8000ff00 };
-  wpng(2, 2, pix, stdout);
+  wpng(2, 2, (uint8_t*)pix, stdout);  // XXX endianess
 }
