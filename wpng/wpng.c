@@ -6,7 +6,6 @@
 #include <stdio.h>
 
 void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
-  // http://www.libpng.org/pub/png/spec/1.2/PNG-Contents.html
   uint32_t crc_table[256];
   for (int n = 0; n < 256; n++) {
     uint32_t c = n;
@@ -22,20 +21,20 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   uint32_t crc = 0x575e51f5;  // == update_crc(0xffffffff, "IHDR")
   U32BE(w); CRCWRITE(B, 4);
   U32BE(h); CRCWRITE(B, 4);
-  CRCWRITE("\x8\6\0\0\0", 5);  // 8bpp rgba, default flags
+  CRCWRITE("\x8\6\0\0\0", 5);
   U32BE(crc ^ 0xffffffff); fwrite(B, 1, 4, f); // IHDR crc32
 
-  uint16_t scanline_size = w*4 + 1;  // one filter byte per scanline
+  uint16_t scanline_size = w*4 + 1;
   U32BE(6 + (5 + scanline_size)*h); fwrite(B, 1, 4, f);
   crc = 0xffffffff;
-  CRCWRITE("IDAT\x8\x1d", 6); // deflate data, 255 byte sliding window
+  CRCWRITE("IDAT\x8\x1d", 6);
   uint32_t a1 = 1, a2 = 0;
   for (int y = 0; y < h; ++y) {
     uint32_t s = scanline_size | (~scanline_size << 16);
     uint8_t le[] = { y == h - 1 ? 1 : 0, s, s >> 8, s >> 16, s >> 24, 0 };
     CRCWRITE(le, 6);
     CRCWRITE(pix + y*4*w, 4*w);
-    const int BASE = 65521;  // largest prime smaller than 65536
+    const int BASE = 65521;
     a2 = (a1 + a2) % BASE;
     for (int n = 0; n < 4*w; n++) {
       a1 = (a1 + pix[y*4*w + n]) % BASE;
