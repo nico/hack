@@ -34,12 +34,9 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
     uint8_t le[] = { y == h - 1 ? 1 : 0, s, s >> 8, s >> 16, s >> 24, 0 };
     CRCWRITE(le, 6);
     CRCWRITE(pix, 4*w);
-    const int BASE = 65521;
-    a2 = (a1 + a2) % BASE;
-    for (int n = 0; n < 4*w; n++) {
-      a1 = (a1 + pix[n]) % BASE;
-      a2 = (a1 + a2) % BASE;
-    }
+    const int P = 65521;
+    a2 = (a1 + a2) % P;
+    for (int n = 0; n < 4*w; n++) { a1 = (a1+pix[n]) % P; a2 = (a1+a2) % P; }
   }
   U32BE((a2 << 16) + a1); CRCWRITE(B, 4); // adler32 of uncompressed data
   U32BE(crc ^ 0xffffffff); fwrite(B, 1, 4, f); // IDAT crc32
