@@ -69,17 +69,13 @@ void pngblock_end(pngblock* b) {
 
 // XXX or char*?
 void wpng(int w, int h, unsigned* pix, FILE* f) {
-  const char header[] = "\x89PNG\r\n\x1a\n";
-  fwrite(header, 1, 8, f);
+  fwrite("\x89PNG\r\n\x1a\n", 1, 8, f);
 
   uint32_t crc_table[256];
   for (int n = 0; n < 256; n++) {
-    unsigned long c = (unsigned long) n;
+    uint32_t c = n;
     for (int k = 0; k < 8; k++)
-      if (c & 1)
-        c = 0xedb88320L ^ (c >> 1);
-      else
-        c = c >> 1;
+      c = (c & 1) ? 0xedb88320L ^ (c >> 1) : c >> 1;
     crc_table[n] = c;
   }
 
