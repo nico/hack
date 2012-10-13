@@ -9,18 +9,17 @@ Bare-bones png writer. Just uncompressed rgba png, no frills. Build like:
 #include <stdint.h>
 #include <stdio.h>
 
-unsigned long update_crc(unsigned long* crc_table, unsigned long crc,
-                         const unsigned char *buf, int len) {
+uint32_t update_crc(uint32_t* crc_table, uint32_t crc,
+                    const uint8_t* buf, int len) {
   for (int n = 0; n < len; n++)
     crc = crc_table[(crc ^ buf[n]) & 0xff] ^ (crc >> 8);
   return crc;
 }
 
-unsigned long update_adler32(unsigned long adler,
-                             const unsigned char *buf, int len) {
+uint32_t update_adler32(uint32_t adler, const uint8_t* buf, int len) {
   const int BASE = 65521; /* largest prime smaller than 65536 */
-  unsigned long s1 = adler & 0xffff;
-  unsigned long s2 = (adler >> 16) & 0xffff;
+  uint32_t s1 = adler & 0xffff;
+  uint32_t s2 = (adler >> 16) & 0xffff;
   for (int n = 0; n < len; n++) {
     s1 = (s1 + buf[n]) % BASE;
     s2 = (s2 + s1)     % BASE;
@@ -34,7 +33,7 @@ void fput_n_be(uint32_t u, FILE* f, int n) {
 
 typedef struct {
   FILE* f;
-  unsigned long* crc_table;
+  uint32_t* crc_table;
   uint32_t crc;
 } pngblock;
 
@@ -49,10 +48,9 @@ void pngblock_start(pngblock* b, uint32_t size, const char* tag) {
   pngblock_write(tag, 4, b);
 }
 
-void pngblock_putc(int c, pngblock* b) {
+void pngblock_putc(uint8_t c, pngblock* b) {
   fputc(c, b->f);
-  unsigned char c8 = c;
-  b->crc = update_crc(b->crc_table, b->crc, &c8, 1);
+  b->crc = update_crc(b->crc_table, b->crc, &c, 1);
 }
 
 void pngblock_put_n_be(uint32_t u, pngblock* b, int n) {
@@ -76,7 +74,7 @@ void wpng(int w, int h, unsigned* pix, FILE* f) {
   const char header[] = "\x89PNG\r\n\x1a\n";
   fwrite(header, 1, 8, f);
 
-  unsigned long crc_table[256];
+  uint32_t crc_table[256];
   for (int n = 0; n < 256; n++) {
     unsigned long c = (unsigned long) n;
     for (int k = 0; k < 8; k++)
