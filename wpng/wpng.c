@@ -5,17 +5,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-uint32_t update_adler32(uint32_t adler, const uint8_t* buf, int len) {
-  const int BASE = 65521; /* largest prime smaller than 65536 */
-  uint32_t s1 = adler & 0xffff;
-  uint32_t s2 = (adler >> 16) & 0xffff;
-  for (int n = 0; n < len; n++) {
-    s1 = (s1 + buf[n]) % BASE;
-    s2 = (s2 + s1)     % BASE;
-  }
-  return (s2 << 16) + s1;
-}
-
 void fput_n_be(uint32_t u, FILE* f, int n) {
   for (int i = 0; i < n; i++) fputc((u << (8*i)) >> 24, f);
 }
@@ -92,16 +81,19 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   pngblock_putc(1, &b); // final block, compression method: uncompressed
   pngblock_put_n_le(data_size, &b, 2);
   pngblock_put_n_le(~data_size, &b, 2);
-  uint32_t adler = 1;
+  uint32_t a1 = 1, a2 = 0;
   for (int y = 0; y < h; ++y) {
-    const uint8_t zero = 0;
-    pngblock_putc(zero, &b);  // filter used for this scanline (0: no filter)
-    adler = update_adler32(adler, &zero, 1);
+    pngblock_putc(0, &b);  // filter used for this scanline (0: no filter)
     pngblock_write(pix + y*4*w, 4*w, &b);
-    adler = update_adler32(adler, pix + y*4*w, 4*w);
+    const int BASE = 65521;  // largest prime smaller than 65536
+    a2 = (a1 + a2) % BASE;
+    for (int n = 0; n < 4*w; n++) {
+      a1 = (a1 + pix[y*4*w + n]) % BASE;
+      a2 = (a1 + a2) % BASE;
+    }
   }
 
-  pngblock_put_n_be(adler, &b, 4);  // adler32 of uncompressed data
+  pngblock_put_n_be((a2 << 16) + a1, &b, 4);  // adler32 of uncompressed data
   pngblock_end(&b);  // IDAT crc32
 
   // footer
