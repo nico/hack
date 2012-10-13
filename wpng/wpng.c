@@ -5,10 +5,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-void fput_n_be(uint32_t u, FILE* f, int n) {
-  for (int i = 0; i < n; i++) fputc((u << (8*i)) >> 24, f);
-}
-
 typedef struct { FILE* f; uint32_t crc_table[256]; uint32_t crc; } pngblock;
 
 void pngblock_write(const void* d, int len, pngblock* b) {
@@ -17,14 +13,14 @@ void pngblock_write(const void* d, int len, pngblock* b) {
     b->crc = b->crc_table[(b->crc ^ ((uint8_t*)d)[n]) & 0xff] ^ (b->crc >> 8);
 }
 
-void pngblock_start(pngblock* b, uint32_t size, const char* tag) {
-  fput_n_be(size, b->f, 4);
-  b->crc = 0xffffffff;
-  pngblock_write(tag, 4, b);
-}
-
 void pngblock_putu32_be(uint32_t u, pngblock* b) {
   uint8_t d[] = { u >> 24, u >> 16, u >> 8, u }; pngblock_write(d, 4, b);
+}
+
+void pngblock_start(pngblock* b, uint32_t size, const char* tag) {
+  pngblock_putu32_be(size, b);
+  b->crc = 0xffffffff;
+  pngblock_write(tag, 4, b);
 }
 
 void pngblock_putu32_le(uint32_t u, pngblock* b) {
@@ -46,7 +42,7 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   pngblock_putu32_be(w, &b);
   pngblock_putu32_be(h, &b);
   pngblock_write("\x8\6\0\0\0", 5, &b);  // 8bpp rgba, default flags
-  fput_n_be(b.crc ^ 0xffffffff, f, 4);  // IHDR crc32
+  pngblock_putu32_be(b.crc ^ 0xffffffff, &b);  // IHDR crc32
 
   // XXX support images bigger than 65kb
   uint32_t data_size = w*h*4 + h;  // image data + one filter byte per scanline
@@ -65,10 +61,10 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
     }
   }
   pngblock_putu32_be((a2 << 16) + a1, &b);  // adler32 of uncompressed data
-  fput_n_be(b.crc ^ 0xffffffff, f, 4);  // IDAT crc32
+  pngblock_putu32_be(b.crc ^ 0xffffffff, &b);  // IDAT crc32
 
   pngblock_start(&b, 0, "IEND");
-  fput_n_be(b.crc ^ 0xffffffff, f, 4);  // IEND crc32
+  pngblock_putu32_be(b.crc ^ 0xffffffff, &b);  // IEND crc32
 }
 
 int main() {
