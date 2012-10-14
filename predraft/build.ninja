@@ -1,0 +1,14 @@
+env = PATH=/Users/test/src/llvm-rw/Release+Asserts/bin:/Users/test/src/re2c/:$$PATH
+rule cxx
+  command = $env clang++ -fcolor-diagnostics -Wall -g -std=c++11 -c $in -o $out
+  description = CXX $out
+rule re2c
+  command = $env re2c -b -i --no-generation-date -o $out $in
+  description = RE2C $out
+rule link
+  command = $env clang++ $in -o $out
+  description = LINK $out
+
+build prototypes/p1.cc: re2c prototypes/p1.in.cc
+build prototypes/p1.o: cxx prototypes/p1.cc
+build p1: link prototypes/p1.o

@@ -1,0 +1,89 @@
+Feature notes
+-------------
+
+XFA forms are a proprietary standard
+
+Object/xref streams are 1.5+; hybrid mode triggered by XRefStm in trailer
+
+Encryption is 1.1+, /Encrypt entry in trailer
+
+
+Spec notes
+----------
+
+Spec:
+http://www.adobe.com/content/dam/Adobe/en/devnet/acrobat/pdfs/pdf_reference_1-7.pdf
+
+page 50:
+whitespace: \0, \t, \n\, \f (form feed), \r, ' '
+EOL: \n, \r, \r\n
+
+delimiters: ( ) < > [ ] { } / %
+% is eol comment (except inside strings or streams)
+
+page 54:
+escapes in strings: \n, \r, \t, \b (backspace), \f, \(, \), \\, \ddd (oct)
+strings can contain balanced parentheses without escaping. backslash at end
+of line is line continuation.
+
+whitespace in hex strings is ignored. if final digit is missing, it's assumed
+to be 0.
+
+no whitespace between slash and name. Name can contain everything that isn't
+whitespace or delimiter. #xx is two-digit hex escape for arbitrary characters
+not equal to 0. If names are displayed they should be treated as utf8.
+
+page 58:
+arrays can be heterogenous
+
+dictionaries have names as keys, any object as value. value of null is the
+same as as an absent entry. if a key appears more than once, its value is
+undefined.
+
+page 60:
+streams are dict `stream(\n or \r\n)` bytes `(eol?)endstream`. Every stream
+dict has /Length. Optional: /Filter (string or array), /DecodeParams (dict
+or array), /F (file), /FFilter, /FDecodeParams, /DL (decoded length, int)
+(Note: "int" means "int or indirect reference to an int", etc)
+
+page 64:
+object num (> 0) gen num (>= 0) `obj` ... `endobj`
+
+ref: objnum gennum `R`
+
+page 94:
+xref entry is 20 bytes (including newline)
+10 digit byte offset, 5 digit gennum, `n` for in-use entries, 2-byte eol
+(either \r\n or ' '\n). Free objects have `f` and 10 digits are objnum of
+next free object.
+xref subsections start with startid, num
+
+page 97, trailer: 
+last line is "%%EOF"; two preceding lines are `startxref`, then byte offset
+from beginning of file to xref in last xref-section. Before that, `trailer`
+followed by trailer dict.
+
+
+105: obj and xref streams (1.5+)
+
+
+137: document tree. /Root in trailer points to root. (see 139+)
+143+: page tree. 145+: page objects (/MediaBox, /Contents etc)
+Nonlinearized PDFs can have intermediate Pages objects for inheriting
+attributes.
+
+152+: content stream description
+
+199+: coord systems
+
+340+: images. /Subtype /Image.
+
+1021+: linearized pdfs
+
+1057+: example pdfs
+
+1095+: "compatibility and implementation notes"
+1102: "header somewhere within first 1024 bytes"; also header
+      "%IPS-Adobe-N.n PDF-M.m"
+      "%%EOF somewhere in last 1024 bytes"
+
