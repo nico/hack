@@ -16,14 +16,14 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   uint8_t B[4];
 #define U32BE(u) B[0] = (u) >> 24; B[1] = (u) >> 16; B[2] = (u) >> 8; B[3] = (u)
   fwrite("\x89PNG\r\n\x1a\n\0\0\0\xdIHDR", 1, 16, f);
-  uint32_t crc = 0x575e51f5;  // == update_crc(0xffffffff, "IHDR")
+  uint32_t crc = 0x575e51f5;  // == update_crc(~0, "IHDR")
   U32BE(w); CRCWRITE(B, 4);
   U32BE(h); CRCWRITE(B, 4);
   CRCWRITE("\x8\6\0\0\0", 5);
-  U32BE(crc ^ 0xffffffff); fwrite(B, 1, 4, f); // IHDR crc32
+  U32BE(crc ^ ~0); fwrite(B, 1, 4, f); // IHDR crc32
   uint16_t scanline_size = w*4 + 1;
   U32BE(6 + (5 + scanline_size)*h); fwrite(B, 1, 4, f);
-  crc = 0xffffffff;
+  crc = ~0;
   CRCWRITE("IDAT\x8\x1d", 6);
   uint32_t a1 = 1, a2 = 0;
   for (int y = 0; y < h; ++y, pix += w*4) {
@@ -36,7 +36,7 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
     for (int n = 0; n < w*4; n++) { a1 = (a1+pix[n]) % P; a2 = (a1+a2) % P; }
   }
   U32BE((a2 << 16) + a1); CRCWRITE(B, 4); // adler32 of uncompressed data
-  U32BE(crc ^ 0xffffffff); fwrite(B, 1, 4, f); // IDAT crc32
+  U32BE(crc ^ ~0); fwrite(B, 1, 4, f); // IDAT crc32
 #undef CRCWRITE
 #undef U32BE
   fwrite("\0\0\0\0IEND\xae\x42\x60\x82", 1, 12, f);  // IEND + crc32
