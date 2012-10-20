@@ -28,7 +28,7 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   uint32_t a1 = 1, a2 = 0;
   for (int y = 0; y < h; ++y, pix += w*4) {
     uint32_t s = scanline_size | (~scanline_size << 16);
-    uint8_t le[] = { y == h - 1 ? 1 : 0, s, s >> 8, s >> 16, s >> 24, 0 };
+    uint8_t le[] = { y == h - 1, s, s >> 8, s >> 16, s >> 24, 0 };
     CRCWRITE(le, 6);
     CRCWRITE(pix, w*4);
     const int P = 65521;
