@@ -8,7 +8,7 @@
 void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   uint32_t crc_table[256];
   for (uint32_t n = 0, c = 0; n < 256; n++, c = n) {
-    for (int k = 0; k < 8; k++) c = (c & 1) ? 0xedb88320L ^ (c >> 1) : c >> 1;
+    for (int k = 0; k < 8; k++) c = -(c & 1) & 0xedb88320L ^ (c >> 1);
     crc_table[n] = c;
   }
 #define CRCWRITE(d, len) fwrite(d, 1, len, f); for (int n = 0; n < len; n++) \
