@@ -17,7 +17,7 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   uint8_t I[] = "\x89PNG\r\n\x1a\n\0\0\0\xdIHDRwid0hyt0\x8\6\0\0\0", B[4];
   fwrite(I, 1, 12, f);
   U32BE((I + 16), w); U32BE((I + 20), h); CRCWRITE(I+12, 17);
-  U32BE(B, crc ^ ~0); fwrite(B, 1, 4, f);  // IHDR crc32
+  U32BE(B, ~crc); fwrite(B, 1, 4, f);  // IHDR crc32
   uint16_t scanline_size = w*4 + 1;
   U32BE(B, 6 + (5 + scanline_size)*h); fwrite(B, 1, 4, f);
   crc = ~0; CRCWRITE("IDAT\x8\x1d", 6);
@@ -32,7 +32,7 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
     for (int n = 0; n < w*4; n++) { a1 = (a1+pix[n]) % P; a2 = (a1+a2) % P; }
   }
   U32BE(B, (a2 << 16) + a1); CRCWRITE(B, 4);  // adler32 of uncompressed data
-  U32BE(B, crc ^ ~0); fwrite(B, 1, 4, f);  // IDAT crc32
+  U32BE(B, ~crc); fwrite(B, 1, 4, f);  // IDAT crc32
 #undef CRCWRITE
 #undef U32BE
   fwrite("\0\0\0\0IEND\xae\x42\x60\x82", 1, 12, f);  // IEND + crc32
