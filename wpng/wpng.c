@@ -18,13 +18,12 @@ void wpng(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   fwrite(I, 1, 12, f);
   U32BE((I + 16), w); U32BE((I + 20), h); CRCWRITE(I+12, 17);
   U32BE(B, ~crc); fwrite(B, 1, 4, f);  // IHDR crc32
-  uint16_t scanline_size = w*4 + 1;
-  U32BE(B, 6 + (5 + scanline_size)*h); fwrite(B, 1, 4, f);
+  uint16_t scanl = w*4 + 1;
+  U32BE(B, 6 + (5 + scanl)*h); fwrite(B, 1, 4, f);
   crc = ~0; CRCWRITE("IDAT\x8\x1d", 6);
   uint32_t a1 = 1, a2 = 0;
   for (int y = 0; y < h; ++y, pix += w*4) {
-    uint32_t s = scanline_size | (~scanline_size << 16);
-    uint8_t le[] = { y == h - 1, s, s >> 8, s >> 16, s >> 24, 0 };
+    uint8_t le[] = { y == h - 1, scanl, scanl >> 8, ~scanl, ~scanl >> 8, 0 };
     CRCWRITE(le, 6);
     CRCWRITE(pix, w*4);
     const int P = 65521;
