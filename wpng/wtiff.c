@@ -44,6 +44,7 @@ void wtiff(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
   fwrite(&tag, 2, 1, f); fwrite(&type, 2, 1, f);
   fwrite(&count, 4, 1, f); fwrite(&sval, 2, 1, f); fwrite("\0\0", 1, 2, f);
 
+  // XXX for h == 1, need to inline data
   tag = 0x111; type = 4; count = h; val = 0x7a + 8; // strip offsets from file start
   fwrite(&tag, 2, 1, f); fwrite(&type, 2, 1, f);
   fwrite(&count, 4, 1, f); fwrite(&val, 4, 1, f);
@@ -60,6 +61,7 @@ void wtiff(int w, int h, const uint8_t* pix, FILE* f) {  // pix: rgba in memory
 
   // "For each strip, the number of bytes in that strip after any compression"
   //tag = 0x117; type = 1; count = 1; val = w * 4;  // bytes per strip
+  // XXX for h <= 2, data needs to be inlined
   tag = 0x117; type = 3; count = h; val = 0x7a + 8 + h*4;  // bytes per strip
   fwrite(&tag, 2, 1, f); fwrite(&type, 2, 1, f);
   fwrite(&count, 4, 1, f); fwrite(&val, 4, 1, f);
@@ -92,7 +94,8 @@ int main() {
   //uint8_t pix[256*125*4];
   //for (size_t i = 0; i < sizeof(pix); ++i) pix[i] = i*i;
   //wtiff(125, 256, pix, stdout);
-  uint8_t pix[] = {0xff,0,0,0xff, 0,0xff,0,0xff,  0,0,0xff,0xff, 0xff,0,0,0x80};
-  wtiff(2, 2, pix, stdout);
+  uint8_t pix[] = {0xff,0,0,0xff, 0,0xff,0,0xff,  0,0,0xff,0xff, 0xff,0,0,0x80,
+                   0,0xff,0,0x60, 0,0,0xff,0x10};
+  wtiff(2, 3, pix, stdout);
 }
 
