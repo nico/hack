@@ -34,7 +34,7 @@ type Foo struct {
 }
 
 var f = Foo{1}
-var m = map[Foo] float {
+var m = map[Foo] float32 {
   f: 5 }
 
 func main() {
