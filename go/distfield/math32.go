@@ -16,7 +16,7 @@ func Fmaxf(a, b float32) float32 {
 	return b
 }
 
-func Fabsf(a float32) float32 { return float32(math.Fabs(float64(a))) }
+func Fabsf(a float32) float32 { return float32(math.Abs(float64(a))) }
 
 func Cosf(a float32) float32 { return float32(math.Cos(float64(a))) }
 
@@ -34,6 +34,6 @@ func Modff(a float32) (float32, float32) {
 	return float32(i64), float32(f64)
 }
 
-func Fmodf(x, y float32) float32 { return float32(math.Fmod(float64(x), float64(y))) }
+func Fmodf(x, y float32) float32 { return float32(math.Mod(float64(x), float64(y))) }
 
 func Expf(x float32) float32 { return float32(math.Exp(float64(x))) }
