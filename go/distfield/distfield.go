@@ -34,22 +34,22 @@ func (Monster) Color() [3]float32 { return [3]float32{1, 0.8, 0.8} }
 func distanceToSphere(p vec.Vec3) float32 { return p.Length() - 1.3 }
 
 func distanceToCube(p vec.Vec3) float32 {
-	return math32.Fmaxf(math32.Fabsf(p.X),
-		math32.Fmaxf(math32.Fabsf(p.Y), math32.Fabsf(p.Z))) - 1.0
+	return math32.Maxf(math32.Fabsf(p.X),
+		math32.Maxf(math32.Fabsf(p.Y), math32.Fabsf(p.Z))) - 1.0
 }
 
 func distanceToPlane(p vec.Vec3) float32 { return p.Y }
 
 func distanceToWarpCube(p vec.Vec3) float32 {
-	return math32.Fminf(distanceToSphere(p), distanceToCube(p.Rotz(p.Z/2)))
+	return math32.Minf(distanceToSphere(p), distanceToCube(p.Rotz(p.Z/2)))
 }
 
 func distanceToWarpCubeField(p vec.Vec3) float32 {
 	// -2 to move warpcube away from origin, mod to tile it
 	// FIXME: why does this look weird if tile size isn't 4?
-	p.X = math32.Fmodf(p.X+10000*4, 4) - 2
-	p.Z = math32.Fmodf(p.Z+10000*4, 4) - 2
-	return math32.Fminf(distanceToSphere(p), distanceToCube(p.Rotz(p.Z/2)))
+	p.X = math32.Modf(p.X+10000*4, 4) - 2
+	p.Z = math32.Modf(p.Z+10000*4, 4) - 2
+	return math32.Minf(distanceToSphere(p), distanceToCube(p.Rotz(p.Z/2)))
 }
 
 func distanceToXAxis(p vec.Vec3) float32 {
@@ -72,14 +72,14 @@ func distanceToTentacles(p vec.Vec3) float32 {
 			0.04*rr*noise.Noise3f(vec.Vec3{0.4 * rr, 6.3 * float32(i), 0}))
 		/*q.Y += 1.6 * rr * math32.Expf(-0.2 * rr)*/
 		q.Y -= 1.0 * math32.Expf(-0.2*rr*rr)
-		distance = math32.Fminf(distance, distanceToXAxis(q))
+		distance = math32.Minf(distance, distanceToXAxis(q))
 	}
 	return distance
 }
 
 func lerp(a, min, max float32) float32 { return min*(1-a) + max*a }
 
-func saturate(x float32) float32 { return math32.Fmaxf(0, math32.Fminf(x, 1)) }
+func saturate(x float32) float32 { return math32.Maxf(0, math32.Minf(x, 1)) }
 
 func smoothstep(x, a, b float32) float32 {
 	x = saturate((x - a) / (b - a))
@@ -91,7 +91,7 @@ func distanceToMonster(p vec.Vec3) float32 {
 	dist2 := distanceToTentacles(p.Scale(0.8).Trans(0, -0.3, 0))
 	bfact := smoothstep(p.Trans(0, -2.5, 0).Length()/2, 0, 1)
 	return lerp(bfact, dist1, dist2)
-	/*return math32.Fminf(dist1, dist2)*/
+	/*return math32.Minf(dist1, dist2)*/
 }
 
 func distanceFieldObject(p vec.Vec3) (float32, Object) {
@@ -153,7 +153,7 @@ func render(img *image.NRGBA, startY, limitY int, c chan int) {
 			step := 0
 			for ; step < 63 && dist > -0.005*p.Z; step++ {
 				// Error decreases 1/d, so keep min step proportional to d for constant screen-space error
-				p = p.Add(d, math32.Fmaxf(-0.005*p.Z, dist))
+				p = p.Add(d, math32.Maxf(-0.005*p.Z, dist))
 				if p.Z < -60 {
 					break
 				}
@@ -163,7 +163,7 @@ func render(img *image.NRGBA, startY, limitY int, c chan int) {
 			if dist <= -0.01*p.Z {
 				n := fieldNormalAt(distanceField, p)
 				// compute ambient occlusion before doing bump mapping
-				ao := math32.Fminf(ambientOcclusion(p, n), 1.0)
+				ao := math32.Minf(ambientOcclusion(p, n), 1.0)
 
 				dnoise := fieldNormalAt(noise.Fbm, p)
 				const N = 0.3
@@ -171,14 +171,14 @@ func render(img *image.NRGBA, startY, limitY int, c chan int) {
 
 				distfade := math32.Expf(0.07 * (p.Z + 6))
 				/*lit := float32(1.0)*/
-				lit := math32.Fmaxf(0, n.Z)
+				lit := math32.Maxf(0, n.Z)
 				/*tex := float32(0.8)*/
 				tex := (0.4*(math32.Sinf(2*(p.X+1.4*p.Y)+2*noise.Fbm(p))+1) + 0.2)
 				v := tex * (lit*0.6 + 0.3) * (ao * ao * ao) * distfade
 
 				col := obj.Color()
 				img.Set(x, y, color.NRGBA{
-					/*uint8(math32.Fminf(float32(step)*4+255*v, 255)),*/
+					/*uint8(math32.Minf(float32(step)*4+255*v, 255)),*/
 					uint8(255 * v * col[0]),
 					uint8(255 * v * col[1]),
 					uint8(255 * v * col[2]),

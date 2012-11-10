@@ -2,14 +2,14 @@ package math32
 
 import "math"
 
-func Fminf(a, b float32) float32 {
+func Minf(a, b float32) float32 {
 	if a < b {
 		return a
 	}
 	return b
 }
 
-func Fmaxf(a, b float32) float32 {
+func Maxf(a, b float32) float32 {
 	if a > b {
 		return a
 	}
@@ -34,6 +34,6 @@ func Modff(a float32) (float32, float32) {
 	return float32(i64), float32(f64)
 }
 
-func Fmodf(x, y float32) float32 { return float32(math.Mod(float64(x), float64(y))) }
+func Modf(x, y float32) float32 { return float32(math.Mod(float64(x), float64(y))) }
 
 func Expf(x float32) float32 { return float32(math.Exp(float64(x))) }
