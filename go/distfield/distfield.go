@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"image"
+	"image/color"
 	"image/png"
 	"./math32"
 	"os"
@@ -142,9 +143,9 @@ func ambientOcclusion(start, normal vec.Vec3) float32 {
 
 func render(img *image.NRGBA, startY, limitY int, c chan int) {
 	for y := startY; y < limitY; y++ {
-		for x := 0; x < img.Width(); x++ {
-			p := vec.Vec3{float32(float32(x)/float32(img.Width()-1) - 0.5),
-				float32(-(float32(y)/float32(img.Height()-1) - 0.5)),
+		for x := 0; x < img.Rect.Dx(); x++ {
+			p := vec.Vec3{float32(float32(x)/float32(img.Rect.Dx()-1) - 0.5),
+				float32(-(float32(y)/float32(img.Rect.Dy()-1) - 0.5)),
 				-float32(0.8)}
 			d := p.Normalized()
 
@@ -176,7 +177,7 @@ func render(img *image.NRGBA, startY, limitY int, c chan int) {
 				v := tex * (lit*0.6 + 0.3) * (ao * ao * ao) * distfade
 
 				col := obj.Color()
-				img.Set(x, y, image.RGBAColor{
+				img.Set(x, y, color.NRGBA{
 					/*uint8(math32.Fminf(float32(step)*4+255*v, 255)),*/
 					uint8(255 * v * col[0]),
 					uint8(255 * v * col[1]),
@@ -185,7 +186,7 @@ func render(img *image.NRGBA, startY, limitY int, c chan int) {
 					255})
 			} else {
 				/*img.Set(x, y, image.RGBAColor{uint8(step * 4), 0, 0, 255})*/
-				img.Set(x, y, image.RGBAColor{0, 0, 0, 255})
+				img.Set(x, y, color.NRGBA{0, 0, 0, 255})
 			}
 		}
 	}
@@ -194,19 +195,19 @@ func render(img *image.NRGBA, startY, limitY int, c chan int) {
 
 
 func main() {
-	var img *image.NRGBA = image.NewNRGBA(500, 500)
+	var img *image.NRGBA = image.NewNRGBA(image.Rect(0, 0, 500, 500))
 
 	const NCPU = 2
 	runtime.GOMAXPROCS(NCPU)
 	c := make(chan int, NCPU)
 	for i := 0; i < NCPU; i++ {
-		go render(img, i*img.Height()/NCPU, (i+1)*img.Height()/NCPU, c)
+		go render(img, i*img.Rect.Dy()/NCPU, (i+1)*img.Rect.Dy()/NCPU, c)
 	}
 	for i := 0; i < NCPU; i++ {
 		<-c // wait for completion of all goroutines
 	}
 
-	wf, _ := os.Open("go_out.png", os.O_CREATE|os.O_WRONLY, 0666)
+	wf, _ := os.OpenFile("go_out.png", os.O_CREATE|os.O_WRONLY, 0666)
 	defer wf.Close()
 	png.Encode(wf, img)
 	fmt.Printf("done.\n")

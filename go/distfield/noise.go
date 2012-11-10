@@ -2,7 +2,7 @@ package noise
 
 import (
 	"./math32"
-	"rand"
+	"math/rand"
 	"./vec"
 )
 
