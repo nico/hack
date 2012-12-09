@@ -1,10 +1,11 @@
 /*
-   $ clang -o s151_c sec151_chash.cpp -O2
-   $ time ./s151_c < ~/Downloads/bible11.txt > /dev/null
+  http://www.cs.bell-labs.com/cm/cs/pearls/sec151.html
+  $ clang -o s151_c sec151_chash.cpp -O2
+  $ time ./s151_c < ~/Downloads/bible11.txt > /dev/null
 
-   real	0m0.082s
-   user	0m0.076s
-   sys	0m0.003s
+  real	0m0.082s
+  user	0m0.076s
+  sys	0m0.003s
  */
 #include <stdlib.h>
 #include <stdio.h>

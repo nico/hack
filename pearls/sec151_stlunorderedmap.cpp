@@ -1,17 +1,18 @@
 /*
-   $ clang++ -o s151_hash sec151_stlunorderedmap.cpp -O2 -stdlib=libc++
-   $ time ./s151_hash < ~/Downloads/bible11.txt > /dev/null 
+  http://www.cs.bell-labs.com/cm/cs/pearls/sec151.html
+  $ clang++ -o s151_hash sec151_stlunorderedmap.cpp -O2 -stdlib=libc++
+  $ time ./s151_hash < ~/Downloads/bible11.txt > /dev/null 
 
-   real	0m0.424s
-   user	0m0.418s
-   sys	0m0.005s
+  real	0m0.424s
+  user	0m0.418s
+  sys	0m0.005s
 
-   $ clang++ -o s151_hash sec151_stlunorderedmap.cpp -O2
-   $ time ./s151_hash < ~/Downloads/bible11.txt > /dev/null 
+  $ clang++ -o s151_hash sec151_stlunorderedmap.cpp -O2
+  $ time ./s151_hash < ~/Downloads/bible11.txt > /dev/null 
 
-   real	0m0.294s
-   user	0m0.288s
-   sys	0m0.005s
+  real	0m0.294s
+  user	0m0.288s
+  sys	0m0.005s
  */
 #include <iostream>
 #include <string>
