@@ -13,6 +13,8 @@
   real	0m0.294s
   user	0m0.288s
   sys	0m0.005s
+
+  => http://llvm.org/PR14555
  */
 #include <iostream>
 #include <string>
