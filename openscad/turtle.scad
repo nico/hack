@@ -1,33 +1,29 @@
 $fn=100;
 
-module hollowcyl(r, d) {
-  difference() {
-    rotate([0, 0, 30]) cylinder(h=20, r=r, $fn=6, center=true);
-    rotate([0, 0, 30]) cylinder(h=21, r=r-d, $fn=6, center=true);
-  }
-}
+module cells() {
+  r = sqrt(3 / (1 + 2*sqrt(5)/5) - 1);
+  for (j = [0, 180]) rotate([0, j, 0])
+    for (i = [0:4]) rotate([0, 0, i * 360 / 5])
+      for (k = [0, 1])
+        rotate([0, -atan(r) - 2*k*atan(r*cos(180/3)), 0])
+        rotate([0, 0, 180*k])
+        rotate([0, 0, 30])
+          translate([0, 0, 0.1]) cylinder(1, 0, r/sqrt(3), $fn=6);
 
-module cells(r, d) {
-  for (t = [-1, 0, 1])
-    translate([t * (r * sqrt(3) - d), 0, 0])
-      hollowcyl(r, d);
-
-  for (s = [1, -1])
-    scale([1, s, 1]) for (t = [-0.5, 0.5])
-      translate([t * (r * sqrt(3) - d), -(r * 1.5 - d), 0])
-        hollowcyl(r, d);
-}
-
+  translate([0, 0, 0.3]) cylinder(1, 0, r/sqrt(3), $fn=5);
+  for (i = [0:4]) rotate ([0, 0, i * 72])
+  rotate([0, 2*atan(r*cos(180/5)), 0])
+  rotate([0, 0, 180]) translate([0, 0, 0.1]) cylinder(1, 0, r/sqrt(3), $fn=5);}
 
 intersection() {
   union() {
     // shell
-    difference() {
+    union() {
       translate([0, 0, -3]) sphere(10, center=true);
       intersection() {
-        cells(4, 1);
+        translate([0, 0, -3])  scale(10) cells();
         difference() {
-          translate([0, 0, -3]) sphere(11, center=true);
+          translate([0, 0, -3]) sphere(10.3, center=true);
           translate([0, 0, -3]) sphere(9.8, center=true);
         }
       }
