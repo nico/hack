@@ -8,10 +8,12 @@ module cells() {
         rotate([0, 0, 30])
           translate([0, 0, 0.3]) cylinder(1, 0, r/sqrt(3), $fn=6);
 
-  translate([0, 0, 0.3]) cylinder(1, 0, r/sqrt(3), $fn=5);
+  y = cos(atan(r)) + r/2 * sin(atan(r));
+  nr = sqrt(1 + r*r/4 - y*y) / cos(36);
+  translate([0, 0, 0.3]) cylinder(y, 0, nr, $fn=5);
   for (i = [0:4]) rotate ([0, 0, i * 72])
   rotate([0, 2*atan(r*cos(180/5)), 0])
-  rotate([0, 0, 180]) translate([0, 0, 0.3]) cylinder(1, 0, r/sqrt(3), $fn=5);
+  rotate([0, 0, 180]) translate([0, 0, 0.3]) cylinder(y, 0, nr, $fn=5);
 }
 
 cells();
