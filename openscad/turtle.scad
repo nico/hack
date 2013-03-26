@@ -31,7 +31,7 @@ intersection() {
           translate([0, 0, -3]) sphere(9.8, center=true);
         }
       }
-   }
+    }
 
     // head
     translate([10, 0, -1]) sphere(4, center=true);
