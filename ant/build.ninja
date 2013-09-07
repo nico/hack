@@ -1,0 +1,12 @@
+rule javac
+  command = javac -sourcepath src -d build/classes $in
+rule jar
+  command = jar cfm $out $manifest -C $dir .
+
+build build/classes/Foo.class: javac src/Foo.java
+build build/jar/Foo.jar: jar | myManifest build/classes/Foo.class
+  manifest = myManifest
+  dir = build/classes
+
+build compile: phony build/classes/Foo.class
+build jar: phony build/jar/Foo.jar
