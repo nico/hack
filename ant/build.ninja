@@ -3,8 +3,8 @@ rule javac
 rule jar
   command = jar cfm $out $manifest -C $dir .
 
-build build/classes/Foo.class: javac src/Foo.java
-build build/jar/Foo.jar: jar | myManifest build/classes/Foo.class
+build build/classes/foo/Foo.class: javac src/Foo.java
+build build/jar/Foo.jar: jar | myManifest build/classes/foo/Foo.class
   manifest = myManifest
   dir = build/classes
 
