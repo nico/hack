@@ -1,5 +1,7 @@
 const int kLeftServo = 3;
 const int kRightServo = 2;
+const int kSensorPin = 4;
+const int kLedPin = 13;
 
 // To calibrate, send 1500us high pulses to servo, then adjust pot
 // until servo doesn't rotate.
@@ -7,10 +9,18 @@ const int kRightServo = 2;
 void setup() {
   pinMode(kLeftServo, OUTPUT);
   pinMode(kRightServo, OUTPUT);
+  pinMode(kLedPin, OUTPUT);
+  pinMode(kSensorPin, INPUT);
 }
 
 void loop() {
-  forward();  
+  //forward();
+  if (digitalRead(kSensorPin) == LOW) {
+    digitalWrite(kLedPin, HIGH);
+  } else {
+    digitalWrite(kLedPin, LOW);
+  }
+  delay(20);  // ms
 }
 
 void forward() {
