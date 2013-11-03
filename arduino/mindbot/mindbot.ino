@@ -3,6 +3,8 @@ const int kRightServo = 2;
 const int kSensorPin = 4;
 const int kLedPin = 13;
 
+const int kSpeed = 25;
+
 // To calibrate, send 1500us high pulses to servo, then adjust pot
 // until servo doesn't rotate.
 
@@ -14,19 +16,37 @@ void setup() {
 }
 
 void loop() {
-  //forward();
-  if (digitalRead(kSensorPin) == LOW) {
-    digitalWrite(kLedPin, HIGH);
-  } else {
-    digitalWrite(kLedPin, LOW);
+  digitalWrite(kLedPin, obstacleDetected() ? HIGH : LOW);
+  delay(10);  // ms
+  while (obstacleDetected()) {
+    //turn();
+    backward();
   }
-  delay(20);  // ms
+  forward();
+}
+
+bool obstacleDetected() {
+  return digitalRead(kSensorPin) == LOW;
+}
+
+void turn() {
+  for (int i = 0; i < 10; ++i) {
+    pulseServo(kLeftServo, 1500 + kSpeed);  // us
+    pulseServo(kRightServo, 1500 + kSpeed);  // us
+  }
 }
 
 void forward() {
   for (int i = 0; i < 10; ++i) {
-    pulseServo(kLeftServo, 1500 - 500);  // us
-    pulseServo(kRightServo, 1500 + 500);  // us
+    pulseServo(kLeftServo, 1500 - kSpeed);  // us
+    pulseServo(kRightServo, 1500 + kSpeed);  // us
+  }
+}
+
+void backward() {
+  for (int i = 0; i < 10; ++i) {
+    pulseServo(kLeftServo, 1500 + kSpeed);  // us
+    pulseServo(kRightServo, 1500 - kSpeed);  // us
   }
 }
 
@@ -36,5 +56,4 @@ void pulseServo(int pin, int us) {
   delayMicroseconds(us);
   digitalWrite(pin, LOW);
   delay(5);  // ms
-
 }
