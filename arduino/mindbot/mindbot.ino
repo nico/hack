@@ -6,17 +6,25 @@ const int kRightServo = 2;
 
 void setup() {
   pinMode(kLeftServo, OUTPUT);
-  
-    pinMode(13, OUTPUT);
-    digitalWrite(13, HIGH);
-
+  pinMode(kRightServo, OUTPUT);
 }
 
 void loop() {
-  digitalWrite(kLeftServo, HIGH);
+  forward();  
+}
 
-  delayMicroseconds(1500);
-  digitalWrite(kLeftServo, LOW);
-  delay(10);  // ms
-  
+void forward() {
+  for (int i = 0; i < 10; ++i) {
+    pulseServo(kLeftServo, 1500 - 500);  // us
+    pulseServo(kRightServo, 1500 + 500);  // us
+  }
+}
+
+void pulseServo(int pin, int us) {
+  digitalWrite(pin, HIGH);
+
+  delayMicroseconds(us);
+  digitalWrite(pin, LOW);
+  delay(5);  // ms
+
 }
