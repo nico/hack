@@ -12,10 +12,6 @@ class Vertex(object):
     self.neighbors = neighbors
     self.possibleColors = possibleColors
 
-  def __repr__(self):
-    return 'Vertex(id=%d, color=%d, possibleColors=%s)' % (
-        self.id, self.color, self.possibleColors)
-
 v = [Vertex(i, UNK, set(), set([R, G, B])) for i in range(30)]
 
 def face(a, b, c):
@@ -78,7 +74,7 @@ def color():
   if len(unk) == 0:
     print 'solution found:'
     for p in v:
-      print p
+      print 'id %d: color %d' % (p.id, p.color)
     return
 
   for c in unk[0].possibleColors.copy():
