@@ -8,10 +8,21 @@ E = N * 4 / 2
 
 from collections import namedtuple
 
+UNK, R, G, B = -1, 0, 1, 2
 
-Vertex = namedtuple('Vertex', ['id', 'color', 'neighbors'])
+class Vertex(object):
+  def __init__(self, id, color, neighbors, possibleColors):
+    self.id = id
+    self.color = color
+    self.neighbors = neighbors
+    self.possibleColors = possibleColors
 
-v = [Vertex(i, -1, set()) for i in range(N)]
+  def __repr__(self):
+    return 'Vertex(id=%d, color=%d, possibleColors=%s)' % (
+        self.id, self.color, self.possibleColors)
+#Vertex = namedtuple('Vertex', ['id', 'color', 'neighbors', 'possibleColors'])
+
+v = [Vertex(i, UNK, set(), set([R, G, B])) for i in range(N)]
 
 def face(a, b, c):
   v[a].neighbors.add(b); v[a].neighbors.add(c)
@@ -44,5 +55,59 @@ face(29 - 2, 29 - 7, 29 - 8)
 
 face(29 - 0, 29 - 1, 29 - 2)
 
-for p in v:
-  print p
+#for p in v:
+#  print p
+
+def assign(i, c):
+  v[i].color = c
+  old = {}
+  for j in v[i].neighbors:
+    old[j] = v[j].possibleColors.copy()
+    v[j].possibleColors.discard(c)
+  return old
+
+def unassign(i, old):
+  v[i].color = UNK
+  for k, oldcol in old.iteritems():
+    v[k].possibleColors = oldcol
+
+assign(0, R)
+assign(1, G)
+assign(2, B)
+
+depth = 0
+# Collect uncolored vertices
+# If none, print solution
+# Pick vertex with fewest color choices
+# If zero, impossible, reject
+# For every choice, assign color, recurse, backtrack
+def color():
+  global depth
+  depth += 1
+  unk = sorted([p for p in v if p.color == UNK],
+               key=lambda p: len(p.possibleColors))
+
+  #print ' ' * depth, 'len:', len(unk)
+  if len(unk) == 0:
+    print 'solution found:'
+    for p in v:
+      print p
+    depth -= 1
+    return
+
+  if len(unk[0].possibleColors) == 0:
+    # Infeasible solution.
+    print 'discarding'
+    depth -= 1
+    return
+
+  #print ' ' * depth, '# choices:', len(unk[0].possibleColors)
+  for c in unk[0].possibleColors.copy():
+    #print ' ' * depth, 'c:', c
+    old = assign(unk[0].id, c)
+    color()
+    unassign(unk[0].id,old)
+
+  depth -= 1
+
+color()
