@@ -54,8 +54,6 @@ face(29 - 2, 29 - 7, 29 - 8)
 
 face(29 - 0, 29 - 1, 29 - 2)
 
-#for p in v:
-#  print p
 
 def assign(i, c):
   v[i].color = c
@@ -77,7 +75,6 @@ assign(2, B)
 # Collect uncolored vertices
 # If none, print solution
 # Pick vertex with fewest color choices
-# If zero, impossible, reject
 # For every choice, assign color, recurse, backtrack
 def color():
   unk = sorted([p for p in v if p.color == UNK],
@@ -87,9 +84,6 @@ def color():
     print 'solution found:'
     for p in v:
       print p
-    return
-
-  if len(unk[0].possibleColors) == 0:
     return
 
   for c in unk[0].possibleColors.copy():
