@@ -20,7 +20,6 @@ class Vertex(object):
   def __repr__(self):
     return 'Vertex(id=%d, color=%d, possibleColors=%s)' % (
         self.id, self.color, self.possibleColors)
-#Vertex = namedtuple('Vertex', ['id', 'color', 'neighbors', 'possibleColors'])
 
 v = [Vertex(i, UNK, set(), set([R, G, B])) for i in range(N)]
 
@@ -75,39 +74,27 @@ assign(0, R)
 assign(1, G)
 assign(2, B)
 
-depth = 0
 # Collect uncolored vertices
 # If none, print solution
 # Pick vertex with fewest color choices
 # If zero, impossible, reject
 # For every choice, assign color, recurse, backtrack
 def color():
-  global depth
-  depth += 1
   unk = sorted([p for p in v if p.color == UNK],
                key=lambda p: len(p.possibleColors))
 
-  #print ' ' * depth, 'len:', len(unk)
   if len(unk) == 0:
     print 'solution found:'
     for p in v:
       print p
-    depth -= 1
     return
 
   if len(unk[0].possibleColors) == 0:
-    # Infeasible solution.
-    print 'discarding'
-    depth -= 1
     return
 
-  #print ' ' * depth, '# choices:', len(unk[0].possibleColors)
   for c in unk[0].possibleColors.copy():
-    #print ' ' * depth, 'c:', c
     old = assign(unk[0].id, c)
     color()
     unassign(unk[0].id,old)
-
-  depth -= 1
 
 color()
