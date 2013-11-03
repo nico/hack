@@ -3,11 +3,6 @@
 # face, so that every of the 3 faces of every face-pyramid has 3 distinct colors
 # and one color on the opposite sides of neighboring face-pyramid faces match.
 
-N = 30
-E = N * 4 / 2
-
-from collections import namedtuple
-
 UNK, R, G, B = -1, 0, 1, 2
 
 class Vertex(object):
@@ -21,7 +16,7 @@ class Vertex(object):
     return 'Vertex(id=%d, color=%d, possibleColors=%s)' % (
         self.id, self.color, self.possibleColors)
 
-v = [Vertex(i, UNK, set(), set([R, G, B])) for i in range(N)]
+v = [Vertex(i, UNK, set(), set([R, G, B])) for i in range(30)]
 
 def face(a, b, c):
   v[a].neighbors.add(b); v[a].neighbors.add(c)
