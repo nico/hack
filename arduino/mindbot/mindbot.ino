@@ -37,9 +37,9 @@ bool obstacleDetected() {
 }
 
 void evade() {
-  for (int i = 0; i < 10; ++i)
+  for (int i = 0; i < 12; ++i)
     backward();
-  for (int i = 0, e = random(18, 4 * 18); i < e; ++i)
+  for (int i = 0, e = 19 * random(1, 4); i < e; ++i)
     turn();
 }
 
