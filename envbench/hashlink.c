@@ -5,6 +5,7 @@
 
 typedef struct {
   FILE* f;
+  int last_char;
 } Input;
 
 Input* open_file(const char* name) {
@@ -14,6 +15,7 @@ Input* open_file(const char* name) {
 
   Input* input = malloc(sizeof(Input));
   input->f = f;
+  input->last_char = ' ';
   return input;
 }
 
@@ -39,20 +41,21 @@ typedef struct {
   char* ident_text;
 } Token;
 void read_token(Input* input, Token* t) {
-  int last_char = ' ';
-  while (isspace(last_char))
-    last_char = GETC(input->f);
+  while (isspace(input->last_char))
+    input->last_char = GETC(input->f);
 
   if (FEOF(input->f)) {
     t->type = kTokEof;
     return;
   }
 
-  if (last_char == '{') {
+  if (input->last_char == '{') {
+    input->last_char = GETC(input->f);
     t->type = kTokOpenScope;
     return;
   }
-  if (last_char == '}') {
+  if (input->last_char == '}') {
+    input->last_char = GETC(input->f);
     t->type = kTokCloseScope;
     return;
   }
@@ -65,11 +68,11 @@ void read_token(Input* input, Token* t) {
       fprintf(stderr, "buffer overflow");
       exit(1);
     }
-    buf[buf_end++] = last_char;
-    last_char = GETC(input->f);
-  } while (!isspace(last_char));
+    buf[buf_end++] = input->last_char;
+    input->last_char = GETC(input->f);
+  } while (!isspace(input->last_char) && input->last_char != '{' &&
+           input->last_char != '}');
   buf[buf_end] = '\0';
-  ungetc(last_char, input->f);
 
   if (strcmp(buf, "set") == 0) {
     t->type = kTokSet;
