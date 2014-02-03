@@ -1,0 +1,8 @@
+rule cc
+  command = clang -c $in -o $out
+
+rule ld
+  command = clang $in -o $out
+
+build hashlink.o: cc hashlink.c
+build hashlink: ld hashlink.o
