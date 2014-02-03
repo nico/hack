@@ -1,0 +1,10 @@
+{
+  set foo 5asdf
+  set bar $foo
+
+  {
+    set foo 8dfad
+  }
+
+  get $foo
+}
