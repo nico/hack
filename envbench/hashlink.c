@@ -63,7 +63,7 @@ void read_token(Input* input, Token* t) {
     }
     buf[buf_end++] = last_char;
     last_char = fgetc(input->f);
-  } while (isalnum(last_char));
+  } while (!isspace(last_char));
   buf[buf_end] = '\0';
   ungetc(last_char, input->f);
 
