@@ -1,3 +1,4 @@
+set foo 678ijhhhhhhh
 {
   set foo 5asdf
   set bar $foo

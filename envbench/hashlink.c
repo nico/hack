@@ -80,7 +80,30 @@ void read_token(Input* input, Token* t) {
   t->ident_text = strdup(buf);  // Leaks.
 }
 
+typedef struct HashNode {
+  char* key;
+  char* value;
+  struct HashNode* next;
+} HashNode;
+typedef struct Hash {
+  HashNode* nodes;
+  struct Hash* parent;
+} Hash;
+Hash* hash_new(Hash* parent) {
+  Hash* hash = malloc(sizeof(Hash));
+  hash->parent = parent;
+  return hash;
+}
+
+void hash_free(Hash* hash) {
+  free(hash);
+}
+void hash_set(char* key, char* value);
+char* hash_get(char* key);
+
 void parse(Input* input) {
+  Hash* hash = hash_new(NULL);
+
   int nesting_depth = 0;
   Token token;
   for (;;) {
@@ -89,11 +112,21 @@ void parse(Input* input) {
       case kTokEof:
         if (nesting_depth != 0)
           fprintf(stderr, "unbalanced scopes (%d)\n", nesting_depth);
+        hash_free(hash);
         return;
       case kTokOpenScope:
+        hash = hash_new(hash);
         ++nesting_depth;
         break;
       case kTokCloseScope:
+        if (nesting_depth <= 0) {
+          fprintf(stderr, "no scope to close\n");
+          exit(1);
+        }
+        Hash* old = hash;
+        hash = hash->parent;
+        hash_free(old);
+
         --nesting_depth;
         break;
     }
