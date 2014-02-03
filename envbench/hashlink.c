@@ -1,6 +1,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct {
   FILE* f;
@@ -51,7 +52,32 @@ void read_token(Input* input, Token* t) {
     t->type = kTokCloseScope;
     return;
   }
+
+  const int BUFSIZE = 1024;
+  char buf[BUFSIZE];
+  int buf_end = 0;
+  do {
+    if (buf_end >= BUFSIZE - 1) {
+      fprintf(stderr, "buffer overflow");
+      exit(1);
+    }
+    buf[buf_end++] = last_char;
+    last_char = fgetc(input->f);
+  } while (isalnum(last_char));
+  buf[buf_end] = '\0';
+  ungetc(last_char, input->f);
+
+  if (strcmp(buf, "set") == 0) {
+    t->type = kTokSet;
+    return;
+  }
+  if (strcmp(buf, "get") == 0) {
+    t->type = kTokGet;
+    return;
+  }
+
   t->type = kTokIdent;
+  t->ident_text = strdup(buf);  // Leaks.
 }
 
 void parse(Input* input) {
