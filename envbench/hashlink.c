@@ -35,14 +35,14 @@ typedef struct {
   char* ident_text;
 } Token;
 void read_token(Input* input, Token* t) {
+  int last_char = ' ';
+  while (isspace(last_char))
+    last_char = fgetc(input->f);
+
   if (feof(input->f)) {
     t->type = kTokEof;
     return;
   }
-
-  int last_char = ' ';
-  while (isspace(last_char))
-    last_char = fgetc(input->f);
 
   if (last_char == '{') {
     t->type = kTokOpenScope;
@@ -86,20 +86,52 @@ typedef struct HashNode {
   struct HashNode* next;
 } HashNode;
 typedef struct Hash {
-  HashNode* nodes;
+  HashNode** bins;
+  int bin_count;
   struct Hash* parent;
 } Hash;
 Hash* hash_new(Hash* parent) {
   Hash* hash = malloc(sizeof(Hash));
   hash->parent = parent;
+  hash->bin_count = 29989;
+  hash->bins = calloc(hash->bin_count, sizeof(HashNode*));
   return hash;
 }
 
 void hash_free(Hash* hash) {
   free(hash);
 }
-void hash_set(char* key, char* value);
-char* hash_get(char* key);
+
+static inline unsigned hash_string(char* s) {
+  unsigned hash = 0;
+  while (*s)
+    hash = hash * 33 + (unsigned char)*s++;
+  return hash;
+}
+void hash_set(Hash* hash, char* key, char* value) {
+  unsigned h = hash_string(key) % hash->bin_count;
+  for (HashNode* n = hash->bins[h]; n != NULL; n = n->next)
+    if (strcmp(key, n->key) == 0) {
+      // FIXME: allow overwriting keys?
+      free(n->value);
+      n->value = value;
+      return;
+    }
+  HashNode* n = malloc(sizeof(HashNode));
+  n->key = key;
+  n->value = value;
+  n->next = hash->bins[h];
+  hash->bins[h] = n;
+}
+char* hash_get(Hash* hash, char* key) {
+  if (!hash)
+    return NULL;
+  unsigned h = hash_string(key) % hash->bin_count;
+  for (HashNode* n = hash->bins[h]; n != NULL; n = n->next)
+    if (strcmp(key, n->key) == 0)
+      return n->value;
+  return hash_get(hash->parent, key);
+}
 
 void parse(Input* input) {
   Hash* hash = hash_new(NULL);
@@ -128,6 +160,32 @@ void parse(Input* input) {
         hash_free(old);
 
         --nesting_depth;
+        break;
+      case kTokSet: {
+        Token key, value;
+        read_token(input, &key);
+        read_token(input, &value);
+        if (key.type != kTokIdent || value.type != kTokIdent) {
+          fprintf(stderr, "expected two idents after set\n");
+          exit(1);
+        }
+        hash_set(hash, key.ident_text, value.ident_text);
+        break;
+      }
+      case kTokGet: {
+        Token key;
+        read_token(input, &key);
+        if (key.type != kTokIdent) {
+          fprintf(stderr, "expected ident after get\n");
+          exit(1);
+        }
+        char* val = hash_get(hash, key.ident_text);
+        printf("%s = %s\n", key.ident_text, val);
+        break;
+      }
+      case kTokIdent:
+        fprintf(stderr, "unexpected ident '%s'\n", token.ident_text);
+        exit(1);
         break;
     }
   }

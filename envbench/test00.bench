@@ -5,7 +5,10 @@ set foo 678ijhhhhhhh
 
   {
     set foo 8dfad
+    get foo
   }
 
-  get $foo
+  get foo
 }
+get foo
+get bar
