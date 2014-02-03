@@ -1,5 +1,5 @@
 rule cc
-  command = clang -c $in -o $out
+  command = clang -O2 -fcolor-diagnostics -c $in -o $out
 
 rule ld
   command = clang $in -o $out
