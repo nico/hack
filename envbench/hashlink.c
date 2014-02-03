@@ -22,6 +22,10 @@ void close_file(Input* input) {
   free(input);
 }
 
+//#define GETC(f) fgetc(f)
+#define GETC(f) getc_unlocked(f)  // 3.5 times as fast
+//#define FEOF(f) feof(f)
+#define FEOF(f) feof_unlocked(f)  // 1.5 times as fast
 typedef enum {
   kTokEof,
   kTokSet,
@@ -37,9 +41,9 @@ typedef struct {
 void read_token(Input* input, Token* t) {
   int last_char = ' ';
   while (isspace(last_char))
-    last_char = fgetc(input->f);
+    last_char = GETC(input->f);
 
-  if (feof(input->f)) {
+  if (FEOF(input->f)) {
     t->type = kTokEof;
     return;
   }
@@ -62,7 +66,7 @@ void read_token(Input* input, Token* t) {
       exit(1);
     }
     buf[buf_end++] = last_char;
-    last_char = fgetc(input->f);
+    last_char = GETC(input->f);
   } while (!isspace(last_char));
   buf[buf_end] = '\0';
   ungetc(last_char, input->f);
@@ -180,7 +184,7 @@ void parse(Input* input) {
           exit(1);
         }
         char* val = hash_get(hash, key.ident_text);
-        printf("%s = %s\n", key.ident_text, val);
+        //printf("%s = %s\n", key.ident_text, val);  // 19% of run time
         break;
       }
       case kTokIdent:
