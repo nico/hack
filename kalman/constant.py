@@ -28,8 +28,18 @@ for z in Z:
   estX.append(x)
   estP.append(p)
 
+avgs = [sum(Z[0:n]) / n for n in range(1, N+1)]
 print ['%.2f' % x for x in trueX]
 print ['%.2f' % z for z in Z]
 print ['%.2f' % x for x in estX]
-print sum(Z) / len(Z)
+print ['%.2f' % x for x in avgs]
 print ['%.2f' % p for p in estP]
+
+import pylab
+pylab.plot(trueX, label='truth')
+pylab.plot(Z, label='measurements')
+pylab.plot(estX, label='kalman estimate')
+pylab.plot(avgs, label='avg estimate')
+pylab.plot(estP, label='kalman error')
+pylab.legend(loc=4)
+pylab.show()
