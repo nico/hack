@@ -9,7 +9,7 @@ import random
 
 N = 25
 truex = 8
-r = 0.5
+r = 1.5
 
 trueX = N * [truex]
 Z = [x + random.gauss(0, r) for x in trueX]
@@ -20,11 +20,9 @@ p = 10
 estX = []
 estP = []
 for z in Z:
-  y = z - x
-  s = p + r
-  k = p / s
+  k = p / (p + r)
 
-  x += k * y
+  x = x + k * (z - x)
   p = (1 - k)*p
 
   estX.append(x)
