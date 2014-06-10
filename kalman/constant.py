@@ -9,12 +9,12 @@ import random
 
 N = 25
 truex = 8
-r = 1.5
+r = 1.0
 
 trueX = N * [truex]
 Z = [x + random.gauss(0, r) for x in trueX]
 
-x = Z[0]
+x = 0  # Doesn't matter as long as the initial p is large enough.
 p = 10000000
 
 estX = []
