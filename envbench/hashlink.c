@@ -187,6 +187,10 @@ void parse(Input* input) {
           exit(1);
         }
         char* val = hash_get(hash, key.ident_text);
+        if (!val) {
+          fprintf(stderr, "unknown key '%s'\n", key.ident_text);
+          exit(1);
+        }
         //printf("%s = %s\n", key.ident_text, val);  // 19% of run time
         break;
       }
