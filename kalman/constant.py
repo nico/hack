@@ -14,8 +14,8 @@ r = 1.5
 trueX = N * [truex]
 Z = [x + random.gauss(0, r) for x in trueX]
 
-x = 0
-p = 10
+x = Z[0]
+p = 10000000
 
 estX = []
 estP = []
