@@ -1,0 +1,8 @@
+rule cc
+  command = cl /W4 /WX /nologo /Ox $in /Fo$out
+rule ld
+  command = cl $in /nologo /Fe$out
+
+builddir = build
+build $builddir/watdbg.obj: cc watdbg.cc
+build $builddir/watdbg: ld $builddir/watdbg.obj
