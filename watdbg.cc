@@ -1,5 +1,8 @@
 #include <stdio.h>
 
+#include <map>
+#include <string>
+
 #include <windows.h>
 
 const char* DebugEventCodeStr(DWORD type) {
@@ -19,6 +22,41 @@ const char* DebugEventCodeStr(DWORD type) {
 #undef S
 }
 
+std::string PathFromHandle(HANDLE h) {
+  static_assert(sizeof TCHAR == 1, "ascii only");
+  char buf[MAX_PATH];
+  if (!GetFinalPathNameByHandle(h, buf, sizeof(buf) / sizeof(buf[0]), 0)) {
+    fprintf(stderr, "failed to get path for handle\n");
+    exit(1);
+  }
+  return buf;
+}
+
+class Debugger {
+ public:
+  void DispatchEvent(const DEBUG_EVENT& event) {
+    switch (event.dwDebugEventCode) {
+      case LOAD_DLL_DEBUG_EVENT: {
+        std::string dll_name = PathFromHandle(event.u.LoadDll.hFile);
+        m_dllNames[event.u.LoadDll.lpBaseOfDll] = dll_name;
+
+        printf("loaded 0x%p %s\n",
+               event.u.LoadDll.lpBaseOfDll, dll_name.c_str());
+        break;
+      }
+      case UNLOAD_DLL_DEBUG_EVENT: {
+        std::string dll_name = m_dllNames[event.u.UnloadDll.lpBaseOfDll];
+        printf("unloaded 0x%p %s\n",
+               event.u.UnloadDll.lpBaseOfDll, dll_name.c_str());
+        break;
+      }
+    }
+  }
+
+ private:
+  std::map<void*, std::string> m_dllNames;
+};
+
 int main() {
   char kCommand[] = "../ninja/ninja.exe -h";
 
@@ -33,24 +71,17 @@ int main() {
   }
 
   printf("about to enter loop\n");
+  Debugger dbg;
   DEBUG_EVENT debug_event = {};
   while (WaitForDebugEvent(&debug_event, INFINITE)) {
-    // TODO do stuff
     printf("got debug event %s\n",
            DebugEventCodeStr(debug_event.dwDebugEventCode));
+    dbg.DispatchEvent(debug_event);
     if (debug_event.dwDebugEventCode == EXIT_PROCESS_DEBUG_EVENT)
       break;
 
     ContinueDebugEvent(debug_event.dwProcessId, debug_event.dwThreadId,
                        DBG_EXCEPTION_NOT_HANDLED);
   }
-
-  //DWORD exit_code;
-  //CloseHandle(process_info.hThread);
-
-  //WaitForSingleObject(process_info.hProcess, INFINITE);
-  //GetExitCodeProcess(process_info.hProcess, &exit_code);
-  //CloseHandle(process_info.hProcess);
-  //exit(exit_code);
 }
 

@@ -1,5 +1,6 @@
+defines = /D_HAS_EXCEPTIONS=0 /D_CRT_SECURE_NO_WARNINGS
 rule cc
-  command = cl /W4 /WX /nologo /Ox $in /Fo$out
+  command = cl /W4 /WX $defines /nologo /Ox $in /Fo$out
 rule ld
   command = cl $in /nologo /Fe$out
 
