@@ -5,9 +5,9 @@
 
 #include <windows.h>
 
-const char* DebugEventCodeStr(DWORD type) {
+const char* DebugEventCodeStr(DWORD code) {
 #define S(x) case x: return #x
-  switch (type) {
+  switch (code) {
     S(CREATE_PROCESS_DEBUG_EVENT);
     S(CREATE_THREAD_DEBUG_EVENT);
     S(EXCEPTION_DEBUG_EVENT);
@@ -17,6 +17,34 @@ const char* DebugEventCodeStr(DWORD type) {
     S(OUTPUT_DEBUG_STRING_EVENT);
     S(RIP_EVENT);
     S(UNLOAD_DLL_DEBUG_EVENT);
+    default: return "(unknown debug event code)";
+  }
+#undef S
+}
+
+const char* ExceptionCodeStr(DWORD code) {
+#define S(x) case x: return #x
+  switch (code) {
+    S(EXCEPTION_ACCESS_VIOLATION);
+    S(EXCEPTION_ARRAY_BOUNDS_EXCEEDED);
+    S(EXCEPTION_BREAKPOINT);
+    S(EXCEPTION_DATATYPE_MISALIGNMENT);
+    S(EXCEPTION_FLT_DENORMAL_OPERAND);
+    S(EXCEPTION_FLT_DIVIDE_BY_ZERO);
+    S(EXCEPTION_FLT_INEXACT_RESULT);
+    S(EXCEPTION_FLT_INVALID_OPERATION);
+    S(EXCEPTION_FLT_OVERFLOW);
+    S(EXCEPTION_FLT_STACK_CHECK);
+    S(EXCEPTION_FLT_UNDERFLOW);
+    S(EXCEPTION_ILLEGAL_INSTRUCTION);
+    S(EXCEPTION_IN_PAGE_ERROR);
+    S(EXCEPTION_INT_DIVIDE_BY_ZERO);
+    S(EXCEPTION_INT_OVERFLOW);
+    S(EXCEPTION_INVALID_DISPOSITION);
+    S(EXCEPTION_NONCONTINUABLE_EXCEPTION);
+    S(EXCEPTION_PRIV_INSTRUCTION);
+    S(EXCEPTION_SINGLE_STEP);
+    S(EXCEPTION_STACK_OVERFLOW);
     default: return "(unknown debug event code)";
   }
 #undef S
@@ -50,6 +78,10 @@ class Debugger {
                event.u.UnloadDll.lpBaseOfDll, dll_name.c_str());
         break;
       }
+      case EXCEPTION_DEBUG_EVENT:
+        printf("debug event %s\n", ExceptionCodeStr(
+            event.u.Exception.ExceptionRecord.ExceptionCode));
+        break;
     }
   }
 

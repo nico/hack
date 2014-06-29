@@ -6,4 +6,4 @@ rule ld
 
 builddir = build
 build $builddir/watdbg.obj: cc watdbg.cc
-build $builddir/watdbg: ld $builddir/watdbg.obj
+build $builddir/watdbg.exe: ld $builddir/watdbg.obj
