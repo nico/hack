@@ -145,7 +145,7 @@ void Debugger::LoadSymbols(
 }
 
 int main() {
-  char kCommand[] = "../ninja/ninja.exe -h";
+  char kCommand[] = "../../ninja/ninja.exe -h";
 
   PROCESS_INFORMATION process_info = {};
   STARTUPINFO startup_info = { sizeof(STARTUPINFO) };
