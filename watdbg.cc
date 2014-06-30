@@ -62,32 +62,56 @@ std::string PathFromHandle(HANDLE h) {
 
 class Debugger {
  public:
+  Debugger(const PROCESS_INFORMATION& info) : process_info_(info) {}
   void DispatchEvent(const DEBUG_EVENT& event) {
     switch (event.dwDebugEventCode) {
       case LOAD_DLL_DEBUG_EVENT: {
         std::string dll_name = PathFromHandle(event.u.LoadDll.hFile);
-        m_dllNames[event.u.LoadDll.lpBaseOfDll] = dll_name;
+        dll_names_[event.u.LoadDll.lpBaseOfDll] = dll_name;
 
         printf("loaded 0x%p %s\n",
                event.u.LoadDll.lpBaseOfDll, dll_name.c_str());
         break;
       }
       case UNLOAD_DLL_DEBUG_EVENT: {
-        std::string dll_name = m_dllNames[event.u.UnloadDll.lpBaseOfDll];
+        std::string dll_name = dll_names_[event.u.UnloadDll.lpBaseOfDll];
         printf("unloaded 0x%p %s\n",
                event.u.UnloadDll.lpBaseOfDll, dll_name.c_str());
         break;
       }
-      case EXCEPTION_DEBUG_EVENT:
-        printf("debug event %s\n", ExceptionCodeStr(
-            event.u.Exception.ExceptionRecord.ExceptionCode));
+      case EXCEPTION_DEBUG_EVENT: {
+        const EXCEPTION_RECORD& exception_record =
+            event.u.Exception.ExceptionRecord;
+        printf("debug event %s\n",
+               ExceptionCodeStr(exception_record.ExceptionCode));
+        if (exception_record.ExceptionCode == EXCEPTION_BREAKPOINT)
+          HandleBreakpoint();
         break;
+      }
     }
   }
+  void HandleBreakpoint();
 
  private:
-  std::map<void*, std::string> m_dllNames;
+  std::map<void*, std::string> dll_names_;
+  const PROCESS_INFORMATION& process_info_;
+  Debugger& operator=(const Debugger&);
 };
+
+void Debugger::HandleBreakpoint() {
+  CONTEXT context;
+  context.ContextFlags = CONTEXT_ALL;
+  GetThreadContext(process_info_.hThread, &context);
+
+  printf("eax %08X    ebx %08X\n"
+         "ecx %08X    edx %08X\n"
+         "esi %08X    edi %08X\n"
+         "esp %08X    ebp %08X\n"
+         "eip %08X  flags %08X\n",
+         context.Eax, context.Ebx, context.Ecx, context.Edx,
+         context.Esi, context.Edi, context.Esp, context.Ebp,
+         context.Eip, context.EFlags);
+}
 
 int main() {
   char kCommand[] = "../ninja/ninja.exe -h";
@@ -103,7 +127,7 @@ int main() {
   }
 
   printf("about to enter loop\n");
-  Debugger dbg;
+  Debugger dbg(process_info);
   DEBUG_EVENT debug_event = {};
   while (WaitForDebugEvent(&debug_event, INFINITE)) {
     printf("got debug event %s\n",
