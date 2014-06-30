@@ -5,6 +5,10 @@
 
 #include <windows.h>
 
+#include <dbghelp.h>
+#pragma comment(lib, "dbghelp.lib")
+bool kUsePdbs = true;
+
 const char* DebugEventCodeStr(DWORD code) {
 #define S(x) case x: return #x
   switch (code) {
@@ -65,12 +69,21 @@ class Debugger {
   Debugger(const PROCESS_INFORMATION& info) : process_info_(info) {}
   void DispatchEvent(const DEBUG_EVENT& event) {
     switch (event.dwDebugEventCode) {
+      case CREATE_PROCESS_DEBUG_EVENT: {
+        const CREATE_PROCESS_DEBUG_INFO& info = event.u.CreateProcessInfo;
+        std::string exe_name = PathFromHandle(info.hFile);
+        LoadSymbols(  // TODO: is nDebugInfoSize the right size here?
+            info.hFile, exe_name, info.lpBaseOfImage, info.nDebugInfoSize);
+      } break;
       case LOAD_DLL_DEBUG_EVENT: {
-        std::string dll_name = PathFromHandle(event.u.LoadDll.hFile);
-        dll_names_[event.u.LoadDll.lpBaseOfDll] = dll_name;
+        const LOAD_DLL_DEBUG_INFO& info = event.u.LoadDll;
+        std::string dll_name = PathFromHandle(info.hFile);
+        LoadSymbols(  // TODO: is nDebugInfoSize the right size here?
+            info.hFile, dll_name, info.lpBaseOfDll, info.nDebugInfoSize);
+        dll_names_[info.lpBaseOfDll] = dll_name;
 
-        printf("loaded 0x%p %s\n",
-               event.u.LoadDll.lpBaseOfDll, dll_name.c_str());
+        if (!kUsePdbs)
+          printf("loaded 0x%p %s\n", info.lpBaseOfDll, dll_name.c_str());
         break;
       }
       case UNLOAD_DLL_DEBUG_EVENT: {
@@ -91,6 +104,8 @@ class Debugger {
     }
   }
   void HandleBreakpoint();
+  void LoadSymbols(
+      HANDLE file, const std::string& path, void* address, DWORD size);
 
  private:
   std::map<void*, std::string> dll_names_;
@@ -113,6 +128,22 @@ void Debugger::HandleBreakpoint() {
          context.Eip, context.EFlags);
 }
 
+void Debugger::LoadSymbols(
+    HANDLE file, const std::string& path, void* address, DWORD size) {
+  if (!kUsePdbs) return;
+
+  DWORD64 base = SymLoadModule64(
+      process_info_.hProcess, file, path.c_str(), 0, (DWORD64)address, size);
+
+  IMAGEHLP_MODULE64 module = { sizeof IMAGEHLP_MODULE64 };
+  BOOL b = SymGetModuleInfo64(process_info_.hProcess, base, &module);
+  if (b && module.SymType == SymPdb)
+    printf("Loaded symbols for %s\n", path.c_str());
+  else
+    printf("No symbols for %s\n", path.c_str());
+
+}
+
 int main() {
   char kCommand[] = "../ninja/ninja.exe -h";
 
@@ -126,7 +157,8 @@ int main() {
     exit(1);
   }
 
-  printf("about to enter loop\n");
+  if (kUsePdbs) SymInitialize(process_info.hProcess, NULL, FALSE);
+
   Debugger dbg(process_info);
   DEBUG_EVENT debug_event = {};
   while (WaitForDebugEvent(&debug_event, INFINITE)) {
@@ -139,5 +171,7 @@ int main() {
     ContinueDebugEvent(debug_event.dwProcessId, debug_event.dwThreadId,
                        DBG_EXCEPTION_NOT_HANDLED);
   }
+
+  if (kUsePdbs) SymCleanup(process_info.hProcess);
 }
 
