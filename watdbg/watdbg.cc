@@ -106,6 +106,7 @@ class Debugger {
   void HandleBreakpoint();
   void LoadSymbols(
       HANDLE file, const std::string& path, void* address, DWORD size);
+  void PrintBacktrace(HANDLE thread, CONTEXT* context);
 
  private:
   std::map<void*, std::string> dll_names_;
@@ -126,6 +127,8 @@ void Debugger::HandleBreakpoint() {
          context.Eax, context.Ebx, context.Ecx, context.Edx,
          context.Esi, context.Edi, context.Esp, context.Ebp,
          context.Eip, context.EFlags);
+
+  PrintBacktrace(process_info_.hThread, &context);
 }
 
 void Debugger::LoadSymbols(
@@ -141,7 +144,35 @@ void Debugger::LoadSymbols(
     printf("Loaded symbols for %s\n", path.c_str());
   else
     printf("No symbols for %s\n", path.c_str());
+}
 
+void Debugger::PrintBacktrace(HANDLE thread, CONTEXT* context) {
+  // See base/debug/stack_track_win.cc in Chromium and
+  // http://devonstrawntech.tumblr.com/post/15878429193/how-to-write-a-windows-debugger-references#Stack
+
+  printf("Stack:\n");
+
+  STACKFRAME64 stack = {0};
+#if defined(_WIN64)
+  int machine_type = IMAGE_FILE_MACHINE_AMD64;
+  stack.AddrPC.Offset = context->Rip;
+  stack.AddrFrame.Offset = context->Rbp;
+  stack.AddrStack.Offset = context->Rsp;
+#else
+  int machine_type = IMAGE_FILE_MACHINE_I386;
+  stack.AddrPC.Offset = context->Eip;
+  stack.AddrFrame.Offset = context->Ebp;
+  stack.AddrStack.Offset = context->Esp;
+#endif
+  stack.AddrPC.Mode = AddrModeFlat;
+  stack.AddrFrame.Mode = AddrModeFlat;
+  stack.AddrStack.Mode = AddrModeFlat;
+  while (StackWalk64(machine_type, process_info_.hProcess, thread,
+                     &stack, context, NULL, &SymFunctionTableAccess64,
+                     &SymGetModuleBase64, NULL) &&
+         stack.AddrReturn.Offset) {
+    printf("0x%p\n", stack.AddrPC.Offset);
+  }
 }
 
 int main() {
