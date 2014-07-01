@@ -187,8 +187,17 @@ void Debugger::PrintBacktrace(HANDLE thread, CONTEXT* context) {
     sym->MaxNameLength = MAX_SYM_NAME;
     SymGetSymFromAddr64(process_info_.hProcess, stack.AddrPC.Offset, NULL, sym);
 
-    printf(
-        "0x%08p %s:%s\n", stack.AddrPC.Offset, sym->Name, module.ModuleName);
+    // Get source location.
+    IMAGEHLP_LINE64 line = { sizeof IMAGEHLP_LINE64 };
+    SymGetLineFromAddr64(
+        process_info_.hProcess, stack.AddrPC.Offset, NULL, &line);
+
+    printf("0x%08p %s:%s (%s:%d)\n",
+           (void*)stack.AddrPC.Offset,
+           module.ModuleName,
+           sym->Name,
+           line.FileName,
+           line.LineNumber);
     delete[] sym;
   }
 }
