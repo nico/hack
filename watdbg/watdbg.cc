@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <stdio.h>
 
 #include <map>
@@ -119,7 +120,9 @@ void Debugger::HandleBreakpoint() {
   context.ContextFlags = CONTEXT_ALL;
   GetThreadContext(process_info_.hThread, &context);
 
-  printf("eax %08X    ebx %08X\n"
+  printf("\nBreakpoint!\n");
+  printf("Registers:\n"
+         "eax %08X    ebx %08X\n"
          "ecx %08X    edx %08X\n"
          "esi %08X    edi %08X\n"
          "esp %08X    ebp %08X\n"
@@ -129,6 +132,7 @@ void Debugger::HandleBreakpoint() {
          context.Eip, context.EFlags);
 
   PrintBacktrace(process_info_.hThread, &context);
+  printf("\n");
 }
 
 void Debugger::LoadSymbols(
@@ -171,7 +175,21 @@ void Debugger::PrintBacktrace(HANDLE thread, CONTEXT* context) {
                      &stack, context, NULL, &SymFunctionTableAccess64,
                      &SymGetModuleBase64, NULL) &&
          stack.AddrReturn.Offset) {
-    printf("0x%p\n", stack.AddrPC.Offset);
+    // Get module name.
+    IMAGEHLP_MODULE64 module = { sizeof IMAGEHLP_MODULE64 };
+    SymGetModuleInfo64(
+        process_info_.hProcess, (DWORD64)stack.AddrPC.Offset, &module);
+
+    // Get symbol name.
+    IMAGEHLP_SYMBOL64* sym = (IMAGEHLP_SYMBOL64*)new uint8_t[
+        sizeof IMAGEHLP_SYMBOL64 + MAX_SYM_NAME];
+    sym->SizeOfStruct = sizeof IMAGEHLP_SYMBOL64;
+    sym->MaxNameLength = MAX_SYM_NAME;
+    SymGetSymFromAddr64(process_info_.hProcess, stack.AddrPC.Offset, NULL, sym);
+
+    printf(
+        "0x%08p %s:%s\n", stack.AddrPC.Offset, sym->Name, module.ModuleName);
+    delete[] sym;
   }
 }
 
