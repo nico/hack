@@ -112,29 +112,46 @@ class Debugger {
 
  private:
   std::map<void*, std::string> dll_names_;
+  std::map<void*, uint8_t> replaced_opcode_bytes_;
   const PROCESS_INFORMATION& process_info_;
   Debugger& operator=(const Debugger&);
   bool first_breakpoint_hit_;
 };
 
 void Debugger::HandleBreakpoint() {
+  CONTEXT context;
+  context.ContextFlags = CONTEXT_ALL;
+  GetThreadContext(process_info_.hThread, &context);
+
   if (!first_breakpoint_hit_) {
     // The system inserts a breakpoint in LdrVerifyImageMatchesChecksum,
     // check if this is it. (TODO: Is this also true in the attach case?)
     // Use this event to insert a manual breakpoint.
     first_breakpoint_hit_ = true;
 
-    //AddBreakpoint("main");
+    printf("Adding explicit breakpoints!\n");
+    AddBreakpoint("main");
     // This name is from building ninja.exe with /MAP and looking at
     // the .map file (without the leading '?' or '_').
-    AddBreakpoint("real_main@?A0x86fa377f@@YAHHPAPAD@Z");
+    //AddBreakpoint("real_main@?A0x86fa377f@@YAHHPAPAD@Z");
   } else {
     // Need to restore the opcode that was overwritten with "int 3".
-  }
+    --context.Eip;
+    SetThreadContext(process_info_.hThread, &context);
 
-  CONTEXT context;
-  context.ContextFlags = CONTEXT_ALL;
-  GetThreadContext(process_info_.hThread, &context);
+    printf("Looking up instruction at 0x%08p\n", (void*)context.Eip);
+    std::map<void*, uint8_t>::iterator it =
+        replaced_opcode_bytes_.find((void*)context.Eip);
+    if (it == replaced_opcode_bytes_.end()) {
+      printf("stuff is broken; exiting\n");
+      exit(1);
+    }
+    uint8_t old_instr = it->second;
+    replaced_opcode_bytes_.erase(it);
+    WriteProcessMemory(process_info_.hProcess,
+                       (void*)context.Eip, &old_instr, 1, NULL);
+    FlushInstructionCache(process_info_.hProcess, (void*)context.Eip, 1);
+  }
 
   printf("\nBreakpoint!\n");
   printf("Registers:\n"
@@ -224,10 +241,30 @@ void Debugger::AddBreakpoint(const char* func_name) {
       sizeof IMAGEHLP_SYMBOL64 + MAX_SYM_NAME];
   sym->SizeOfStruct = sizeof IMAGEHLP_SYMBOL64;
   sym->MaxNameLength = MAX_SYM_NAME;
+
   // Without "module!" prefix on the name, this searches in all modules.
-  SymGetSymFromName64(process_info_.hProcess, func_name, sym);
+  if (!SymGetSymFromName64(process_info_.hProcess, func_name, sym)) {
+    printf("FAILED to look up %s\n", func_name);
+    return;
+  }
 
   printf("%s is at 0x%08p\n", func_name, (void*)sym->Address);
+
+  // Replace instruction opcode byte with "int 3" opcode; store old opcode byte
+  uint8_t instr;
+  if (ReadProcessMemory(process_info_.hProcess,
+                        (void*)sym->Address, &instr, 1, NULL)) {
+    printf("...read 0x%02x\n", instr);
+  }
+  replaced_opcode_bytes_[(void*)sym->Address] = instr;
+
+  const uint8_t kInt3OpCode = 0xcc;
+  instr = kInt3OpCode;
+  if (WriteProcessMemory(process_info_.hProcess,
+                         (void*)sym->Address, &instr, 1, NULL)) {
+    printf("...inserted breakpoint\n");
+  }
+  FlushInstructionCache(process_info_.hProcess, (void*)sym->Address, 1);
 
   delete[] sym;
 }
