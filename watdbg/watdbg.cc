@@ -67,7 +67,7 @@ std::string PathFromHandle(HANDLE h) {
 
 class Debugger {
  public:
-  Debugger(const PROCESS_INFORMATION& info) : process_info_(info) {}
+  Debugger(const PROCESS_INFORMATION& info) : process_info_(info), first_breakpoint_hit_(false) {}
   void DispatchEvent(const DEBUG_EVENT& event) {
     switch (event.dwDebugEventCode) {
       case CREATE_PROCESS_DEBUG_EVENT: {
@@ -108,14 +108,30 @@ class Debugger {
   void LoadSymbols(
       HANDLE file, const std::string& path, void* address, DWORD size);
   void PrintBacktrace(HANDLE thread, CONTEXT* context);
+  void AddBreakpoint(const char* func_name);
 
  private:
   std::map<void*, std::string> dll_names_;
   const PROCESS_INFORMATION& process_info_;
   Debugger& operator=(const Debugger&);
+  bool first_breakpoint_hit_;
 };
 
 void Debugger::HandleBreakpoint() {
+  if (!first_breakpoint_hit_) {
+    // The system inserts a breakpoint in LdrVerifyImageMatchesChecksum,
+    // check if this is it. (TODO: Is this also true in the attach case?)
+    // Use this event to insert a manual breakpoint.
+    first_breakpoint_hit_ = true;
+
+    //AddBreakpoint("main");
+    // This name is from building ninja.exe with /MAP and looking at
+    // the .map file (without the leading '?' or '_').
+    AddBreakpoint("real_main@?A0x86fa377f@@YAHHPAPAD@Z");
+  } else {
+    // Need to restore the opcode that was overwritten with "int 3".
+  }
+
   CONTEXT context;
   context.ContextFlags = CONTEXT_ALL;
   GetThreadContext(process_info_.hThread, &context);
@@ -200,6 +216,20 @@ void Debugger::PrintBacktrace(HANDLE thread, CONTEXT* context) {
            line.LineNumber);
     delete[] sym;
   }
+}
+
+void Debugger::AddBreakpoint(const char* func_name) {
+  // SymSetOptions() with SYMOPT_UNDNAME selects unmangled names.
+  IMAGEHLP_SYMBOL64* sym = (IMAGEHLP_SYMBOL64*)new uint8_t[
+      sizeof IMAGEHLP_SYMBOL64 + MAX_SYM_NAME];
+  sym->SizeOfStruct = sizeof IMAGEHLP_SYMBOL64;
+  sym->MaxNameLength = MAX_SYM_NAME;
+  // Without "module!" prefix on the name, this searches in all modules.
+  SymGetSymFromName64(process_info_.hProcess, func_name, sym);
+
+  printf("%s is at 0x%08p\n", func_name, (void*)sym->Address);
+
+  delete[] sym;
 }
 
 int main() {
