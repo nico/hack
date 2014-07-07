@@ -1,4 +1,5 @@
-defines = /D_HAS_EXCEPTIONS=0 /D_CRT_SECURE_NO_WARNINGS
+# http://connect.microsoft.com/VisualStudio/feedback/details/809962/has-exceptions-0-triggers-unreachable-code-warning-in-xtree
+defines = /D_HAS_EXCEPTIONS=0 /D_CRT_SECURE_NO_WARNINGS /wd4702
 rule cc
   command = cl /W4 /WX $defines /nologo /Ox $in /Fo$out
 rule ld
