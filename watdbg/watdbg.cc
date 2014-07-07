@@ -293,8 +293,16 @@ int main() {
     if (debug_event.dwDebugEventCode == EXIT_PROCESS_DEBUG_EVENT)
       break;
 
+    DWORD continue_status = DBG_EXCEPTION_NOT_HANDLED;
+    if (debug_event.dwDebugEventCode == EXCEPTION_DEBUG_EVENT &&
+        debug_event.u.Exception.ExceptionRecord.ExceptionCode ==
+            EXCEPTION_BREAKPOINT) {
+      // We handle breakpoint events.
+      // TODO: only do this for int 3s added by the debugger!
+      continue_status = DBG_CONTINUE;
+    }
     ContinueDebugEvent(debug_event.dwProcessId, debug_event.dwThreadId,
-                       DBG_EXCEPTION_NOT_HANDLED);
+                       continue_status);
   }
 
   if (kUsePdbs) SymCleanup(process_info.hProcess);
