@@ -67,15 +67,19 @@ std::string PathFromHandle(HANDLE h) {
 
 class Debugger {
  public:
-  Debugger(const PROCESS_INFORMATION& info) : process_info_(info), first_breakpoint_hit_(false) {}
-  void DispatchEvent(const DEBUG_EVENT& event) {
+  Debugger(const PROCESS_INFORMATION& info)
+      : process_info_(info), first_breakpoint_hit_(false) {}
+
+  // Returns if the event was handled (only used for EXCEPTION_DEBUG_EVENTs).
+  bool DispatchEvent(const DEBUG_EVENT& event) {
     switch (event.dwDebugEventCode) {
       case CREATE_PROCESS_DEBUG_EVENT: {
         const CREATE_PROCESS_DEBUG_INFO& info = event.u.CreateProcessInfo;
         std::string exe_name = PathFromHandle(info.hFile);
         LoadSymbols(  // TODO: is nDebugInfoSize the right size here?
             info.hFile, exe_name, info.lpBaseOfImage, info.nDebugInfoSize);
-      } break;
+        break;
+      }
       case LOAD_DLL_DEBUG_EVENT: {
         const LOAD_DLL_DEBUG_INFO& info = event.u.LoadDll;
         std::string dll_name = PathFromHandle(info.hFile);
@@ -99,12 +103,13 @@ class Debugger {
         printf("debug event %s\n",
                ExceptionCodeStr(exception_record.ExceptionCode));
         if (exception_record.ExceptionCode == EXCEPTION_BREAKPOINT)
-          HandleBreakpoint();
+          return HandleBreakpoint();
         break;
       }
     }
+    return false;
   }
-  void HandleBreakpoint();
+  bool HandleBreakpoint();
   void LoadSymbols(
       HANDLE file, const std::string& path, void* address, DWORD size);
   void PrintBacktrace(HANDLE thread, CONTEXT* context);
@@ -118,7 +123,7 @@ class Debugger {
   bool first_breakpoint_hit_;
 };
 
-void Debugger::HandleBreakpoint() {
+bool Debugger::HandleBreakpoint() {
   CONTEXT context;
   context.ContextFlags = CONTEXT_ALL;
   GetThreadContext(process_info_.hThread, &context);
@@ -143,8 +148,8 @@ void Debugger::HandleBreakpoint() {
     std::map<void*, uint8_t>::iterator it =
         replaced_opcode_bytes_.find((void*)context.Eip);
     if (it == replaced_opcode_bytes_.end()) {
-      printf("stuff is broken; exiting\n");
-      exit(1);
+      printf("int 3 that was not inserted by debugger; giving to app\n");
+      return false;
     }
     uint8_t old_instr = it->second;
     replaced_opcode_bytes_.erase(it);
@@ -166,6 +171,7 @@ void Debugger::HandleBreakpoint() {
 
   PrintBacktrace(process_info_.hThread, &context);
   printf("\n");
+  return true;
 }
 
 void Debugger::LoadSymbols(
@@ -289,18 +295,11 @@ int main() {
   while (WaitForDebugEvent(&debug_event, INFINITE)) {
     printf("got debug event %s\n",
            DebugEventCodeStr(debug_event.dwDebugEventCode));
-    dbg.DispatchEvent(debug_event);
+    bool handled = dbg.DispatchEvent(debug_event);
     if (debug_event.dwDebugEventCode == EXIT_PROCESS_DEBUG_EVENT)
       break;
 
-    DWORD continue_status = DBG_EXCEPTION_NOT_HANDLED;
-    if (debug_event.dwDebugEventCode == EXCEPTION_DEBUG_EVENT &&
-        debug_event.u.Exception.ExceptionRecord.ExceptionCode ==
-            EXCEPTION_BREAKPOINT) {
-      // We handle breakpoint events.
-      // TODO: only do this for int 3s added by the debugger!
-      continue_status = DBG_CONTINUE;
-    }
+    DWORD continue_status = handled ? DBG_CONTINUE : DBG_EXCEPTION_NOT_HANDLED;
     ContinueDebugEvent(debug_event.dwProcessId, debug_event.dwThreadId,
                        continue_status);
   }
