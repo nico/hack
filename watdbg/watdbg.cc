@@ -135,10 +135,11 @@ bool Debugger::HandleBreakpoint() {
     first_breakpoint_hit_ = true;
 
     printf("Adding explicit breakpoints!\n");
+    SymSetOptions(SymGetOptions() & ~SYMOPT_UNDNAME);  // Use mangled names.
     AddBreakpoint("main");
     // This name is from building ninja.exe with /MAP and looking at
-    // the .map file (without the leading '?' or '_').
-    //AddBreakpoint("real_main@?A0x86fa377f@@YAHHPAPAD@Z");
+    // the .map file.
+    AddBreakpoint("?real_main@?A0x3d3e957d@@YAHHPAPAD@Z");
   } else {
     // Need to restore the opcode that was overwritten with "int 3".
     --context.Eip;
@@ -242,7 +243,6 @@ void Debugger::PrintBacktrace(HANDLE thread, CONTEXT* context) {
 }
 
 void Debugger::AddBreakpoint(const char* func_name) {
-  // SymSetOptions() with SYMOPT_UNDNAME selects unmangled names.
   IMAGEHLP_SYMBOL64* sym = (IMAGEHLP_SYMBOL64*)new uint8_t[
       sizeof IMAGEHLP_SYMBOL64 + MAX_SYM_NAME];
   sym->SizeOfStruct = sizeof IMAGEHLP_SYMBOL64;
@@ -250,7 +250,7 @@ void Debugger::AddBreakpoint(const char* func_name) {
 
   // Without "module!" prefix on the name, this searches in all modules.
   if (!SymGetSymFromName64(process_info_.hProcess, func_name, sym)) {
-    printf("FAILED to look up %s\n", func_name);
+    printf("FAILED to look up %s (opts 0x%x)\n", func_name, SymGetOptions());
     return;
   }
 
