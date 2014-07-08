@@ -157,6 +157,12 @@ bool Debugger::HandleBreakpoint() {
     WriteProcessMemory(process_info_.hProcess,
                        (void*)context.Eip, &old_instr, 1, NULL);
     FlushInstructionCache(process_info_.hProcess, (void*)context.Eip, 1);
+
+    // To make sure that the breakpoint stays set, the thing one would do here
+    // in real life is set the single-step flag in context and then re-install
+    // the int 3 after the instruction where the int 3 just was has been
+    // executed and we got notified for the instruction being done (through
+    // the single step exception).
   }
 
   printf("\nBreakpoint!\n");
