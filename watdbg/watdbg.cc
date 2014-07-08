@@ -311,5 +311,17 @@ int main() {
   }
 
   if (kUsePdbs) SymCleanup(process_info.hProcess);
+
+  // TODO: is it necessary to reap the child? I saw a stray inferior once
+  // without this...
+  DWORD exit_code;
+  if (!CloseHandle(process_info.hThread))
+    printf("Failed to close thread\n");
+  //if (!WaitForSingleObject(process_info.hProcess, INFINITE))
+    //printf("Failed to wait for process\n");
+  if (!GetExitCodeProcess(process_info.hProcess, &exit_code))
+    printf("Failed to get exit code\n");
+  if (!CloseHandle(process_info.hProcess))
+    printf("Failed to close process\n");
 }
 
