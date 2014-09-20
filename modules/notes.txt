@@ -1,0 +1,63 @@
+Empty file:
+
+$ echo "int main() {}" > test.cc
+$ SR="-isysroot $(xcrun -show-sdk-path)"
+$ time ~/src/llvm-build/bin/clang -c test.cc $SR -stdlib=libstdc++
+
+real	0m0.023s
+user	0m0.009s
+sys	0m0.011s
+ 
+With a few stdlib headers, > 10x slower:
+
+$ # sed -i '' '1i #include <iostream>' isn't portable, doesn't work on mac :-/
+$ perl -pi -e 's/^/#include <iostream>\n/' test.cc
+$ perl -pi -e 's/^/#include <vector>\n/' test.cc
+$ time ~/src/llvm-build/bin/clang -c test.cc $SR -stdlib=libstdc++
+
+real	0m0.269s
+user	0m0.240s
+sys	0m0.025s
+
+With libc++, another 1.7x slower:
+
+$ time ~/src/llvm-build/bin/clang -c test.cc $SR
+
+real	0m0.467s
+user	0m0.437s
+sys	0m0.027s
+
+With c++11, a bit slower still:
+
+$ time ~/src/llvm-build/bin/clang -c test.cc $SR -std=c++11
+
+real	0m0.496s
+user	0m0.465s
+sys	0m0.027s
+
+With modules (http://llvm.org/PR21002 for needing -std=c++11,
+http://llvm.org/PR21003 for needing -fno-exceptions), very decent speed-up:
+
+$ time ~/src/llvm-build/bin/clang -c test.cc $SR \
+    -std=c++11 -fmodules -fcxx-modules -fno-exceptions
+
+real	0m0.075s
+user	0m0.054s
+sys	0m0.018s
+
+The first time this runs, the module needs to be built, this takes a while (use
+-fmodules-cache-path to force a module build, -Rmodule-build to get a message
+about module builds happening behind the scenes):
+
+$ time ~/src/llvm-build/bin/clang -c test.cc $SR \
+    -std=c++11 -fmodules -fcxx-modules -fno-exceptions \
+    -Rmodule-build -fmodules-cache-path=/tmp/foo
+test.cc:1:2: remark: building module 'std' as '/tmp/foo/1BXDXP2IMLT7K/std-2DC8X35EJ469L.pcm' [-Rmodule-build]
+#include <iostream>
+ ^
+
+real	0m1.610s
+user	0m1.473s
+sys	0m0.108s
+
+But that has to happen only once, after that things are fast.
