@@ -1,0 +1,23 @@
+# depfiles file format
+
+depfiles are useful for dynamic build deps
+
+good to use an existing format, has the advantage of Just Working with make,
+the most common build system
+
+documents a lowest common feature set that tools reading dep files should have
+
+gcc's -MMD output matches this (except for bugs in some gccs)
+
+should cover:
+* \ and $ escaping
+* spaces in filenames
+* slashes vs backslashes in paths
+* file case in paths (use native case)
+* some gccs might list .o file twice
+* multi-output files should at least error in a sane way?
+* no tabs for continuation lines (else make thinks it's a command) (?)
+
+omitted but interesting for v2:
+* require multiple output lines to be separated by completely empty lines?
+* multiple outputs per depfile (needed for ocaml i think)
