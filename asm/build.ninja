@@ -6,7 +6,7 @@ rule as
 # but ld wants a "main" instead of a "start" symbol and also demands to link
 # to libSystem for a "dynamic main".  So pass -no_new_main too.
 rule ld
-  command = ld -macosx_version_min 10.10 -no_new_main -o conc conc.o
+  command = ld -static -macosx_version_min 10.10 -no_new_main -o conc conc.o
 
 build conc.o: as conc.asm
 build conc: ld conc.o
