@@ -11,3 +11,8 @@ rule ld
 
 build conc.o: as conc.asm
 build conc: ld conc.o
+
+rule nasm
+  command = nasm -f bin -o $out $in && chmod +x $out
+
+build nicertiny64: nasm nicertiny64.asm
