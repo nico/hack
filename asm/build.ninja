@@ -9,10 +9,13 @@ rule ld
   command = ld -static -no_source_version -no_uuid $
                -macosx_version_min 10.10 -no_new_main -o $out $in
 
-build conc.o: as conc.asm
-build conc: ld conc.o
-
 rule nasm
   command = nasm -f bin -o $out $in && chmod +x $out
 
+build small.o: as small.asm
+build small: ld small.o
 build nicertiny64: nasm nicertiny64.asm
+
+
+build conc.o: as conc.asm
+build conc: ld conc.o
