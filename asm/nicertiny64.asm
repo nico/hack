@@ -63,8 +63,8 @@ _cmds:
         dd    0xb8                         ; cmdsize
         dd    4                            ; flavor (x86_THREAD_STATE64)
         dd    0x2a                         ; count (x86_THREAD_STATE64_COUNT)
-        ;     rax    rbx    rcx    rdx    rdi    rsi    rbp    rsp
-        dd    0, 0,  0, 0,  0, 0,  0, 0,  0, 0,  0, 0,  0, 0,  0, 0
+        ;     rax    rbx    rcx    rdx    rdi     rsi    rbp    rsp
+        dd    0, 0,  0, 0,  0, 0,  0, 0,  42, 0,  0, 0,  0, 0,  0, 0
         ;     r8     r9     r10    r11    r12    r13    r14    r15
         dd    0, 0,  0, 0,  0, 0,  0, 0,  0, 0,  0, 0,  0, 0,  0, 0
         ;     rip         rflag  cs     fs     gs
@@ -72,7 +72,6 @@ _cmds:
 _start:
 
         ; OS X's default nasm can't do 64-bit asm, so insert machine code.
-        db 0x48, 0xc7, 0xc7, 0x2a, 00, 00, 00  ; mov rdi, 42
         db 0x48, 0xc7, 0xc0, 01, 00, 00, 02 ; mov rax, 0x2000001  ; SYSCALL_EXIT
         db 0x0f, 0x05  ; syscall
 
