@@ -4,7 +4,7 @@
 ; Based on http://osxbook.com/blog/2009/03/15/crafting-a-tiny-mach-o-executable/
 ; Modified to produce a 64-bit binary.
 
-; dq requires a nasm newer than the OS X default, so use 2 dd per cq
+; dq requires a nasm newer than the OS X default, so use 2 dd per dq
 
 BITS 32
         org   0x1000
@@ -63,10 +63,12 @@ _cmds:
         dd    0xb8                         ; cmdsize
         dd    4                            ; flavor (x86_THREAD_STATE64)
         dd    0x2a                         ; count (x86_THREAD_STATE64_COUNT)
-        dd    0, 0,  0, 0,  0, 0,  0, 0,  0, 0,  0, 0,  0, 0,  0, 0    ; state
-        dd    0, 0,  0, 0,  0, 0,  0, 0,  0, 0,  0, 0,  0, 0,  0, 0    ; state
-        dd    _start, 0,  0, 0,  0, 0,  0, 0,  0, 0                    ; state
-        ;dd    0, 0, _start, 0, 0, 0, 0, 0  ; state
+        ;     rax    rbx    rcx    rdx    rdi    rsi    rbp    rsp
+        dd    0, 0,  0, 0,  0, 0,  0, 0,  0, 0,  0, 0,  0, 0,  0, 0
+        ;     r8     r9     r10    r11    r12    r13    r14    r15
+        dd    0, 0,  0, 0,  0, 0,  0, 0,  0, 0,  0, 0,  0, 0,  0, 0
+        ;     rip         rflag  cs     fs     gs
+        dd    _start, 0,  0, 0,  0, 0,  0, 0,  0, 0
 _start:
 
         ; OS X's default nasm can't do 64-bit asm, so insert machine code.
