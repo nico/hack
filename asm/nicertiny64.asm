@@ -6,7 +6,6 @@
 
 ; dq requires a nasm newer than the OS X default, so use 2 dd per dq
 
-BITS 32
         org   0x1000
 
         db    0xcf, 0xfa, 0xed, 0xfe       ; magic
