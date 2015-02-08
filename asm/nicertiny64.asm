@@ -4,6 +4,8 @@
 ; Based on http://osxbook.com/blog/2009/03/15/crafting-a-tiny-mach-o-executable/
 ; Modified to produce a 64-bit binary.
 
+; See also https://gist.github.com/softboysxp/1084476
+
 ; dq requires a nasm newer than the OS X default, so use 2 dd per dq
 
         org   0x1000
@@ -71,6 +73,8 @@ _cmds:
 _start:
 
         ; OS X's default nasm can't do 64-bit asm, so insert machine code.
+        ; The loader seems to clear rax-rdx no matter what LC_UNIXTHREAD says,
+        ; so explicitly set rax here.
         db 0x48, 0xc7, 0xc0, 01, 00, 00, 02 ; mov rax, 0x2000001  ; SYSCALL_EXIT
         db 0x0f, 0x05  ; syscall
 
