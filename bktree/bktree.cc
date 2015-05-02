@@ -66,10 +66,20 @@ vector<string> read_words(const char* file) {
 
 }  // namespace
 
-int main() {
-  vector<string> dict = read_words("/usr/share/dict/words");
-  if (dict.empty())
+int main(int argc, char* argv[]) {
+  if (argc < 2 || argc > 3) {
+    cerr << "Usage: bktree [n] query" << endl;
+    return EXIT_FAILURE;
+  }
+
+  int n = argc == 3 ? atoi(argv[1]) : 2;
+  string query(argv[argc - 1]);
+
+  vector<string> words = read_words("/usr/share/dict/words");
+  if (words.empty())
     return EXIT_FAILURE;
 
-  cout << dict[0] << endl;
+  for (auto&& word : words)
+    if (edit_distance(word, query, /*allow_replacements=*/true, n) <= n)
+      cout << word << endl;
 }
