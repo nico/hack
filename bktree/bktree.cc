@@ -124,9 +124,11 @@ class BkTree {
     int d = edit_distance(*value, word, /*allow_replacements=*/true, 0);
     if (d <= n)
       cout << *value << endl;
-    for (auto&& it : children)
-      if (d - n <= it.first && it.first <= d + n)
-        it.second->query(word, n, count);
+    for (auto&& it = children.lower_bound(d - n),
+             && end = children.upper_bound(d + n);
+         it != end; ++it) {
+      it->second->query(word, n, count);
+    }
   }
 
   int depth() const {
