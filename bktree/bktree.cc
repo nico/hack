@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <map>
+#include <memory>
 #include <string>
 #include <vector>
 using namespace std;
@@ -20,7 +22,7 @@ int edit_distance(const string& s1,
   //   http://en.wikipedia.org/wiki/Levenshtein_distance
   //
   // Although the algorithm is typically described using an m x n
-  // array, only two rows are used at a time, so this implemenation
+  // array, only two rows are used at a time, so this implementation
   // just keeps two separate vectors for those two rows.
   int m = s1.size();
   int n = s2.size();
@@ -64,22 +66,92 @@ vector<string> read_words(const char* file) {
                         istream_iterator<string>());
 }
 
+// See http://blog.notdot.net/2007/4/Damn-Cool-Algorithms-Part-1-BK-Trees
+class BkTree {
+  const string* value;  // Not owned!
+  using Edges = map<int, unique_ptr<BkTree>>;
+  Edges children;
+
+ public:
+  BkTree(const string* value) : value(value) {}
+
+  void insert(const string* word) {
+    int d = edit_distance(*value, *word, /*allow_replacements=*/true, 0);
+    const auto& it = children.find(d);
+    if (it == children.end())
+      children[d] = make_unique<BkTree>(word);
+    else
+      it->second->insert(word);
+  }
+
+  // Prints matches to stdout.
+  void query(const string& word, int n) {
+    int d = edit_distance(*value, word, /*allow_replacements=*/true, 0);
+    if (d <= n)
+      cout << *value << endl;
+    for (auto&& it : children)
+      if (d - n <= it.first && it.first <= d + n)
+        it.second->query(word, n);
+  }
+
+  int depth() const {
+    int d = 0;
+    for (auto&& it : children)
+      d = max(d, it.second->depth());
+    return d + 1;
+  }
+
+  void dump_dot() const {
+    for (auto&& it : children) {
+      cout << "  " << *value << " -> " << *it.second->value
+           << " [label=\"" << it.first << "\"];" << endl;
+    }
+    for (auto&& it : children)
+      it.second->dump_dot();
+  }
+};
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
+  bool use_index = true;
+  bool dump_dot = false;
+  for (; argc > 1 && argv[1][0] == '-'; ++argv, --argc) {
+    if (strcmp(argv[1], "-b") == 0)  // Brute force mode
+      use_index = false;
+    else if(strcmp(argv[1], "-dot") == 0)
+      dump_dot = true;
+  }
+
   if (argc < 2 || argc > 3) {
-    cerr << "Usage: bktree [n] query" << endl;
+    cerr << "Usage: bktree [-dot] [-b] [n] query" << endl;
     return EXIT_FAILURE;
   }
 
   int n = argc == 3 ? atoi(argv[1]) : 2;
   string query(argv[argc - 1]);
 
-  vector<string> words = read_words("/usr/share/dict/words");
+  const vector<string> words = read_words("/usr/share/dict/words");
   if (words.empty())
     return EXIT_FAILURE;
 
-  for (auto&& word : words)
-    if (edit_distance(word, query, /*allow_replacements=*/true, n) <= n)
-      cout << word << endl;
+  if (use_index) {
+    BkTree index(&words[0]);
+    for (size_t i = 1; i < words.size(); ++i)
+      index.insert(&words[i]);
+
+    if (dump_dot) {
+      cout << "digraph G {" << endl;
+      index.dump_dot();
+      cout << "}" << endl;
+    } else {
+      cout << "Index depth: " << index.depth() << " (size: " << words.size()
+           << ")" << endl;
+      index.query(query, n);
+    }
+  } else {
+    for (auto&& word : words)
+      if (edit_distance(word, query, /*allow_replacements=*/true, n) <= n)
+        cout << word << endl;
+  }
 }
