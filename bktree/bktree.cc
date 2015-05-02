@@ -85,13 +85,14 @@ class BkTree {
   }
 
   // Prints matches to stdout.
-  void query(const string& word, int n) {
+  void query(const string& word, int n, int* count) {
+    ++*count;
     int d = edit_distance(*value, word, /*allow_replacements=*/true, 0);
     if (d <= n)
       cout << *value << endl;
     for (auto&& it : children)
       if (d - n <= it.first && it.first <= d + n)
-        it.second->query(word, n);
+        it.second->query(word, n, count);
   }
 
   int depth() const {
@@ -116,22 +117,32 @@ class BkTree {
 int main(int argc, char* argv[]) {
   bool use_index = true;
   bool dump_dot = false;
+  const char* wordfile = "/usr/share/dict/words";
   for (; argc > 1 && argv[1][0] == '-'; ++argv, --argc) {
     if (strcmp(argv[1], "-b") == 0)  // Brute force mode
       use_index = false;
     else if(strcmp(argv[1], "-dot") == 0)
       dump_dot = true;
+    else if(strcmp(argv[1], "-w") == 0) {
+      if (argc < 3) {
+        cerr << "-w needs wordfile argument" << endl;
+        return EXIT_FAILURE;
+      }
+      wordfile = argv[2];
+      ++argv;
+      --argc;
+    }
   }
 
   if (argc < 2 || argc > 3) {
-    cerr << "Usage: bktree [-dot] [-b] [n] query" << endl;
+    cerr << "Usage: bktree [-w wordfile] [-dot] [-b] [n] query" << endl;
     return EXIT_FAILURE;
   }
 
   int n = argc == 3 ? atoi(argv[1]) : 2;
   string query(argv[argc - 1]);
 
-  const vector<string> words = read_words("/usr/share/dict/words");
+  const vector<string> words = read_words(wordfile);
   if (words.empty())
     return EXIT_FAILURE;
 
@@ -147,7 +158,11 @@ int main(int argc, char* argv[]) {
     } else {
       cout << "Index depth: " << index.depth() << " (size: " << words.size()
            << ")" << endl;
-      index.query(query, n);
+
+      int count = 0;
+      index.query(query, n, &count);
+      cout << "Queried " << count << " (" << (100 * count / words.size())
+           << "%)" << endl;
     }
   } else {
     for (auto&& word : words)
