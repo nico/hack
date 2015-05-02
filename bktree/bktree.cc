@@ -7,18 +7,14 @@
 using namespace std;
 
 // Returns an empty vector on error.  This is just a toy program.
-vector<string> read_dict(const char* file) {
-  // C++ I/O tends to be slower than C I/O but reading all 230K words on
-  // my system takes only 40ms, so this is good enough here.
-  vector<string> dict;
+vector<string> read_words(const char* file) {
   ifstream input(file);
-  for (string line; getline(input, line);)
-    dict.push_back(line);
-  return dict;
+  return vector<string>(istream_iterator<string>(input),
+                        istream_iterator<string>());
 }
 
 int main() {
-  vector<string> dict = read_dict("/usr/share/dict/words");
+  vector<string> dict = read_words("/usr/share/dict/words");
   if (dict.empty())
     return EXIT_FAILURE;
 
