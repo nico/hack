@@ -177,9 +177,13 @@ int main(int argc, char* argv[]) {
     }
   } else {
     auto start_time = chrono::high_resolution_clock::now();
-    for (auto&& word : words)
+    for (auto&& word : words) {
+      // Note: Passing n=0 to edit_distance disables early exit.  Brute-force
+      // allows using an early exit while the index doesn't, so for n=0 this
+      // isn't as fast as it could be.
       if (edit_distance(word, query, /*allow_replacements=*/true, n) <= n)
         cout << word << endl;
+    }
     auto end_time = chrono::high_resolution_clock::now();
     cout << "Brute force query took "
          << chrono::duration_cast<chrono::milliseconds>(end_time - start_time)
