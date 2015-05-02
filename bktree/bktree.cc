@@ -1,6 +1,7 @@
 // c++ -std=c++11 -O2 bktree.cc -o bktree
 
 #include <algorithm>
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -147,9 +148,14 @@ int main(int argc, char* argv[]) {
     return EXIT_FAILURE;
 
   if (use_index) {
+    auto start_time = chrono::high_resolution_clock::now();
     BkTree index(&words[0]);
     for (size_t i = 1; i < words.size(); ++i)
       index.insert(&words[i]);
+    auto end_time = chrono::high_resolution_clock::now();
+    cout << "Index construction took "
+         << chrono::duration_cast<chrono::milliseconds>(end_time - start_time)
+                .count() << "ms" << endl;
 
     if (dump_dot) {
       cout << "digraph G {" << endl;
@@ -160,13 +166,23 @@ int main(int argc, char* argv[]) {
            << ")" << endl;
 
       int count = 0;
+      auto start_time = chrono::high_resolution_clock::now();
       index.query(query, n, &count);
+      auto end_time = chrono::high_resolution_clock::now();
+      cout << "Indexed query took "
+           << chrono::duration_cast<chrono::milliseconds>(end_time - start_time)
+                  .count() << "ms" << endl;
       cout << "Queried " << count << " (" << (100 * count / words.size())
            << "%)" << endl;
     }
   } else {
+    auto start_time = chrono::high_resolution_clock::now();
     for (auto&& word : words)
       if (edit_distance(word, query, /*allow_replacements=*/true, n) <= n)
         cout << word << endl;
+    auto end_time = chrono::high_resolution_clock::now();
+    cout << "Brute force query took "
+         << chrono::duration_cast<chrono::milliseconds>(end_time - start_time)
+                .count() << "ms" << endl;
   }
 }
