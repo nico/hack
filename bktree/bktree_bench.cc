@@ -14,16 +14,11 @@ using namespace std;
 
 namespace {
 
-int edit_distance(const string& s1,
-                  const string& s2) {
+int edit_distance(const string& s1, const string& s2) {
   int m = s1.size();
   int n = s2.size();
 
-  // English words aren't that long:
-  // $ awk '{print length, $0}' /usr/share/dict/words |sort -nr|head -1
-  // 24 thyroparathyroidectomize
   int storage[2*(n + 1)];
-
   int* previous = storage;
   int* current = previous + n + 1;
 
