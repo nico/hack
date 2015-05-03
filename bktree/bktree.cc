@@ -12,10 +12,7 @@ using namespace std;
 
 namespace {
 
-int edit_distance(const string& s1,
-                  const string& s2,
-                  bool allow_replacements,
-                  int max_edit_distance) {
+int edit_distance(const string& s1, const string& s2, int max_edit_distance) {
   // The algorithm implemented below is the "classic"
   // dynamic-programming algorithm for computing the Levenshtein
   // distance, which is described here:
@@ -40,15 +37,8 @@ int edit_distance(const string& s1,
     int best_this_row = current[0];
 
     for (int x = 1; x <= n; ++x) {
-      if (allow_replacements) {
-        current[x] = min(previous[x - 1] + (s1[y - 1] == s2[x - 1] ? 0 : 1),
-                         min(current[x - 1], previous[x]) + 1);
-      } else {
-        if (s1[y - 1] == s2[x - 1])
-          current[x] = previous[x - 1];
-        else
-          current[x] = min(current[x - 1], previous[x]) + 1;
-      }
+      current[x] = min(previous[x - 1] + (s1[y - 1] == s2[x - 1] ? 0 : 1),
+                       min(current[x - 1], previous[x]) + 1);
       best_this_row = min(best_this_row, current[x]);
     }
 
@@ -78,7 +68,7 @@ class BkTree {
   BkTree(const string* value) : value(value) {}
 
   void insert(const string* word) {
-    int d = edit_distance(*value, *word, /*allow_replacements=*/true, 0);
+    int d = edit_distance(*value, *word, 0);
     const auto& it = children.find(d);
     if (it == children.end())
       children[d] = make_unique<BkTree>(word);
@@ -89,7 +79,7 @@ class BkTree {
   // Prints matches to stdout.
   void query(const string& word, int n, int* count) {
     ++*count;
-    int d = edit_distance(*value, word, /*allow_replacements=*/true, 0);
+    int d = edit_distance(*value, word, 0);
     if (d <= n)
       cout << *value << endl;
     for (auto&& it = children.lower_bound(d - n),
@@ -186,7 +176,7 @@ int main(int argc, char* argv[]) {
       // isn't as fast as it could be without the explicit branch.
       if (n == 0 ?
             word == query :
-            edit_distance(word, query, /*allow_replacements=*/true, n) <= n) {
+            edit_distance(word, query, n) <= n) {
         cout << word << endl;
       }
     }
