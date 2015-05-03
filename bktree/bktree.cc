@@ -14,6 +14,7 @@ namespace {
 
 struct StringRef {
   StringRef(const string& s) : s_(s.data()), n_(s.size()) {}
+  StringRef(const char* s, size_t n) : s_(s), n_(n) {}
   const char* s_;
   size_t n_;
 
@@ -73,12 +74,36 @@ int edit_distance_bound(StringRef s1, StringRef s2, int upper_bound) {
   return row[n];
 }
 
+#define STRREF_READ
+#ifdef STRREF_READ
+vector<StringRef> read_words2(const char* path, string* storage) {
+  vector<StringRef> words;
+
+  FILE* f = fopen(path, "rb");
+  if (!f)
+    return words;
+  char buf[64 << 10];
+  size_t len;
+  while ((len = fread(buf, 1, sizeof(buf), f)) > 0)
+    storage->append(buf, len);
+  fclose(f);
+
+  const char* src = &(*storage)[0], * end = src + storage->size();
+  while (src < end) {
+    const char* sep = (const char*)memchr(src, '\n', end - src);
+    words.push_back(StringRef(src, sep - src));
+    src = sep + 1;
+  }
+  return words;
+}
+#else
 // Returns an empty vector on error.  This is just a toy program.
 vector<string> read_words(const char* file) {
   ifstream input(file);
   return vector<string>(istream_iterator<string>(input),
                         istream_iterator<string>());
 }
+#endif
 
 // See http://blog.notdot.net/2007/4/Damn-Cool-Algorithms-Part-1-BK-Trees
 class BkTree {
@@ -158,7 +183,12 @@ int main(int argc, char* argv[]) {
   int n = argc == 3 ? atoi(argv[1]) : 2;
   string query(argv[argc - 1]);
 
+#ifdef STRREF_READ
+  string storage;
+  const vector<StringRef> words = read_words2(wordfile, &storage);
+#else
   const vector<string> words = read_words(wordfile);
+#endif
   if (words.empty())
     return EXIT_FAILURE;
 
@@ -194,7 +224,7 @@ int main(int argc, char* argv[]) {
     auto start_time = chrono::high_resolution_clock::now();
     for (auto&& word : words) {
       if (edit_distance_bound(word, query, n) <= n)
-        cout << word << endl;
+        cout << word.AsString() << endl;
     }
     auto end_time = chrono::high_resolution_clock::now();
     cout << "Brute force query took "
