@@ -22,33 +22,29 @@ int edit_distance(const string& s1, const string& s2, int max_edit_distance) {
   // Although the algorithm is typically described using an m x n
   // array, only two rows are used at a time, so this implementation
   // just keeps two separate vectors for those two rows.
-  int m = s1.size();
-  int n = s2.size();
+  int m = s1.size(), n = s2.size();
 
-  int storage[2*(n + 1)];
-  int* previous = storage;
-  int* current = previous + n + 1;
+  int row[n + 1];
 
-  for (int i = 0; i <= n; ++i)
-    previous[i] = i;
+  for (int i = 1; i <= n; ++i)
+    row[i] = i;
 
   for (int y = 1; y <= m; ++y) {
-    current[0] = y;
-    int best_this_row = current[0];
+    int best_this_row = row[0] = y;
 
-    for (int x = 1; x <= n; ++x) {
-      current[x] = min(previous[x - 1] + (s1[y - 1] == s2[x - 1] ? 0 : 1),
-                       min(current[x - 1], previous[x]) + 1);
-      best_this_row = min(best_this_row, current[x]);
+    for (int x = 1, previous = y - 1; x <= n; ++x) {
+      int old_row = row[x];
+      row[x] = min(previous + (s1[y - 1] == s2[x - 1] ? 0 : 1),
+                   min(row[x - 1], row[x]) + 1);  // row[x] is from last round.
+      previous = old_row;
+      best_this_row = min(best_this_row, row[x]);
     }
 
     if (max_edit_distance && best_this_row > max_edit_distance)
       return max_edit_distance + 1;
-
-    swap(previous, current);
   }
 
-  return previous[n];
+  return row[n];
 }
 
 // Returns an empty vector on error.  This is just a toy program.
