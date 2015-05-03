@@ -12,26 +12,45 @@ using namespace std;
 
 namespace {
 
-int edit_distance(const string& s1, const string& s2, int max_edit_distance) {
-  // The algorithm implemented below is the "classic"
-  // dynamic-programming algorithm for computing the Levenshtein
-  // distance, which is described here:
-  //
-  //   http://en.wikipedia.org/wiki/Levenshtein_distance
-  //
-  // Although the algorithm is typically described using an m x n
-  // array, only two rows are used at a time, so this implementation
-  // just keeps two separate vectors for those two rows.
+// The algorithm implemented below is the "classic"
+// dynamic-programming algorithm for computing the Levenshtein
+// distance, which is described here:
+//
+//   http://en.wikipedia.org/wiki/Levenshtein_distance
+//
+// Although the algorithm is typically described using an m x n
+// array, only two rows are used at a time, so this implementation
+// just keeps two separate vectors for those two rows.
+int edit_distance(const string& s1, const string& s2) {
   int m = s1.size(), n = s2.size();
 
   int row[n + 1];
+  for (int i = 1; i <= n; ++i)
+    row[i] = i;
 
+  for (int y = 1; y <= m; ++y) {
+    row[0] = y;
+    for (int x = 1, previous = y - 1; x <= n; ++x) {
+      int old_row = row[x];
+      row[x] = min(previous + (s1[y - 1] == s2[x - 1] ? 0 : 1),
+                   min(row[x - 1], row[x]) + 1);  // row[x] is from last round.
+      previous = old_row;
+    }
+  }
+
+  return row[n];
+}
+
+// Same, but with an early exit given an upper bound for the result.
+int edit_distance_bound(const string& s1, const string& s2, int upper_bound) {
+  int m = s1.size(), n = s2.size();
+
+  int row[n + 1];
   for (int i = 1; i <= n; ++i)
     row[i] = i;
 
   for (int y = 1; y <= m; ++y) {
     int best_this_row = row[0] = y;
-
     for (int x = 1, previous = y - 1; x <= n; ++x) {
       int old_row = row[x];
       row[x] = min(previous + (s1[y - 1] == s2[x - 1] ? 0 : 1),
@@ -39,9 +58,8 @@ int edit_distance(const string& s1, const string& s2, int max_edit_distance) {
       previous = old_row;
       best_this_row = min(best_this_row, row[x]);
     }
-
-    if (max_edit_distance && best_this_row > max_edit_distance)
-      return max_edit_distance + 1;
+    if (best_this_row > upper_bound)
+      return upper_bound + 1;
   }
 
   return row[n];
@@ -64,7 +82,7 @@ class BkTree {
   BkTree(const string* value) : value(value) {}
 
   void insert(const string* word) {
-    int d = edit_distance(*value, *word, 0);
+    int d = edit_distance(*value, *word);
     const auto& it = children.find(d);
     if (it == children.end())
       children[d] = make_unique<BkTree>(word);
@@ -75,7 +93,7 @@ class BkTree {
   // Prints matches to stdout.
   void query(const string& word, int n, int* count) {
     ++*count;
-    int d = edit_distance(*value, word, 0);
+    int d = edit_distance(*value, word);
     if (d <= n)
       cout << *value << endl;
     for (auto&& it = children.lower_bound(d - n),
@@ -167,14 +185,8 @@ int main(int argc, char* argv[]) {
   } else {
     auto start_time = chrono::high_resolution_clock::now();
     for (auto&& word : words) {
-      // Note: Passing n=0 to edit_distance disables early exit.  Brute-force
-      // allows using an early exit while the index doesn't, so for n=0 this
-      // isn't as fast as it could be without the explicit branch.
-      if (n == 0 ?
-            word == query :
-            edit_distance(word, query, n) <= n) {
+      if (edit_distance_bound(word, query, n) <= n)
         cout << word << endl;
-      }
     }
     auto end_time = chrono::high_resolution_clock::now();
     cout << "Brute force query took "
