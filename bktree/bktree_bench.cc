@@ -56,11 +56,11 @@ class BkTree {
 
   void insert(const string* word) {
     int d = edit_distance(*value, *word);
-    const auto& it = children.find(d);
-    if (it == children.end())
-      children[d] = make_unique<BkTree>(word);
-    else
+    const auto& it = children.lower_bound(d);
+    if (it != children.end() && it->first == d)
       it->second->insert(word);
+    else
+      children.insert(it, Edges::value_type(d, make_unique<BkTree>(word)));
   }
 
   int depth() const {
