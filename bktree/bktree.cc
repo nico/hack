@@ -160,15 +160,15 @@ int main(int argc, char* argv[]) {
     for (size_t i = 1; i < words.size(); ++i)
       index.insert(&words[i]);
     auto end_time = chrono::high_resolution_clock::now();
-    cout << "Index construction took "
-         << chrono::duration_cast<chrono::milliseconds>(end_time - start_time)
-                .count() << "ms" << endl;
 
     if (dump_dot) {
       cout << "digraph G {" << endl;
       index.dump_dot();
       cout << "}" << endl;
     } else {
+      cout << "Index construction took "
+           << chrono::duration_cast<chrono::milliseconds>(end_time - start_time)
+                  .count() << "ms" << endl;
       cout << "Index depth: " << index.depth() << " (size: " << words.size()
            << ")" << endl;
 
