@@ -12,6 +12,14 @@ using namespace std;
 
 namespace {
 
+struct StringRef {
+  StringRef(const string& s) : s_(s.data()), n_(s.size()) {}
+  const char* s_;
+  size_t n_;
+
+  string AsString() const { return string(s_, n_); }
+};
+
 // The algorithm implemented below is the "classic"
 // dynamic-programming algorithm for computing the Levenshtein
 // distance, which is described here:
@@ -21,8 +29,8 @@ namespace {
 // Although the algorithm is typically described using an m x n
 // array, only two rows are used at a time, so this implementation
 // just keeps two separate vectors for those two rows.
-int edit_distance(const string& s1, const string& s2) {
-  int m = s1.size(), n = s2.size();
+int edit_distance(const StringRef& s1, const StringRef& s2) {
+  int m = s1.n_, n = s2.n_;
 
   int row[n + 1];
   for (int i = 1; i <= n; ++i)
@@ -32,7 +40,7 @@ int edit_distance(const string& s1, const string& s2) {
     row[0] = y;
     for (int x = 1, previous = y - 1; x <= n; ++x) {
       int old_row = row[x];
-      row[x] = min(previous + (s1[y - 1] == s2[x - 1] ? 0 : 1),
+      row[x] = min(previous + (s1.s_[y - 1] == s2.s_[x - 1] ? 0 : 1),
                    min(row[x - 1], row[x]) + 1);  // row[x] is from last round.
       previous = old_row;
     }
@@ -42,8 +50,8 @@ int edit_distance(const string& s1, const string& s2) {
 }
 
 // Same, but with an early exit given an upper bound for the result.
-int edit_distance_bound(const string& s1, const string& s2, int upper_bound) {
-  int m = s1.size(), n = s2.size();
+int edit_distance_bound(StringRef s1, StringRef s2, int upper_bound) {
+  int m = s1.n_, n = s2.n_;
 
   int row[n + 1];
   for (int i = 1; i <= n; ++i)
@@ -53,7 +61,7 @@ int edit_distance_bound(const string& s1, const string& s2, int upper_bound) {
     int best_this_row = row[0] = y;
     for (int x = 1, previous = y - 1; x <= n; ++x) {
       int old_row = row[x];
-      row[x] = min(previous + (s1[y - 1] == s2[x - 1] ? 0 : 1),
+      row[x] = min(previous + (s1.s_[y - 1] == s2.s_[x - 1] ? 0 : 1),
                    min(row[x - 1], row[x]) + 1);  // row[x] is from last round.
       previous = old_row;
       best_this_row = min(best_this_row, row[x]);
@@ -74,15 +82,15 @@ vector<string> read_words(const char* file) {
 
 // See http://blog.notdot.net/2007/4/Damn-Cool-Algorithms-Part-1-BK-Trees
 class BkTree {
-  const string* value;  // Not owned!
+  StringRef value;
   using Edges = map<int, unique_ptr<BkTree>>;
   Edges children;
 
  public:
-  BkTree(const string* value) : value(value) {}
+  BkTree(StringRef value) : value(value) {}
 
-  void insert(const string* word) {
-    int d = edit_distance(*value, *word);
+  void insert(StringRef word) {
+    int d = edit_distance(value, word);
     const auto& it = children.find(d);
     if (it == children.end())
       children[d] = make_unique<BkTree>(word);
@@ -91,11 +99,11 @@ class BkTree {
   }
 
   // Prints matches to stdout.
-  void query(const string& word, int n, int* count) {
+  void query(StringRef word, int n, int* count) {
     ++*count;
-    int d = edit_distance(*value, word);
+    int d = edit_distance(value, word);
     if (d <= n)
-      cout << *value << endl;
+      cout << value.AsString() << endl;
     for (auto&& it = children.lower_bound(d - n),
              && end = children.upper_bound(d + n);
          it != end; ++it) {
@@ -112,7 +120,7 @@ class BkTree {
 
   void dump_dot() const {
     for (auto&& it : children) {
-      cout << "  " << *value << " -> " << *it.second->value
+      cout << "  " << value.AsString() << " -> " << it.second->value.AsString()
            << " [label=\"" << it.first << "\"];" << endl;
     }
     for (auto&& it : children)
@@ -156,9 +164,9 @@ int main(int argc, char* argv[]) {
 
   if (use_index) {
     auto start_time = chrono::high_resolution_clock::now();
-    BkTree index(&words[0]);
+    BkTree index(words[0]);
     for (size_t i = 1; i < words.size(); ++i)
-      index.insert(&words[i]);
+      index.insert(words[i]);
     auto end_time = chrono::high_resolution_clock::now();
 
     if (dump_dot) {
