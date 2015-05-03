@@ -19,30 +19,13 @@ int edit_distance(const string& s1,
   int m = s1.size();
   int n = s2.size();
 
-  // This path is 8x faster :-/ English words aren't that long:
+  // English words aren't that long:
   // $ awk '{print length, $0}' /usr/share/dict/words |sort -nr|head -1
   // 24 thyroparathyroidectomize
-  const int N = 25;
-  int storage1[N];
-  int storage2[N];
-#define GENERAL_FASTPATH
-#ifdef GENERAL_FASTPATH
-  // Doing manual memory management instead of using unique_ptr<int[]> is
-  // much faster :-(
-  int* dyn_storage = nullptr;
-#endif
+  int storage[2*(n + 1)];
 
-  int* previous = storage1;
-  int* current = storage2;
-  if (n >= N) {
-#ifdef GENERAL_FASTPATH
-    dyn_storage = new int[2*(n + 1)];
-    previous = dyn_storage;
-    current = dyn_storage + n + 1;
-#else
-    return n;
-#endif
-  }
+  int* previous = storage;
+  int* current = previous + n + 1;
 
   for (int i = 0; i <= n; ++i)
     previous[i] = i;
@@ -56,11 +39,6 @@ int edit_distance(const string& s1,
 
     swap(previous, current);
   }
-
-#ifdef GENERAL_FASTPATH
-  if (dyn_storage)
-    delete[] dyn_storage;
-#endif
 
   return previous[n];
 }
