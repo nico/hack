@@ -28,37 +28,9 @@ int edit_distance(const string& s1,
   int m = s1.size();
   int n = s2.size();
 
-//#define USE_VECTOR
-#ifdef USE_VECTOR
-  unique_ptr<int[]> previous(new int[n + 1]);
-  unique_ptr<int[]> current(new int[n + 1]);
-#else
-  // This path is 8x faster :-/ English words aren't that long:
-  // $ awk '{print length, $0}' /usr/share/dict/words |sort -nr|head -1
-  // 24 thyroparathyroidectomize
-  const int N = 25;
-  int storage1[N];
-  int storage2[N];
-#define GENERAL_FASTPATH
-#ifdef GENERAL_FASTPATH
-  // Keeping generality increases index creation time to 787ms from 673ms :-/
-  unique_ptr<int[]> dyn_storage1;
-  unique_ptr<int[]> dyn_storage2;
-#endif
-
-  int* previous = storage1;
-  int* current = storage2;
-  if (n >= N) {
-#ifdef GENERAL_FASTPATH
-    dyn_storage1.reset(new int[n + 1]);
-    dyn_storage2.reset(new int[n + 1]);
-    previous = dyn_storage1.get();
-    current = dyn_storage2.get();
-#else
-    return n;
-#endif
-  }
-#endif
+  int storage[2*(n + 1)];
+  int* previous = storage;
+  int* current = previous + n + 1;
 
   for (int i = 0; i <= n; ++i)
     previous[i] = i;
@@ -83,11 +55,7 @@ int edit_distance(const string& s1,
     if (max_edit_distance && best_this_row > max_edit_distance)
       return max_edit_distance + 1;
 
-#ifdef USE_VECTOR
-    current.swap(previous);
-#else
     swap(previous, current);
-#endif
   }
 
   return previous[n];
