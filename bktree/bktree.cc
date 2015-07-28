@@ -27,8 +27,11 @@ struct StringRef {
 //   http://en.wikipedia.org/wiki/Levenshtein_distance
 //
 // Although the algorithm is typically described using an m x n
-// array, only two rows are used at a time, so this implementation
-// just keeps two separate vectors for those two rows.
+// array, only one row plus one element are used at a time, so this
+// implementation just keeps one vector for the row.  To update one entry,
+// only the entries to the left, top, and top-left are needed.  The left
+// entry is in Row[x-1], the top entry is what's in Row[x] from the last
+// iteration, and the top-left entry is stored in Previous.
 int edit_distance(const StringRef& s1, const StringRef& s2) {
   int m = s1.n_, n = s2.n_;
 
