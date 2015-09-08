@@ -131,10 +131,38 @@ uint64_t testMM_1d_tile(const int x, const int y, const int z) {
   return ended - started;
 }
 
+#if __APPLE__
+#include <Accelerate/Accelerate.h>
+
+// 30ms!
+uint64_t testMM_1d_blas(const int x, const int y, const int z) {
+  double *A, *B, *C;
+  int64_t started, ended;
+  int i, j, k, j2, k2;
+  A = (double*)malloc(sizeof(double) * x * y);
+  B = (double*)malloc(sizeof(double) * x * z);
+  C = (double*)malloc(sizeof(double) * y * z);
+  for (i = 0; i < x * z; i++)
+    B[i] = (double)rand();
+  for (i = 0; i < y * z; i++)
+    C[i] = (double)rand();
+  for (i = 0; i < x * y; i++)
+    A[i] = 0;
+  started = now_usec();
+  cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+              x, y, z, 1, B, z, C, y, 0, A, y);
+  ended = now_usec();
+  return ended - started;
+}
+#endif
+
 int main() {
   srand(1234);
   printf("%f ms\n", testMM_2d(1024, 1024, 1024) / 1000.0);
   printf("%f ms\n", testMM_1d(1024, 1024, 1024) / 1000.0);
   printf("%f ms\n", testMM_1dt(1024, 1024, 1024) / 1000.0);
   printf("%f ms\n", testMM_1d_tile(1024, 1024, 1024) / 1000.0);
+#if __APPLE__
+  printf("%f ms\n", testMM_1d_blas(1024, 1024, 1024) / 1000.0);
+#endif
 }
