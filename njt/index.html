@@ -1,0 +1,117 @@
+<!doctype html>
+<body>
+<div id="c"></div>
+<script>
+var to_nyp = {
+  weekdays: {
+    "04:23": "05:21",
+    "05:15": "06:07",
+    "05:33": "06:18",  // exp
+    "05:43": "06:38",
+    "06:02": "06:48",  // exp
+    "06:18": "07:02",  // exp
+    "06:33": "07:24",  // exp
+    "06:43": "07:26",  // exp
+    "06:50": "07:52",
+    "07:10": "07:54",  // exp
+    "07:17": "08:03",  // exp
+    "07:27": "08:17",  // exp
+    "07:35": "08:21",  // exp
+    "07:47": "08:32",  // exp; does not run 11/27 and 12/28-31
+    "07:55": "08:36",  // exp
+    "08:03": "09:06",
+    "08:12": "08:57",  // exp
+    "08:37": "09:24",  // exp
+    "08:44": "09:37",
+    "08:56": "09:44",  // exp
+    "09:12": "09:57",  // exp
+    "09:41": "10:23",  // exp
+    "09:48": "10:42",
+    "10:29": "11:16",
+    // XXX PM times
+  },
+
+  weekends: {  // and holidays
+    // XXX
+  },
+};
+
+var to_met = {
+  weekdays: {
+    // XXX AM times
+    "16:07": "16:52",  // exp
+    "16:29": "17:21",
+    "16:31": "17:10",  // exp
+    "16:50": "17:33",  // exp
+    "17:12": "17:54",  // exp
+    "17:21": "18:02",  // exp; does not run 11/25 and 12/24
+    "17:32": "18:18",  // exp
+    "17:45": "18:26",  // exp
+    "17:54": "18:35",  // exp
+    "18:14": "18:57",  // exp
+    "18:37": "19:22",  // exp
+    "18:47": "19:30",  // exp
+    "19:13": "19:59",  // exp
+    "19:43": "20:34",
+    "20:07": "21:01",
+    "20:37": "21:20",  // exp
+    "21:06": "21:49",  // exp*
+    "21:35": "22:20",  // exp*
+    "21:54": "22:47",
+    "22:11": "22:56",  // exp*
+    "22:38": "23:22",  // exp*
+    "23:06": "23:57",
+    "23:52": "00:42",
+    "00:43": "01:31",  // only Fri and 11/25, 12/24
+    "01:22": "02:13",
+  },
+
+  weekends: {  // and holidays
+    // XXX
+  },
+};
+
+function ts(t) {
+  var parts = t.split(':');
+  return 60 * Number(parts[0]) + Number(parts[1]);
+}
+var now = new Date();
+var hours = now.getHours();
+if (hours < 10) hours = '0' + hours;
+var mins = now.getMinutes();
+if (mins < 10) mins = '0' + mins;
+var now_str = hours + ":" + mins;
+
+var schedule;
+// XXX check for weekends, holidays
+if (now.getHours() < 13) {
+  schedule = to_nyp.weekdays;
+} else {
+  schedule = to_met.weekdays;
+}
+var schedule_arr = Object.keys(schedule);
+schedule_arr.sort();
+
+var first = 0;
+while (first < schedule_arr.length && schedule_arr[first] < now_str) first++;
+
+var num = schedule_arr.length - first;
+if (num > 3) num = 3;
+
+var c = document.getElementById('c');
+var l = document.createElement('div');
+l.appendChild(document.createTextNode('Next ' + num + ' trains:'));
+c.appendChild(l);
+// createDocumentFragment? probably not worth it?
+for (var i = first; i < first + num; ++i) {
+  var start = schedule_arr[i];
+  var end = schedule[start];
+  var duration = ts(end) - ts(start);
+  if (duration < 0)
+    duration += 24 * 60;  // For 23:52 -> 0:42 trains
+  var l = document.createElement('div');
+  l.appendChild(document.createTextNode(start + ' (' + duration + ' min)'));
+  c.appendChild(l);
+}
+</script>
+</body>
