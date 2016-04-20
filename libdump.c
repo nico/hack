@@ -116,25 +116,29 @@ static void dump(unsigned char* contents) {
   contents += sizeof(*first_linker) + atoi(first_linker->Size);
 
   ArchiveMemberHeader* second_linker = (ArchiveMemberHeader*)contents;
-  printf("Second linker header:\n");
-  dump_header(second_linker);
-  dump_second_header(contents + sizeof(*second_linker));
-  contents += sizeof(*second_linker) + atoi(second_linker->Size);
+  if (second_linker->Name[0] != '/' || second_linker->Name[1] == '/') {
+    // The PE spec says this must always exist, but link-lld doesn't write it.
+    printf("No second linker header.\n");
+  } else {
+    printf("Second linker header:\n");
+    dump_header(second_linker);
+    dump_second_header(contents + sizeof(*second_linker));
+    contents += sizeof(*second_linker) + atoi(second_linker->Size);
+  }
 
   ArchiveMemberHeader* longnames = (ArchiveMemberHeader*)contents;
-  ArchiveMemberHeader* first_object;
-  if (strcmp(longnames->Name, "//")) {
+  if (longnames->Name[0] != '/' || longnames->Name[1] != '/') {
     // The PE spec says this must always exist, but lib.exe doesn't always
     // write it.
-    first_object = longnames;
+    printf("No longnames header.\n");
   } else {
     printf("Longnames header:\n");
     dump_header(longnames);
     // XXX contents
     contents += sizeof(*longnames) + atoi(longnames->Size);
-    first_object = (ArchiveMemberHeader*)contents;
   }
 
+  ArchiveMemberHeader* first_object = (ArchiveMemberHeader*)contents;
   // XXX actual archives
 }
 
