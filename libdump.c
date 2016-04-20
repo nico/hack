@@ -53,18 +53,18 @@ static void dump_header(ArchiveMemberHeader* header) {
 static void dump_first_header(unsigned char* contents) {
   unsigned num_symbols = read_big_long(contents);
   contents += 4;
-  printf("Num symbols: %lu\n", num_symbols);
+  printf("Num symbols: %u\n", num_symbols);
   printf("Offsets:\n");
   for (unsigned i = 0; i < num_symbols; ++i) {
     unsigned offset = read_big_long(contents);
     contents += 4;
-    printf("%lu\n", offset);
+    printf("%u\n", offset);
   }
 
   printf("String table:\n");
   for (unsigned i = 0; i < num_symbols; ++i) {
-    unsigned char* end = strchr(contents, '\0');
-    printf("%.*s\n", end - contents, contents);
+    unsigned char* end = (unsigned char*)strchr((char*)contents, '\0');
+    printf("%.*s\n", (int)(end - contents), contents);
     contents += end - contents + 1;
   }
   printf("\n");
@@ -73,37 +73,83 @@ static void dump_first_header(unsigned char* contents) {
 static void dump_second_header(unsigned char* contents) {
   unsigned num_members = read_little_long(contents);
   contents += 4;
-  printf("Num members: %lu\n", num_members);
+  printf("Num members: %u\n", num_members);
   printf("Offsets:\n");
   for (unsigned i = 0; i < num_members; ++i) {
     unsigned offset = read_little_long(contents);
     contents += 4;
-    printf("%lu\n", offset);
+    printf("%u\n", offset);
   }
 
   unsigned num_symbols = read_little_long(contents);
   contents += 4;
-  printf("Num symbols: %lu\n", num_symbols);
+  printf("Num symbols: %u\n", num_symbols);
   printf("Indices:\n");
   for (unsigned i = 0; i < num_symbols; ++i) {
     unsigned short index = read_little_short(contents);
     contents += 2;
-    printf("%lu\n", index);
+    printf("%u\n", index);
   }
 
   printf("String table:\n");
   for (unsigned i = 0; i < num_symbols; ++i) {
-    unsigned char* end = strchr(contents, '\0');
-    printf("%.*s\n", end - contents, contents);
+    unsigned char* end = (unsigned char*)strchr((char*)contents, '\0');
+    printf("%.*s\n", (int)(end - contents), contents);
     contents += end - contents + 1;
   }
   printf("\n");
 }
 
-static void dump(unsigned char* contents) {
-  //void* file_start = contents;
+typedef struct {
+  uint16_t Machine;
+  uint16_t NumberOfSections;
+  uint32_t TimeDateStamp;
+  uint32_t PointerToSymbolTable;
+  uint32_t NumberOfSymbols;
+  uint16_t SizeOfOptionalHeader;
+  uint16_t Characteristics;
+} FileHeader;
+
+static void dump_real_object(FileHeader* object) {
+  printf("real object\n");
+  printf("Machine: 0x%x\n", object->Machine);
+  printf("Num sections: %u\n", object->NumberOfSections);
+  printf("TimeDateStamp: %u\n", object->TimeDateStamp);
+}
+
+// This is 20 bytes like a regular COFF File Header (sec 3.3), but the first
+// 4 bytes are always 00 00 FF FF, which changes the meaning of all the
+// following fields.
+typedef struct {
+  uint16_t Sig1;  // Must be 0 for import headers.
+  uint16_t Sig2;  // Must be 0xffff for import headers.
+
+  uint16_t Version;
+  uint16_t Machine;
+  uint32_t Timestamp;
+  uint32_t Size;  // Excluding headers.
+  uint16_t OrdinalOrHint;  // Depending on NameType.
+  // Flags:
+  // 2 bits Type
+  // 3 bits NameType
+  // 11 bits Reserved
+  uint16_t Flags;
+} ImportHeader;
+
+static void dump_import_header(ImportHeader* import) {
+  printf("import header\n");
+}
+
+static void dump_object(uint16_t* object) {
+  if (object[0] == 0 && object[1] == 0xffff)
+    dump_import_header((ImportHeader*)object);
+  else
+    dump_real_object((FileHeader*)object);
+}
+
+static void dump(unsigned char* contents, unsigned char* contents_end) {
   const char kLibMagic[] = "!<arch>\n";
-  if (strncmp(contents, kLibMagic, strlen(kLibMagic))) {
+  if (strncmp((char*)contents, kLibMagic, strlen(kLibMagic))) {
     fatal("File does not start with '%s', got '%.*s'.\n",
           kLibMagic, strlen(kLibMagic), contents);
   }
@@ -138,8 +184,12 @@ static void dump(unsigned char* contents) {
     contents += sizeof(*longnames) + atoi(longnames->Size);
   }
 
-  ArchiveMemberHeader* first_object = (ArchiveMemberHeader*)contents;
-  // XXX actual archives
+  while (contents < contents_end) {
+    ArchiveMemberHeader* object = (ArchiveMemberHeader*)contents;
+    dump_header(object);
+    dump_object((uint16_t*)(contents + sizeof(*object)));
+    contents += sizeof(*object) + atoi(object->Size);
+  }
 }
 
 int main(int argc, char* argv[]) {
@@ -153,16 +203,20 @@ int main(int argc, char* argv[]) {
   if (in_file == INVALID_HANDLE_VALUE)
     fatal("Unable to read \'%s\'\n", in_name);
 
+  DWORD size = GetFileSize(in_file, NULL);  // 4GB ought to be enough for anyone
+  if (size == INVALID_FILE_SIZE)
+    fatal("Unable to get file size of \'%s\'\n", in_name);
+
   HANDLE mapping = CreateFileMapping(in_file, NULL, PAGE_READONLY, 0, 0, NULL);
   if (mapping == NULL)
     fatal("Unable to map \'%s\'\n", in_name);
 
   // Casting memory like this is not portable.
-  void* lib_contents = MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0);
+  uint8_t* lib_contents = MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0);
   if (lib_contents == NULL)
     fatal("Failed to MapViewOfFile: %s\n", in_name);
 
-  dump(lib_contents);
+  dump(lib_contents, lib_contents + size);
 
   UnmapViewOfFile(lib_contents);
   CloseHandle(mapping);
