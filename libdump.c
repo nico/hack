@@ -18,11 +18,11 @@ static void fatal(const char* msg, ...) {
   exit(1);
 }
 
-unsigned int read_big_long(unsigned char* d) {
+uint32_t read_big_long(unsigned char* d) {
   return (d[0] << 24) | (d[1] << 16) | (d[2] << 8) | d[3];
 }
 
-unsigned int read_little_long(unsigned char* d) {
+uint32_t read_little_long(unsigned char* d) {
   return (d[3] << 24) | (d[2] << 16) | (d[1] << 8) | d[0];
 }
 
@@ -50,16 +50,24 @@ static void dump_header(ArchiveMemberHeader* header) {
   printf("End: %.2s\n", header->End);
 }
 
-static void dump_first_header(unsigned char* contents) {
-  unsigned num_symbols = read_big_long(contents);
+static void dump_first_header(unsigned char* contents,
+                              uint32_t* num_offsets, uint32_t** offsets) {
+  uint32_t num_symbols = read_big_long(contents);
   contents += 4;
   printf("Num symbols: %u\n", num_symbols);
   printf("Offsets:\n");
+  *offsets = malloc(num_symbols * sizeof(uint32_t));  // Leaks; that's ok.
+  uint32_t di = 0, last_offset = 0;
   for (unsigned i = 0; i < num_symbols; ++i) {
     unsigned offset = read_big_long(contents);
+    // In the first header, the same offset might appear multiple times.
+    // (In the second header, this isn't needed due to the index table.)
+    if (offset != last_offset)
+      (*offsets)[di++] = offset;
     contents += 4;
     printf("%u\n", offset);
   }
+  *num_offsets = di;
 
   printf("String table:\n");
   for (unsigned i = 0; i < num_symbols; ++i) {
@@ -70,13 +78,17 @@ static void dump_first_header(unsigned char* contents) {
   printf("\n");
 }
 
-static void dump_second_header(unsigned char* contents) {
-  unsigned num_members = read_little_long(contents);
+static void dump_second_header(unsigned char* contents,
+                               uint32_t* num_offsets, uint32_t** offsets) {
+  uint32_t num_members = read_little_long(contents);
   contents += 4;
   printf("Num members: %u\n", num_members);
   printf("Offsets:\n");
+  *num_offsets = num_members;
+  *offsets = malloc(num_members * sizeof(uint32_t));  // Leaks; that's ok.
   for (unsigned i = 0; i < num_members; ++i) {
     unsigned offset = read_little_long(contents);
+    (*offsets)[i] = offset;
     contents += 4;
     printf("%u\n", offset);
   }
@@ -148,6 +160,8 @@ static void dump_object(uint16_t* object) {
 }
 
 static void dump(unsigned char* contents, unsigned char* contents_end) {
+  unsigned char* contents_start = contents;
+
   const char kLibMagic[] = "!<arch>\n";
   if (strncmp((char*)contents, kLibMagic, strlen(kLibMagic))) {
     fatal("File does not start with '%s', got '%.*s'.\n",
@@ -155,10 +169,11 @@ static void dump(unsigned char* contents, unsigned char* contents_end) {
   }
   contents += strlen(kLibMagic);
 
+  uint32_t num_offsets, *offsets;
   ArchiveMemberHeader* first_linker = (ArchiveMemberHeader*)contents;
   printf("First linker header:\n");
   dump_header(first_linker);
-  dump_first_header(contents + sizeof(*first_linker));
+  dump_first_header(contents + sizeof(*first_linker), &num_offsets, &offsets);
   contents += sizeof(*first_linker) + atoi(first_linker->Size);
 
   ArchiveMemberHeader* second_linker = (ArchiveMemberHeader*)contents;
@@ -168,7 +183,8 @@ static void dump(unsigned char* contents, unsigned char* contents_end) {
   } else {
     printf("Second linker header:\n");
     dump_header(second_linker);
-    dump_second_header(contents + sizeof(*second_linker));
+    dump_second_header(
+        contents + sizeof(*second_linker), &num_offsets, &offsets);
     contents += sizeof(*second_linker) + atoi(second_linker->Size);
   }
 
@@ -184,11 +200,11 @@ static void dump(unsigned char* contents, unsigned char* contents_end) {
     contents += sizeof(*longnames) + atoi(longnames->Size);
   }
 
-  while (contents < contents_end) {
-    ArchiveMemberHeader* object = (ArchiveMemberHeader*)contents;
+  for (unsigned i = 0; i < num_offsets; ++i) {
+    ArchiveMemberHeader* object =
+        (ArchiveMemberHeader*)(contents_start + offsets[i]);
     dump_header(object);
-    dump_object((uint16_t*)(contents + sizeof(*object)));
-    contents += sizeof(*object) + atoi(object->Size);
+    dump_object((uint16_t*)(object + 1));
   }
 }
 
