@@ -1,4 +1,5 @@
 <!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <body>
 <div id="c"></div>
 <script>
@@ -113,5 +114,18 @@ for (var i = first; i < first + num; ++i) {
   l.appendChild(document.createTextNode(start + ' (' + duration + ' min)'));
   c.appendChild(l);
 }
+<!--
+gcloud preview app deploy app.yaml dash dash promote
+
+app.yaml:
+runtime: python27
+api_version: 1
+threadsafe: yes
+handlers:
+- url: .*
+  mime_type: text/html
+  static_files: index.html
+  upload: index.html
+-->
 </script>
 </body>
