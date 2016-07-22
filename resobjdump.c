@@ -42,6 +42,56 @@ unsigned short read_little_short(unsigned char* d) {
 }
 
 typedef struct {
+  uint16_t Machine;
+  uint16_t NumberOfSections;
+  uint32_t TimeDateStamp;
+  uint32_t PointerToSymbolTable;
+  uint32_t NumberOfSymbols;
+  uint16_t SizeOfOptionalHeader;
+  uint16_t Characteristics;
+} FileHeader;
+
+#pragma pack(push, 1)
+typedef struct {
+  char Name[8];
+  uint32_t Value;
+  uint16_t SectionNumber;
+  uint16_t Type;
+  uint8_t StorageClass;
+  uint8_t NumberOfAuxSymbols;
+} StandardSymbolRecord;
+_Static_assert(sizeof(StandardSymbolRecord) == 18, "");
+#pragma pack(pop)
+
+static void dump_real_object(FileHeader* object) {
+  printf("Machine: 0x%x\n", object->Machine);
+  printf("Num sections: %u\n", object->NumberOfSections);
+  printf("TimeDateStamp: %u\n", object->TimeDateStamp);
+  printf("Num symbols: %u\n", object->NumberOfSymbols);
+  printf("Characteristic: 0x%x\n", object->Characteristics);
+
+  // XXX dump relocations?
+
+  // Dump symbol table.
+  printf("Symbol table:\n");
+  StandardSymbolRecord* symbols =
+      (StandardSymbolRecord*)((uint8_t*)object + object->PointerToSymbolTable);
+  for (int i = 0; i < object->NumberOfSymbols; ++i) {
+    if (memcmp(symbols[i].Name, "\0\0\0", 4) == 0)
+      printf("(indexed name)\n");
+    else
+      printf("%.8s\n", symbols[i].Name);
+    i += symbols[i].NumberOfAuxSymbols;
+    // XXX print more stuff.
+  }
+
+  // Dump string table size. It's supposed to be at least 4, but cvtres doesn't
+  // write it correctly.
+  uint32_t string_size = *(uint32_t*)(symbols + object->NumberOfSymbols);
+  printf("String table size: %" PRIi32 "\n", string_size);
+}
+
+typedef struct {
   char Name[8];
   uint32_t VirtualSize;
   uint32_t VirtualAddress;
@@ -54,7 +104,6 @@ typedef struct {
   uint32_t Characteristics;
 } SectionHeader;
 
-
 static void dump_header(SectionHeader* header) {
   printf("Name: %.8s\n", header->Name);
   printf("Virtual Size: %" PRIu32 "\n", header->VirtualSize);
@@ -62,28 +111,6 @@ static void dump_header(SectionHeader* header) {
   printf("Num Relocs: %" PRIu16 "\n", header->NumberOfRelocations);
   printf("Num Lines: %" PRIu16 "\n", header->NumberOfLinenumbers);
   printf("Characteristics: %" PRIx32 "\n", header->Characteristics);
-}
-
-typedef struct {
-  uint16_t Machine;
-  uint16_t NumberOfSections;
-  uint32_t TimeDateStamp;
-  uint32_t PointerToSymbolTable;
-  uint32_t NumberOfSymbols;
-  uint16_t SizeOfOptionalHeader;
-  uint16_t Characteristics;
-} FileHeader;
-
-static void dump_real_object(FileHeader* object) {
-  printf("Machine: 0x%x\n", object->Machine);
-  printf("Num sections: %u\n", object->NumberOfSections);
-  printf("TimeDateStamp: %u\n", object->TimeDateStamp);
-  printf("Num symbols: %u\n", object->NumberOfSymbols);
-  printf("Characteristic: 0x%x\n", object->Characteristics);
-
-  // XXX dump relocations
-  // XXX dump symbol table
-  // XXX dump string table
 }
 
 static void dump(unsigned char* contents, unsigned char* contents_end) {
