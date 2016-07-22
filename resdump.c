@@ -52,7 +52,7 @@ enum {
   RT_MESSAGETABLE = 11,
   RT_GROUP_CURSOR = 12,
   RT_GROUP_ICON = 14,
-  RT_VERSION = 16,
+  RT_VERSION = 16,    // Not stored in image file.
   RT_DLGINCLUDE = 17,
   RT_PLUGPLAY = 19,
   RT_VXD = 20,
@@ -64,7 +64,7 @@ enum {
 
 static const char* type_str(uint16_t type) {
   switch (type) {
-  case 0: return "null";
+  case 0: return "not 16-bit resource marker";  // First entry only.
   case RT_CURSOR: return "RT_CURSOR";
   case RT_BITMAP: return "RT_BITMAP";
   case RT_ICON: return "RT_ICON";
