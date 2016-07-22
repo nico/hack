@@ -121,7 +121,7 @@ static size_t dump_resource_entry(unsigned char* data) {
   printf("  characteristics %" PRIx32 "\n", characteristics);
 
   uint32_t total_size = data_size + header_size;
-  return total_size + (total_size & 1);  // Pad.
+  return total_size + ((4 - (total_size & 3)) & 3);  // DWORD-align.
 }
 
 int main(int argc, char* argv[]) {
