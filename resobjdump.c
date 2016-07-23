@@ -57,7 +57,7 @@ typedef struct {
 typedef struct {
   char Name[8];
   uint32_t Value;
-  int16_t SectionNumber;
+  int16_t SectionNumber;  // 1-based index, or a special value (0, -1, -2)
   uint16_t Type;
   uint8_t StorageClass;
   uint8_t NumberOfAuxSymbols;
@@ -72,10 +72,8 @@ static void dump_real_object(FileHeader* object) {
   printf("Num symbols: %u\n", object->NumberOfSymbols);
   printf("Characteristic: 0x%x\n", object->Characteristics);
 
-  // Relocations are indexed from sections and dumped with them.
-
   // Dump symbol table.
-  printf("Symbol table:\n");
+  printf("Symbol table (%" PRId32 " entries):\n", object->NumberOfSymbols);
   StandardSymbolRecord* symbols =
       (StandardSymbolRecord*)((uint8_t*)object + object->PointerToSymbolTable);
   for (int i = 0; i < object->NumberOfSymbols; ++i) {
@@ -116,7 +114,17 @@ typedef struct {
   uint32_t Characteristics;
 } SectionHeader;
 
-static void dump_header(SectionHeader* header) {
+#pragma pack(push, 1)
+typedef struct {
+  uint32_t VirtualAddress;
+  uint32_t SymbolTableInd;  // zero-based
+  uint16_t Type;
+} Relocation;
+_Static_assert(sizeof(Relocation) == 10, "");
+#pragma pack(pop)
+
+static void dump_section_header(uint8_t* contents_start,
+                                SectionHeader* header) {
   printf("Name: %.8s\n", header->Name);
   printf("Virtual Size: %" PRIu32 "\n", header->VirtualSize);
   printf("Raw Size: %" PRIu32 "\n", header->SizeOfRawData);
@@ -124,6 +132,13 @@ static void dump_header(SectionHeader* header) {
   printf("Num Relocs: %" PRIu16 "\n", header->NumberOfRelocations);
   printf("Num Lines: %" PRIu16 "\n", header->NumberOfLinenumbers);
   printf("Characteristics: 0x%" PRIx32 "\n", header->Characteristics);
+
+  Relocation* relocs =
+      (Relocation*)(contents_start + header->PointerToRelocations);
+  for (int i = 0; i < header->NumberOfRelocations; ++i) {
+    printf("addr 0x%" PRIx32 " symbol ind %" PRId32 " type %" PRId16 "\n",
+           relocs[i].VirtualAddress, relocs[i].SymbolTableInd, relocs[i].Type);
+  }
 }
 
 typedef struct {
@@ -226,7 +241,7 @@ static void dump(uint8_t* contents, uint8_t* contents_end) {
 
   for (unsigned i = 0; i < header->NumberOfSections; ++i) {
     SectionHeader* header = (SectionHeader*)contents;
-    dump_header(header);
+    dump_section_header(contents_start, header);
 
     // It looks like cvtres puts the resource tree description metadata in
     // .rsrc$01 and the actual resource data in .rsrc$02.
