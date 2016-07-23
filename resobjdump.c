@@ -21,6 +21,8 @@ Dumps PE object files with rsrc sections, PE spec section 6.8.
 #include <unistd.h>
 #endif
 
+const char kPad[] = "                                                  ";
+
 static void fatal(const char* msg, ...) {
   va_list args;
   va_start(args, msg);
@@ -132,22 +134,47 @@ typedef struct {
   uint32_t DataRVA;
 } ResourceDirectoryEntry;
 
+typedef struct {
+  uint32_t DataRVA;
+  uint32_t Size;
+  uint32_t Codepage;
+  uint32_t Reserved;
+} ResourceDataEntry;
+
+static void dump_rsrc_data_entry(uint8_t* start, int indent) {
+  ResourceDataEntry* entry = (ResourceDataEntry*)start;
+  printf("%.*sDataRVA %" PRId32 "\n", indent, kPad, entry->DataRVA);
+  printf("%.*sSize %" PRId32 "\n", indent, kPad, entry->Size);
+  if (entry->Codepage)
+  printf("%.*sCodepage %" PRId32 "\n", indent, kPad, entry->Codepage);
+  if (entry->Reserved)
+    printf("%.*sReserved %" PRIu32 "\n", indent, kPad, entry->Reserved);
+}
+
 static void dump_rsrc_section(uint8_t* section_start,
                               uint8_t* start,
                               uint8_t* end,
                               int indent) {
-  const char* kPad = "                                                  ";
   ResourceDirectoryHeader* header = (ResourceDirectoryHeader*)start;
   start += sizeof(*header);
-  printf("%.*sCharacteristics 0x%" PRIx32 "\n", indent, kPad,
-         header->Characteristics);
-  printf("%.*sTimeDateStamp %" PRIu32 "\n", indent, kPad, header->TimeDateStamp);
-  printf("%.*sMajorVersion %" PRIu16 "\n", indent, kPad, header->MajorVersion);
-  printf("%.*sMinorVersion %" PRIu16 "\n", indent, kPad, header->MinorVersion);
-  printf("%.*sNumberOfNameEntries %" PRIu16 "\n", indent, kPad,
-         header->NumberOfNameEntries);
-  printf("%.*sNumberOfIdEntries %" PRIu16 "\n", indent, kPad,
-         header->NumberOfIdEntries);
+
+  if (header->Characteristics)
+    printf("%.*sCharacteristics 0x%" PRIx32 "\n", indent, kPad,
+           header->Characteristics);
+  if (header->TimeDateStamp)
+    printf("%.*sTimeDateStamp %" PRIu32 "\n", indent, kPad,
+           header->TimeDateStamp);
+  if (header->MajorVersion)
+    printf("%.*sMajorVersion %" PRIu16 "\n", indent, kPad,
+           header->MajorVersion);
+  if (header->MinorVersion)
+    printf("%.*sMinorVersion %" PRIu16 "\n", indent, kPad,
+           header->MinorVersion);
+  if (header->NumberOfNameEntries)
+    printf("%.*sNumberOfNameEntries %" PRIu16 "\n", indent, kPad,
+           header->NumberOfNameEntries);
+  //printf("%.*sNumberOfIdEntries %" PRIu16 "\n", indent, kPad,
+         //header->NumberOfIdEntries);
 
   if (header->NumberOfNameEntries != 0)
     fatal("Cannot handle named resource directory entries yet\n");
@@ -156,11 +183,13 @@ static void dump_rsrc_section(uint8_t* section_start,
     ResourceDirectoryEntry* entry = (ResourceDirectoryEntry*)start;
 
     printf("%.*sTypeNameLang %" PRIu32 "\n", indent, kPad, entry->TypeNameLang);
-    printf("%.*sDataRVA %" PRIx32 "\n", indent, kPad, entry->DataRVA);
+    //printf("%.*sDataRVA %" PRIx32 "\n", indent, kPad, entry->DataRVA);
     if (entry->DataRVA & 0x80000000) {
       dump_rsrc_section(section_start,
                         section_start + (entry->DataRVA & ~0x80000000), end,
                         indent + 2);
+    } else {
+      dump_rsrc_data_entry(section_start + entry->DataRVA, indent + 2);
     }
 
     start += sizeof(*entry);
@@ -181,7 +210,9 @@ static void dump(uint8_t* contents, uint8_t* contents_end) {
     SectionHeader* header = (SectionHeader*)contents;
     dump_header(header);
 
-    if (strncmp(header->Name, ".rsrc", 5) == 0) {  // Prefix-match .rsrc$02 etc
+    // It looks like cvtres puts the resource tree description metadata in
+    // .rsrc$01 and the actual resource data in .rsrc$02.
+    if (strncmp(header->Name, ".rsrc$01", 8) == 0) {
       dump_rsrc_section(
           contents_start + header->PointerToRawData,
           contents_start + header->PointerToRawData,
