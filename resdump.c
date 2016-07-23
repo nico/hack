@@ -104,10 +104,10 @@ static size_t dump_resource_entry(unsigned char* data) {
   // they're inline unicode strings.
   uint32_t type = read_little_long(&data);
   if ((type & 0xffff) != 0xffff)
-    fatal("string types not yet supported");
+    fatal("string types not yet supported\n");
   uint32_t name = read_little_long(&data);
   if ((name & 0xffff) != 0xffff)
-    fatal("string names not yet supported");
+    fatal("string names not yet supported\n");
   uint32_t data_version = read_little_long(&data);
   uint16_t memory_flags = read_little_short(&data);
   uint16_t language_id = read_little_short(&data);
