@@ -170,19 +170,29 @@ static void dump_rsrc_section(uint8_t* section_start,
   if (header->MinorVersion)
     printf("%.*sMinorVersion %" PRIu16 "\n", indent, kPad,
            header->MinorVersion);
-  if (header->NumberOfNameEntries)
-    printf("%.*sNumberOfNameEntries %" PRIu16 "\n", indent, kPad,
-           header->NumberOfNameEntries);
+  //printf("%.*sNumberOfNameEntries %" PRIu16 "\n", indent, kPad,
+         //header->NumberOfNameEntries);
   //printf("%.*sNumberOfIdEntries %" PRIu16 "\n", indent, kPad,
          //header->NumberOfIdEntries);
 
-  if (header->NumberOfNameEntries != 0)
-    fatal("Cannot handle named resource directory entries yet\n");
-
-  for (int i = 0; i < header->NumberOfIdEntries; ++i) {
+  for (int i = 0; i < header->NumberOfNameEntries + header->NumberOfIdEntries;
+       ++i) {
     ResourceDirectoryEntry* entry = (ResourceDirectoryEntry*)start;
 
-    printf("%.*sTypeNameLang %" PRIu32 "\n", indent, kPad, entry->TypeNameLang);
+    if (i < header->NumberOfNameEntries) {
+      printf("%.*sTypeNameLang str ", indent, kPad);
+      // It looks like cvtres.exe sets the high bit if TypeNameLang is a string,
+      // even though the COFF spec doesn't mention that (and it's redundant
+      // with having both NumberOfNameEntries and NumberOfIdEntries fields).
+      uint16_t* str =
+          (uint16_t*)(section_start + (entry->TypeNameLang & ~0x80000000));
+      for (unsigned i = 0, e = *str; i < e; ++i)
+        printf("%c", str[i + 1]);
+      printf("\n");
+    } else {
+      printf("%.*sTypeNameLang %" PRIu32 "\n", indent, kPad,
+             entry->TypeNameLang);
+    }
     //printf("%.*sDataRVA %" PRIx32 "\n", indent, kPad, entry->DataRVA);
     if (entry->DataRVA & 0x80000000) {
       dump_rsrc_section(section_start,
@@ -245,7 +255,6 @@ int main(int argc, char* argv[]) {
   if (mapping == NULL)
     fatal("Unable to map \'%s\'\n", in_name);
 
-  // Casting memory like this is not portable.
   uint8_t* obj_contents = MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0);
   if (obj_contents == NULL)
     fatal("Failed to MapViewOfFile: %s\n", in_name);
