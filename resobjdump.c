@@ -57,7 +57,7 @@ typedef struct {
 typedef struct {
   char Name[8];
   uint32_t Value;
-  uint16_t SectionNumber;
+  int16_t SectionNumber;
   uint16_t Type;
   uint8_t StorageClass;
   uint8_t NumberOfAuxSymbols;
@@ -72,7 +72,7 @@ static void dump_real_object(FileHeader* object) {
   printf("Num symbols: %u\n", object->NumberOfSymbols);
   printf("Characteristic: 0x%x\n", object->Characteristics);
 
-  // XXX dump relocations?
+  // Relocations are indexed from sections and dumped with them.
 
   // Dump symbol table.
   printf("Symbol table:\n");
@@ -80,11 +80,19 @@ static void dump_real_object(FileHeader* object) {
       (StandardSymbolRecord*)((uint8_t*)object + object->PointerToSymbolTable);
   for (int i = 0; i < object->NumberOfSymbols; ++i) {
     if (memcmp(symbols[i].Name, "\0\0\0", 4) == 0)
-      printf("(indexed name)\n");
+      printf("(indexed name) ");
     else
-      printf("%.8s\n", symbols[i].Name);
+      printf("%.8s ", symbols[i].Name);
+
+    printf("Value 0x%08" PRIx32 ", ", symbols[i].Value);
+    printf("Section %2" PRId16 ", ", symbols[i].SectionNumber);
+    printf("Type %" PRIx16 ", ", symbols[i].Type);
+    printf("Storage class %" PRId8, symbols[i].StorageClass);
+    if (symbols[i].NumberOfAuxSymbols)
+      printf(", %" PRId8 " aux symbols", symbols[i].NumberOfAuxSymbols);
+    printf("\n");
+
     i += symbols[i].NumberOfAuxSymbols;
-    // XXX print more stuff.
   }
 
   // Dump string table size. It's supposed to be at least 4, but cvtres doesn't
