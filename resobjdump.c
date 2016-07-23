@@ -31,18 +31,6 @@ static void fatal(const char* msg, ...) {
   exit(1);
 }
 
-uint32_t read_big_long(uint8_t* d) {
-  return (d[0] << 24) | (d[1] << 16) | (d[2] << 8) | d[3];
-}
-
-uint32_t read_little_long(uint8_t* d) {
-  return (d[3] << 24) | (d[2] << 16) | (d[1] << 8) | d[0];
-}
-
-unsigned short read_little_short(uint8_t* d) {
-  return (d[1] << 8) | d[0];
-}
-
 typedef struct {
   uint16_t Machine;
   uint16_t NumberOfSections;

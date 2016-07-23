@@ -25,13 +25,13 @@ static void fatal(const char* msg, ...) {
   exit(1);
 }
 
-uint32_t read_little_long(unsigned char** d) {
+static uint32_t read_little_long(unsigned char** d) {
   uint32_t r = ((*d)[3] << 24) | ((*d)[2] << 16) | ((*d)[1] << 8) | (*d)[0];
   *d += sizeof(uint32_t);
   return r;
 }
 
-uint16_t read_little_short(unsigned char** d) {
+static uint16_t read_little_short(unsigned char** d) {
   uint16_t r = ((*d)[1] << 8) | (*d)[0];
   *d += sizeof(uint16_t);
   return r;
