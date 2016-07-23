@@ -94,7 +94,7 @@ static size_t dump_resource_entry(unsigned char* data) {
   uint32_t data_size = read_little_long(&data);
   uint32_t header_size = read_little_long(&data);
 
-  printf("Resource Entry, data size %" PRIx32 ", header size %" PRIx32 "\n",
+  printf("Resource Entry, data size 0x%" PRIx32 ", header size 0x%" PRIx32 "\n",
          data_size, header_size);
 
   if (header_size < 20)
@@ -114,9 +114,10 @@ static size_t dump_resource_entry(unsigned char* data) {
   uint32_t version = read_little_long(&data);
   uint32_t characteristics = read_little_long(&data);
 
-  printf("  type %" PRIx32 " (%s) name %" PRIx32 " dataversion %" PRIx32 "\n",
+  printf("  type 0x%" PRIx32 " (%s) name 0x%" PRIx32 " dataversion 0x%" PRIx32
+         "\n",
          type, type_str(type >> 16), name, data_version);
-  printf("  memflags %" PRIx32 " langid %" PRIx32 " version %" PRIx32 "\n",
+  printf("  memflags 0x%" PRIx16 " langid %" PRIu16 " version %" PRIx32 "\n",
          memory_flags, language_id, version);
   printf("  characteristics %" PRIx32 "\n", characteristics);
 
