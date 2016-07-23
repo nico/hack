@@ -29,15 +29,15 @@ static void fatal(const char* msg, ...) {
   exit(1);
 }
 
-uint32_t read_big_long(unsigned char* d) {
+uint32_t read_big_long(uint8_t* d) {
   return (d[0] << 24) | (d[1] << 16) | (d[2] << 8) | d[3];
 }
 
-uint32_t read_little_long(unsigned char* d) {
+uint32_t read_little_long(uint8_t* d) {
   return (d[3] << 24) | (d[2] << 16) | (d[1] << 8) | d[0];
 }
 
-unsigned short read_little_short(unsigned char* d) {
+unsigned short read_little_short(uint8_t* d) {
   return (d[1] << 8) | d[0];
 }
 
@@ -89,6 +89,8 @@ static void dump_real_object(FileHeader* object) {
   // write it correctly.
   uint32_t string_size = *(uint32_t*)(symbols + object->NumberOfSymbols);
   printf("String table size: %" PRIi32 "\n", string_size);
+
+  printf("\n");
 }
 
 typedef struct {
@@ -108,15 +110,69 @@ static void dump_header(SectionHeader* header) {
   printf("Name: %.8s\n", header->Name);
   printf("Virtual Size: %" PRIu32 "\n", header->VirtualSize);
   printf("Raw Size: %" PRIu32 "\n", header->SizeOfRawData);
+  printf("Raw Data: 0x%" PRIx32 "\n", header->PointerToRawData);
   printf("Num Relocs: %" PRIu16 "\n", header->NumberOfRelocations);
   printf("Num Lines: %" PRIu16 "\n", header->NumberOfLinenumbers);
-  printf("Characteristics: %" PRIx32 "\n", header->Characteristics);
+  printf("Characteristics: 0x%" PRIx32 "\n", header->Characteristics);
 }
 
-static void dump(unsigned char* contents, unsigned char* contents_end) {
+typedef struct {
+  uint32_t Characteristics;
+  uint32_t TimeDateStamp;
+  uint16_t MajorVersion;
+  uint16_t MinorVersion;
+  uint16_t NumberOfNameEntries;
+  uint16_t NumberOfIdEntries;
+} ResourceDirectoryHeader;
+
+typedef struct {
+  uint32_t TypeNameLang;  // Either string address or id.
+  // High bit 0: Address of a Resource Data Entry (a leaf).
+  // High bit 1: Address of a Resource Directory Table.
+  uint32_t DataRVA;
+} ResourceDirectoryEntry;
+
+static void dump_rsrc_section(uint8_t* section_start,
+                              uint8_t* start,
+                              uint8_t* end,
+                              int indent) {
+  const char* kPad = "                                                  ";
+  ResourceDirectoryHeader* header = (ResourceDirectoryHeader*)start;
+  start += sizeof(*header);
+  printf("%.*sCharacteristics 0x%" PRIx32 "\n", indent, kPad,
+         header->Characteristics);
+  printf("%.*sTimeDateStamp %" PRIu32 "\n", indent, kPad, header->TimeDateStamp);
+  printf("%.*sMajorVersion %" PRIu16 "\n", indent, kPad, header->MajorVersion);
+  printf("%.*sMinorVersion %" PRIu16 "\n", indent, kPad, header->MinorVersion);
+  printf("%.*sNumberOfNameEntries %" PRIu16 "\n", indent, kPad,
+         header->NumberOfNameEntries);
+  printf("%.*sNumberOfIdEntries %" PRIu16 "\n", indent, kPad,
+         header->NumberOfIdEntries);
+
+  if (header->NumberOfNameEntries != 0)
+    fatal("Cannot handle named resource directory entries yet\n");
+
+  for (int i = 0; i < header->NumberOfIdEntries; ++i) {
+    ResourceDirectoryEntry* entry = (ResourceDirectoryEntry*)start;
+
+    printf("%.*sTypeNameLang %" PRIu32 "\n", indent, kPad, entry->TypeNameLang);
+    printf("%.*sDataRVA %" PRIx32 "\n", indent, kPad, entry->DataRVA);
+    if (entry->DataRVA & 0x80000000) {
+      dump_rsrc_section(section_start,
+                        section_start + (entry->DataRVA & ~0x80000000), end,
+                        indent + 2);
+    }
+
+    start += sizeof(*entry);
+  }
+}
+
+static void dump(uint8_t* contents, uint8_t* contents_end) {
+  uint8_t* contents_start = contents;
+
   FileHeader* header = (FileHeader*)contents;
   if (header->SizeOfOptionalHeader)
-    fatal("size of optional header should be 0 for .obj files");
+    fatal("size of optional header should be 0 for .obj files\n");
   contents += sizeof(*header);
 
   dump_real_object(header);
@@ -124,6 +180,16 @@ static void dump(unsigned char* contents, unsigned char* contents_end) {
   for (unsigned i = 0; i < header->NumberOfSections; ++i) {
     SectionHeader* header = (SectionHeader*)contents;
     dump_header(header);
+
+    if (strncmp(header->Name, ".rsrc", 5) == 0) {  // Prefix-match .rsrc$02 etc
+      dump_rsrc_section(
+          contents_start + header->PointerToRawData,
+          contents_start + header->PointerToRawData,
+          contents_start + header->PointerToRawData + header->SizeOfRawData,
+          /*indent=*/2);
+    }
+
+    printf("\n");
     contents += sizeof(*header);
   }
 }
