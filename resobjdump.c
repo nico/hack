@@ -85,10 +85,12 @@ static void dump_real_object(FileHeader* object) {
     printf("Value 0x%08" PRIx32 ", ", symbols[i].Value);
     printf("Section %2" PRId16 ", ", symbols[i].SectionNumber);
     printf("Type %" PRIx16 ", ", symbols[i].Type);
-    printf("Storage class %" PRId8, symbols[i].StorageClass);
-    if (symbols[i].NumberOfAuxSymbols)
-      printf(", %" PRId8 " aux symbols", symbols[i].NumberOfAuxSymbols);
-    printf("\n");
+    printf("Storage class %" PRId8 "\n", symbols[i].StorageClass);
+
+    // Print a line for each aux symbol.  The index in a relocation includes
+    // aux symbols too, so this makes it easier to manually resolve indices.
+    for (int j = 0; j < symbols[i].NumberOfAuxSymbols; ++j)
+      printf("    (aux symbol)\n");
 
     i += symbols[i].NumberOfAuxSymbols;
   }
