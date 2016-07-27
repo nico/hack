@@ -90,7 +90,7 @@ static const char* type_str(uint16_t type) {
   }
 }
 
-static size_t dump_resource_entry(unsigned char* data) {
+static size_t dump_resource_entry(uint8_t* data) {
   uint32_t data_size = read_little_long(&data);
   uint32_t header_size = read_little_long(&data);
 
@@ -100,23 +100,53 @@ static size_t dump_resource_entry(unsigned char* data) {
   if (header_size < 20)
     fatal("header too small");
 
-  // FIXME: if type, name start with 0xffff then they're numeric IDs. Else
-  // they're inline unicode strings.
-  uint32_t type = read_little_long(&data);
-  if ((type & 0xffff) != 0xffff)
-    fatal("string types not yet supported\n");
-  uint32_t name = read_little_long(&data);
-  if ((name & 0xffff) != 0xffff)
-    fatal("string names not yet supported\n");
+  // https://msdn.microsoft.com/en-us/library/windows/desktop/ms648027(v=vs.85).aspx
+
+  // if type, name start with 0xffff then they're numeric IDs. Else they're
+  // inline zero-terminated utf-16le strings. After name, there might be one
+  // word of padding to align data_version.
+  uint8_t* string_start = data;
+  uint16_t type = read_little_short(&data);
+  if (type == 0xffff) {
+    type = read_little_short(&data);
+    printf("  type 0x%" PRIx32 " (%s) ", type, type_str(type));
+  } else {
+    printf("  type \"");
+    while (type != 0) {
+      if (type < 128)
+        fputc(type, stdout);
+      else
+        fputc('?', stdout);
+      type = read_little_short(&data);
+    }
+    printf("\" ");
+  }
+  uint16_t name = read_little_short(&data);
+  if (name == 0xffff) {
+    name = read_little_short(&data);
+    printf("name 0x%" PRIx32 " ", name);
+  } else {
+    printf("name \"");
+    while (name != 0) {
+      if (name < 128)
+        fputc(name, stdout);
+      else
+        fputc('?', stdout);
+      name = read_little_short(&data);
+    }
+    printf("\" ");
+  }
+  // Pad to dword boundary:
+  if ((data - string_start) & 2)
+    data += 2;
+
   uint32_t data_version = read_little_long(&data);
   uint16_t memory_flags = read_little_short(&data);
   uint16_t language_id = read_little_short(&data);
   uint32_t version = read_little_long(&data);
   uint32_t characteristics = read_little_long(&data);
 
-  printf("  type 0x%" PRIx32 " (%s) name 0x%" PRIx32 " dataversion 0x%" PRIx32
-         "\n",
-         type, type_str(type >> 16), name, data_version);
+  printf("dataversion 0x%" PRIx32 "\n", data_version);
   printf("  memflags 0x%" PRIx16 " langid %" PRIu16 " version %" PRIx32 "\n",
          memory_flags, language_id, version);
   printf("  characteristics %" PRIx32 "\n", characteristics);
@@ -140,13 +170,13 @@ int main(int argc, char* argv[]) {
   if (fstat(in_file, &in_stat))
     fatal("Failed to stat \'%s\'\n", in_name);
 
-  unsigned char* data =
+  uint8_t* data =
       mmap(/*addr=*/0, in_stat.st_size, PROT_READ, MAP_SHARED, in_file,
            /*offset=*/0);
   if (data == MAP_FAILED)
     fatal("Failed to mmap: %d (%s)\n", errno, strerror(errno));
 
-  unsigned char* end = data + in_stat.st_size;
+  uint8_t* end = data + in_stat.st_size;
 
   while (data < end) {
     data += dump_resource_entry(data);
