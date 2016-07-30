@@ -11,11 +11,15 @@ Dumps res files created by rc.exe.
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(_WIN32)
+#include <windows.h>
+#else
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#endif
 
 static void fatal(const char* msg, ...) {
   va_list args;
@@ -38,54 +42,55 @@ static uint16_t read_little_short(unsigned char** d) {
 }
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/ms648009(v=vs.85).aspx
+// k prefix so that names don't collide with Win SDK on Windows.
 enum {
-  RT_CURSOR = 1,
-  RT_BITMAP = 2,
-  RT_ICON = 3,
-  RT_MENU = 4,
-  RT_DIALOG = 5,
-  RT_STRING = 6,
-  RT_FONTDIR = 7,
-  RT_FONT = 8,
-  RT_ACCELERATORS = 9,
-  RT_RCDATA = 10,
-  RT_MESSAGETABLE = 11,
-  RT_GROUP_CURSOR = 12,
-  RT_GROUP_ICON = 14,
-  RT_VERSION = 16,    // Not stored in image file.
-  RT_DLGINCLUDE = 17,
-  RT_PLUGPLAY = 19,
-  RT_VXD = 20,
-  RT_ANICURSOR = 21,
-  RT_ANIICON = 22,
-  RT_HTML = 23,
-  RT_MANIFEST = 24,
+  kRT_CURSOR = 1,
+  kRT_BITMAP = 2,
+  kRT_ICON = 3,
+  kRT_MENU = 4,
+  kRT_DIALOG = 5,
+  kRT_STRING = 6,
+  kRT_FONTDIR = 7,
+  kRT_FONT = 8,
+  kRT_ACCELERATOR = 9,
+  kRT_RCDATA = 10,
+  kRT_MESSAGETABLE = 11,
+  kRT_GROUP_CURSOR = 12,
+  kRT_GROUP_ICON = 14,
+  kRT_VERSION = 16,    // Not stored in image file.
+  kRT_DLGINCLUDE = 17,
+  kRT_PLUGPLAY = 19,
+  kRT_VXD = 20,
+  kRT_ANICURSOR = 21,
+  kRT_ANIICON = 22,
+  kRT_HTML = 23,
+  kRT_MANIFEST = 24,
 };
 
 static const char* type_str(uint16_t type) {
   switch (type) {
   case 0: return "not 16-bit resource marker";  // First entry only.
-  case RT_CURSOR: return "RT_CURSOR";
-  case RT_BITMAP: return "RT_BITMAP";
-  case RT_ICON: return "RT_ICON";
-  case RT_MENU: return "RT_MENU";
-  case RT_DIALOG: return "RT_DIALOG";
-  case RT_STRING: return "RT_STRING";
-  case RT_FONTDIR: return "RT_FONTDIR";
-  case RT_FONT: return "RT_FONT";
-  case RT_ACCELERATORS: return "RT_ACCELERATORS";
-  case RT_RCDATA: return "RT_RCDATA";
-  case RT_MESSAGETABLE: return "RT_MESSAGETABLE";
-  case RT_GROUP_CURSOR: return "RT_GROUP_CURSOR";
-  case RT_GROUP_ICON: return "RT_GROUP_ICON";
-  case RT_VERSION: return "RT_VERSION";
-  case RT_DLGINCLUDE: return "RT_DLGINCLUDE";
-  case RT_PLUGPLAY: return "RT_PLUGPLAY";
-  case RT_VXD: return "RT_VXD";
-  case RT_ANICURSOR: return "RT_ANICURSOR";
-  case RT_ANIICON: return "RT_ANIICON";
-  case RT_HTML: return "RT_HTML";
-  case RT_MANIFEST: return "RT_MANIFEST";
+  case kRT_CURSOR: return "RT_CURSOR";
+  case kRT_BITMAP: return "RT_BITMAP";
+  case kRT_ICON: return "RT_ICON";
+  case kRT_MENU: return "RT_MENU";
+  case kRT_DIALOG: return "RT_DIALOG";
+  case kRT_STRING: return "RT_STRING";
+  case kRT_FONTDIR: return "RT_FONTDIR";
+  case kRT_FONT: return "RT_FONT";
+  case kRT_ACCELERATOR: return "RT_ACCELERATOR";
+  case kRT_RCDATA: return "RT_RCDATA";
+  case kRT_MESSAGETABLE: return "RT_MESSAGETABLE";
+  case kRT_GROUP_CURSOR: return "RT_GROUP_CURSOR";
+  case kRT_GROUP_ICON: return "RT_GROUP_ICON";
+  case kRT_VERSION: return "RT_VERSION";
+  case kRT_DLGINCLUDE: return "RT_DLGINCLUDE";
+  case kRT_PLUGPLAY: return "RT_PLUGPLAY";
+  case kRT_VXD: return "RT_VXD";
+  case kRT_ANICURSOR: return "RT_ANICURSOR";
+  case kRT_ANIICON: return "RT_ANIICON";
+  case kRT_HTML: return "RT_HTML";
+  case kRT_MANIFEST: return "RT_MANIFEST";
   default: printf("%x\n", type); assert(0 && "unknown type"); return "unknown";
   }
 }
@@ -162,6 +167,24 @@ int main(int argc, char* argv[]) {
   const char *in_name = argv[1];
 
   // Read input.
+#if defined(_WIN32)
+  HANDLE in_file = CreateFile(in_name, GENERIC_READ, FILE_SHARE_READ, NULL,
+                              OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, NULL);
+  if (in_file == INVALID_HANDLE_VALUE)
+    fatal("Unable to read \'%s\'\n", in_name);
+
+  DWORD size = GetFileSize(in_file, NULL);  // 4GB ought to be enough for anyone
+  if (size == INVALID_FILE_SIZE)
+    fatal("Unable to get file size of \'%s\'\n", in_name);
+
+  HANDLE mapping = CreateFileMapping(in_file, NULL, PAGE_READONLY, 0, 0, NULL);
+  if (mapping == NULL)
+    fatal("Unable to map \'%s\'\n", in_name);
+
+  uint8_t* data = MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0);
+  if (data == NULL)
+    fatal("Failed to MapViewOfFile: %s\n", in_name);
+#else
   int in_file = open(in_name, O_RDONLY);
   if (!in_file)
     fatal("Unable to read \'%s\'\n", in_name);
@@ -170,18 +193,25 @@ int main(int argc, char* argv[]) {
   if (fstat(in_file, &in_stat))
     fatal("Failed to stat \'%s\'\n", in_name);
 
-  uint8_t* data =
-      mmap(/*addr=*/0, in_stat.st_size, PROT_READ, MAP_SHARED, in_file,
-           /*offset=*/0);
+  size_t size = in_stat.st_size;
+  uint8_t* data = mmap(/*addr=*/0, st_size, PROT_READ, MAP_SHARED, in_file,
+                       /*offset=*/0);
   if (data == MAP_FAILED)
     fatal("Failed to mmap: %d (%s)\n", errno, strerror(errno));
+#endif
 
-  uint8_t* end = data + in_stat.st_size;
+  uint8_t* end = data + size;
 
   while (data < end) {
     data += dump_resource_entry(data);
   }
 
+#if defined(_WIN32)
+  UnmapViewOfFile(data);
+  CloseHandle(mapping);
+  CloseHandle(in_file);
+#else
   munmap(data, in_stat.st_size);
   close(in_file);
+#endif
 }

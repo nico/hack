@@ -50,7 +50,9 @@ typedef struct {
   uint8_t StorageClass;
   uint8_t NumberOfAuxSymbols;
 } StandardSymbolRecord;
+#if !defined(_MSC_VER) || defined(__clang__)
 _Static_assert(sizeof(StandardSymbolRecord) == 18, "");
+#endif
 #pragma pack(pop)
 
 static void dump_real_object(FileHeader* object) {
@@ -110,7 +112,9 @@ typedef struct {
   uint32_t SymbolTableInd;  // zero-based
   uint16_t Type;
 } Relocation;
+#if !defined(_MSC_VER) || defined(__clang__)
 _Static_assert(sizeof(Relocation) == 10, "");
+#endif
 #pragma pack(pop)
 
 static void dump_section_header(uint8_t* contents_start,
