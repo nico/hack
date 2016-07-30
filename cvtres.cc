@@ -44,13 +44,11 @@ struct ResEntry {
   uint32_t header_size;  // Always 0x20 plus storage for type_str and name_str
                          // if type or name aren't numeric.
 
-  // If type is non-0, then type_str is empty and this has numeric type.
-  // If type is 0, then type_str is the text type.
+  bool type_is_str;  // determines which of the following two is valid.
   uint16_t type;
   std::vector<char16_t> type_str;
 
-  // If name is non-0, then type_str is empty and this has numeric name.
-  // If name is 0, then type_str is the text name.
+  bool name_is_str;  // determines which of the following two is valid.
   uint16_t name;
   std::vector<char16_t> name_str;
 
@@ -81,20 +79,20 @@ static ResEntry load_resource_entry(uint8_t* data, uint32_t* n_read) {
   // word of padding to align data_version.
   uint8_t* string_start = data;
   uint16_t type = read_little_short(&data);
-  if (type == 0xffff) {
+  entry.type_is_str = type != 0xffff;
+  if (!entry.type_is_str) {
     entry.type = read_little_short(&data);
   } else {
-    entry.type = 0;
     while (type != 0) {
       entry.type_str.push_back(type);
       type = read_little_short(&data);
     }
   }
   uint16_t name = read_little_short(&data);
-  if (name == 0xffff) {
+  entry.name_is_str = name != 0xffff;
+  if (!entry.name_is_str) {
     entry.name = read_little_short(&data);
   } else {
-    entry.name = 0;
     while (name != 0) {
       entry.name_str.push_back(name);
       name = read_little_short(&data);
