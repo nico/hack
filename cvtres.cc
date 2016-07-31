@@ -404,7 +404,7 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
       entry.TypeNameLang = (type.first.id << 16) | 0xffff;
     }
     fwrite(&entry, sizeof(entry), 1, out_file);
-fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
+//fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
   }
 
   for (auto& type : directory) {
@@ -435,7 +435,7 @@ fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
         entry.TypeNameLang = (name.first.id << 16) | 0xffff;
       }
       fwrite(&entry, sizeof(entry), 1, out_file);
-fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
+//fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
     }
   }
 
@@ -451,7 +451,7 @@ fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
         entry.DataRVA = offset + data_index++ * sizeof(ResourceDataEntry);
         entry.TypeNameLang = (lang.first << 16) | 0xffff;
         fwrite(&entry, sizeof(entry), 1, out_file);
-fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
+//fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
       }
     }
   }
@@ -468,9 +468,11 @@ fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
   }
 
   // Write string table after resource directory. (with padding)
+  assert(ftello(out_file) == coff_header_size + string_table_start);
   fwrite(string_table.data(), string_table.size(), sizeof(uint16_t), out_file);
 
   // Write relocations.
+  assert(ftello(out_file) == coff_header_size + relocations_start);
   for (unsigned i = 0; i < entries.entries.size(); ++i) {
     Relocation reloc;
     reloc.VirtualAddress = 0;  // XXX
