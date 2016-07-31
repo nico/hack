@@ -351,7 +351,8 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   rsrc01_header.VirtualAddress = 0;
   rsrc01_header.SizeOfRawData = rsrc01_size;
   rsrc01_header.PointerToRawData = coff_header_size;
-  rsrc01_header.PointerToRelocations = relocations_start;
+  rsrc01_header.PointerToRelocations =
+      rsrc01_header.PointerToRawData + relocations_start;
   rsrc01_header.PointerToLineNumbers = 0;
   rsrc01_header.NumberOfRelocations = entries.entries.size();
   rsrc01_header.NumberOfLinenumbers = 0;
@@ -456,11 +457,11 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
     }
   }
 
-  // Write resource data entries (the COFF spec recommens to put these after
+  // Write resource data entries (the COFF spec recommends to put these after
   // the string table, but cvtres.exe puts them before it).
   for (const auto& entry : entries.entries) {
     ResourceDataEntry data_entry;
-    data_entry.DataRVA = 0;  // Fixed up by an relocation.
+    data_entry.DataRVA = 0;  // Fixed up by a relocation.
     data_entry.Size = entry.data_size;
     data_entry.Codepage = 0;  // XXX
     data_entry.Reserved = 0;
