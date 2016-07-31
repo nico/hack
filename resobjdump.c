@@ -53,6 +53,21 @@ typedef struct {
 #if !defined(_MSC_VER) || defined(__clang__)
 _Static_assert(sizeof(StandardSymbolRecord) == 18, "");
 #endif
+
+typedef struct {
+  uint32_t Length;
+  int16_t NumberOfRelocations;
+  int16_t NumberOfLinenumbers;
+  uint32_t CheckSum;
+  int16_t Number;
+  uint8_t Selection;
+  uint8_t Pad0;
+  uint8_t Pad1;
+  uint8_t Pad2;
+} SectionAuxSymbolRecord;
+#if !defined(_MSC_VER) || defined(__clang__)
+_Static_assert(sizeof(SectionAuxSymbolRecord) == 18, "");
+#endif
 #pragma pack(pop)
 
 static void dump_real_object(FileHeader* object) {
@@ -77,10 +92,21 @@ static void dump_real_object(FileHeader* object) {
     printf("Type %" PRIx16 ", ", symbols[i].Type);
     printf("Storage class %" PRId8 "\n", symbols[i].StorageClass);
 
-    // Print a line for each aux symbol.  The index in a relocation includes
-    // aux symbols too, so this makes it easier to manually resolve indices.
-    for (int j = 0; j < symbols[i].NumberOfAuxSymbols; ++j)
-      printf("    (aux symbol)\n");
+    if (symbols[i].StorageClass == 3 && symbols[i].Value == 0 &&
+        symbols[i].NumberOfAuxSymbols == 1) {
+      SectionAuxSymbolRecord* aux = (SectionAuxSymbolRecord*)(symbols + i + 1);
+      printf("    len %" PRIu32 " numrel %" PRIu16 " numstr %" PRIu16
+             " checksum %" PRIu32 " num %" PRIu16 " sel %d pad %d %d %d\n",
+             aux->Length, aux->NumberOfRelocations, aux->NumberOfLinenumbers,
+             aux->CheckSum, aux->Number, aux->Selection, aux->Pad0, aux->Pad1,
+             aux->Pad2);
+    } else {
+      // Print a line for each aux symbol.  The index in a relocation includes
+      // aux symbols too, so this makes it easier to manually resolve indices.
+      for (int j = 0; j < symbols[i].NumberOfAuxSymbols; ++j)
+        printf("    (aux symbol)\n");
+
+    }
 
     i += symbols[i].NumberOfAuxSymbols;
   }
