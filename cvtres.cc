@@ -263,6 +263,22 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   }
 
   // Do tree layout pass.
+  // The COFF spec says that the layout is:
+  // - ResourceDirectoryHeaders each followed by its ResourceDirectoryEntries
+  // - Strings. Each string is (len, chars).
+  // - ResourceDataEntries (aligned)
+  // - Actual resource data.
+  //
+  // cvtres.exe however writes data in this order:
+  // - ResourceDirectoryHeaders each followed by its ResourceDirectoryEntries
+  // - ResourceDataEntries (aligned)
+  // - Strings. Each string is (len, chars).
+  // - Relocations.
+  // - Actual resource data.
+  //
+  // Match cvtres.exe's order.
+  // For the tables, cvtres.exe writes all type headers, then all name headers,
+  // then all lang headers (instead of depth-first).
   std::vector<uint32_t> offsets;
   uint32_t offset = sizeof(ResourceDirectoryHeader) +
                     directory.size() * sizeof(ResourceDirectoryEntry);
@@ -280,50 +296,72 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   }
   uint32_t string_table_start =
       offset + entries.entries.size() * sizeof(ResourceDataEntry);
+  uint32_t relocations_start =
+      string_table_start + string_table.size() * sizeof(uint16_t);
+  // XXX padding after string table?
+  uint32_t rsrc01_size =
+      relocations_start + entries.entries.size() * sizeof(Relocation);
+  // XXX padding after relocations?
+
+  // Compute offsets of all resource data in .rsrc$02.
+  std::vector<uint32_t> res_offsets;
+  uint32_t res_offset = 0;
+  for (const auto& entry : entries.entries) {
+    res_offsets.push_back(res_offset);
+    res_offset += entry.data_size;
+    res_offset = res_offset + ((8 - (res_offset & 7)) & 7);  // 8-byte-align
+  }
+  uint32_t rsrc02_size = res_offset;
 
   // Phase 2: Write output
 
   // XXX write to temp, atomic-rename at end
   FILE* out_file = fopen(out_name, "wb");
 
+  uint32_t coff_header_size = sizeof(FileHeader) + 2*sizeof(SectionHeader);
+
   FileHeader coff_header = {};
   coff_header.Machine = 0x8664;  // FIXME: /arch: flag for picking 32 or 64 bit
   coff_header.NumberOfSections = 2;  // .rsrc$01, .rsrc$02
   coff_header.TimeDateStamp = 0;  // FIXME: need flag, for inc linking with link
-  coff_header.PointerToSymbolTable = 0;  // XXX
+  coff_header.PointerToSymbolTable =
+      coff_header_size + rsrc01_size + rsrc02_size;
   // Symbols for section names have 1 aux entry each: (XXX)
   coff_header.NumberOfSymbols = 2*2 + entries.entries.size();
   coff_header.SizeOfOptionalHeader = 0;
   coff_header.Characteristics = 0x100;  // XXX
-
   fwrite(&coff_header, sizeof(coff_header), 1, out_file);
 
-  // XXX write symbol table, followed by string table size ("4" means none,
-  // because string table size includes size of the size field itself)
+  SectionHeader rsrc01_header;
+  memcpy(rsrc01_header.Name, ".rsrc$01", 8);
+  rsrc01_header.VirtualSize = 0;
+  rsrc01_header.VirtualAddress = 0;
+  rsrc01_header.SizeOfRawData = rsrc01_size;
+  rsrc01_header.PointerToRawData = coff_header_size;
+  rsrc01_header.PointerToRelocations = relocations_start;
+  rsrc01_header.PointerToLineNumbers = 0;
+  rsrc01_header.NumberOfRelocations = coff_header.NumberOfSymbols;
+  rsrc01_header.NumberOfLinenumbers = 0;
+  rsrc01_header.Characteristics = 0;  // XXX
+  fwrite(&rsrc01_header, sizeof(rsrc01_header), 1, out_file);
+
+  SectionHeader rsrc02_header;
+  memcpy(rsrc02_header.Name, ".rsrc$02", 8);
+  rsrc02_header.VirtualSize = 0;
+  rsrc02_header.VirtualAddress = 0;
+  rsrc02_header.SizeOfRawData = rsrc02_size;
+  rsrc02_header.PointerToRawData =  // XXX padding?
+      rsrc01_header.PointerToRawData + rsrc01_header.SizeOfRawData;
+  rsrc02_header.PointerToRelocations = 0;
+  rsrc02_header.PointerToLineNumbers = 0;
+  rsrc02_header.NumberOfRelocations = coff_header.NumberOfSymbols;
+  rsrc02_header.NumberOfLinenumbers = 0;
+  rsrc02_header.Characteristics = 0;  // XXX
+  fwrite(&rsrc02_header, sizeof(rsrc02_header), 1, out_file);
 
   //////////////////////////////////////////////////////////////////////////////
   // Write .rsrc$01 section.
 
-  // The COFF spec says that the layout is:
-  // - ResourceDirectoryHeaders each followed by its ResourceDirectoryEntries
-  // - Strings. Each string is (len, chars).
-  // - ResourceDataEntries (aligned)
-  // - Actual resource data.
-  //
-  // cvtres.exe however writes data in this order:
-  // - ResourceDirectoryHeaders each followed by its ResourceDirectoryEntries
-  // - ResourceDataEntries (aligned)
-  // - Strings. Each string is (len, chars).
-  // - Relocations.
-  // - Actual resource data.
-  //
-  // Match cvtres.exe's order.
-  // For the tables, cvtres.exe writes all type headers, then all name headers,
-  // then all lang headers (instead of depth-first).
-
-  // Header.
-
-  // Layout is:
   size_t num_types = directory.size();
   size_t num_named_types = 0;
   for (const auto& types : directory) {
@@ -335,6 +373,7 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   ResourceDirectoryHeader type_dir = {};
   type_dir.NumberOfNameEntries = num_named_types;
   type_dir.NumberOfIdEntries= num_types - num_named_types;
+  fwrite(&type_dir, sizeof(type_dir), 1, out_file);
   unsigned next_offset_index = 0;
   for (auto& type : directory) {
     ResourceDirectoryEntry entry;
@@ -350,6 +389,7 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
     } else {
       entry.TypeNameLang = (type.first.id << 16) | 0xffff;
     }
+    fwrite(&entry, sizeof(entry), 1, out_file);
 fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
   }
 
@@ -365,6 +405,7 @@ fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
     ResourceDirectoryHeader name_dir = {};
     name_dir.NumberOfNameEntries = num_named_names;
     name_dir.NumberOfIdEntries = num_names - num_named_names;
+    fwrite(&name_dir, sizeof(name_dir), 1, out_file);
     for (auto& name : type.second) {
       ResourceDirectoryEntry entry;
       entry.DataRVA = offsets[next_offset_index++] | 0x80000000;
@@ -379,6 +420,7 @@ fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
       } else {
         entry.TypeNameLang = (name.first.id << 16) | 0xffff;
       }
+      fwrite(&entry, sizeof(entry), 1, out_file);
 fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
     }
   }
@@ -389,10 +431,12 @@ fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
       ResourceDirectoryHeader lang_dir = {};
       lang_dir.NumberOfNameEntries = 0;
       lang_dir.NumberOfIdEntries = name.second.size();
+      fwrite(&lang_dir, sizeof(lang_dir), 1, out_file);
       for (auto& lang : name.second) {
         ResourceDirectoryEntry entry;
         entry.DataRVA = offset + data_index++ * sizeof(ResourceDataEntry);
         entry.TypeNameLang = (lang.first << 16) | 0xffff;
+        fwrite(&entry, sizeof(entry), 1, out_file);
 fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
       }
     }
@@ -406,9 +450,11 @@ fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
     data_entry.Size = entry.data_size;
     data_entry.Codepage = 0;  // XXX
     data_entry.Reserved = 0;
+    fwrite(&data_entry, sizeof(data_entry), 1, out_file);
   }
 
   // Write string table after resource directory. (with padding)
+  fwrite(string_table.data(), string_table.size(), sizeof(uint16_t), out_file);
 
   // Write relocations.
   for (unsigned i = 0; i < entries.entries.size(); ++i) {
@@ -416,6 +462,7 @@ fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
     reloc.VirtualAddress = 0;  // XXX
     reloc.SymbolTableInd = 8 + i;
     reloc.Type = 3;  // XXX is this correct in both 32-bit and 64-bit?
+    fwrite(&reloc, sizeof(reloc), 1, out_file);
   }
 
   // XXX padding?
@@ -423,10 +470,15 @@ fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
   //////////////////////////////////////////////////////////////////////////////
   // Write .rsrc$02 section.
 
-  // Header.
-
   // Actual resource data.
+  for (const auto& entry : entries.entries) {
+    fwrite(entry.data, 1, entry.data_size, out_file);
+    fwrite("padding", ((8 - (entry.data_size & 7)) & 7), 1, out_file);
+  }
 
+  //////////////////////////////////////////////////////////////////////////////
+  // Write symbol table, followed by string table size ("4" means none,
+  // because string table size includes size of the size field itself)
 
   fclose(out_file);
 }

@@ -121,6 +121,7 @@ static void dump_section_header(uint8_t* contents_start,
                                 SectionHeader* header) {
   printf("Name: %.8s\n", header->Name);
   printf("Virtual Size: %" PRIu32 "\n", header->VirtualSize);
+  printf("Virtual Address: %" PRIu32 "\n", header->VirtualAddress);
   printf("Raw Size: %" PRIu32 "\n", header->SizeOfRawData);
   printf("Raw Data: 0x%" PRIx32 "\n", header->PointerToRawData);
   printf("Num Relocs: %" PRIu16 "\n", header->NumberOfRelocations);
