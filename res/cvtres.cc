@@ -318,7 +318,9 @@ static void write_rsrc_obj(const char* out_name,
       entries.entries.size() * sizeof(ResourceDataEntry);
   uint32_t relocations_start =
       string_table_start + string_table.size() * sizeof(uint16_t);
-  // XXX padding after string table?
+  // Padding after string table:
+  if (string_table.size() & 1)
+    relocations_start += 2;
   uint32_t rsrc01_data_size = relocations_start;
   uint32_t rsrc01_total_size =
       rsrc01_data_size + entries.entries.size() * sizeof(Relocation);
@@ -488,6 +490,8 @@ static void write_rsrc_obj(const char* out_name,
   // Write string table after resource directory. (with padding)
   assert(ftello(out_file) == coff_header_size + string_table_start);
   fwrite(string_table.data(), string_table.size(), sizeof(uint16_t), out_file);
+  if (string_table.size() & 1)
+    fwrite("pa", 1, 2, out_file);
 
   // Write relocations.
   assert(ftello(out_file) == coff_header_size + relocations_start);
