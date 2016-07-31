@@ -341,7 +341,7 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   coff_header.TimeDateStamp = 0;  // FIXME: need flag, for inc linking with link
   coff_header.PointerToSymbolTable =
       coff_header_size + rsrc01_total_size + rsrc02_size;
-  // Symbols for section names have 1 aux entry each: (XXX)
+  // Symbols for section names have 1 aux entry each:
   coff_header.NumberOfSymbols = 2*2 + entries.entries.size();
   coff_header.SizeOfOptionalHeader = 0;
   coff_header.Characteristics = 0x100;  // XXX
@@ -400,7 +400,10 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
       if (it == strings.end())
         fatal("type str should have been inserted above!\n");
       entry.TypeNameLang = string_table_start + it->second;
-      // XXX cvtres.exe sets high bit of TypeNameLang for strings; should we?
+      // cvtres.exe sets high bit of TypeNameLang for strings. not needed per
+      // coff spec and redundant with having a NumberOfIdEntries field, but
+      // match cvtres.exe for consistency.
+      entry.TypeNameLang |= 0x80000000;
     } else {
       entry.TypeNameLang = type.first.id;
     }
@@ -430,7 +433,10 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
         if (it == strings.end())
           fatal("name str should have been inserted above!\n");
         entry.TypeNameLang = string_table_start + it->second;
-      // XXX cvtres.exe sets high bit of TypeNameLang for strings; should we?
+        // cvtres.exe sets high bit of TypeNameLang for strings. not needed per
+        // coff spec and redundant with having a NumberOfIdEntries field, but
+        // match cvtres.exe for consistency.
+        entry.TypeNameLang |= 0x80000000;
       } else {
         entry.TypeNameLang = name.first.id;
       }
