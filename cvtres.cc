@@ -355,7 +355,7 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   rsrc01_header.PointerToLineNumbers = 0;
   rsrc01_header.NumberOfRelocations = entries.entries.size();
   rsrc01_header.NumberOfLinenumbers = 0;
-  rsrc01_header.Characteristics = 0;  // XXX
+  rsrc01_header.Characteristics = 0xc0000040;  // read + write + initialized
   fwrite(&rsrc01_header, sizeof(rsrc01_header), 1, out_file);
 
   SectionHeader rsrc02_header;
@@ -369,11 +369,12 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   rsrc02_header.PointerToLineNumbers = 0;
   rsrc02_header.NumberOfRelocations = 0;
   rsrc02_header.NumberOfLinenumbers = 0;
-  rsrc02_header.Characteristics = 0;  // XXX
+  rsrc02_header.Characteristics = 0xc0000040;  // read + write + initialized
   fwrite(&rsrc02_header, sizeof(rsrc02_header), 1, out_file);
 
   //////////////////////////////////////////////////////////////////////////////
   // Write .rsrc$01 section.
+  assert(ftello(out_file) == rsrc01_header.PointerToRawData);
 
   size_t num_types = directory.size();
   size_t num_named_types = 0;
@@ -407,7 +408,7 @@ fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
   }
 
   for (auto& type : directory) {
-    size_t num_names = directory.size();
+    size_t num_names = type.second.size();
     size_t num_named_names = 0;
     for (const auto& names : type.second) {
       if (names.first.is_id)
@@ -482,6 +483,7 @@ fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
 
   //////////////////////////////////////////////////////////////////////////////
   // Write .rsrc$02 section.
+  assert(ftello(out_file) == rsrc02_header.PointerToRawData);
 
   // Actual resource data.
   for (const auto& entry : entries.entries) {
@@ -492,6 +494,7 @@ fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
   //////////////////////////////////////////////////////////////////////////////
   // Write symbol table, followed by string table size ("4" means none,
   // because string table size includes size of the size field itself)
+  assert(ftello(out_file) == coff_header.PointerToSymbolTable);
 
   StandardSymbolRecord rsrc01_symbol;
   memcpy(rsrc01_symbol.Name, ".rsrc$01", 8);
