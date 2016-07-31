@@ -453,14 +453,17 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
 
   // Write resource data entries (the COFF spec recommends to put these after
   // the string table, but cvtres.exe puts them before it).
-  for (const auto& entry : entries.entries) {
-    // XXX this walks in the wrong order
-    ResourceDataEntry data_entry;
-    data_entry.DataRVA = 0;  // Fixed up by a relocation.
-    data_entry.Size = entry.data_size;
-    data_entry.Codepage = 0;  // XXX
-    data_entry.Reserved = 0;
-    fwrite(&data_entry, sizeof(data_entry), 1, out_file);
+  for (auto& type : directory) {
+    for (auto& name : type.second) {
+      for (auto& lang : name.second) {
+        ResourceDataEntry data_entry;
+        data_entry.DataRVA = 0;  // Fixed up by a relocation.
+        data_entry.Size = lang.second->data_size;
+        data_entry.Codepage = 0;  // XXX
+        data_entry.Reserved = 0;
+        fwrite(&data_entry, sizeof(data_entry), 1, out_file);
+      }
+    }
   }
 
   // Write string table after resource directory. (with padding)
