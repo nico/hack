@@ -1,7 +1,10 @@
 /*
 clang++ -std=c++11 -o cvtres cvtres.cc
+./cvtres foo.res
 
-A reimplemenation of cvtres.exe
+A reimplemenation of cvtres.exe.  Currently always writes to rsrc.obj.
+See also resdump.c and resobjdump.c in this folder for programs that can dump
+.res files and the .rsrc section of .obj files.
 */
 #include <experimental/string_view>
 #include <map>
