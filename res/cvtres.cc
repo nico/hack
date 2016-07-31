@@ -324,7 +324,6 @@ static void write_rsrc_obj(const char* out_name,
   uint32_t rsrc01_data_size = relocations_start;
   uint32_t rsrc01_total_size =
       rsrc01_data_size + entries.entries.size() * sizeof(Relocation);
-  // XXX padding after relocations?
 
   // Compute offsets of all resource data in .rsrc$02.
   std::vector<uint32_t> res_offsets;
@@ -507,8 +506,6 @@ static void write_rsrc_obj(const char* out_name,
         arch == x64 ? kIMAGE_REL_AMD64_ADDR32NB : kIMAGE_REL_I386_DIR32NB;
     fwrite(&reloc, sizeof(reloc), 1, out_file);
   }
-
-  // XXX padding?
 
   // Write .rsrc$02 section.
   assert(ftello(out_file) == rsrc02_header.PointerToRawData);
