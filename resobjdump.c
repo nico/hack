@@ -129,6 +129,8 @@ static void dump_section_header(uint8_t* contents_start,
 
   Relocation* relocs =
       (Relocation*)(contents_start + header->PointerToRelocations);
+  printf("%d relocations at 0x%x\n", header->NumberOfRelocations,
+         header->PointerToRelocations);
   for (int i = 0; i < header->NumberOfRelocations; ++i) {
     printf("addr 0x%" PRIx32 " symbol ind %" PRId32 " type %" PRId16 "\n",
            relocs[i].VirtualAddress, relocs[i].SymbolTableInd, relocs[i].Type);
@@ -197,7 +199,7 @@ static void dump_rsrc_section(uint8_t* section_start,
     ResourceDirectoryEntry* entry = (ResourceDirectoryEntry*)start;
 
     if (i < header->NumberOfNameEntries) {
-      printf("%.*sTypeNameLang str ", indent, kPad);
+      printf("%.*sTypeNameLang str (0x%x) ", indent, kPad, entry->TypeNameLang);
       // It looks like cvtres.exe sets the high bit if TypeNameLang is a string,
       // even though the COFF spec doesn't mention that (and it's redundant
       // with having both NumberOfNameEntries and NumberOfIdEntries fields).
@@ -210,7 +212,7 @@ static void dump_rsrc_section(uint8_t* section_start,
       printf("%.*sTypeNameLang %" PRIu32 "\n", indent, kPad,
              entry->TypeNameLang);
     }
-    //printf("%.*sDataRVA %" PRIx32 "\n", indent, kPad, entry->DataRVA);
+    printf("%.*sDataRVA %" PRIx32 "\n", indent, kPad, entry->DataRVA);
     if (entry->DataRVA & 0x80000000) {
       dump_rsrc_section(section_start,
                         section_start + (entry->DataRVA & ~0x80000000), end,
