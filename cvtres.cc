@@ -204,46 +204,18 @@ struct NodeKey {
 
 static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   // Want:
-  // symbol table with relocations and section names
+  // COFF headers
   // .rsrc$01 section with tree metadata (type->name->lang)
   //   - relocations for all ResourceDataEntries (ResourceDirectoryEntry leaves)
   // .rsrc$02 section with actual resource data
+  // symbol table that relocations and section names refer to
 
-  FileHeader coff_header = {};
-  coff_header.Machine = 0x8664;  // FIXME: /arch: flag for picking 32 or 64 bit
-  coff_header.NumberOfSections = 2;  // .rsrc$01, .rsrc$02
-  coff_header.TimeDateStamp = 0;  // FIXME: need flag, for inc linking with link
-  // Symbols for section names have 1 aux entry each: (XXX)
-  coff_header.NumberOfSymbols = 0; // 2*2 + entries.entries.size();
-  //   - XXX is @comp.id and @feat.00 needed?
-  coff_header.SizeOfOptionalHeader = 0;
-  coff_header.Characteristics = 0x100;  // XXX
+  // Two phases:
+  // 1. Compute all file layout information at first
+  // 2. Write output in one pass
 
-  // XXX write symbol table, followed by string table size ("4" means none,
-  // because string table size includes size of the size field itself)
+  // Phase 1: Compute layout.
 
-  //////////////////////////////////////////////////////////////////////////////
-  // Write .rsrc$01 section.
-
-  // The COFF spec says that the layout is:
-  // - ResourceDirectoryHeaders each followed by its ResourceDirectoryEntries
-  // - Strings. Each string is (len, chars).
-  // - ResourceDataEntries (aligned)
-  // - Actual resource data.
-  //
-  // cvtres.exe however writes data in this order:
-  // - ResourceDirectoryHeaders each followed by its ResourceDirectoryEntries
-  // - ResourceDataEntries (aligned)
-  // - Strings. Each string is (len, chars).
-  // - Relocations.
-  // - Actual resource data.
-  //
-  // Match cvtres.exe's order.
-  // For the tables, cvtres.exe writes all type headers, then all name headers,
-  // then all lang headers (instead of depth-first).
-
-  // Header.
- 
   // Build type->name->lang resource tree.
   std::vector<uint16_t> string_table;
   std::map<std::experimental::u16string_view, uint32_t> strings;
@@ -308,6 +280,48 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   }
   uint32_t string_table_start =
       offset + entries.entries.size() * sizeof(ResourceDataEntry);
+
+  // Phase 2: Write output
+
+  // XXX write to temp, atomic-rename at end
+  FILE* out_file = fopen(out_name, "wb");
+
+  FileHeader coff_header = {};
+  coff_header.Machine = 0x8664;  // FIXME: /arch: flag for picking 32 or 64 bit
+  coff_header.NumberOfSections = 2;  // .rsrc$01, .rsrc$02
+  coff_header.TimeDateStamp = 0;  // FIXME: need flag, for inc linking with link
+  coff_header.PointerToSymbolTable = 0;  // XXX
+  // Symbols for section names have 1 aux entry each: (XXX)
+  coff_header.NumberOfSymbols = 2*2 + entries.entries.size();
+  coff_header.SizeOfOptionalHeader = 0;
+  coff_header.Characteristics = 0x100;  // XXX
+
+  fwrite(&coff_header, sizeof(coff_header), 1, out_file);
+
+  // XXX write symbol table, followed by string table size ("4" means none,
+  // because string table size includes size of the size field itself)
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Write .rsrc$01 section.
+
+  // The COFF spec says that the layout is:
+  // - ResourceDirectoryHeaders each followed by its ResourceDirectoryEntries
+  // - Strings. Each string is (len, chars).
+  // - ResourceDataEntries (aligned)
+  // - Actual resource data.
+  //
+  // cvtres.exe however writes data in this order:
+  // - ResourceDirectoryHeaders each followed by its ResourceDirectoryEntries
+  // - ResourceDataEntries (aligned)
+  // - Strings. Each string is (len, chars).
+  // - Relocations.
+  // - Actual resource data.
+  //
+  // Match cvtres.exe's order.
+  // For the tables, cvtres.exe writes all type headers, then all name headers,
+  // then all lang headers (instead of depth-first).
+
+  // Header.
 
   // Layout is:
   size_t num_types = directory.size();
@@ -386,10 +400,25 @@ fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
 
   // Write resource data entries (the COFF spec recommens to put these after
   // the string table, but cvtres.exe puts them before it).
+  for (const auto& entry : entries.entries) {
+    ResourceDataEntry data_entry;
+    data_entry.DataRVA = 0;  // Fixed up by an relocation.
+    data_entry.Size = entry.data_size;
+    data_entry.Codepage = 0;  // XXX
+    data_entry.Reserved = 0;
+  }
 
   // Write string table after resource directory. (with padding)
 
   // Write relocations.
+  for (unsigned i = 0; i < entries.entries.size(); ++i) {
+    Relocation reloc;
+    reloc.VirtualAddress = 0;  // XXX
+    reloc.SymbolTableInd = 8 + i;
+    reloc.Type = 3;  // XXX is this correct in both 32-bit and 64-bit?
+  }
+
+  // XXX padding?
 
   //////////////////////////////////////////////////////////////////////////////
   // Write .rsrc$02 section.
@@ -397,6 +426,9 @@ fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
   // Header.
 
   // Actual resource data.
+
+
+  fclose(out_file);
 }
 
 int main(int argc, char* argv[]) {
