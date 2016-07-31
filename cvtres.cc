@@ -222,6 +222,7 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   // XXX write symbol table, followed by string table size ("4" means none,
   // because string table size includes size of the size field itself)
 
+  //////////////////////////////////////////////////////////////////////////////
   // Write .rsrc$01 section.
 
   // The COFF spec says that the layout is:
@@ -243,12 +244,9 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
 
   // Header.
  
-  // Relocations.
-
   // Build type->name->lang resource tree.
   std::vector<uint16_t> string_table;
   std::map<std::experimental::u16string_view, uint32_t> strings;
-  //std::map<std::pair<const ResEntry*, bool>, size_t> string_offset;
 
   std::map<NodeKey, std::map<NodeKey, std::map<uint16_t, const ResEntry*>>>
       directory;
@@ -267,7 +265,6 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
                                           entry.type_str.size());
       auto it = strings.insert(std::make_pair(s, 0));
       if (it.second) {
-fprintf(stderr, "adding type str\n");
         // String wasn't in |strings| yet.  Add it to the string table, and
         // update |it| to contain the right value.
         off_t index = string_table.size() * sizeof(uint16_t);
@@ -276,14 +273,12 @@ fprintf(stderr, "adding type str\n");
                             entry.type_str.end());
         it.first->second = index;
       }
-      //string_offset[std::make_pair(&entry, false)] = it.first->second;
     }
     if (!entry.name_is_id) {
       std::experimental::u16string_view s(entry.name_str.data(),
                                           entry.name_str.size());
       auto it = strings.insert(std::make_pair(s, 0));
       if (it.second) {
-fprintf(stderr, "adding name str\n");
         // String wasn't in |strings| yet.  Add it to the string table, and
         // update |it| to contain the right value.
         off_t index = string_table.size() * sizeof(uint16_t);
@@ -292,7 +287,6 @@ fprintf(stderr, "adding name str\n");
                             entry.name_str.end());
         it.first->second = index;
       }
-      //string_offset[std::make_pair(&entry, true)] = it.first->second;
     }
   }
 
@@ -312,17 +306,8 @@ fprintf(stderr, "adding name str\n");
                 name.second.size() * sizeof(ResourceDirectoryEntry);
     }
   }
-  //for (auto& type : directory) {
-  //  for (auto& name : type.second) {
-  //    for (size_t i = 0; i < name.second.size(); ++i) {
-  //      offsets.push_back(offset);
-  //      offset +=
-  //          sizeof(ResourceDirectoryHeader) + sizeof(ResourceDirectoryEntry);
-  //    }
-  //  }
-  //}
-  uint32_t string_table_start = offset + entries.entries.size() * sizeof(ResourceDataEntry);
-fprintf(stderr, "string table at 0x%x, %zu bytes long\n", string_table_start, sizeof(uint16_t) * string_table.size());
+  uint32_t string_table_start =
+      offset + entries.entries.size() * sizeof(ResourceDataEntry);
 
   // Layout is:
   size_t num_types = directory.size();
@@ -336,7 +321,6 @@ fprintf(stderr, "string table at 0x%x, %zu bytes long\n", string_table_start, si
   ResourceDirectoryHeader type_dir = {};
   type_dir.NumberOfNameEntries = num_named_types;
   type_dir.NumberOfIdEntries= num_types - num_named_types;
-  //write(type_dir);  // XXX
   unsigned next_offset_index = 0;
   for (auto& type : directory) {
     ResourceDirectoryEntry entry;
@@ -405,6 +389,9 @@ fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
 
   // Write string table after resource directory. (with padding)
 
+  // Write relocations.
+
+  //////////////////////////////////////////////////////////////////////////////
   // Write .rsrc$02 section.
 
   // Header.
