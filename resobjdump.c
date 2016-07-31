@@ -165,7 +165,7 @@ static void dump_rsrc_data_entry(uint8_t* start, int indent) {
   printf("%.*sDataRVA %" PRId32 "\n", indent, kPad, entry->DataRVA);
   printf("%.*sSize %" PRId32 "\n", indent, kPad, entry->Size);
   if (entry->Codepage)
-  printf("%.*sCodepage %" PRId32 "\n", indent, kPad, entry->Codepage);
+    printf("%.*sCodepage %" PRId32 "\n", indent, kPad, entry->Codepage);
   if (entry->Reserved)
     printf("%.*sReserved %" PRIu32 "\n", indent, kPad, entry->Reserved);
 }
