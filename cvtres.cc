@@ -140,6 +140,19 @@ typedef struct {
   uint8_t NumberOfAuxSymbols;
 } StandardSymbolRecord;
 _Static_assert(sizeof(StandardSymbolRecord) == 18, "");
+
+typedef struct {
+  uint32_t Length;
+  int16_t NumberOfRelocations;
+  int16_t NumberOfLinenumbers;
+  uint32_t CheckSum;
+  int16_t Number;
+  uint8_t Selection;
+  uint8_t Pad0;
+  uint8_t Pad1;
+  uint8_t Pad2;
+} SectionAuxSymbolRecord;
+_Static_assert(sizeof(SectionAuxSymbolRecord) == 18, "");
 #pragma pack(pop)
 
 typedef struct {
@@ -340,7 +353,7 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   rsrc01_header.PointerToRawData = coff_header_size;
   rsrc01_header.PointerToRelocations = relocations_start;
   rsrc01_header.PointerToLineNumbers = 0;
-  rsrc01_header.NumberOfRelocations = coff_header.NumberOfSymbols;
+  rsrc01_header.NumberOfRelocations = entries.entries.size();
   rsrc01_header.NumberOfLinenumbers = 0;
   rsrc01_header.Characteristics = 0;  // XXX
   fwrite(&rsrc01_header, sizeof(rsrc01_header), 1, out_file);
@@ -354,7 +367,7 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
       rsrc01_header.PointerToRawData + rsrc01_header.SizeOfRawData;
   rsrc02_header.PointerToRelocations = 0;
   rsrc02_header.PointerToLineNumbers = 0;
-  rsrc02_header.NumberOfRelocations = coff_header.NumberOfSymbols;
+  rsrc02_header.NumberOfRelocations = 0;
   rsrc02_header.NumberOfLinenumbers = 0;
   rsrc02_header.Characteristics = 0;  // XXX
   fwrite(&rsrc02_header, sizeof(rsrc02_header), 1, out_file);
@@ -479,6 +492,71 @@ fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
   //////////////////////////////////////////////////////////////////////////////
   // Write symbol table, followed by string table size ("4" means none,
   // because string table size includes size of the size field itself)
+
+  StandardSymbolRecord rsrc01_symbol;
+  memcpy(rsrc01_symbol.Name, ".rsrc$01", 8);
+  rsrc01_symbol.Value = 0;
+  rsrc01_symbol.SectionNumber = 1;
+  rsrc01_symbol.Type = 0;
+  rsrc01_symbol.StorageClass = 3;  // XXX
+  rsrc01_symbol.NumberOfAuxSymbols = 1;
+  fwrite(&rsrc01_symbol, sizeof(rsrc01_symbol), 1, out_file);
+
+  SectionAuxSymbolRecord rsrc01_aux;
+  rsrc01_aux.Length = rsrc01_size;
+  rsrc01_aux.NumberOfRelocations = entries.entries.size();
+  rsrc01_aux.NumberOfLinenumbers = 0;
+  rsrc01_aux.CheckSum = 0;
+  rsrc01_aux.Number = 0;
+  rsrc01_aux.Selection = 0;
+  rsrc01_aux.Pad0 = 0;
+  rsrc01_aux.Pad1 = 0;
+  rsrc01_aux.Pad2 = 0;
+  fwrite(&rsrc01_aux, sizeof(rsrc01_aux), 1, out_file);
+
+  StandardSymbolRecord rsrc02_symbol;
+  memcpy(rsrc02_symbol.Name, ".rsrc$02", 8);
+  rsrc02_symbol.Value = 0;
+  rsrc02_symbol.SectionNumber = 2;
+  rsrc02_symbol.Type = 0;
+  rsrc02_symbol.StorageClass = 3;  // XXX
+  rsrc02_symbol.NumberOfAuxSymbols = 1;
+  fwrite(&rsrc02_symbol, sizeof(rsrc02_symbol), 1, out_file);
+
+  SectionAuxSymbolRecord rsrc02_aux;
+  rsrc02_aux.Length = rsrc02_size;
+  rsrc02_aux.NumberOfRelocations = 0;
+  rsrc02_aux.NumberOfLinenumbers = 0;
+  rsrc02_aux.CheckSum = 0;
+  rsrc02_aux.Number = 0;
+  rsrc02_aux.Selection = 0;
+  rsrc02_aux.CheckSum = 0;
+  rsrc02_aux.Pad0 = 0;
+  rsrc02_aux.Pad1 = 0;
+  rsrc02_aux.Pad2 = 0;
+  fwrite(&rsrc02_aux, sizeof(rsrc02_aux), 1, out_file);
+
+  for (uint32_t res_offset : res_offsets) {
+    if (res_offset > 0xffffff)
+      fatal("cannot handle resources this large yet\n");
+
+    char buf[9];
+    snprintf(buf, 9, "$R%06X", res_offset);
+    StandardSymbolRecord res_symbol;
+    memcpy(res_symbol.Name, buf, 8);
+    res_symbol.Value = res_offset;
+    res_symbol.SectionNumber = 2;
+    res_symbol.Type = 0;
+    res_symbol.StorageClass = 3;  // XXX
+    res_symbol.NumberOfAuxSymbols = 0;
+    fwrite(&res_symbol, sizeof(res_symbol), 1, out_file);
+  }
+
+  // The length of the string table immediately follows the symbol table.
+  // According to the coff spec, the size of the string table includes the size
+  // field itself, so an empty string table has size 4.  However, cvtres.exe
+  // writes 0 here, not 4, so match that.
+  fwrite("\0\0\0", 1, 4, out_file);
 
   fclose(out_file);
 }
