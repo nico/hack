@@ -61,8 +61,6 @@ struct ResEntry {
   uint32_t characteristics;
 
   uint8_t* data;  // weak
-  // XXX make this owned (?)
-  //std::unique_ptr<uint8_t[]> data;
 };
 
 struct ResEntries {
@@ -327,7 +325,7 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   }
   uint32_t rsrc02_size = res_offset;
 
-  // Phase 2: Write output
+  // Phase 2: Write output.
 
   // XXX write to temp, atomic-rename at end
   FILE* out_file = fopen(out_name, "wb");
@@ -373,7 +371,6 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   rsrc02_header.Characteristics = 0xc0000040;  // read + write + initialized
   fwrite(&rsrc02_header, sizeof(rsrc02_header), 1, out_file);
 
-  //////////////////////////////////////////////////////////////////////////////
   // Write .rsrc$01 section.
   assert(ftello(out_file) == rsrc01_header.PointerToRawData);
 
@@ -405,7 +402,6 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
       entry.TypeNameLang = type.first.id;
     }
     fwrite(&entry, sizeof(entry), 1, out_file);
-//fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
   }
 
   for (auto& type : directory) {
@@ -436,7 +432,6 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
         entry.TypeNameLang = name.first.id;
       }
       fwrite(&entry, sizeof(entry), 1, out_file);
-//fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
     }
   }
 
@@ -452,7 +447,6 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
         entry.DataRVA = offset + data_index++ * sizeof(ResourceDataEntry);
         entry.TypeNameLang = lang.first;
         fwrite(&entry, sizeof(entry), 1, out_file);
-//fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
       }
     }
   }
@@ -485,7 +479,6 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
 
   // XXX padding?
 
-  //////////////////////////////////////////////////////////////////////////////
   // Write .rsrc$02 section.
   assert(ftello(out_file) == rsrc02_header.PointerToRawData);
 
@@ -495,17 +488,16 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
     fwrite("padding", ((8 - (entry.data_size & 7)) & 7), 1, out_file);
   }
 
-  //////////////////////////////////////////////////////////////////////////////
-  // Write symbol table, followed by string table size ("4" means none,
-  // because string table size includes size of the size field itself)
+  // Write symbol table, followed by string table size.
   assert(ftello(out_file) == coff_header.PointerToSymbolTable);
 
+  const int kIMAGE_SYM_CLASS_STATIC = 3;
   StandardSymbolRecord rsrc01_symbol;
   memcpy(rsrc01_symbol.Name, ".rsrc$01", 8);
   rsrc01_symbol.Value = 0;
   rsrc01_symbol.SectionNumber = 1;
   rsrc01_symbol.Type = 0;
-  rsrc01_symbol.StorageClass = 3;  // XXX
+  rsrc01_symbol.StorageClass = kIMAGE_SYM_CLASS_STATIC;
   rsrc01_symbol.NumberOfAuxSymbols = 1;
   fwrite(&rsrc01_symbol, sizeof(rsrc01_symbol), 1, out_file);
 
@@ -526,7 +518,7 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   rsrc02_symbol.Value = 0;
   rsrc02_symbol.SectionNumber = 2;
   rsrc02_symbol.Type = 0;
-  rsrc02_symbol.StorageClass = 3;  // XXX
+  rsrc02_symbol.StorageClass = kIMAGE_SYM_CLASS_STATIC;
   rsrc02_symbol.NumberOfAuxSymbols = 1;
   fwrite(&rsrc02_symbol, sizeof(rsrc02_symbol), 1, out_file);
 
@@ -554,7 +546,7 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
     res_symbol.Value = res_offset;
     res_symbol.SectionNumber = 2;
     res_symbol.Type = 0;
-    res_symbol.StorageClass = 3;  // XXX
+    res_symbol.StorageClass = kIMAGE_SYM_CLASS_STATIC;
     res_symbol.NumberOfAuxSymbols = 0;
     fwrite(&res_symbol, sizeof(res_symbol), 1, out_file);
   }
