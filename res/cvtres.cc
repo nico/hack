@@ -217,7 +217,10 @@ struct NodeKey {
   }
 };
 
-static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
+enum Arch { x86, x64 };
+static void write_rsrc_obj(const char* out_name,
+                           const ResEntries& entries,
+                           Arch arch) {
   // Want:
   // COFF headers
   // .rsrc$01 section with tree metadata (type->name->lang)
@@ -339,7 +342,7 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   uint32_t coff_header_size = sizeof(FileHeader) + 2*sizeof(SectionHeader);
 
   FileHeader coff_header = {};
-  coff_header.Machine = 0x8664;  // FIXME: /arch: flag for picking 32 or 64 bit
+  coff_header.Machine = arch == x64 ? 0x8664 : 0x14c;
   coff_header.NumberOfSections = 2;  // .rsrc$01, .rsrc$02
   coff_header.TimeDateStamp = 0;  // FIXME: need flag, for inc linking with link
   coff_header.PointerToSymbolTable =
@@ -494,7 +497,10 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
         resource_data_entry_start +
         ordered_entries[&entries.entries[i]] * sizeof(ResourceDataEntry);
     reloc.SymbolTableInd = 8 + i;
-    reloc.Type = 3;  // XXX is this correct in both 32-bit and 64-bit?
+    const int kIMAGE_REL_AMD64_ADDR32NB = 3;
+    const int kIMAGE_REL_I386_DIR32NB = 7;
+    reloc.Type =
+        arch == x64 ? kIMAGE_REL_AMD64_ADDR32NB : kIMAGE_REL_I386_DIR32NB;
     fwrite(&reloc, sizeof(reloc), 1, out_file);
   }
 
@@ -625,7 +631,7 @@ int main(int argc, char* argv[]) {
     data += n_read;
   }
 
-  write_rsrc_obj("rsrc.obj", entries);
+  write_rsrc_obj("rsrc.obj", entries, x64);
 
   munmap(data, in_stat.st_size);
   close(in_file);
