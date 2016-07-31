@@ -5,6 +5,7 @@ A reimplemenation of cvtres.exe
 */
 #include <experimental/string_view>
 #include <map>
+#include <unordered_map>
 #include <vector>
 
 #include <assert.h>
@@ -305,8 +306,10 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
                 name.second.size() * sizeof(ResourceDirectoryEntry);
     }
   }
+  uint32_t resource_data_entry_start = offset;
   uint32_t string_table_start =
-      offset + entries.entries.size() * sizeof(ResourceDataEntry);
+      resource_data_entry_start +
+      entries.entries.size() * sizeof(ResourceDataEntry);
   uint32_t relocations_start =
       string_table_start + string_table.size() * sizeof(uint16_t);
   // XXX padding after string table?
@@ -453,6 +456,8 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
 
   // Write resource data entries (the COFF spec recommends to put these after
   // the string table, but cvtres.exe puts them before it).
+  std::unordered_map<const ResEntry*, unsigned> ordered_entries;
+  int entry_index = 0;
   for (auto& type : directory) {
     for (auto& name : type.second) {
       for (auto& lang : name.second) {
@@ -462,6 +467,8 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
         data_entry.Codepage = 0;  // XXX
         data_entry.Reserved = 0;
         fwrite(&data_entry, sizeof(data_entry), 1, out_file);
+
+        ordered_entries[lang.second] = entry_index++;
       }
     }
   }
@@ -474,7 +481,9 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   assert(ftello(out_file) == coff_header_size + relocations_start);
   for (unsigned i = 0; i < entries.entries.size(); ++i) {
     Relocation reloc;
-    reloc.VirtualAddress = 0;  // XXX
+    reloc.VirtualAddress =
+        resource_data_entry_start +
+        ordered_entries[&entries.entries[i]] * sizeof(ResourceDataEntry);
     reloc.SymbolTableInd = 8 + i;
     reloc.Type = 3;  // XXX is this correct in both 32-bit and 64-bit?
     fwrite(&reloc, sizeof(reloc), 1, out_file);
