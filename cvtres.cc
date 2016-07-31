@@ -402,7 +402,7 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
       entry.TypeNameLang = string_table_start + it->second;
       // XXX cvtres.exe sets high bit of TypeNameLang for strings; should we?
     } else {
-      entry.TypeNameLang = (type.first.id << 16) | 0xffff;
+      entry.TypeNameLang = type.first.id;
     }
     fwrite(&entry, sizeof(entry), 1, out_file);
 //fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
@@ -433,7 +433,7 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
         entry.TypeNameLang = string_table_start + it->second;
       // XXX cvtres.exe sets high bit of TypeNameLang for strings; should we?
       } else {
-        entry.TypeNameLang = (name.first.id << 16) | 0xffff;
+        entry.TypeNameLang = name.first.id;
       }
       fwrite(&entry, sizeof(entry), 1, out_file);
 //fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
@@ -450,7 +450,7 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
       for (auto& lang : name.second) {
         ResourceDirectoryEntry entry;
         entry.DataRVA = offset + data_index++ * sizeof(ResourceDataEntry);
-        entry.TypeNameLang = (lang.first << 16) | 0xffff;
+        entry.TypeNameLang = lang.first;
         fwrite(&entry, sizeof(entry), 1, out_file);
 //fprintf(stderr, "%x -> %x\n", entry.TypeNameLang, entry.DataRVA);
       }
