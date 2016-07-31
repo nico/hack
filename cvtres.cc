@@ -312,8 +312,9 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   uint32_t relocations_start =
       string_table_start + string_table.size() * sizeof(uint16_t);
   // XXX padding after string table?
-  uint32_t rsrc01_size =
-      relocations_start + entries.entries.size() * sizeof(Relocation);
+  uint32_t rsrc01_data_size = relocations_start;
+  uint32_t rsrc01_total_size =
+      rsrc01_data_size + entries.entries.size() * sizeof(Relocation);
   // XXX padding after relocations?
 
   // Compute offsets of all resource data in .rsrc$02.
@@ -338,7 +339,7 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   coff_header.NumberOfSections = 2;  // .rsrc$01, .rsrc$02
   coff_header.TimeDateStamp = 0;  // FIXME: need flag, for inc linking with link
   coff_header.PointerToSymbolTable =
-      coff_header_size + rsrc01_size + rsrc02_size;
+      coff_header_size + rsrc01_total_size + rsrc02_size;
   // Symbols for section names have 1 aux entry each: (XXX)
   coff_header.NumberOfSymbols = 2*2 + entries.entries.size();
   coff_header.SizeOfOptionalHeader = 0;
@@ -349,7 +350,7 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   memcpy(rsrc01_header.Name, ".rsrc$01", 8);
   rsrc01_header.VirtualSize = 0;
   rsrc01_header.VirtualAddress = 0;
-  rsrc01_header.SizeOfRawData = rsrc01_size;
+  rsrc01_header.SizeOfRawData = rsrc01_data_size;
   rsrc01_header.PointerToRawData = coff_header_size;
   rsrc01_header.PointerToRelocations =
       rsrc01_header.PointerToRawData + relocations_start;
@@ -364,8 +365,7 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   rsrc02_header.VirtualSize = 0;
   rsrc02_header.VirtualAddress = 0;
   rsrc02_header.SizeOfRawData = rsrc02_size;
-  rsrc02_header.PointerToRawData =  // XXX padding?
-      rsrc01_header.PointerToRawData + rsrc01_header.SizeOfRawData;
+  rsrc02_header.PointerToRawData = coff_header_size + rsrc01_total_size;
   rsrc02_header.PointerToRelocations = 0;
   rsrc02_header.PointerToLineNumbers = 0;
   rsrc02_header.NumberOfRelocations = 0;
@@ -460,6 +460,7 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   // Write resource data entries (the COFF spec recommends to put these after
   // the string table, but cvtres.exe puts them before it).
   for (const auto& entry : entries.entries) {
+    // XXX this walks in the wrong order
     ResourceDataEntry data_entry;
     data_entry.DataRVA = 0;  // Fixed up by a relocation.
     data_entry.Size = entry.data_size;
@@ -509,7 +510,7 @@ static void write_rsrc_obj(const char* out_name, const ResEntries& entries) {
   fwrite(&rsrc01_symbol, sizeof(rsrc01_symbol), 1, out_file);
 
   SectionAuxSymbolRecord rsrc01_aux;
-  rsrc01_aux.Length = rsrc01_size;
+  rsrc01_aux.Length = rsrc01_data_size;
   rsrc01_aux.NumberOfRelocations = entries.entries.size();
   rsrc01_aux.NumberOfLinenumbers = 0;
   rsrc01_aux.CheckSum = 0;
