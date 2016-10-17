@@ -313,9 +313,9 @@ static void write_rsrc_obj(const char* out_name,
     }
   }
   uint32_t resource_data_entry_start = offset;
+  uint32_t num_resources = entries.entries.size();
   uint32_t string_table_start =
-      resource_data_entry_start +
-      entries.entries.size() * sizeof(ResourceDataEntry);
+      resource_data_entry_start + num_resources * sizeof(ResourceDataEntry);
   uint32_t relocations_start =
       string_table_start + string_table.size() * sizeof(uint16_t);
   // Padding after string table:
@@ -323,7 +323,7 @@ static void write_rsrc_obj(const char* out_name,
     relocations_start += 2;
   uint32_t rsrc01_data_size = relocations_start;
   uint32_t rsrc01_total_size =
-      rsrc01_data_size + entries.entries.size() * sizeof(Relocation);
+      rsrc01_data_size + num_resources * sizeof(Relocation);
 
   // Compute offsets of all resource data in .rsrc$02.
   std::vector<uint32_t> res_offsets;
@@ -349,7 +349,7 @@ static void write_rsrc_obj(const char* out_name,
   coff_header.PointerToSymbolTable =
       coff_header_size + rsrc01_total_size + rsrc02_size;
   // Symbols for section names have 1 aux entry each:
-  coff_header.NumberOfSymbols = 2*2 + entries.entries.size();
+  coff_header.NumberOfSymbols = 2*2 + num_resources;
   coff_header.SizeOfOptionalHeader = 0;
   coff_header.Characteristics = 0x100;  // XXX
   fwrite(&coff_header, sizeof(coff_header), 1, out_file);
@@ -363,7 +363,7 @@ static void write_rsrc_obj(const char* out_name,
   rsrc01_header.PointerToRelocations =
       rsrc01_header.PointerToRawData + relocations_start;
   rsrc01_header.PointerToLineNumbers = 0;
-  rsrc01_header.NumberOfRelocations = entries.entries.size();
+  rsrc01_header.NumberOfRelocations = num_resources;
   rsrc01_header.NumberOfLinenumbers = 0;
   rsrc01_header.Characteristics = 0xc0000040;  // read + write + initialized
   fwrite(&rsrc01_header, sizeof(rsrc01_header), 1, out_file);
