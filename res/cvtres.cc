@@ -589,51 +589,62 @@ static void write_rsrc_obj(const char* out_name,
 }
 
 int main(int argc, char* argv[]) {
-  if (argc != 2)
-    fatal("Expected args == 2, got %d\n", argc);
+  if (argc < 2)
+    fatal("Expected args >= 2, got %d\n", argc);
 
-  const char *in_name = argv[1];
-
-  // Read input.
-  int in_file = open(in_name, O_RDONLY);
-  if (!in_file)
-    fatal("Unable to read \'%s\'\n", in_name);
-
-  struct stat in_stat;
-  if (fstat(in_file, &in_stat))
-    fatal("Failed to stat \'%s\'\n", in_name);
-
-  uint8_t* data = (uint8_t*)mmap(/*addr=*/0, in_stat.st_size, PROT_READ,
-                                 MAP_SHARED, in_file,
-                                 /*offset=*/0);
-  if (data == MAP_FAILED)
-    fatal("Failed to mmap: %d (%s)\n", errno, strerror(errno));
-
-  uint8_t* end = data + in_stat.st_size;
-
+  // Read inputs.
+  std::vector<int> files;
+  std::vector<uint8_t*> file_data;
+  std::vector<size_t> file_size;
   ResEntries entries;
-  bool is_first = true;
-  while (data < end) {
-    uint32_t n_read;
-    ResEntry entry = load_resource_entry(data, &n_read);
-    if (is_first) {
-      // Ignore not-16-bit marker.
-      is_first = false;
-      if (!entry.type_is_id || entry.type_id != 0 || !entry.name_is_id ||
-          entry.name_id != 0)
-        fatal("expected not-16-bit marker as first entry\n");
-    } else {
-      if (entry.type_is_id && entry.type_id == 0)
-        fatal("0 type\n");
-      if (entry.name_is_id && entry.name_id == 0)
-        fatal("0 name\n");
-      entries.entries.push_back(std::move(entry));
+  for (int i = 1; i < argc; ++i) {
+    const char* in_name = argv[i];
+
+    int in_file = open(in_name, O_RDONLY);
+    if (!in_file)
+      fatal("Unable to read \'%s\'\n", in_name);
+
+    struct stat in_stat;
+    if (fstat(in_file, &in_stat))
+      fatal("Failed to stat \'%s\'\n", in_name);
+
+    uint8_t* data = (uint8_t*)mmap(/*addr=*/0, in_stat.st_size, PROT_READ,
+                                   MAP_SHARED, in_file,
+                                   /*offset=*/0);
+    if (data == MAP_FAILED)
+      fatal("Failed to mmap: %d (%s)\n", errno, strerror(errno));
+
+    files.push_back(in_file);
+    file_data.push_back(data);
+    file_size.push_back(in_stat.st_size);
+
+    uint8_t* end = data + in_stat.st_size;
+
+    bool is_first = true;
+    while (data < end) {
+      uint32_t n_read;
+      ResEntry entry = load_resource_entry(data, &n_read);
+      if (is_first) {
+        // Ignore not-16-bit marker.
+        is_first = false;
+        if (!entry.type_is_id || entry.type_id != 0 || !entry.name_is_id ||
+            entry.name_id != 0)
+          fatal("expected not-16-bit marker as first entry\n");
+      } else {
+        if (entry.type_is_id && entry.type_id == 0)
+          fatal("0 type\n");
+        if (entry.name_is_id && entry.name_id == 0)
+          fatal("0 name\n");
+        entries.entries.push_back(std::move(entry));
+      }
+      data += n_read;
     }
-    data += n_read;
   }
 
   write_rsrc_obj("rsrc.obj", entries, x64);
 
-  munmap(data, in_stat.st_size);
-  close(in_file);
+  for (int i = 0; i < files.size(); ++i) {
+    munmap(file_data[i], file_size[i]);
+    close(files[i]);
+  }
 }
