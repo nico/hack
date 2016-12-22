@@ -247,7 +247,7 @@ static void write_rsrc_obj(const char* out_name,
     auto& lang_map = directory[type_key][name_key];
     auto lang_it = lang_map.insert(std::make_pair(entry.language_id, &entry));
     if (!lang_it.second)
-      fatal("duplicate element");
+      fatal("duplicate element\n");
 
     // Also write type and name to the string table.
     if (!entry.type_is_id) {
