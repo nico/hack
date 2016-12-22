@@ -217,7 +217,7 @@ struct NodeKey {
   }
 };
 
-enum Arch { x86, x64 };
+enum Arch { kArchx86, kArchx64 };
 static void write_rsrc_obj(const char* out_name,
                            const ResEntries& entries,
                            Arch arch) {
@@ -343,7 +343,7 @@ static void write_rsrc_obj(const char* out_name,
   uint32_t coff_header_size = sizeof(FileHeader) + 2*sizeof(SectionHeader);
 
   FileHeader coff_header = {};
-  coff_header.Machine = arch == x64 ? 0x8664 : 0x14c;
+  coff_header.Machine = arch == kArchx64 ? 0x8664 : 0x14c;
   coff_header.NumberOfSections = 2;  // .rsrc$01, .rsrc$02
   coff_header.TimeDateStamp = 0;  // FIXME: need flag, for inc linking with link
   coff_header.PointerToSymbolTable =
@@ -503,7 +503,7 @@ static void write_rsrc_obj(const char* out_name,
     const int kIMAGE_REL_AMD64_ADDR32NB = 3;
     const int kIMAGE_REL_I386_DIR32NB = 7;
     reloc.Type =
-        arch == x64 ? kIMAGE_REL_AMD64_ADDR32NB : kIMAGE_REL_I386_DIR32NB;
+        arch == kArchx64 ? kIMAGE_REL_AMD64_ADDR32NB : kIMAGE_REL_I386_DIR32NB;
     fwrite(&reloc, sizeof(reloc), 1, out_file);
   }
 
@@ -641,7 +641,7 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  write_rsrc_obj("rsrc.obj", entries, x64);
+  write_rsrc_obj("rsrc.obj", entries, kArchx64);
 
   for (int i = 0; i < files.size(); ++i) {
     munmap(file_data[i], file_size[i]);
