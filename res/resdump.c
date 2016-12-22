@@ -194,7 +194,7 @@ int main(int argc, char* argv[]) {
     fatal("Failed to stat \'%s\'\n", in_name);
 
   size_t size = in_stat.st_size;
-  uint8_t* data = mmap(/*addr=*/0, st_size, PROT_READ, MAP_SHARED, in_file,
+  uint8_t* data = mmap(/*addr=*/0, size, PROT_READ, MAP_SHARED, in_file,
                        /*offset=*/0);
   if (data == MAP_FAILED)
     fatal("Failed to mmap: %d (%s)\n", errno, strerror(errno));
