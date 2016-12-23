@@ -14,4 +14,7 @@ cmp test/cursor.res out.res
 ./rc < test/bitmap.rc
 cmp test/bitmap.res out.res
 
+./rc < test/dlginclude.rc
+cmp test/dlginclude.res out.res
+
 echo passed
