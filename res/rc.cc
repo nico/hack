@@ -554,7 +554,8 @@ bool SerializationVisitor::WriteIconOrCursorGroup(const FileResource* r,
     uint32_t data_size;
     // This is a 4-byte data_offset in a .ico file, but a 2-byte id in
     // the kRT_GROUP_ICON resource.
-    uint32_t data_offset_id;
+    uint32_t data_offset;  // used when reading
+    uint16_t id;           // used when writing
   };
   std::vector<IconEntry> entries(dir.count);
   for (IconEntry& entry : entries) {
@@ -565,7 +566,7 @@ bool SerializationVisitor::WriteIconOrCursorGroup(const FileResource* r,
     entry.num_planes = read_little_short(f);
     entry.bpp = read_little_short(f);
     entry.data_size = read_little_long(f);
-    entry.data_offset_id = read_little_long(f);
+    entry.data_offset = read_little_long(f);
   }
 
   // For each entry, write a kRT_ICON resource.
@@ -587,12 +588,12 @@ bool SerializationVisitor::WriteIconOrCursorGroup(const FileResource* r,
       write_little_short(out_, entry.bpp);         // hotspot_y
     }
 
-    fseek(f, entry.data_offset_id, SEEK_SET);
+    fseek(f, entry.data_offset, SEEK_SET);
     copy(out_, f, entry.data_size);
     if (type == kCursor)
       entry.data_size += 4;
 
-    entry.data_offset_id = next_icon_id_++;
+    entry.id = next_icon_id_++;
   }
 
   // Write final kRT_GROUP_ICON resource.
@@ -627,12 +628,15 @@ bool SerializationVisitor::WriteIconOrCursorGroup(const FileResource* r,
       // used here).
       write_little_short(out_, entry.width);
       write_little_short(out_, 2*entry.height);
-      // FIXME: Don't hardcode these:
-      write_little_short(out_, 1);
-      write_little_short(out_, 1);
+      // Grab actual non-hotspot num_planes, bpp from BITMAPINFOHEADER.
+      fseek(f, entry.data_offset + 12, SEEK_SET);
+      uint16_t num_planes = read_little_short(f);
+      uint16_t bpp = read_little_short(f);
+      write_little_short(out_, num_planes);
+      write_little_short(out_, bpp);
     }
     write_little_long(out_, entry.data_size);
-    write_little_short(out_, entry.data_offset_id);
+    write_little_short(out_, entry.id);
   }
   //fwrite(":)", 1, group_padding, out_);
   fwrite("\0\0", 1, group_padding, out_);

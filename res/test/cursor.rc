@@ -1,1 +1,3 @@
 70000 CURSOR "test/cursor.cur"
+70001 CURSOR "test/cursor_8.cur"
+70002 CURSOR "test/cursor_32.cur"
