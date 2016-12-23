@@ -246,11 +246,13 @@ bool Tokenizer::IsCurrentWhitespace() const {
 // AST
 
 class CursorResource;
+class BitmapResource;
 class IconResource;
 
 class Visitor {
  public:
   virtual bool VisitCursorResource(const CursorResource* r) = 0;
+  virtual bool VisitBitmapResource(const BitmapResource* r) = 0;
   virtual bool VisitIconResource(const IconResource* r) = 0;
 
  protected:
@@ -286,6 +288,14 @@ class CursorResource : public FileResource {
       : FileResource(name, path) {}
 
   bool Visit(Visitor* v) const override { return v->VisitCursorResource(this); }
+};
+
+class BitmapResource : public FileResource {
+ public:
+  BitmapResource(uint16_t name, std::experimental::string_view path)
+      : FileResource(name, path) {}
+
+  bool Visit(Visitor* v) const override { return v->VisitBitmapResource(this); }
 };
 
 class IconResource : public FileResource {
@@ -388,6 +398,8 @@ std::unique_ptr<Resource> Parser::ParseResource() {
     // FIXME: case-insensitive
     if (type.value_ == "CURSOR")
       return std::unique_ptr<Resource>(new CursorResource(id_num, path_val));
+    if (type.value_ == "BITMAP")
+      return std::unique_ptr<Resource>(new BitmapResource(id_num, path_val));
     if (type.value_ == "ICON")
       return std::unique_ptr<Resource>(new IconResource(id_num, path_val));
   }
@@ -483,6 +495,7 @@ class SerializationVisitor : public Visitor {
       : out_(f), err_(err), next_icon_id_(1) {}
 
   bool VisitCursorResource(const CursorResource* r) override;
+  bool VisitBitmapResource(const BitmapResource* r) override;
   bool VisitIconResource(const IconResource* r) override;
 
  private:
@@ -646,6 +659,38 @@ bool SerializationVisitor::WriteIconOrCursorGroup(const FileResource* r,
 
 bool SerializationVisitor::VisitCursorResource(const CursorResource* r) {
   return WriteIconOrCursorGroup(r, kCursor);
+}
+
+bool SerializationVisitor::VisitBitmapResource(const BitmapResource* r) {
+  FILE* f = fopen(r->path().to_string().c_str(), "rb");
+  if (!f) {
+    *err_ = "failed to open " + r->path().to_string();
+    return false;
+  }
+  FClose closer(f);
+  fseek(f, 0, SEEK_END);
+  size_t size = ftell(f);
+  // https://support.microsoft.com/en-us/kb/67883
+  // "NOTE: The BITMAPFILEHEADER structure is NOT present in the packed DIB;
+  //  however, it is present in a DIB read from disk."
+  const int kBitmapFileHeaderSize = 14;
+  size -= kBitmapFileHeaderSize;
+
+  // XXX padding?
+  write_little_long(out_, size);  // data size
+  write_little_long(out_, 0x20);  // header size
+  write_numeric_type(out_, kRT_BITMAP);
+  write_numeric_name(out_, r->name());
+  write_little_long(out_, 0);      // data version
+  write_little_short(out_, 0x30);  // memory flags XXX
+  write_little_short(out_, 1033);  // language id XXX
+  write_little_long(out_, 0);      // version
+  write_little_long(out_, 0);      // characteristics
+
+  fseek(f, kBitmapFileHeaderSize, SEEK_SET);
+  copy(out_, f, size);
+
+  return true;
 }
 
 bool SerializationVisitor::VisitIconResource(const IconResource* r) {

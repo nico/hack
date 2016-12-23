@@ -11,4 +11,7 @@ cmp test/icon.res out.res
 ./rc < test/cursor.rc
 cmp test/cursor.res out.res
 
+./rc < test/bitmap.rc
+cmp test/bitmap.res out.res
+
 echo passed
