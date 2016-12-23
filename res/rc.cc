@@ -245,10 +245,12 @@ bool Tokenizer::IsCurrentWhitespace() const {
 //////////////////////////////////////////////////////////////////////////////
 // AST
 
+class CursorResource;
 class IconResource;
 
 class Visitor {
  public:
+  virtual bool VisitCursorResource(const CursorResource* r) = 0;
   virtual bool VisitIconResource(const IconResource* r) = 0;
 
  protected:
@@ -276,6 +278,14 @@ class FileResource : public Resource {
 
  private:
   std::experimental::string_view path_;
+};
+
+class CursorResource : public FileResource {
+ public:
+  CursorResource(uint16_t name, std::experimental::string_view path)
+      : FileResource(name, path) {}
+
+  bool Visit(Visitor* v) const override { return v->VisitCursorResource(this); }
 };
 
 class IconResource : public FileResource {
@@ -369,16 +379,17 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   // They have been ignored since the 16-bit days, so hopefully they no longer
   // exist in practice.
 
-  // FIXME: case-insensitive
-  if (type.type_ == Token::kIdentifier && type.value_ == "ICON") {
+  if (type.type_ == Token::kIdentifier && cur_token().type_ == Token::kString) {
     const Token& path = Consume();
-    // XXX pass id
-    if (path.type_ == Token::kString) {
-      std::experimental::string_view path_val = path.value_;
-      // The literal includes quotes, strip them.
-      return std::unique_ptr<Resource>(
-          new IconResource(id_num, path_val.substr(1, path_val.size() - 2)));
-    }
+    std::experimental::string_view path_val = path.value_;
+    // The literal includes quotes, strip them.
+    path_val = path_val.substr(1, path_val.size() - 2);
+
+    // FIXME: case-insensitive
+    if (type.value_ == "CURSOR")
+      return std::unique_ptr<Resource>(new CursorResource(id_num, path_val));
+    if (type.value_ == "ICON")
+      return std::unique_ptr<Resource>(new IconResource(id_num, path_val));
   }
 
   err_ = "unknown resource";
@@ -471,9 +482,13 @@ class SerializationVisitor : public Visitor {
   SerializationVisitor(FILE* f, std::string* err)
       : out_(f), err_(err), next_icon_id_(1) {}
 
+  bool VisitCursorResource(const CursorResource* r) override;
   bool VisitIconResource(const IconResource* r) override;
 
  private:
+  enum GroupType { kIcon = 1, kCursor = 2 };
+  bool WriteIconOrCursorGroup(const FileResource* r, GroupType type);
+
   FILE* out_;
   std::string* err_;
   int next_icon_id_;
@@ -495,7 +510,8 @@ void copy(FILE* to, FILE* from, size_t n) {
   // XXX if (ferror(from) || ferror(to))...
 }
 
-bool SerializationVisitor::VisitIconResource(const IconResource* r) {
+bool SerializationVisitor::WriteIconOrCursorGroup(const FileResource* r,
+                                                  GroupType type) {
   // An .ico file usually contains several bitmaps. In a .res file, one
   //kRT_ICON is written per bitmap, and they're tied together with one
   //kRT_GROUP_ICON.
@@ -510,7 +526,7 @@ bool SerializationVisitor::VisitIconResource(const IconResource* r) {
 
   struct IconDir {
     uint16_t reserved;  // must be 0
-    uint16_t type;      // must be 1 for icons (2 for cursors)
+    uint16_t type;      // must be 1 for icons, 2 for cursors
     uint16_t count;
   } dir;
 
@@ -520,8 +536,9 @@ bool SerializationVisitor::VisitIconResource(const IconResource* r) {
     return false;
   }
   dir.type = read_little_short(f);
-  if (dir.type != 1) {
-    *err_ = "type not 1 in " + r->path().to_string();
+  // rc.exe allows both 1 and 2 here for both ICON and CURSOR.
+  if (dir.type != type) {
+    *err_ = "unexpected type in " + r->path().to_string();
     return false;
   }
   dir.count = read_little_short(f);
@@ -532,8 +549,8 @@ bool SerializationVisitor::VisitIconResource(const IconResource* r) {
     uint8_t height;
     uint8_t num_colors;   // 0 if more than 256 colors
     uint8_t reserved;     // must be 0
-    uint16_t num_planes;  // Color Planes
-    uint16_t bpp;         // bits per pixel
+    uint16_t num_planes;  // hotspot_x in .cur files
+    uint16_t bpp;         // bits per pixel, hotspot_y in .cur files
     uint32_t data_size;
     // This is a 4-byte data_offset in a .ico file, but a 2-byte id in
     // the kRT_GROUP_ICON resource.
@@ -554,9 +571,10 @@ bool SerializationVisitor::VisitIconResource(const IconResource* r) {
   // For each entry, write a kRT_ICON resource.
   for (IconEntry& entry : entries) {
     // XXX padding?
-    write_little_long(out_, entry.data_size);
+    // Cursors are prepended by their hotspot.
+    write_little_long(out_, entry.data_size + (type == kCursor ? 4 : 0));
     write_little_long(out_, 0x20);  // header size
-    write_numeric_type(out_, kRT_ICON);
+    write_numeric_type(out_, type == kIcon ? kRT_ICON : kRT_CURSOR);
     write_numeric_name(out_, next_icon_id_);
     write_little_long(out_, 0);        // data version
     write_little_short(out_, 0x1010);  // memory flags XXX
@@ -564,8 +582,15 @@ bool SerializationVisitor::VisitIconResource(const IconResource* r) {
     write_little_long(out_, 0);     // version
     write_little_long(out_, 0);     // characteristics
 
+    if (type == kCursor) {
+      write_little_short(out_, entry.num_planes);  // hotspot_x
+      write_little_short(out_, entry.bpp);         // hotspot_y
+    }
+
     fseek(f, entry.data_offset_id, SEEK_SET);
     copy(out_, f, entry.data_size);
+    if (type == kCursor)
+      entry.data_size += 4;
 
     entry.data_offset_id = next_icon_id_++;
   }
@@ -575,7 +600,7 @@ bool SerializationVisitor::VisitIconResource(const IconResource* r) {
   uint8_t group_padding = ((4 - (group_size & 3)) & 3);  // DWORD-align.
   write_little_long(out_, group_size);
   write_little_long(out_, 0x20);  // header size
-  write_numeric_type(out_, kRT_GROUP_ICON);
+  write_numeric_type(out_, type == kIcon ? kRT_GROUP_ICON : kRT_GROUP_CURSOR);
   write_numeric_name(out_, r->name());  // XXX support string names too
   write_little_long(out_, 0);        // data version
   write_little_short(out_, 0x1030);  // memory flags XXX
@@ -587,12 +612,25 @@ bool SerializationVisitor::VisitIconResource(const IconResource* r) {
   write_little_short(out_, dir.type);
   write_little_short(out_, dir.count);
   for (IconEntry& entry : entries) {
-    fputc(entry.width, out_);
-    fputc(entry.height, out_);
-    fputc(entry.num_colors, out_);
-    fputc(entry.reserved, out_);
-    write_little_short(out_, entry.num_planes);
-    write_little_short(out_, entry.bpp);
+    if (type == kIcon) {
+      fputc(entry.width, out_);
+      fputc(entry.height, out_);
+      fputc(entry.num_colors, out_);
+      fputc(entry.reserved, out_);
+      write_little_short(out_, entry.num_planes);
+      write_little_short(out_, entry.bpp);
+    } else {
+      // .cur files are weird, they store width and height as shorts instead
+      // of bytes here, multiply height by 2 apparently, and then store
+      // the actual num_planes and bpp as shorts (remember, num_planes and bpp
+      // are actually the hotspot coordinates in a .cur file, so they can't be
+      // used here).
+      write_little_short(out_, entry.width);
+      write_little_short(out_, 2*entry.height);
+      // FIXME: Don't hardcode these:
+      write_little_short(out_, 1);
+      write_little_short(out_, 1);
+    }
     write_little_long(out_, entry.data_size);
     write_little_short(out_, entry.data_offset_id);
   }
@@ -600,6 +638,14 @@ bool SerializationVisitor::VisitIconResource(const IconResource* r) {
   fwrite("\0\0", 1, group_padding, out_);
 
   return true;
+}
+
+bool SerializationVisitor::VisitCursorResource(const CursorResource* r) {
+  return WriteIconOrCursorGroup(r, kCursor);
+}
+
+bool SerializationVisitor::VisitIconResource(const IconResource* r) {
+  return WriteIconOrCursorGroup(r, kIcon);
 }
 
 bool WriteRes(const FileBlock& file, std::string* err) {
