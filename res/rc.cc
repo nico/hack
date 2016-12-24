@@ -225,8 +225,10 @@ void Tokenizer::AdvanceToEndOfToken(Token::Type type) {
       while (!at_end()) {
         bool is_star = cur_char() == '*';
         Advance();
-        if (is_star && !at_end() && cur_char() == '/')
+        if (is_star && !at_end() && cur_char() == '/') {
+          Advance();
           break;
+        }
       }
       break;
 

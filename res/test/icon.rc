@@ -1,2 +1,4 @@
+// comment test
 100 ICON "test/foo_old.ico"
+/* comment test */
 100 ICON "test/foo_new.ico"
