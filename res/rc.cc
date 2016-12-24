@@ -8,6 +8,7 @@ Doesn't do any preprocessing for now.
 
 #include <experimental/string_view>
 #include <iostream>
+#include <map>
 #include <vector>
 
 //////////////////////////////////////////////////////////////////////////////
@@ -325,7 +326,7 @@ class IconResource : public FileResource {
 class StringtableResource : public Resource {
  public:
   struct Entry {
-    uint16_t key;
+    uint16_t id;
     std::experimental::string_view value;
   };
 
@@ -336,6 +337,10 @@ class StringtableResource : public Resource {
   bool Visit(Visitor* v) const override {
     return v->VisitStringtableResource(this);
   }
+
+  typedef std::vector<Entry>::const_iterator const_iterator;
+  const_iterator begin() const { return entries_.begin(); }
+  const_iterator end() const { return entries_.end(); }
 
  private:
   std::vector<Entry> entries_;
@@ -632,6 +637,10 @@ class SerializationVisitor : public Visitor {
   bool VisitRcdataResource(const RcdataResource* r) override;
   bool VisitDlgincludeResource(const DlgincludeResource* r) override;
 
+  void EmitOneStringtable(const std::experimental::string_view** bundle,
+                         uint16_t bundle_start);
+  void WriteStringtables();
+
  private:
   enum GroupType { kIcon = 1, kCursor = 2 };
   bool WriteIconOrCursorGroup(const FileResource* r, GroupType type);
@@ -639,6 +648,8 @@ class SerializationVisitor : public Visitor {
   FILE* out_;
   std::string* err_;
   int next_icon_id_;
+
+  std::map<uint16_t, std::experimental::string_view> stringtable_;
 };
 
 struct FClose {
@@ -833,6 +844,13 @@ bool SerializationVisitor::VisitIconResource(const IconResource* r) {
 
 bool SerializationVisitor::VisitStringtableResource(
     const StringtableResource* r) {
+  for (auto& str : *r) {
+    bool is_new = stringtable_.insert(std::make_pair(str.id, str.value)).second;
+    if (!is_new) {
+      *err_ = "duplicate string table key " + std::to_string(str.id);
+      return false;
+    }
+  }
   return true;
 }
 
@@ -885,6 +903,79 @@ bool SerializationVisitor::VisitDlgincludeResource(
   return true;
 }
 
+void SerializationVisitor::EmitOneStringtable(
+    const std::experimental::string_view** bundle,
+    uint16_t bundle_start) {
+  // Each string is written as uint16_t length, followed by string data without
+  // a trailing \0.
+  // FIXME: rc.exe /n null-terminates strings in string table, have option
+  // for that.
+  size_t size = 0;
+  for (int i = 0; i < 16; ++i)
+    size += 2 * (1 + (bundle[i] ? bundle[i]->size() : 0));
+
+  write_little_long(out_, size);  // data size
+  write_little_long(out_, 0x20);      // header size
+  write_numeric_type(out_, kRT_STRING);
+  write_numeric_name(out_, (bundle_start / 16) + 1);
+  write_little_long(out_, 0);        // data version
+  write_little_short(out_, 0x1030);  // memory flags XXX
+  write_little_short(out_, 1033);    // language id XXX
+  write_little_long(out_, 0);        // version
+  write_little_long(out_, 0);        // characteristics
+  for (int i = 0; i < 16; ++i) {
+    if (!bundle[i]) {
+      fwrite("\0", 1, 2, out_);
+      continue;
+    }
+    write_little_short(out_, bundle[i]->size());
+    for (int j = 0; j < bundle[i]->size(); ++j) {
+      // FIXME: Real UTF16 support.
+      fputc((*bundle[i])[j], out_);
+      fputc('\0', out_);
+    }
+  }
+  // XXX padding?
+
+  std::fill_n(bundle, 16, nullptr);
+}
+
+void SerializationVisitor::WriteStringtables() {
+  // https://blogs.msdn.microsoft.com/oldnewthing/20040130-00/?p=40813
+  // "The strings listed in the *.rc file are grouped together in bundles of
+  //  sixteen. So the first bundle contains strings 0 through 15, the second
+  //  bundle contains strings 16 through 31, and so on. In general, bundle N
+  //  contains strings (N-1)*16 through (N-1)*16+15.
+  //  The strings in each bundle are stored as counted UNICODE strings, not
+  //  null-terminated strings. If there are gaps in the numbering, null strings
+  //  are used. So for example if your string table had only strings 16 and 31,
+  //  there would be one bundle (number 2), which consists of string 16,
+  //  fourteen null strings, then string 31."
+
+  const std::experimental::string_view* bundle[16] = {};
+  size_t n_bundle = 0;
+  uint16_t bundle_start = 0;
+
+  for (const auto& it : stringtable_) {
+    if (it.first - bundle_start >= 16) {
+      if (n_bundle > 0) {
+        EmitOneStringtable(bundle, bundle_start);
+        n_bundle = 0;
+      }
+      bundle_start = it.first & ~0xf;
+    }
+    bundle[it.first - bundle_start] = &it.second;
+    ++n_bundle;
+    continue;
+  }
+  if (n_bundle > 0) {
+    EmitOneStringtable(bundle, bundle_start);
+    n_bundle = 0;
+  }
+
+  stringtable_.clear();
+}
+
 bool WriteRes(const FileBlock& file, std::string* err) {
   FILE* f = fopen("out.res", "wb");
   if (!f) {
@@ -910,6 +1001,7 @@ bool WriteRes(const FileBlock& file, std::string* err) {
     if (!res->Visit(&serializer))
       return false;
   }
+  serializer.WriteStringtables();
 
   return true;
 }
