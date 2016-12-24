@@ -2,7 +2,7 @@ STRINGTABLE
 BEGIN
 1 "no commas"
   2, "one comma"
-4, "two entries" 5 "one line"
+4, "two entries" 50 "one line"
 END
 
 
@@ -10,5 +10,9 @@ END
 STRINGTABLE BEGIN 3 "another stringtable" END
 
 // TODO: test negative IDs, unicode strings, ...
-// If a .rc file contains at least one STRINGTABLE, a single merged entry for
-// all STRINGTABLEs is emitted as the last entry to the .res file.
+// STRINGTABLEs go at the end of the .res file, no matter where they are in the
+// .rc file.
+
+// They are grouped in bundles of 16:
+// https://blogs.msdn.microsoft.com/oldnewthing/20040130-00/?p=40813
+// If /n is passed to rc.exe, STRINGTABLE strings get \0-terminated.
