@@ -2,9 +2,8 @@ STRINGTABLE
 BEGIN
 1 "no commas"
   2, "one comma"
-4, "two entries" 50 "one line"
+14, "two entries" 50 "one line"
 END
-
 
 // This is fine, but must have IDs distinct from prior string table.
 STRINGTABLE BEGIN 3 "another stringtable" END
