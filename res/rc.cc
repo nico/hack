@@ -21,8 +21,8 @@ struct Token {
     kString,       // "foo"
     kIdentifier,   // foo
     kComma,        // ,
-    kLeftBrace,    // {
-    kRightBrace,   // }
+    kStartBlock,   // { or BEGIN (rc.exe accepts `{ .. END`)
+    kEndBlock,     // } or END
     kDirective,    // #foo
     kLineComment,  // //foo
     kStarComment,  // /* foo */
@@ -30,6 +30,8 @@ struct Token {
 
   Token(Type type, std::experimental::string_view value)
       : type_(type), value_(value) {}
+
+  Type type() const { return type_; }
 
   Type type_;
   std::experimental::string_view value_;
@@ -95,6 +97,12 @@ std::vector<Token> Tokenizer::Run(std::string* err) {
 
     std::experimental::string_view token_value(&input_.data()[token_begin],
                                                token_end - token_begin);
+    if (type == Token::kIdentifier) {
+      if (token_value == "BEGIN")
+        type = Token::kStartBlock;
+      else if (token_value == "END")
+        type = Token::kEndBlock;
+    }
     if (type != Token::kLineComment && type != Token::kStarComment)
       tokens_.push_back(Token(type, token_value));
   }
@@ -158,9 +166,9 @@ Token::Type Tokenizer::ClassifyCurrent() const {
   if (next_char == ',')
     return Token::kComma;
   if (next_char == '{')
-    return Token::kLeftBrace;
+    return Token::kStartBlock;
   if (next_char == '}')
-    return Token::kRightBrace;
+    return Token::kEndBlock;
 
   if (next_char == '#')
     return Token::kDirective;
@@ -208,8 +216,8 @@ void Tokenizer::AdvanceToEndOfToken(Token::Type type) {
       break;
 
     case Token::kComma:
-    case Token::kLeftBrace:
-    case Token::kRightBrace:
+    case Token::kStartBlock:
+    case Token::kEndBlock:
       Advance();  // All are one char.
       break;
 
@@ -250,6 +258,7 @@ bool Tokenizer::IsCurrentWhitespace() const {
 class CursorResource;
 class BitmapResource;
 class IconResource;
+class StringtableResource;
 class RcdataResource;
 class DlgincludeResource;
 
@@ -258,6 +267,7 @@ class Visitor {
   virtual bool VisitCursorResource(const CursorResource* r) = 0;
   virtual bool VisitBitmapResource(const BitmapResource* r) = 0;
   virtual bool VisitIconResource(const IconResource* r) = 0;
+  virtual bool VisitStringtableResource(const StringtableResource* r) = 0;
   virtual bool VisitRcdataResource(const RcdataResource* r) = 0;
   virtual bool VisitDlgincludeResource(const DlgincludeResource* r) = 0;
 
@@ -312,6 +322,25 @@ class IconResource : public FileResource {
   bool Visit(Visitor* v) const override { return v->VisitIconResource(this); }
 };
 
+class StringtableResource : public Resource {
+ public:
+  struct Entry {
+    uint16_t key;
+    std::experimental::string_view value;
+  };
+
+  StringtableResource(Entry* entries, size_t num_entries)
+      // STRINGTABLES have no names.
+      : Resource(0), entries_(entries, entries + num_entries) {}
+
+  bool Visit(Visitor* v) const override {
+    return v->VisitStringtableResource(this);
+  }
+
+ private:
+  std::vector<Entry> entries_;
+};
+
 // FIXME: either file, or block with data
 class RcdataResource : public FileResource {
  public:
@@ -356,13 +385,20 @@ class Parser {
 
  private:
   Parser(std::vector<Token> tokens);
+  std::unique_ptr<StringtableResource> ParseStringtable();
   std::unique_ptr<Resource> ParseResource();
   std::unique_ptr<FileBlock> ParseFile(std::string* err);
 
+  bool Is(Token::Type type);
+  bool Match(Token::Type type);
   const Token& Consume();
 
   // Call this only if !at_end().
   const Token& cur_token() const { return tokens_[cur_]; }
+
+  const Token& cur_or_last_token() const {
+    return at_end() ? tokens_[tokens_.size() - 1] : cur_token();
+  }
 
   bool done() const { return at_end() || has_error(); }
   bool at_end() const { return cur_ >= tokens_.size(); }
@@ -383,8 +419,59 @@ std::unique_ptr<FileBlock> Parser::Parse(std::vector<Token> tokens,
 Parser::Parser(std::vector<Token> tokens)
     : tokens_(std::move(tokens)), cur_(0) {}
 
+bool Parser::Is(Token::Type type) {
+  if (at_end())
+    return false;
+  return cur_token().type() == type;
+}
+
+bool Parser::Match(Token::Type type) {
+  if (!Is(type))
+    return false;
+  Consume();
+  return true;
+}
+
 const Token& Parser::Consume() {
   return tokens_[cur_++];
+}
+
+std::unique_ptr<StringtableResource> Parser::ParseStringtable() {
+  if (!Match(Token::kStartBlock)) {
+    err_ = "expected START or {, got " + cur_or_last_token().value_.to_string();
+    return std::unique_ptr<StringtableResource>();
+  }
+  std::vector<StringtableResource::Entry> entries;
+  while (!at_end() && cur_token().type() != Token::kEndBlock) {
+    if (!Is(Token::kInt)) {
+      err_ = "expected int, got " + cur_or_last_token().value_.to_string();
+      return std::unique_ptr<StringtableResource>();
+    }
+    const Token& key = Consume();
+    Match(Token::kComma);  // Eat optional comma between key and value.
+
+    if (!Is(Token::kString)) {
+      err_ = "expected string, got " + cur_or_last_token().value_.to_string();
+      return std::unique_ptr<StringtableResource>();
+    }
+    const Token& value = Consume();
+
+    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+    // 1234L.
+    uint16_t key_num = atoi(key.value_.to_string().c_str());
+    std::experimental::string_view str_val = value.value_;
+    // The literal includes quotes, strip them.
+    // FIXME: give Token a StringValue() function that handles \-escapes,
+    // "quoting""rules", L"asdf", etc.
+    str_val = str_val.substr(1, str_val.size() - 2);
+    entries.push_back(StringtableResource::Entry{key_num, str_val});
+  }
+  if (!Match(Token::kEndBlock)) {
+    err_ = "expected END or }, got " + cur_or_last_token().value_.to_string();
+    return std::unique_ptr<StringtableResource>();
+  }
+  return std::unique_ptr<StringtableResource>(
+      new StringtableResource(entries.data(), entries.size()));
 }
 
 std::unique_ptr<Resource> Parser::ParseResource() {
@@ -395,7 +482,12 @@ std::unique_ptr<Resource> Parser::ParseResource() {
     return std::unique_ptr<Resource>();
   }
 
-  if (id.type_ != Token::kInt) {
+  if (id.type() == Token::kIdentifier) {
+    if (id.value_ == "STRINGTABLE")
+      return ParseStringtable();
+  }
+
+  if (id.type() != Token::kInt) {
     err_ = "only int names supported for now";
     return std::unique_ptr<Resource>();
   }
@@ -536,6 +628,7 @@ class SerializationVisitor : public Visitor {
   bool VisitCursorResource(const CursorResource* r) override;
   bool VisitBitmapResource(const BitmapResource* r) override;
   bool VisitIconResource(const IconResource* r) override;
+  bool VisitStringtableResource(const StringtableResource* r) override;
   bool VisitRcdataResource(const RcdataResource* r) override;
   bool VisitDlgincludeResource(const DlgincludeResource* r) override;
 
@@ -736,6 +829,11 @@ bool SerializationVisitor::VisitBitmapResource(const BitmapResource* r) {
 
 bool SerializationVisitor::VisitIconResource(const IconResource* r) {
   return WriteIconOrCursorGroup(r, kIcon);
+}
+
+bool SerializationVisitor::VisitStringtableResource(
+    const StringtableResource* r) {
+  return true;
 }
 
 bool SerializationVisitor::VisitRcdataResource(const RcdataResource* r) {
