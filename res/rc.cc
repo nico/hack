@@ -250,6 +250,7 @@ bool Tokenizer::IsCurrentWhitespace() const {
 class CursorResource;
 class BitmapResource;
 class IconResource;
+class RcdataResource;
 class DlgincludeResource;
 
 class Visitor {
@@ -257,6 +258,7 @@ class Visitor {
   virtual bool VisitCursorResource(const CursorResource* r) = 0;
   virtual bool VisitBitmapResource(const BitmapResource* r) = 0;
   virtual bool VisitIconResource(const IconResource* r) = 0;
+  virtual bool VisitRcdataResource(const RcdataResource* r) = 0;
   virtual bool VisitDlgincludeResource(const DlgincludeResource* r) = 0;
 
  protected:
@@ -308,6 +310,20 @@ class IconResource : public FileResource {
       : FileResource(name, path) {}
 
   bool Visit(Visitor* v) const override { return v->VisitIconResource(this); }
+};
+
+// FIXME: either file, or block with data
+class RcdataResource : public FileResource {
+ public:
+  RcdataResource(uint16_t name, std::experimental::string_view path)
+      : FileResource(name, path) {}
+
+  bool Visit(Visitor* v) const override { return v->VisitRcdataResource(this); }
+
+  std::experimental::string_view data() const { return data_; }
+
+ private:
+  std::experimental::string_view data_;
 };
 
 class DlgincludeResource : public Resource {
@@ -421,6 +437,8 @@ std::unique_ptr<Resource> Parser::ParseResource() {
       return std::unique_ptr<Resource>(new BitmapResource(id_num, str_val));
     if (type.value_ == "ICON")
       return std::unique_ptr<Resource>(new IconResource(id_num, str_val));
+    if (type.value_ == "RCDATA")
+      return std::unique_ptr<Resource>(new RcdataResource(id_num, str_val));
     if (type.value_ == "DLGINCLUDE")
       return std::unique_ptr<Resource>(new DlgincludeResource(id_num, str_val));
   }
@@ -518,6 +536,7 @@ class SerializationVisitor : public Visitor {
   bool VisitCursorResource(const CursorResource* r) override;
   bool VisitBitmapResource(const BitmapResource* r) override;
   bool VisitIconResource(const IconResource* r) override;
+  bool VisitRcdataResource(const RcdataResource* r) override;
   bool VisitDlgincludeResource(const DlgincludeResource* r) override;
 
  private:
@@ -717,6 +736,34 @@ bool SerializationVisitor::VisitBitmapResource(const BitmapResource* r) {
 
 bool SerializationVisitor::VisitIconResource(const IconResource* r) {
   return WriteIconOrCursorGroup(r, kIcon);
+}
+
+bool SerializationVisitor::VisitRcdataResource(const RcdataResource* r) {
+  FILE* f = fopen(r->path().to_string().c_str(), "rb");
+  if (!f) {
+    *err_ = "failed to open " + r->path().to_string();
+    return false;
+  }
+  FClose closer(f);
+  fseek(f, 0, SEEK_END);
+  size_t size = ftell(f);
+
+  write_little_long(out_, size);  // data size
+  write_little_long(out_, 0x20);  // header size
+  write_numeric_type(out_, kRT_RCDATA);
+  write_numeric_name(out_, r->name());
+  write_little_long(out_, 0);      // data version
+  write_little_short(out_, 0x30);  // memory flags XXX
+  write_little_short(out_, 1033);  // language id XXX
+  write_little_long(out_, 0);      // version
+  write_little_long(out_, 0);      // characteristics
+
+  fseek(f, 0, SEEK_SET);
+  copy(out_, f, size);
+  uint8_t padding = ((4 - (size & 3)) & 3);  // DWORD-align.
+  fwrite("\0\0", 1, padding, out_);
+
+  return true;
 }
 
 bool SerializationVisitor::VisitDlgincludeResource(
