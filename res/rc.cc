@@ -501,6 +501,7 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
     // FIXME: give Token a StringValue() function that handles \-escapes,
     // "quoting""rules", L"asdf", etc.
     name_val = name_val.substr(1, name_val.size() - 2);
+    std::unique_ptr<MenuResource::EntryData> entry_data;
     if (is_item) {
       if (!Match(Token::kComma)) {
         err_ = "expected comma, got " + cur_or_last_token().value_.to_string();
@@ -514,18 +515,16 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
       // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
       // 1234L.
       uint16_t id_num = atoi(id.value_.to_string().c_str());
-      entries->subentries.push_back(
-          std::unique_ptr<MenuResource::Entry>(new MenuResource::Entry(
-              name_val, std::unique_ptr<MenuResource::EntryData>(
-                            new MenuResource::ItemEntryData(id_num)))));
+      entry_data.reset(new MenuResource::ItemEntryData(id_num));
     } else {
       std::unique_ptr<MenuResource::SubmenuEntryData> subentries =
           ParseMenuBlock();
       if (!entries)
         return std::unique_ptr<MenuResource::SubmenuEntryData>();
-      entries->subentries.push_back(std::unique_ptr<MenuResource::Entry>(
-          new MenuResource::Entry(name_val, std::move(subentries))));
+      entry_data = std::move(subentries);
     }
+    entries->subentries.push_back(std::unique_ptr<MenuResource::Entry>(
+        new MenuResource::Entry(name_val, std::move(entry_data))));
   }
   if (!Match(Token::kEndBlock)) {
     err_ = "expected END or }, got " + cur_or_last_token().value_.to_string();
