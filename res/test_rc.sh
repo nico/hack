@@ -14,6 +14,9 @@ cmp test/bitmap.res out.res
 ./rc < test/icon.rc
 cmp test/icon.res out.res
 
+./rc < test/menu.rc
+# FIXME cmp test/menu.res out.res
+
 ./rc < test/stringtable.rc
 cmp test/stringtable.res out.res
 

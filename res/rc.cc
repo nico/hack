@@ -259,6 +259,7 @@ bool Tokenizer::IsCurrentWhitespace() const {
 class CursorResource;
 class BitmapResource;
 class IconResource;
+class MenuResource;
 class StringtableResource;
 class RcdataResource;
 class DlgincludeResource;
@@ -268,6 +269,7 @@ class Visitor {
   virtual bool VisitCursorResource(const CursorResource* r) = 0;
   virtual bool VisitBitmapResource(const BitmapResource* r) = 0;
   virtual bool VisitIconResource(const IconResource* r) = 0;
+  virtual bool VisitMenuResource(const MenuResource* r) = 0;
   virtual bool VisitStringtableResource(const StringtableResource* r) = 0;
   virtual bool VisitRcdataResource(const RcdataResource* r) = 0;
   virtual bool VisitDlgincludeResource(const DlgincludeResource* r) = 0;
@@ -321,6 +323,35 @@ class IconResource : public FileResource {
       : FileResource(name, path) {}
 
   bool Visit(Visitor* v) const override { return v->VisitIconResource(this); }
+};
+
+class MenuResource : public Resource {
+ public:
+  struct EntryData {};
+  struct Entry {
+    Entry(std::experimental::string_view name, std::unique_ptr<EntryData> data)
+        : name(name), data(std::move(data)) {}
+    std::experimental::string_view name;
+    std::unique_ptr<EntryData> data;
+  };
+  struct ItemEntryData : public EntryData {
+    explicit ItemEntryData(uint32_t id) : id(id) {}
+    uint32_t id;
+  };
+  struct SubmenuEntryData : public EntryData {
+    SubmenuEntryData() {}
+    explicit SubmenuEntryData(std::vector<std::unique_ptr<Entry>> subentries)
+        : subentries(std::move(subentries)) {}
+    std::vector<std::unique_ptr<Entry>> subentries;
+  };
+
+  MenuResource(uint16_t name, SubmenuEntryData entries)
+      : Resource(name), entries_(std::move(entries)) {}
+
+
+  bool Visit(Visitor* v) const override { return v->VisitMenuResource(this); }
+
+  SubmenuEntryData entries_;
 };
 
 class StringtableResource : public Resource {
@@ -390,6 +421,8 @@ class Parser {
 
  private:
   Parser(std::vector<Token> tokens);
+  std::unique_ptr<MenuResource::SubmenuEntryData> ParseMenuBlock();
+  std::unique_ptr<MenuResource> ParseMenu(uint16_t id_num);
   std::unique_ptr<StringtableResource> ParseStringtable();
   std::unique_ptr<Resource> ParseResource();
   std::unique_ptr<FileBlock> ParseFile(std::string* err);
@@ -439,6 +472,75 @@ bool Parser::Match(Token::Type type) {
 
 const Token& Parser::Consume() {
   return tokens_[cur_++];
+}
+
+std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
+  if (!Match(Token::kStartBlock)) {
+    err_ = "expected START or {, got " + cur_or_last_token().value_.to_string();
+    return std::unique_ptr<MenuResource::SubmenuEntryData>();
+  }
+
+  std::unique_ptr<MenuResource::SubmenuEntryData> entries(
+      new MenuResource::SubmenuEntryData);
+  while (!at_end() && cur_token().type() != Token::kEndBlock) {
+    if (!Is(Token::kIdentifier) ||
+        (cur_token().value_ != "MENUITEM" && cur_token().value_ != "POPUP")) {
+      err_ = "expected MENUITEM or POPUP, got " +
+             cur_or_last_token().value_.to_string();
+      return std::unique_ptr<MenuResource::SubmenuEntryData>();
+    }
+    bool is_item = cur_token().value_ == "MENUITEM";
+    Consume();
+    if (!Is(Token::kString)) {
+      err_ = "expected string, got " + cur_or_last_token().value_.to_string();
+      return std::unique_ptr<MenuResource::SubmenuEntryData>();
+    }
+    const Token& name = Consume();
+    std::experimental::string_view name_val = name.value_;
+    // The literal includes quotes, strip them.
+    // FIXME: give Token a StringValue() function that handles \-escapes,
+    // "quoting""rules", L"asdf", etc.
+    name_val = name_val.substr(1, name_val.size() - 2);
+    if (is_item) {
+      if (!Match(Token::kComma)) {
+        err_ = "expected comma, got " + cur_or_last_token().value_.to_string();
+        return std::unique_ptr<MenuResource::SubmenuEntryData>();
+      }
+      if (!Is(Token::kInt)) {
+        err_ = "expected int, got " + cur_or_last_token().value_.to_string();
+        return std::unique_ptr<MenuResource::SubmenuEntryData>();
+      }
+      const Token& id = Consume();
+      // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+      // 1234L.
+      uint16_t id_num = atoi(id.value_.to_string().c_str());
+      entries->subentries.push_back(
+          std::unique_ptr<MenuResource::Entry>(new MenuResource::Entry(
+              name_val, std::unique_ptr<MenuResource::EntryData>(
+                            new MenuResource::ItemEntryData(id_num)))));
+    } else {
+      std::unique_ptr<MenuResource::SubmenuEntryData> subentries =
+          ParseMenuBlock();
+      if (!entries)
+        return std::unique_ptr<MenuResource::SubmenuEntryData>();
+      entries->subentries.push_back(std::unique_ptr<MenuResource::Entry>(
+          new MenuResource::Entry(name_val, std::move(subentries))));
+    }
+  }
+  if (!Match(Token::kEndBlock)) {
+    err_ = "expected END or }, got " + cur_or_last_token().value_.to_string();
+    return std::unique_ptr<MenuResource::SubmenuEntryData>();
+  }
+  return entries;
+}
+
+
+std::unique_ptr<MenuResource> Parser::ParseMenu(uint16_t id_num) {
+  std::unique_ptr<MenuResource::SubmenuEntryData> entries = ParseMenuBlock();
+  if (!entries)
+    return std::unique_ptr<MenuResource>();
+  return std::unique_ptr<MenuResource>(
+      new MenuResource(id_num, std::move(*entries.get())));
 }
 
 std::unique_ptr<StringtableResource> Parser::ParseStringtable() {
@@ -520,6 +622,10 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   // https://msdn.microsoft.com/en-us/library/windows/desktop/aa380908(v=vs.85).aspx
   // They have been ignored since the 16-bit days, so hopefully they no longer
   // exist in practice.
+
+  // FIXME: MENUEX
+  if (type.type_ == Token::kIdentifier && type.value_ == "MENU")
+    return ParseMenu(id_num);
 
   if (type.type_ == Token::kIdentifier && cur_token().type_ == Token::kString) {
     const Token& string = Consume();
@@ -633,6 +739,7 @@ class SerializationVisitor : public Visitor {
   bool VisitCursorResource(const CursorResource* r) override;
   bool VisitBitmapResource(const BitmapResource* r) override;
   bool VisitIconResource(const IconResource* r) override;
+  bool VisitMenuResource(const MenuResource* r) override;
   bool VisitStringtableResource(const StringtableResource* r) override;
   bool VisitRcdataResource(const RcdataResource* r) override;
   bool VisitDlgincludeResource(const DlgincludeResource* r) override;
@@ -840,6 +947,11 @@ bool SerializationVisitor::VisitBitmapResource(const BitmapResource* r) {
 
 bool SerializationVisitor::VisitIconResource(const IconResource* r) {
   return WriteIconOrCursorGroup(r, kIcon);
+}
+
+bool SerializationVisitor::VisitMenuResource(const MenuResource* r) {
+  // FIXME: implement
+  return true;
 }
 
 bool SerializationVisitor::VisitStringtableResource(

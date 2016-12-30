@@ -1,0 +1,17 @@
+42 MENU
+BEGIN
+    POPUP "&File"
+    BEGIN
+        POPUP "&Sub"
+        BEGIN
+            MENUITEM "&Asdf",  500
+            MENUITEM "&Fkjl",  501
+        END
+        MENUITEM "E&xit",      502
+    END
+    POPUP "&Help"
+    BEGIN
+        MENUITEM "F&oo",       555 //, CHECKED  XXX
+        MENUITEM "&About",     556
+    END
+END
