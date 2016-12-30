@@ -4,6 +4,26 @@ clang++ -std=c++11 -o rc rc.cc -Wall -Wno-c++11-narrowing
 
 A sketch of a reimplemenation of rc.exe, for research purposes.
 Doesn't do any preprocessing for now.
+
+Missing for chromium:
+- MENU codegen
+- DIALOG(EX)
+- TEXTINCLUDE
+- VERSIONINFO
+- DESIGNINFO
+- ACCELERATORS
+- LANGUAGE
+- #pragma code_page() and unicode handling
+- case-insensitive keywords
+- string ids in addition to int ids
+- custom types (both int and string)
+- inline block data for RCDATA, DLGINCLUDE, custom types
+- TYPELIB
+- more "just embed" types (HTML)
+- EULA
+- REGISTRY
+- real string and int literal parsers (L"\0", 0xff)
+- preprocessor
 */
 
 #include <experimental/string_view>
