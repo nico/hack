@@ -8,7 +8,6 @@ Doesn't do any preprocessing for now.
 Missing for chromium:
 - DIALOG(EX)
 - VERSIONINFO
-- ACCELERATORS
 - LANGUAGE
 - #pragma code_page() and unicode handling
 - case-insensitive keywords
@@ -424,9 +423,14 @@ class StringtableResource : public Resource {
 class AcceleratorsResource : public Resource {
  public:
   struct Accelerator {
+    //  1h - VIRTKEY
+    //  2h - NOINVERT
+    // 10h - ALT
+    // 80h - Set for the last accelerator in .res file.
+    uint16_t flags;
     uint16_t key;
     uint16_t id;
-    uint16_t flags;
+    uint16_t pad;  // Seems to be always 0.
   };
 
   AcceleratorsResource(uint16_t name, std::vector<Accelerator> accelerators)
@@ -435,6 +439,8 @@ class AcceleratorsResource : public Resource {
   bool Visit(Visitor* v) const override {
     return v->VisitAcceleratorsResource(this);
   }
+
+  const std::vector<Accelerator>& accelerators() const { return accelerators_; }
 
  private:
   std::vector<Accelerator> accelerators_;
@@ -711,14 +717,77 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
     return false;
   }
   const Token& id = Consume();
+  // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+  // 1234L.
+  uint16_t id_num = atoi(id.value_.to_string().c_str());
+
+  uint16_t flags = 0;
+  bool is_ascii = true;
   while (Is(Token::kComma)) {
     Consume();
     if (!Is(Token::kIdentifier)) {
       err_ = "expected ident, got " + cur_or_last_token().value_.to_string();
       return false;
     }
-    const Token& name = Consume();
+    const Token& flag = Consume();
+    if (flag.value_ == "ASCII")
+      is_ascii = true;
+    else if (flag.value_ == "VIRTKEY")
+      is_ascii = false;
+    else if (flag.value_ == "ALT")
+      flags |= 0x10;
+    else if (flag.value_ == "NOINVERT")
+      flags |= 2;
+    else if (flag.value_ == "CONTROL")
+      flags |= 4;  // XXX check
+    else if (flag.value_ == "SHIFT")
+      flags |= 8;  // XXX check
+    else {
+      err_ = "unknown flag " + flag.value_.to_string();
+      return false;
+    }
   }
+  // XXX check ASCII VIRTKEY ASCII
+  if (!is_ascii)
+    flags |= 1;
+
+  accelerator->flags = flags;
+  accelerator->key = 0;
+  if (name.type() == Token::kInt) {
+    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+    // 1234L.
+    accelerator->key = atoi(name.value_.to_string().c_str());
+  } else {
+    std::experimental::string_view name_val = name.value_;
+    // The literal includes quotes, strip them.
+    name_val = name_val.substr(1, name_val.size() - 2);
+
+    // XXX check what rc does for ""
+    // XXX check ascii code for 'b' + SHIFT
+    // XXX check "^A^B"
+    // XXX check "^0"
+    // XXX check "^ "
+    // XXX check L"a"
+
+    if (name_val.size() == 2 && name_val[0] == '^') {
+      char c = name_val[1];
+      if (c >= 'A' && c <= 'Z')
+        c = c - 'A' + 1;
+      else if (c >= 'a' && c <= 'z')
+        c = c - 'a' + 1;
+      accelerator->key = c;
+    } else if (!name_val.empty()) {
+      // XXX rc.exe rejects chars with >= 3 letters, but it's not clear why it
+      // has its weird behavior for two-letter keys. Something something UTF-16?
+      for (char c : name_val)
+        accelerator->key = (accelerator->key << 8) + c;
+    }
+  }
+  // Convert char to upper if SHIFT is specified, or if it's a VIRTKEY.
+  if ((flags & 9) && accelerator->key >= 'a' && accelerator->key <= 'z')
+    accelerator->key = accelerator->key - 'a' + 'A';
+  accelerator->id = id_num;
+  accelerator->pad = 0;
   return true;
 }
 
@@ -1211,7 +1280,26 @@ bool SerializationVisitor::VisitStringtableResource(
 
 bool SerializationVisitor::VisitAcceleratorsResource(
     const AcceleratorsResource* r) {
-  // FIXME: implement
+  size_t size = r->accelerators().size() * 8;
+  write_little_long(out_, size);  // data size
+  write_little_long(out_, 0x20);  // header size
+  write_numeric_type(out_, kRT_ACCELERATOR);
+  write_numeric_name(out_, r->name());
+  write_little_long(out_, 0);      // data version
+  write_little_short(out_, 0x30);  // memory flags XXX
+  write_little_short(out_, 1033);  // language id XXX
+  write_little_long(out_, 0);      // version
+  write_little_long(out_, 0);      // characteristics
+
+  for (const auto& accelerator : r->accelerators()) {
+    uint16_t flags = accelerator.flags;
+    if (&accelerator == &r->accelerators().back())
+      flags |= 0x80;
+    write_little_short(out_, flags);
+    write_little_short(out_, accelerator.key);
+    write_little_short(out_, accelerator.id);
+    write_little_short(out_, accelerator.pad);
+  }
   return true;
 }
 
