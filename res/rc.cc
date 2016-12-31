@@ -453,11 +453,6 @@ class RcdataResource : public FileResource {
       : FileResource(name, path) {}
 
   bool Visit(Visitor* v) const override { return v->VisitRcdataResource(this); }
-
-  std::experimental::string_view data() const { return data_; }
-
- private:
-  std::experimental::string_view data_;
 };
 
 class DlgincludeResource : public Resource {
@@ -482,11 +477,6 @@ class HtmlResource : public FileResource {
       : FileResource(name, path) {}
 
   bool Visit(Visitor* v) const override { return v->VisitHtmlResource(this); }
-
-  std::experimental::string_view data() const { return data_; }
-
- private:
-  std::experimental::string_view data_;
 };
 
 class FileBlock {
