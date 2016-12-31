@@ -5,7 +5,7 @@
   "^D", 17
 
   "b", 25, ASCII
-  "C", 26, ASCII
+  "C", 26, ASCII, VIRTKEY, ASCII
   "^D", 27, ASCII
   20, 28, ASCII
 
@@ -19,6 +19,11 @@
 
   "b", 25, VIRTKEY, NOINVERT, ALT, SHIFT, CONTROL
   "b", 25, NOINVERT, ALT, VIRTKEY, SHIFT, CONTROL
+  "b", 25, VIRTKEY, ALT, ALT, ALT
+  "b", 25, VIRTKEY, NOINVERT
+  "b", 25, VIRTKEY, SHIFT
+  "b", 25, VIRTKEY, CONTROL
+  98, 25, VIRTKEY, CONTROL  // b
 
   // "warning RC4203 : SHIFT or CONTROL used without VIRTKEY" when using ASCII
   // with SHIFT or CONTROL.

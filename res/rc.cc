@@ -425,6 +425,8 @@ class AcceleratorsResource : public Resource {
   struct Accelerator {
     //  1h - VIRTKEY
     //  2h - NOINVERT
+    //  4h - SHIFT
+    //  8h - CONTROL
     // 10h - ALT
     // 80h - Set for the last accelerator in .res file.
     uint16_t flags;
@@ -712,7 +714,6 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
   uint16_t id_num = atoi(id.value_.to_string().c_str());
 
   uint16_t flags = 0;
-  bool is_ascii = true;
   while (Is(Token::kComma)) {
     Consume();
     if (!Is(Token::kIdentifier)) {
@@ -721,25 +722,22 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
     }
     const Token& flag = Consume();
     if (flag.value_ == "ASCII")
-      is_ascii = true;
+      ;
     else if (flag.value_ == "VIRTKEY")
-      is_ascii = false;
-    else if (flag.value_ == "ALT")
-      flags |= 0x10;
+      flags |= 1;
     else if (flag.value_ == "NOINVERT")
       flags |= 2;
-    else if (flag.value_ == "CONTROL")
-      flags |= 4;  // XXX check
     else if (flag.value_ == "SHIFT")
-      flags |= 8;  // XXX check
+      flags |= 4;
+    else if (flag.value_ == "CONTROL")
+      flags |= 8;
+    else if (flag.value_ == "ALT")
+      flags |= 0x10;
     else {
       err_ = "unknown flag " + flag.value_.to_string();
       return false;
     }
   }
-  // XXX check ASCII VIRTKEY ASCII
-  if (!is_ascii)
-    flags |= 1;
 
   accelerator->flags = flags;
   accelerator->key = 0;
@@ -752,8 +750,11 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
     // The literal includes quotes, strip them.
     name_val = name_val.substr(1, name_val.size() - 2);
 
-    // XXX check what rc does for ""
-    // XXX check ascii code for 'b' + SHIFT
+    if (name_val.size() == 0 || name_val.size() > 2) {
+      err_ = "invalid key \"" + name_val.to_string() + "\"";
+      return false;
+    }
+
     // XXX check "^A^B"
     // XXX check "^0"
     // XXX check "^ "
@@ -772,10 +773,10 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
       for (char c : name_val)
         accelerator->key = (accelerator->key << 8) + c;
     }
+    // Convert char to upper if SHIFT is specified, or if it's a VIRTKEY.
+    if ((flags & 5) && accelerator->key >= 'a' && accelerator->key <= 'z')
+      accelerator->key = accelerator->key - 'a' + 'A';
   }
-  // Convert char to upper if SHIFT is specified, or if it's a VIRTKEY.
-  if ((flags & 9) && accelerator->key >= 'a' && accelerator->key <= 'z')
-    accelerator->key = accelerator->key - 'a' + 'A';
   accelerator->id = id_num;
   accelerator->pad = 0;
   return true;
