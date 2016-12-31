@@ -28,4 +28,7 @@ cmp test/rcdata.res out.res
 ./rc < test/dlginclude.rc
 cmp test/dlginclude.res out.res
 
+./rc < test/html.rc
+cmp test/html.res out.res
+
 echo passed

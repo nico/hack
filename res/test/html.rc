@@ -1,0 +1,2 @@
+1 HTML "test/foo.html"
+//1 HTML { "<html></html>" }

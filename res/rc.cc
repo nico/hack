@@ -7,22 +7,20 @@ Doesn't do any preprocessing for now.
 
 Missing for chromium:
 - DIALOG(EX)
-- TEXTINCLUDE
 - VERSIONINFO
-- DESIGNINFO
 - ACCELERATORS
 - LANGUAGE
 - #pragma code_page() and unicode handling
 - case-insensitive keywords
 - string ids in addition to int ids
 - custom types (both int and string)
-- inline block data for RCDATA, DLGINCLUDE, custom types
-- TYPELIB
-- more "just embed" types (HTML)
-- EULA
-- REGISTRY
+  - includes TEXTINCLUDE, TYPELIB, EULA, REGISTRY,
+    GOOGLEUPDATEAPPLICATIONCOMMANDS
+- inline block data for RCDATA, DLGINCLUDE, HTML, custom types
 - real string and int literal parsers (L"\0", 0xff)
 - preprocessor
+- (chrome uses DESIGNINFO but only behind `#ifdef APSTUDIO_INVOKED` which is
+  only set by MSVC not rc, and rc.exe doesn't understand DESIGNINFO)
 
 Also missing, but not yet for chromium:
 - MENUITEM SEPARATOR
@@ -287,6 +285,7 @@ class MenuResource;
 class StringtableResource;
 class RcdataResource;
 class DlgincludeResource;
+class HtmlResource;
 
 class Visitor {
  public:
@@ -297,6 +296,7 @@ class Visitor {
   virtual bool VisitStringtableResource(const StringtableResource* r) = 0;
   virtual bool VisitRcdataResource(const RcdataResource* r) = 0;
   virtual bool VisitDlgincludeResource(const DlgincludeResource* r) = 0;
+  virtual bool VisitHtmlResource(const HtmlResource* r) = 0;
 
  protected:
   ~Visitor() {}
@@ -437,6 +437,20 @@ class DlgincludeResource : public Resource {
   bool Visit(Visitor* v) const override {
     return v->VisitDlgincludeResource(this);
   }
+
+  std::experimental::string_view data() const { return data_; }
+
+ private:
+  std::experimental::string_view data_;
+};
+
+// FIXME: either file, or block with data
+class HtmlResource : public FileResource {
+ public:
+  HtmlResource(uint16_t name, std::experimental::string_view path)
+      : FileResource(name, path) {}
+
+  bool Visit(Visitor* v) const override { return v->VisitHtmlResource(this); }
 
   std::experimental::string_view data() const { return data_; }
 
@@ -715,6 +729,8 @@ std::unique_ptr<Resource> Parser::ParseResource() {
       return std::unique_ptr<Resource>(new RcdataResource(id_num, str_val));
     if (type.value_ == "DLGINCLUDE")
       return std::unique_ptr<Resource>(new DlgincludeResource(id_num, str_val));
+    if (type.value_ == "HTML")
+      return std::unique_ptr<Resource>(new HtmlResource(id_num, str_val));
   }
 
   err_ = "unknown resource";
@@ -814,6 +830,7 @@ class SerializationVisitor : public Visitor {
   bool VisitStringtableResource(const StringtableResource* r) override;
   bool VisitRcdataResource(const RcdataResource* r) override;
   bool VisitDlgincludeResource(const DlgincludeResource* r) override;
+  bool VisitHtmlResource(const HtmlResource* r) override;
 
   void EmitOneStringtable(const std::experimental::string_view** bundle,
                          uint16_t bundle_start);
@@ -1157,6 +1174,34 @@ bool SerializationVisitor::VisitDlgincludeResource(
   fputc('\0', out_);
   uint8_t padding = ((4 - (size & 3)) & 3);  // DWORD-align.
   fwrite("\0\0", 1, padding, out_);
+  return true;
+}
+
+bool SerializationVisitor::VisitHtmlResource(const HtmlResource* r) {
+  FILE* f = fopen(r->path().to_string().c_str(), "rb");
+  if (!f) {
+    *err_ = "failed to open " + r->path().to_string();
+    return false;
+  }
+  FClose closer(f);
+  fseek(f, 0, SEEK_END);
+  size_t size = ftell(f);
+
+  write_little_long(out_, size);  // data size
+  write_little_long(out_, 0x20);  // header size
+  write_numeric_type(out_, kRT_HTML);
+  write_numeric_name(out_, r->name());
+  write_little_long(out_, 0);      // data version
+  write_little_short(out_, 0x30);  // memory flags XXX
+  write_little_short(out_, 1033);  // language id XXX
+  write_little_long(out_, 0);      // version
+  write_little_long(out_, 0);      // characteristics
+
+  fseek(f, 0, SEEK_SET);
+  copy(out_, f, size);
+  uint8_t padding = ((4 - (size & 3)) & 3);  // DWORD-align.
+  fwrite("\0\0", 1, padding, out_);
+
   return true;
 }
 
