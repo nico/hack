@@ -2,6 +2,8 @@
 BEGIN
   MENUITEM "&Item", 101
   MENUITEM "&Item", 102, CHECKED
+  MENUITEM "&Item", 102, BITMAP
+  MENUITEM "&Item", 102, OWNERDRAW
   MENUITEM "&Item", 103, GRAYED, GRAYED
   MENUITEM "&Item", 104 HELP
   MENUITEM "&Item", 105, INACTIVE
@@ -14,6 +16,8 @@ BEGIN
   //Amusingly, rc.exe also accepts POPUP SEPARATOR { MENUITEM "", 0 }
   POPUP "&Popu" { MENUITEM "&Item", 101 }
   POPUP "&Popu", CHECKED { MENUITEM "&Item", 102 }
+  POPUP "&Popu", BITMAP { MENUITEM "&Item", 102 }
+  POPUP "&Popu", OWNERDRAW { MENUITEM "&Item", 102 }
   POPUP "&Popu", GRAYED { MENUITEM "&Item", 103 }
   POPUP "&Popu", HELP { MENUITEM "&Item", 104 }
   POPUP "&Popu" INACTIVE { MENUITEM "&Item", 105 }

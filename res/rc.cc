@@ -23,8 +23,10 @@ Missing for chromium:
   only set by MSVC not rc, and rc.exe doesn't understand DESIGNINFO)
 
 Also missing, but not yet for chromium:
+- FONT
 - MENUITEM SEPARATOR
 - MENUEX
+- MESSAGETABLE
 */
 
 #include <experimental/string_view>
@@ -352,11 +354,13 @@ class IconResource : public FileResource {
 enum MenuStyle {
   kMenuGRAYED = 1,
   kMenuINACTIVE = 2,
+  kMenuBITMAP = 4,
   kMenuCHECKED = 8,
   kMenuPOPUP = 0x10,
   kMenuMENUBARBREAK = 0x20,
   kMenuMENUBREAK = 0x40,
   kMenuLASTITEM = 0x80,
+  kMenuOWNERDRAW = 0x100,
   kMenuHELP = 0x4000,
 };
 
@@ -531,9 +535,11 @@ void Parser::MaybeParseMenuOptions(uint16_t* style) {
   std::unordered_map<std::experimental::string_view, uint16_t> styles = {
     {"GRAYED", kMenuGRAYED},
     {"INACTIVE", kMenuINACTIVE},
+    {"BITMAP", kMenuBITMAP},
     {"CHECKED", kMenuCHECKED},
     {"MENUBARBREAK", kMenuMENUBARBREAK},
     {"MENUBREAK", kMenuMENUBREAK},
+    {"OWNERDRAW", kMenuOWNERDRAW},
     {"HELP", kMenuHELP},
   };
   while (Is(Token::kComma) || Is(Token::kIdentifier)) {
