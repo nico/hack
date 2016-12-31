@@ -6,7 +6,6 @@ A sketch of a reimplemenation of rc.exe, for research purposes.
 Doesn't do any preprocessing for now.
 
 Missing for chromium:
-- MENU codegen
 - DIALOG(EX)
 - TEXTINCLUDE
 - VERSIONINFO
@@ -24,6 +23,10 @@ Missing for chromium:
 - REGISTRY
 - real string and int literal parsers (L"\0", 0xff)
 - preprocessor
+
+Also missing, but not yet for chromium:
+- MENU style option parsing
+- MENUEX
 */
 
 #include <experimental/string_view>
@@ -345,12 +348,26 @@ class IconResource : public FileResource {
   bool Visit(Visitor* v) const override { return v->VisitIconResource(this); }
 };
 
+enum MenuStyle {
+  kMenuGRAYED = 1,
+  kMenuINACTIVE = 2,
+  kMenuCHECKED = 8,
+  kMenuPOPUP = 0x10,
+  kMenuMENUBARBREAK = 0x20,
+  kMenuMENUBREAK = 0x40,
+  kMenuLASTITEM = 0x80,
+  kMenuHELP = 0x4000,
+};
+
 class MenuResource : public Resource {
  public:
   struct EntryData {};
   struct Entry {
-    Entry(std::experimental::string_view name, std::unique_ptr<EntryData> data)
-        : name(name), data(std::move(data)) {}
+    Entry(uint16_t style,
+          std::experimental::string_view name,
+          std::unique_ptr<EntryData> data)
+        : style(style), name(name), data(std::move(data)) {}
+    uint16_t style;
     std::experimental::string_view name;
     std::unique_ptr<EntryData> data;
   };
@@ -522,6 +539,8 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
     // "quoting""rules", L"asdf", etc.
     name_val = name_val.substr(1, name_val.size() - 2);
     std::unique_ptr<MenuResource::EntryData> entry_data;
+
+    uint16_t style = 0;
     if (is_item) {
       if (!Match(Token::kComma)) {
         err_ = "expected comma, got " + cur_or_last_token().value_.to_string();
@@ -535,8 +554,13 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
       // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
       // 1234L.
       uint16_t id_num = atoi(id.value_.to_string().c_str());
+
+      // FIXME: parse trailing options if present
       entry_data.reset(new MenuResource::ItemEntryData(id_num));
     } else {
+      style |= kMenuPOPUP;
+      // FIXME: parse leading options if present
+
       std::unique_ptr<MenuResource::SubmenuEntryData> subentries =
           ParseMenuBlock();
       if (!entries)
@@ -544,10 +568,14 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
       entry_data = std::move(subentries);
     }
     entries->subentries.push_back(std::unique_ptr<MenuResource::Entry>(
-        new MenuResource::Entry(name_val, std::move(entry_data))));
+        new MenuResource::Entry(style, name_val, std::move(entry_data))));
   }
   if (!Match(Token::kEndBlock)) {
     err_ = "expected END or }, got " + cur_or_last_token().value_.to_string();
+    return std::unique_ptr<MenuResource::SubmenuEntryData>();
+  }
+  if (entries->subentries.empty()) {
+    err_ = "empty menus are not allowed";
     return std::unique_ptr<MenuResource::SubmenuEntryData>();
   }
   return entries;
@@ -968,8 +996,82 @@ bool SerializationVisitor::VisitIconResource(const IconResource* r) {
   return WriteIconOrCursorGroup(r, kIcon);
 }
 
+void CountMenu(const MenuResource::SubmenuEntryData& submenu,
+               size_t* num_submenus,
+               size_t* num_items,
+               size_t* total_string_length) {
+  for (const auto& item : submenu.subentries) {
+    *total_string_length += item->name.size() + 1;
+    if (item->style & kMenuPOPUP) {
+      ++*num_submenus;
+      CountMenu(static_cast<MenuResource::SubmenuEntryData&>(*item->data),
+                num_submenus, num_items, total_string_length);
+    } else {
+      ++*num_items;
+    }
+  }
+}
+
+void WriteMenu(FILE* out, const MenuResource::SubmenuEntryData& submenu) {
+  for (const auto& item : submenu.subentries) {
+    uint16_t style = item->style;
+    if (&item == &submenu.subentries.back())
+      style += kMenuLASTITEM;
+    write_little_short(out, style);
+    if (!(item->style & kMenuPOPUP)) {
+      write_little_short(
+          out, static_cast<MenuResource::ItemEntryData&>(*item->data).id);
+    }
+    for (int j = 0; j < item->name.size(); ++j) {
+      // FIXME: Real UTF16 support.
+      fputc(item->name[j], out);
+      fputc('\0', out);
+    }
+    write_little_short(out, 0);  // \0-terminate.
+    if (item->style & kMenuPOPUP) {
+      WriteMenu(out, static_cast<MenuResource::SubmenuEntryData&>(*item->data));
+    }
+  }
+}
+
+
 bool SerializationVisitor::VisitMenuResource(const MenuResource* r) {
-  // FIXME: implement
+  size_t num_submenus = 0, num_items = 0, total_string_length = 0;
+  CountMenu(r->entries_, &num_submenus, &num_items, &total_string_length);
+
+  size_t size = 4 + (num_submenus + 2*num_items + total_string_length) * 2;
+
+  // XXX padding?
+  write_little_long(out_, size);  // data size
+  write_little_long(out_, 0x20);  // header size
+  write_numeric_type(out_, kRT_MENU);
+  write_numeric_name(out_, r->name());
+  write_little_long(out_, 0);      // data version
+  write_little_short(out_, 0x1030);  // memory flags XXX
+  write_little_short(out_, 1033);  // language id XXX
+  write_little_long(out_, 0);      // version
+  write_little_long(out_, 0);      // characteristics
+
+  // After header, 4 bytes, always 0 as far as I can tell.
+  // Maybe style and name of toplevel menu.
+  write_little_long(out_, 0);
+
+  // Each item, (1 + 1|0 + strlen(label) + 1) * 2 bytes:
+  // - uint16_t flags
+  //   https://msdn.microsoft.com/en-us/library/windows/desktop/aa381024(v=vs.85).aspx
+  //      1h - GRAYED
+  //      2h - INACTIVE
+  //      8h - CHECKED (MF_CHECKED)
+  //     10h - open new submenu (?) (MF_POPUP?)
+  //     20h - MENUBARBREAK
+  //     40h - MENUBREAK
+  //     80h - last item in menu / close previous menu
+  //   4000h - HELP
+  // - if item (flags doesn't have 10 set), uint16_t id
+  // - 0-terminated utf-16le string with label (including &)
+  // (Turns out this representation is much easier to work with than what I
+  // have chosen!)
+  WriteMenu(out_, r->entries_);
   return true;
 }
 
