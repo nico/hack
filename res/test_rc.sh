@@ -16,6 +16,8 @@ cmp test/icon.res out.res
 
 ./rc < test/menu.rc
 cmp test/menu.res out.res
+./rc < test/menu_opts.rc
+cmp test/menu_opts.res out.res
 
 ./rc < test/stringtable.rc
 cmp test/stringtable.res out.res

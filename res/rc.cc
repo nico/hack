@@ -25,13 +25,14 @@ Missing for chromium:
 - preprocessor
 
 Also missing, but not yet for chromium:
-- MENU style option parsing
+- MENUITEM SEPARATOR
 - MENUEX
 */
 
 #include <experimental/string_view>
 #include <iostream>
 #include <map>
+#include <unordered_map>
 #include <vector>
 
 //////////////////////////////////////////////////////////////////////////////
@@ -458,6 +459,7 @@ class Parser {
 
  private:
   Parser(std::vector<Token> tokens);
+  void MaybeParseMenuOptions(uint16_t* style);
   std::unique_ptr<MenuResource::SubmenuEntryData> ParseMenuBlock();
   std::unique_ptr<MenuResource> ParseMenu(uint16_t id_num);
   std::unique_ptr<StringtableResource> ParseStringtable();
@@ -511,6 +513,28 @@ const Token& Parser::Consume() {
   return tokens_[cur_++];
 }
 
+void Parser::MaybeParseMenuOptions(uint16_t* style) {
+  std::unordered_map<std::experimental::string_view, uint16_t> styles = {
+    {"GRAYED", kMenuGRAYED},
+    {"INACTIVE", kMenuINACTIVE},
+    {"CHECKED", kMenuCHECKED},
+    {"MENUBARBREAK", kMenuMENUBARBREAK},
+    {"MENUBREAK", kMenuMENUBREAK},
+    {"HELP", kMenuHELP},
+  };
+  while (Is(Token::kComma) || Is(Token::kIdentifier)) {
+    if (Match(Token::kComma))
+      continue;
+
+    auto it = styles.find(cur_token().value_);
+    if (it == styles.end())
+      return;
+
+    *style |= it->second;
+    Consume();
+  }
+}
+
 std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
   if (!Match(Token::kStartBlock)) {
     err_ = "expected START or {, got " + cur_or_last_token().value_.to_string();
@@ -555,11 +579,11 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
       // 1234L.
       uint16_t id_num = atoi(id.value_.to_string().c_str());
 
-      // FIXME: parse trailing options if present
+      MaybeParseMenuOptions(&style);
       entry_data.reset(new MenuResource::ItemEntryData(id_num));
     } else {
+      MaybeParseMenuOptions(&style);
       style |= kMenuPOPUP;
-      // FIXME: parse leading options if present
 
       std::unique_ptr<MenuResource::SubmenuEntryData> subentries =
           ParseMenuBlock();
