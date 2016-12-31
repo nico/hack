@@ -22,6 +22,9 @@ cmp test/menu_opts.res out.res
 ./rc < test/stringtable.rc
 cmp test/stringtable.res out.res
 
+./rc < test/accelerators.rc
+# FIXME cmp test/accelerators.res out.res
+
 ./rc < test/rcdata.rc
 cmp test/rcdata.res out.res
 

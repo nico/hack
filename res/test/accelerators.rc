@@ -1,0 +1,38 @@
+43 ACCELERATORS
+{
+  "b", 15
+  "C", 16
+  "^D", 17
+
+  "b", 25, ASCII
+  "C", 26, ASCII
+  "^D", 27, ASCII
+  20, 28, ASCII
+
+  // "When VIRTKEY is specified and event contains a string, event must be
+  // uppercase." -- but rc.exe doesn't care, it accepts this:
+  "b", 35, VIRTKEY
+  "C", 36, VIRTKEY
+  //"^D", 37, VIRTKEY
+  // ^ "warning RC4204 : ASCII character not equivalent to virtual key code"
+  20, 38, VIRTKEY
+
+  "b", 25, VIRTKEY, NOINVERT, ALT, SHIFT, CONTROL
+  "b", 25, NOINVERT, ALT, VIRTKEY, SHIFT, CONTROL
+
+  // "warning RC4203 : SHIFT or CONTROL used without VIRTKEY" when using ASCII
+  // with SHIFT or CONTROL.
+  "b", 25, ASCII, NOINVERT, ALT
+
+  "^C",  42         // control C
+  "^c",  42         // control C
+  "A",   43         // shift A
+  "a",   44, ALT    // alt a
+  97,    45, ASCII  // a
+  65,    46, ASCII  // A (shift a)
+  "g",   47         // g
+
+  "Lb", 15
+  "^^", 15
+  //"Lbd", 15  // "error RC2155 : invalid accelerator"
+}

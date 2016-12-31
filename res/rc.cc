@@ -285,6 +285,7 @@ class BitmapResource;
 class IconResource;
 class MenuResource;
 class StringtableResource;
+class AcceleratorsResource;
 class RcdataResource;
 class DlgincludeResource;
 class HtmlResource;
@@ -296,6 +297,7 @@ class Visitor {
   virtual bool VisitIconResource(const IconResource* r) = 0;
   virtual bool VisitMenuResource(const MenuResource* r) = 0;
   virtual bool VisitStringtableResource(const StringtableResource* r) = 0;
+  virtual bool VisitAcceleratorsResource(const AcceleratorsResource* r) = 0;
   virtual bool VisitRcdataResource(const RcdataResource* r) = 0;
   virtual bool VisitDlgincludeResource(const DlgincludeResource* r) = 0;
   virtual bool VisitHtmlResource(const HtmlResource* r) = 0;
@@ -419,6 +421,25 @@ class StringtableResource : public Resource {
   std::vector<Entry> entries_;
 };
 
+class AcceleratorsResource : public Resource {
+ public:
+  struct Accelerator {
+    uint16_t key;
+    uint16_t id;
+    uint16_t flags;
+  };
+
+  AcceleratorsResource(uint16_t name, std::vector<Accelerator> accelerators)
+      : Resource(name), accelerators_(std::move(accelerators)) {}
+
+  bool Visit(Visitor* v) const override {
+    return v->VisitAcceleratorsResource(this);
+  }
+
+ private:
+  std::vector<Accelerator> accelerators_;
+};
+
 // FIXME: either file, or block with data
 class RcdataResource : public FileResource {
  public:
@@ -481,6 +502,8 @@ class Parser {
   std::unique_ptr<MenuResource::SubmenuEntryData> ParseMenuBlock();
   std::unique_ptr<MenuResource> ParseMenu(uint16_t id_num);
   std::unique_ptr<StringtableResource> ParseStringtable();
+  bool ParseAccelerator(AcceleratorsResource::Accelerator* accelerator);
+  std::unique_ptr<AcceleratorsResource> ParseAccelerators(uint16_t id_num);
   std::unique_ptr<Resource> ParseResource();
   std::unique_ptr<FileBlock> ParseFile(std::string* err);
 
@@ -672,6 +695,55 @@ std::unique_ptr<StringtableResource> Parser::ParseStringtable() {
       new StringtableResource(entries.data(), entries.size()));
 }
 
+bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
+  if (!Is(Token::kString) && !Is(Token::kInt)) {
+    err_ =
+        "expected string or int, got " + cur_or_last_token().value_.to_string();
+    return false;
+  }
+  const Token& name = Consume();
+  if (!Match(Token::kComma)) {
+      err_ = "expected comma, got " + cur_or_last_token().value_.to_string();
+      return false;
+  }
+  if (!Is(Token::kInt)) {
+    err_ = "expected int, got " + cur_or_last_token().value_.to_string();
+    return false;
+  }
+  const Token& id = Consume();
+  while (Is(Token::kComma)) {
+    Consume();
+    if (!Is(Token::kIdentifier)) {
+      err_ = "expected ident, got " + cur_or_last_token().value_.to_string();
+      return false;
+    }
+    const Token& name = Consume();
+  }
+  return true;
+}
+
+std::unique_ptr<AcceleratorsResource> Parser::ParseAccelerators(
+    uint16_t id_num) {
+  if (!Match(Token::kStartBlock)) {
+    err_ = "expected START or {, got " + cur_or_last_token().value_.to_string();
+    return std::unique_ptr<AcceleratorsResource>();
+  }
+
+  std::vector<AcceleratorsResource::Accelerator> entries;
+  while (!at_end() && cur_token().type() != Token::kEndBlock) {
+    AcceleratorsResource::Accelerator accelerator;
+    if (!ParseAccelerator(&accelerator))
+      return std::unique_ptr<AcceleratorsResource>();
+    entries.push_back(accelerator);
+  }
+  if (!Match(Token::kEndBlock)) {
+    err_ = "expected END or }, got " + cur_or_last_token().value_.to_string();
+    return std::unique_ptr<AcceleratorsResource>();
+  }
+  return std::unique_ptr<AcceleratorsResource>(
+      new AcceleratorsResource(id_num, std::move(entries)));
+}
+
 std::unique_ptr<Resource> Parser::ParseResource() {
   const Token& id = Consume();  // Either int or ident.
 
@@ -717,6 +789,8 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   // FIXME: MENUEX
   if (type.type_ == Token::kIdentifier && type.value_ == "MENU")
     return ParseMenu(id_num);
+  if (type.type_ == Token::kIdentifier && type.value_ == "ACCELERATORS")
+    return ParseAccelerators(id_num);
 
   if (type.type_ == Token::kIdentifier && cur_token().type_ == Token::kString) {
     const Token& string = Consume();
@@ -834,6 +908,7 @@ class SerializationVisitor : public Visitor {
   bool VisitIconResource(const IconResource* r) override;
   bool VisitMenuResource(const MenuResource* r) override;
   bool VisitStringtableResource(const StringtableResource* r) override;
+  bool VisitAcceleratorsResource(const AcceleratorsResource* r) override;
   bool VisitRcdataResource(const RcdataResource* r) override;
   bool VisitDlgincludeResource(const DlgincludeResource* r) override;
   bool VisitHtmlResource(const HtmlResource* r) override;
@@ -1131,6 +1206,12 @@ bool SerializationVisitor::VisitStringtableResource(
       return false;
     }
   }
+  return true;
+}
+
+bool SerializationVisitor::VisitAcceleratorsResource(
+    const AcceleratorsResource* r) {
+  // FIXME: implement
   return true;
 }
 
