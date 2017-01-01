@@ -476,11 +476,14 @@ class VersioninfoResource : public Resource {
     uint32_t filesubtype;
   };
 
-  VersioninfoResource(uint16_t name) : Resource(name) {}
+  VersioninfoResource(uint16_t name, const FixedInfo& info)
+      : Resource(name), fixed_info_(info) {}
 
   bool Visit(Visitor* v) const override {
     return v->VisitVersioninfoResource(this);
   }
+
+  FixedInfo fixed_info_;
 };
 
 class DlgincludeResource : public Resource {
@@ -833,7 +836,7 @@ std::unique_ptr<AcceleratorsResource> Parser::ParseAccelerators(
 
 std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(uint16_t id_num) {
   // Parse fixed info.
-  VersioninfoResource::FixedInfo fixed_info;
+  VersioninfoResource::FixedInfo fixed_info = {};
   std::unordered_map<std::experimental::string_view, uint32_t*> fields = {
     {"FILEFLAGSMASK", &fixed_info.fileflags_mask},
     {"FILEFLAGS", &fixed_info.fileflags},
@@ -858,12 +861,8 @@ std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(uint16_t id_num) {
     uint16_t val_num = atoi(val.value_.to_string().c_str());
     if (name.value_ == "FILEVERSION" || name.value_ == "PRODUCTVERSION") {
       uint16_t val_nums[4] = { val_num };
-      for (int i = 0; i < 3; ++i) {
-        if (!Match(Token::kComma)) {
-          err_ =
-              "expected comma, got " + cur_or_last_token().value_.to_string();
-          return std::unique_ptr<VersioninfoResource>();
-        }
+      for (int i = 0; i < 3 && Is(Token::kComma); ++i) {
+        Consume();  // Eat comma.
         if (!Is(Token::kInt)) {
           err_ = "expected int, got " + cur_or_last_token().value_.to_string();
           return std::unique_ptr<VersioninfoResource>();
@@ -910,7 +909,8 @@ std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(uint16_t id_num) {
     //err_ = "expected END or }, got " + cur_or_last_token().value_.to_string();
     //return std::unique_ptr<VersioninfoResource>();
   //}
-  return std::unique_ptr<VersioninfoResource>(new VersioninfoResource(id_num));
+  return std::unique_ptr<VersioninfoResource>(
+      new VersioninfoResource(id_num, fixed_info));
 }
 
 std::unique_ptr<Resource> Parser::ParseResource() {
@@ -1436,7 +1436,42 @@ bool SerializationVisitor::VisitRcdataResource(const RcdataResource* r) {
 
 bool SerializationVisitor::VisitVersioninfoResource(
     const VersioninfoResource* r) {
-  // FIXME: implement
+  const size_t kFixedInfoSize = 0x5c;
+  size_t size = kFixedInfoSize;
+  write_little_long(out_, size);  // data size
+  write_little_long(out_, 0x20);      // header size
+  write_numeric_type(out_, kRT_VERSION);
+  write_numeric_name(out_, r->name());
+  write_little_long(out_, 0);         // data version
+  write_little_short(out_, 0x30);   // memory flags XXX
+  write_little_short(out_, 1033);     // language id XXX
+  write_little_long(out_, 0);         // version
+  write_little_long(out_, 0);         // characteristics
+
+  // The fixed info block seems to always start with the same fixed bytes:
+  write_little_short(out_, kFixedInfoSize);
+  write_little_long(out_, 52);
+  fwrite(u"VS_VERSION_INFO", 2, 16, out_);
+  write_little_short(out_, 0);
+  write_little_long(out_, 0xfeef04bd);
+  write_little_short(out_, 0);
+  write_little_short(out_, 1);
+
+  // Actual fixed info:
+  write_little_long(out_, r->fixed_info_.fileversion_high);
+  write_little_long(out_, r->fixed_info_.fileversion_low);
+  write_little_long(out_, r->fixed_info_.productversion_high);
+  write_little_long(out_, r->fixed_info_.productversion_low);
+  write_little_long(out_, r->fixed_info_.fileflags_mask);
+  write_little_long(out_, r->fixed_info_.fileflags);
+  write_little_long(out_, r->fixed_info_.fileos);
+  write_little_long(out_, r->fixed_info_.filetype);
+  write_little_long(out_, r->fixed_info_.filesubtype);
+  // Two more mystery fields :-(
+  write_little_long(out_, 0);
+  write_little_long(out_, 0);
+
+  // FIXME: implement writing of variable-size fields too
   return true;
 }
 

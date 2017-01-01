@@ -28,6 +28,8 @@ cmp test/accelerators.res out.res
 ./rc < test/rcdata.rc
 cmp test/rcdata.res out.res
 
+./rc < test/versioninfo_fixedonly.rc
+cmp test/versioninfo_fixedonly.res out.res
 ./rc < test/versioninfo.rc
 # FIXME cmp test/versioninfo.res out.res
 
