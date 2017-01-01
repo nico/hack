@@ -1310,7 +1310,7 @@ void WriteMenu(FILE* out, const MenuResource::SubmenuEntryData& submenu) {
   for (const auto& item : submenu.subentries) {
     uint16_t style = item->style;
     if (&item == &submenu.subentries.back())
-      style += kMenuLASTITEM;
+      style |= kMenuLASTITEM;
     write_little_short(out, style);
     if (!(item->style & kMenuPOPUP)) {
       write_little_short(
@@ -1472,6 +1472,11 @@ bool SerializationVisitor::VisitVersioninfoResource(
   write_little_long(out_, 0);
 
   // FIXME: implement writing of variable-size fields too
+  // Every block / value there seems to start with a 3-uint16_t header:
+  // - uint16_t total_size (including header)
+  // - value_size (in char16_ts, only for VALUE, 0 for BLOCKs, including \0)
+  // - uint16_t always 1?
+  // Followed by node data, followed by optional padding to uint32_t boundary
   return true;
 }
 
