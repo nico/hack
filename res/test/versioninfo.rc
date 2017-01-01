@@ -1,0 +1,57 @@
+1 VERSIONINFO
+FILEVERSION     1,2,3,4
+PRODUCTVERSION  1,2,0,0
+FILEFLAGSMASK   23 // 0x17, VS_FFI_FILEFLAGSMASK
+FILEFLAGS       0
+FILEOS          4  // VOS__WINDOWS32
+FILETYPE        1  // VFT_APP
+FILESUBTYPE     0  // VFT2_UNKNOWN
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904E4"  // U.S. English, Multilingual
+    BEGIN
+      VALUE "asdfadsf",         "asdfasf"
+      VALUE "Comments",         "None"
+      VALUE "CompanyName",      "ACME"           // "This string is required"
+      VALUE "FileDescription",  "Testcase"       // "This string is required"
+      VALUE "FileVersion",      "1,2,3,4"        // "This string is required"
+      VALUE "InternalName",     "Goose"          // "This string is required"
+      VALUE "LegalCopyright",   "(c) 2017"
+      VALUE "LegalTrademarks",  "TM"
+      VALUE "OriginalFilename", "goose.dll"      // "This string is required"
+      VALUE "ProductName",      "ACME TestCase"  // "This string is required"
+      VALUE "ProductVersion",   "1.2"            // "This string is required"
+      // Other field names mentioned in docs or seen in the wild:
+      // CompanyShortName, ProductShortName, LastChange, "Official Build",
+      // SpecialBuild (with VS_FF_SPECIALBUILD in fileflags),
+      // PrivateBuild (with VS_FF_PRIVATEBUILD in fileflags)
+    END
+    BLOCK "040704E4"  // German, Multilingual
+    BEGIN
+      VALUE "Comments",         "Kein"
+      VALUE "CompanyName",      "ACME"           // "This string is required"
+      VALUE "FileDescription",  "Testfall"       // "This string is required"
+      VALUE "FileVersion",      "1,2,3,4"        // "This string is required"
+      VALUE "InternalName",     "Gans"           // "This string is required"
+      VALUE "LegalCopyright",   "(c) 2017"
+      VALUE "LegalTrademarks",  "TM"
+      VALUE "OriginalFilename", "goose.dll"      // "This string is required"
+      VALUE "ProductName",      "ACME TestFall"  // "This string is required"
+      VALUE "ProductVersion",   "1.2"            // "This string is required"
+    END
+  END
+
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0, 0
+    // 0x409 == 1033, 0x407 == 1031
+    VALUE "Translation", 1033, 1252, 1031, 0  // Last one wins.
+  END
+END
+
+
+// "versionID must be 1", but rc.exe accepts other numbers too.
+2 VERSIONINFO
+{
+}

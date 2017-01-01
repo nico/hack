@@ -28,6 +28,9 @@ cmp test/accelerators.res out.res
 ./rc < test/rcdata.rc
 cmp test/rcdata.res out.res
 
+./rc < test/versioninfo.rc
+# FIXME cmp test/versioninfo.res out.res
+
 ./rc < test/dlginclude.rc
 cmp test/dlginclude.res out.res
 

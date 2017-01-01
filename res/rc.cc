@@ -17,6 +17,8 @@ Missing for chromium:
     GOOGLEUPDATEAPPLICATIONCOMMANDS
 - inline block data for RCDATA, DLGINCLUDE, HTML, custom types
 - real string and int literal parsers (L"\0", 0xff)
+- int expression parse/eval (+ - | & ~) for DIALOGEX (DIALOG?) MENU
+  VERSIONINFO and maybe more
 - preprocessor
 - (chrome uses DESIGNINFO but only behind `#ifdef APSTUDIO_INVOKED` which is
   only set by MSVC not rc, and rc.exe doesn't understand DESIGNINFO)
@@ -286,6 +288,7 @@ class MenuResource;
 class StringtableResource;
 class AcceleratorsResource;
 class RcdataResource;
+class VersioninfoResource;
 class DlgincludeResource;
 class HtmlResource;
 
@@ -298,6 +301,7 @@ class Visitor {
   virtual bool VisitStringtableResource(const StringtableResource* r) = 0;
   virtual bool VisitAcceleratorsResource(const AcceleratorsResource* r) = 0;
   virtual bool VisitRcdataResource(const RcdataResource* r) = 0;
+  virtual bool VisitVersioninfoResource(const VersioninfoResource* r) = 0;
   virtual bool VisitDlgincludeResource(const DlgincludeResource* r) = 0;
   virtual bool VisitHtmlResource(const HtmlResource* r) = 0;
 
@@ -457,6 +461,28 @@ class RcdataResource : public FileResource {
   bool Visit(Visitor* v) const override { return v->VisitRcdataResource(this); }
 };
 
+class VersioninfoResource : public Resource {
+ public:
+
+  struct FixedInfo {
+    uint32_t fileversion_high;
+    uint32_t fileversion_low;
+    uint32_t productversion_high;
+    uint32_t productversion_low;
+    uint32_t fileflags_mask;
+    uint32_t fileflags;
+    uint32_t fileos;
+    uint32_t filetype;
+    uint32_t filesubtype;
+  };
+
+  VersioninfoResource(uint16_t name) : Resource(name) {}
+
+  bool Visit(Visitor* v) const override {
+    return v->VisitVersioninfoResource(this);
+  }
+};
+
 class DlgincludeResource : public Resource {
  public:
   DlgincludeResource(uint16_t name, std::experimental::string_view data)
@@ -502,6 +528,7 @@ class Parser {
   std::unique_ptr<StringtableResource> ParseStringtable();
   bool ParseAccelerator(AcceleratorsResource::Accelerator* accelerator);
   std::unique_ptr<AcceleratorsResource> ParseAccelerators(uint16_t id_num);
+  std::unique_ptr<VersioninfoResource> ParseVersioninfo(uint16_t id_num);
   std::unique_ptr<Resource> ParseResource();
   std::unique_ptr<FileBlock> ParseFile(std::string* err);
 
@@ -804,6 +831,88 @@ std::unique_ptr<AcceleratorsResource> Parser::ParseAccelerators(
       new AcceleratorsResource(id_num, std::move(entries)));
 }
 
+std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(uint16_t id_num) {
+  // Parse fixed info.
+  VersioninfoResource::FixedInfo fixed_info;
+  std::unordered_map<std::experimental::string_view, uint32_t*> fields = {
+    {"FILEFLAGSMASK", &fixed_info.fileflags_mask},
+    {"FILEFLAGS", &fixed_info.fileflags},
+    {"FILEOS", &fixed_info.fileos},
+    {"FILETYPE", &fixed_info.filetype},
+    {"FILESUBTYPE", &fixed_info.filesubtype},
+  };
+  while (!at_end() && cur_token().type() != Token::kStartBlock) {
+    if (!Is(Token::kIdentifier)) {
+      err_ = "expected identifier START or {, got " +
+             cur_or_last_token().value_.to_string();
+      return std::unique_ptr<VersioninfoResource>();
+    }
+    const Token& name = Consume();
+    if (!Is(Token::kInt)) {
+      err_ = "expected int, got " + cur_or_last_token().value_.to_string();
+      return std::unique_ptr<VersioninfoResource>();
+    }
+    const Token& val = Consume();
+    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+    // 1234L.
+    uint16_t val_num = atoi(val.value_.to_string().c_str());
+    if (name.value_ == "FILEVERSION" || name.value_ == "PRODUCTVERSION") {
+      uint16_t val_nums[4] = { val_num };
+      for (int i = 0; i < 3; ++i) {
+        if (!Match(Token::kComma)) {
+          err_ =
+              "expected comma, got " + cur_or_last_token().value_.to_string();
+          return std::unique_ptr<VersioninfoResource>();
+        }
+        if (!Is(Token::kInt)) {
+          err_ = "expected int, got " + cur_or_last_token().value_.to_string();
+          return std::unique_ptr<VersioninfoResource>();
+        }
+        const Token& val = Consume();
+        // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+        // 1234L.
+        val_nums[i + 1] = atoi(val.value_.to_string().c_str());
+      }
+      if (name.value_ == "FILEVERSION") {
+        fixed_info.fileversion_high = (val_nums[0] << 16) | val_nums[1];
+        fixed_info.fileversion_low = (val_nums[2] << 16) | val_nums[3];
+      } else {
+        fixed_info.productversion_high = (val_nums[0] << 16) | val_nums[1];
+        fixed_info.productversion_low = (val_nums[2] << 16) | val_nums[3];
+      }
+    } else {
+      auto it = fields.find(name.value_);
+      if (it == fields.end()) {
+        err_ = "unknown field " + name.value_.to_string();
+        return std::unique_ptr<VersioninfoResource>();
+      }
+      *it->second = val_num;
+    }
+  }
+
+  // Parse block info.
+  if (!Match(Token::kStartBlock)) {
+    err_ = "expected START or {, got " + cur_or_last_token().value_.to_string();
+    return std::unique_ptr<VersioninfoResource>();
+  }
+
+  int depth = 1;  // FIXME actually look at blocks instead of skipping
+  while (!at_end() /* FIXME && cur_token().type() != Token::kEndBlock*/ &&
+         depth > 0) {
+    // FIXME
+    if (cur_token().type() == Token::kStartBlock)
+      ++depth;
+    else if (cur_token().type() == Token::kEndBlock)
+      --depth;
+    Consume();
+  }
+  //if (!Match(Token::kEndBlock)) {
+    //err_ = "expected END or }, got " + cur_or_last_token().value_.to_string();
+    //return std::unique_ptr<VersioninfoResource>();
+  //}
+  return std::unique_ptr<VersioninfoResource>(new VersioninfoResource(id_num));
+}
+
 std::unique_ptr<Resource> Parser::ParseResource() {
   const Token& id = Consume();  // Either int or ident.
 
@@ -851,6 +960,8 @@ std::unique_ptr<Resource> Parser::ParseResource() {
     return ParseMenu(id_num);
   if (type.type_ == Token::kIdentifier && type.value_ == "ACCELERATORS")
     return ParseAccelerators(id_num);
+  if (type.type_ == Token::kIdentifier && type.value_ == "VERSIONINFO")
+    return ParseVersioninfo(id_num);
 
   if (type.type_ == Token::kIdentifier && cur_token().type_ == Token::kString) {
     const Token& string = Consume();
@@ -970,6 +1081,7 @@ class SerializationVisitor : public Visitor {
   bool VisitStringtableResource(const StringtableResource* r) override;
   bool VisitAcceleratorsResource(const AcceleratorsResource* r) override;
   bool VisitRcdataResource(const RcdataResource* r) override;
+  bool VisitVersioninfoResource(const VersioninfoResource* r) override;
   bool VisitDlgincludeResource(const DlgincludeResource* r) override;
   bool VisitHtmlResource(const HtmlResource* r) override;
 
@@ -1319,6 +1431,12 @@ bool SerializationVisitor::VisitRcdataResource(const RcdataResource* r) {
   uint8_t padding = ((4 - (size & 3)) & 3);  // DWORD-align.
   fwrite("\0\0", 1, padding, out_);
 
+  return true;
+}
+
+bool SerializationVisitor::VisitVersioninfoResource(
+    const VersioninfoResource* r) {
+  // FIXME: implement
   return true;
 }
 
