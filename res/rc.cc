@@ -476,14 +476,38 @@ class VersioninfoResource : public Resource {
     uint32_t filesubtype;
   };
 
-  VersioninfoResource(uint16_t name, const FixedInfo& info)
-      : Resource(name), fixed_info_(info) {}
+  struct InfoData {
+    enum Type { kValue, kBlock };
+    explicit InfoData(Type type) : type_(type) {}
+    Type type_;
+  };
+  struct Entry {
+    Entry(std::experimental::string_view key, std::unique_ptr<InfoData> data)
+        : key(key), data(std::move(data)) {}
+    std::experimental::string_view key;
+    std::unique_ptr<InfoData> data;
+  };
+  struct ValueData : public InfoData {
+    explicit ValueData(std::experimental::string_view value)
+        : InfoData(kValue), value(value) {}
+    std::experimental::string_view value;
+  };
+  struct BlockData : public InfoData {
+    BlockData() : InfoData(kBlock) {}
+    explicit BlockData(std::vector<std::unique_ptr<Entry>> values)
+        : InfoData(kBlock), values(std::move(values)) {}
+    std::vector<std::unique_ptr<Entry>> values;
+  };
+
+  VersioninfoResource(uint16_t name, const FixedInfo& info, BlockData block)
+      : Resource(name), fixed_info_(info), block_(std::move(block)) {}
 
   bool Visit(Visitor* v) const override {
     return v->VisitVersioninfoResource(this);
   }
 
   FixedInfo fixed_info_;
+  BlockData block_;
 };
 
 class DlgincludeResource : public Resource {
@@ -531,6 +555,7 @@ class Parser {
   std::unique_ptr<StringtableResource> ParseStringtable();
   bool ParseAccelerator(AcceleratorsResource::Accelerator* accelerator);
   std::unique_ptr<AcceleratorsResource> ParseAccelerators(uint16_t id_num);
+  std::unique_ptr<VersioninfoResource::BlockData> ParseVersioninfoBlock();
   std::unique_ptr<VersioninfoResource> ParseVersioninfo(uint16_t id_num);
   std::unique_ptr<Resource> ParseResource();
   std::unique_ptr<FileBlock> ParseFile(std::string* err);
@@ -834,6 +859,69 @@ std::unique_ptr<AcceleratorsResource> Parser::ParseAccelerators(
       new AcceleratorsResource(id_num, std::move(entries)));
 }
 
+std::unique_ptr<VersioninfoResource::BlockData>
+Parser::ParseVersioninfoBlock() {
+  if (!Match(Token::kStartBlock)) {
+    err_ = "expected START or {, got " + cur_or_last_token().value_.to_string();
+    return std::unique_ptr<VersioninfoResource::BlockData>();
+  }
+
+  std::unique_ptr<VersioninfoResource::BlockData> block(
+      new VersioninfoResource::BlockData);
+  while (!at_end() && cur_token().type() != Token::kEndBlock) {
+    if (!Is(Token::kIdentifier) ||
+        (cur_token().value_ != "BLOCK" && cur_token().value_ != "VALUE")) {
+      err_ = "expected BLOCK or VALUE, got " +
+             cur_or_last_token().value_.to_string();
+      return std::unique_ptr<VersioninfoResource::BlockData>();
+    }
+    bool is_value = cur_token().value_ == "VALUE";
+    Consume();
+    if (!Is(Token::kString)) {
+      err_ = "expected string, got " + cur_or_last_token().value_.to_string();
+      return std::unique_ptr<VersioninfoResource::BlockData>();
+    }
+    const Token& name = Consume();
+    std::experimental::string_view name_val = name.value_;
+    // The literal includes quotes, strip them.
+    // FIXME: give Token a StringValue() function that handles \-escapes,
+    // "quoting""rules", L"asdf", etc.
+    name_val = name_val.substr(1, name_val.size() - 2);
+    std::unique_ptr<VersioninfoResource::InfoData> info_data;
+
+    if (is_value) {
+      if (!Match(Token::kComma)) {
+        err_ = "expected comma, got " + cur_or_last_token().value_.to_string();
+        return std::unique_ptr<VersioninfoResource::BlockData>();
+      }
+      if (!Is(Token::kString)) {
+        err_ = "expected string, got " + cur_or_last_token().value_.to_string();
+        return std::unique_ptr<VersioninfoResource::BlockData>();
+      }
+      const Token& value = Consume();
+      std::experimental::string_view value_val = value.value_;
+      // The literal includes quotes, strip them.
+      // FIXME: give Token a StringValue() function that handles \-escapes,
+      // "quoting""rules", L"asdf", etc.
+      value_val = value_val.substr(1, value_val.size() - 2);
+      info_data.reset(new VersioninfoResource::ValueData(value_val));
+    } else {
+      std::unique_ptr<VersioninfoResource::BlockData> block =
+          ParseVersioninfoBlock();
+      if (!block)
+        return std::unique_ptr<VersioninfoResource::BlockData>();
+      info_data = std::move(block);
+    }
+    block->values.push_back(std::unique_ptr<VersioninfoResource::Entry>(
+        new VersioninfoResource::Entry(name_val, std::move(info_data))));
+  }
+  if (!Match(Token::kEndBlock)) {
+    err_ = "expected END or }, got " + cur_or_last_token().value_.to_string();
+    return std::unique_ptr<VersioninfoResource::BlockData>();
+  }
+  return block;
+}
+
 std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(uint16_t id_num) {
   // Parse fixed info.
   VersioninfoResource::FixedInfo fixed_info = {};
@@ -890,27 +978,12 @@ std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(uint16_t id_num) {
   }
 
   // Parse block info.
-  if (!Match(Token::kStartBlock)) {
-    err_ = "expected START or {, got " + cur_or_last_token().value_.to_string();
+  std::unique_ptr<VersioninfoResource::BlockData> block =
+      ParseVersioninfoBlock();
+  if (!block)
     return std::unique_ptr<VersioninfoResource>();
-  }
-
-  int depth = 1;  // FIXME actually look at blocks instead of skipping
-  while (!at_end() /* FIXME && cur_token().type() != Token::kEndBlock*/ &&
-         depth > 0) {
-    // FIXME
-    if (cur_token().type() == Token::kStartBlock)
-      ++depth;
-    else if (cur_token().type() == Token::kEndBlock)
-      --depth;
-    Consume();
-  }
-  //if (!Match(Token::kEndBlock)) {
-    //err_ = "expected END or }, got " + cur_or_last_token().value_.to_string();
-    //return std::unique_ptr<VersioninfoResource>();
-  //}
   return std::unique_ptr<VersioninfoResource>(
-      new VersioninfoResource(id_num, fixed_info));
+      new VersioninfoResource(id_num, fixed_info, std::move(*block.get())));
 }
 
 std::unique_ptr<Resource> Parser::ParseResource() {
@@ -1328,7 +1401,6 @@ void WriteMenu(FILE* out, const MenuResource::SubmenuEntryData& submenu) {
   }
 }
 
-
 bool SerializationVisitor::VisitMenuResource(const MenuResource* r) {
   size_t num_submenus = 0, num_items = 0, total_string_length = 0;
   CountMenu(r->entries_, &num_submenus, &num_items, &total_string_length);
@@ -1434,16 +1506,95 @@ bool SerializationVisitor::VisitRcdataResource(const RcdataResource* r) {
   return true;
 }
 
+uint16_t CountBlock(
+    const VersioninfoResource::BlockData& block,
+    std::unordered_map<VersioninfoResource::Entry*, uint16_t>* sizes) {
+  uint16_t total_size = 0;
+  for (const auto& value : block.values) {
+    uint16_t size =
+        3 * sizeof(uint16_t) + sizeof(char16_t) * (value->key.size() + 1);
+    if (size % 4)
+      size += 2;  // Pad to 4 bytes after name.
+    if (value->data->type_ == VersioninfoResource::InfoData::kValue) {
+      size += sizeof(char16_t) *
+              (static_cast<VersioninfoResource::ValueData&>(*value->data)
+                   .value.size() +
+               1);
+      if (size % 4)
+        size += 2;  // Pad to 4 bytes after value too.
+    } else {
+      // Children are already padded to 4 bytes.
+      size += CountBlock(
+          static_cast<VersioninfoResource::BlockData&>(*value->data), sizes);
+    }
+    (*sizes)[value.get()] = size;
+    total_size += size;
+  }
+  return total_size;
+}
+
+void WriteBlock(
+    FILE* out,
+    const VersioninfoResource::BlockData& block,
+    const std::unordered_map<VersioninfoResource::Entry*, uint16_t> sizes) {
+  for (const auto& value : block.values) {
+    size_t value_size = 0;
+    std::experimental::string_view value_str;
+    if (value->data->type_ == VersioninfoResource::InfoData::kValue) {
+      value_str =
+          static_cast<VersioninfoResource::ValueData&>(*value->data).value;
+      value_size = value_str.size() + 1;
+    }
+
+    // Every block / value there seems to start with a 3-uint16_t header:
+    // - uint16_t total_size (including header)
+    // - value_size (in char16_ts, only for VALUE, 0 for BLOCKs, including \0)
+    // - uint16_t always 1?
+    // Followed by node data, followed by optional padding to uint32_t boundary
+    uint16_t size = sizes.find(value.get())->second;
+    write_little_short(out, size);
+    write_little_short(out, value_size);
+    write_little_short(out, 1);
+
+    for (int j = 0; j < value->key.size(); ++j) {
+      // FIXME: Real UTF16 support.
+      fputc(value->key[j], out);
+      fputc('\0', out);
+    }
+    write_little_short(out, 0);  // \0-terminate.
+    if (value->key.size() % 2)
+      write_little_short(out, 0);  // padding to dword after 3 uint16_t and key
+
+    if (value->data->type_ == VersioninfoResource::InfoData::kValue) {
+      for (int j = 0; j < value_str.size(); ++j) {
+        // FIXME: Real UTF16 support.
+        fputc(value_str[j], out);
+        fputc('\0', out);
+      }
+      write_little_short(out, 0);  // \0-terminate.
+      if (value_str.size() % 2 == 0)
+        write_little_short(out, 0);  // pad to dword after value
+    } else {
+      WriteBlock(out,
+                 static_cast<VersioninfoResource::BlockData&>(*value->data),
+                 sizes);
+    }
+  }
+}
+
 bool SerializationVisitor::VisitVersioninfoResource(
     const VersioninfoResource* r) {
+  std::unordered_map<VersioninfoResource::Entry*, uint16_t> sizes;
+  uint16_t block_size = CountBlock(r->block_, &sizes);
+
   const size_t kFixedInfoSize = 0x5c;
-  size_t size = kFixedInfoSize;
+  size_t size = kFixedInfoSize + block_size;
   write_little_long(out_, size);  // data size
   write_little_long(out_, 0x20);      // header size
   write_numeric_type(out_, kRT_VERSION);
   write_numeric_name(out_, r->name());
   write_little_long(out_, 0);         // data version
-  write_little_short(out_, 0x30);   // memory flags XXX
+  write_little_short(out_, 0x30);     // memory flags XXX
   write_little_short(out_, 1033);     // language id XXX
   write_little_long(out_, 0);         // version
   write_little_long(out_, 0);         // characteristics
@@ -1471,12 +1622,8 @@ bool SerializationVisitor::VisitVersioninfoResource(
   write_little_long(out_, 0);
   write_little_long(out_, 0);
 
-  // FIXME: implement writing of variable-size fields too
-  // Every block / value there seems to start with a 3-uint16_t header:
-  // - uint16_t total_size (including header)
-  // - value_size (in char16_ts, only for VALUE, 0 for BLOCKs, including \0)
-  // - uint16_t always 1?
-  // Followed by node data, followed by optional padding to uint32_t boundary
+  // Write variable block.
+  WriteBlock(out_, r->block_, sizes);
   return true;
 }
 
