@@ -904,6 +904,8 @@ Parser::ParseVersioninfoBlock() {
       bool is_text = Is(Token::kString);
       const Token& value = Consume();
       std::vector<uint8_t> val;
+      // FIXME: rc.exe allows mixed-value things like `value "FOO", 4, "hi", 5`.
+      // Figure out what exactly happens there and support that too.
       if (is_text) {
         std::experimental::string_view value_val = value.value_;
         // The literal includes quotes, strip them.
