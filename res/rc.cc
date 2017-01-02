@@ -423,16 +423,19 @@ class StringtableResource : public Resource {
   std::vector<Entry> entries_;
 };
 
+enum AcceleratorFlags {
+  kAccelVIRTKEY = 1,
+  kAccelNOINVERT = 2,
+  kAccelSHIFT = 4,
+  kAccelCONTROL = 8,
+  kAccelALT = 0x10,
+  kAccelLASTITEM = 0x80,
+};
+
 class AcceleratorsResource : public Resource {
  public:
   struct Accelerator {
-    //  1h - VIRTKEY
-    //  2h - NOINVERT
-    //  4h - SHIFT
-    //  8h - CONTROL
-    // 10h - ALT
-    // 80h - Set for the last accelerator in .res file.
-    uint16_t flags;
+    uint16_t flags;  // Combination of AcceleratorFlags.
     uint16_t key;
     uint16_t id;
     uint16_t pad;  // Seems to be always 0.
@@ -781,15 +784,15 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
     if (flag.value_ == "ASCII")
       ;
     else if (flag.value_ == "VIRTKEY")
-      flags |= 1;
+      flags |= kAccelVIRTKEY;
     else if (flag.value_ == "NOINVERT")
-      flags |= 2;
+      flags |= kAccelNOINVERT;
     else if (flag.value_ == "SHIFT")
-      flags |= 4;
+      flags |= kAccelSHIFT;
     else if (flag.value_ == "CONTROL")
-      flags |= 8;
+      flags |= kAccelCONTROL;
     else if (flag.value_ == "ALT")
-      flags |= 0x10;
+      flags |= kAccelALT;
     else {
       err_ = "unknown flag " + flag.value_.to_string();
       return false;
@@ -831,7 +834,8 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
         accelerator->key = (accelerator->key << 8) + c;
     }
     // Convert char to upper if SHIFT is specified, or if it's a VIRTKEY.
-    if ((flags & 5) && accelerator->key >= 'a' && accelerator->key <= 'z')
+    if ((flags & (kAccelSHIFT | kAccelVIRTKEY)) && accelerator->key >= 'a' &&
+        accelerator->key <= 'z')
       accelerator->key = accelerator->key - 'a' + 'A';
   }
   accelerator->id = id_num;
@@ -1504,7 +1508,7 @@ bool SerializationVisitor::VisitAcceleratorsResource(
   for (const auto& accelerator : r->accelerators()) {
     uint16_t flags = accelerator.flags;
     if (&accelerator == &r->accelerators().back())
-      flags |= 0x80;
+      flags |= kAccelLASTITEM;
     write_little_short(out_, flags);
     write_little_short(out_, accelerator.key);
     write_little_short(out_, accelerator.id);
