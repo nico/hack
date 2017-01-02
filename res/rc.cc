@@ -405,12 +405,13 @@ class MenuResource : public Resource {
 class DialogResource : public Resource {
  public:
 
+  // DIALOGEX seems to have a pretty different layout :-/
   struct DialogData {
-    // 0x4000<<16 if FONT, 0x8880 default, 0x4000 if CAPTION, STYLE overwrites
+    // 0x4000<<16 if FONT, 0x8880 default, 0x4000 if CAPTION; STYLE overwrites
     uint32_t style;
     uint16_t exstyle;
     uint16_t unk2;
-    uint16_t unk3;
+    uint16_t num_controls;
     uint16_t x;
     uint16_t y;
     uint16_t w;
