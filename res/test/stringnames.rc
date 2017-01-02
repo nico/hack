@@ -1,0 +1,6 @@
+// The type of these doesn't matter, this file tests that the resource
+// _name_ can be a string.  This uses HTML since that's a simple resource type.
+1 HTML "test/foo.html"
+"1" HTML "test/foo.html"
+"" HTML "test/foo.html"
+"asfdsadf" HTML "test/foo.html"

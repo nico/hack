@@ -10,7 +10,6 @@ Missing for chromium:
 - LANGUAGE
 - #pragma code_page() and unicode handling
 - case-insensitive keywords
-- string ids in addition to int ids
 - custom types (both int and string)
   - includes TEXTINCLUDE, TYPELIB, EULA, REGISTRY,
     GOOGLEUPDATEAPPLICATIONCOMMANDS
@@ -35,6 +34,13 @@ Also missing, but not yet for chromium:
 #include <map>
 #include <unordered_map>
 #include <vector>
+
+// Like toupper(), but locale-independent.
+int ascii_toupper(int c) {
+  if (c >= 'a' && c <= 'z')
+    return c - 'a' + 'A';
+  return c;
+}
 
 //////////////////////////////////////////////////////////////////////////////
 // Lexer
@@ -331,6 +337,15 @@ class IntOrStringName {
     return r;
   }
 
+  // Like MakeString but also converts to upper case.
+  static IntOrStringName MakeUpperString(std::experimental::string_view val) {
+    IntOrStringName r;
+    for (int j = 0; j < val.size(); ++j)
+      r.data_.push_back(ascii_toupper(val[j]));
+    r.data_.push_back(0);  // \0-terminate.
+    return r;
+  }
+
   static IntOrStringName MakeEmpty() {
     IntOrStringName r{0};  // Note: Picks std::initializer_list ctor with 1 elt
     return r;
@@ -351,18 +366,18 @@ class IntOrStringName {
 // Root of AST class hierarchy.
 class Resource {
  public:
-  // XXX make a ResName struct that's either int or string16
-  Resource(uint16_t name) : name_(name) {}
+  Resource(IntOrStringName name) : name_(name) {}
   virtual bool Visit(Visitor* v) const = 0;
 
-  uint16_t name() const { return name_; }
-  private:
-   uint16_t name_;
+  const IntOrStringName& name() const { return name_; }
+
+ private:
+  IntOrStringName name_;
 };
 
 class FileResource : public Resource {
  public:
-  FileResource(uint16_t name, std::experimental::string_view path)
+  FileResource(IntOrStringName name, std::experimental::string_view path)
       : Resource(name), path_(path) {}
 
   std::experimental::string_view path() const { return path_; }
@@ -373,7 +388,7 @@ class FileResource : public Resource {
 
 class CursorResource : public FileResource {
  public:
-  CursorResource(uint16_t name, std::experimental::string_view path)
+  CursorResource(IntOrStringName name, std::experimental::string_view path)
       : FileResource(name, path) {}
 
   bool Visit(Visitor* v) const override { return v->VisitCursorResource(this); }
@@ -381,7 +396,7 @@ class CursorResource : public FileResource {
 
 class BitmapResource : public FileResource {
  public:
-  BitmapResource(uint16_t name, std::experimental::string_view path)
+  BitmapResource(IntOrStringName name, std::experimental::string_view path)
       : FileResource(name, path) {}
 
   bool Visit(Visitor* v) const override { return v->VisitBitmapResource(this); }
@@ -389,7 +404,7 @@ class BitmapResource : public FileResource {
 
 class IconResource : public FileResource {
  public:
-  IconResource(uint16_t name, std::experimental::string_view path)
+  IconResource(IntOrStringName name, std::experimental::string_view path)
       : FileResource(name, path) {}
 
   bool Visit(Visitor* v) const override { return v->VisitIconResource(this); }
@@ -431,7 +446,7 @@ class MenuResource : public Resource {
     std::vector<std::unique_ptr<Entry>> subentries;
   };
 
-  MenuResource(uint16_t name, SubmenuEntryData entries)
+  MenuResource(IntOrStringName name, SubmenuEntryData entries)
       : Resource(name), entries_(std::move(entries)) {}
 
 
@@ -447,7 +462,7 @@ class DialogResource : public Resource {
     std::experimental::string_view name;
   };
 
-  DialogResource(uint16_t name,
+  DialogResource(IntOrStringName name,
                  uint16_t x,
                  uint16_t y,
                  uint16_t w,
@@ -501,7 +516,8 @@ class StringtableResource : public Resource {
 
   StringtableResource(Entry* entries, size_t num_entries)
       // STRINGTABLES have no names.
-      : Resource(0), entries_(entries, entries + num_entries) {}
+      : Resource(IntOrStringName::MakeInt(0)),
+        entries_(entries, entries + num_entries) {}
 
   bool Visit(Visitor* v) const override {
     return v->VisitStringtableResource(this);
@@ -533,7 +549,8 @@ class AcceleratorsResource : public Resource {
     uint16_t pad;  // Seems to be always 0.
   };
 
-  AcceleratorsResource(uint16_t name, std::vector<Accelerator> accelerators)
+  AcceleratorsResource(IntOrStringName name,
+                       std::vector<Accelerator> accelerators)
       : Resource(name), accelerators_(std::move(accelerators)) {}
 
   bool Visit(Visitor* v) const override {
@@ -549,7 +566,7 @@ class AcceleratorsResource : public Resource {
 // FIXME: either file, or block with data
 class RcdataResource : public FileResource {
  public:
-  RcdataResource(uint16_t name, std::experimental::string_view path)
+  RcdataResource(IntOrStringName name, std::experimental::string_view path)
       : FileResource(name, path) {}
 
   bool Visit(Visitor* v) const override { return v->VisitRcdataResource(this); }
@@ -596,7 +613,9 @@ class VersioninfoResource : public Resource {
     std::vector<std::unique_ptr<Entry>> values;
   };
 
-  VersioninfoResource(uint16_t name, const FixedInfo& info, BlockData block)
+  VersioninfoResource(IntOrStringName name,
+                      const FixedInfo& info,
+                      BlockData block)
       : Resource(name), fixed_info_(info), block_(std::move(block)) {}
 
   bool Visit(Visitor* v) const override {
@@ -609,7 +628,7 @@ class VersioninfoResource : public Resource {
 
 class DlgincludeResource : public Resource {
  public:
-  DlgincludeResource(uint16_t name, std::experimental::string_view data)
+  DlgincludeResource(IntOrStringName name, std::experimental::string_view data)
       : Resource(name), data_(data) {}
 
   bool Visit(Visitor* v) const override {
@@ -625,7 +644,7 @@ class DlgincludeResource : public Resource {
 // FIXME: either file, or block with data
 class HtmlResource : public FileResource {
  public:
-  HtmlResource(uint16_t name, std::experimental::string_view path)
+  HtmlResource(IntOrStringName name, std::experimental::string_view path)
       : FileResource(name, path) {}
 
   bool Visit(Visitor* v) const override { return v->VisitHtmlResource(this); }
@@ -648,13 +667,13 @@ class Parser {
   Parser(std::vector<Token> tokens);
   void MaybeParseMenuOptions(uint16_t* style);
   std::unique_ptr<MenuResource::SubmenuEntryData> ParseMenuBlock();
-  std::unique_ptr<MenuResource> ParseMenu(uint16_t id_num);
-  std::unique_ptr<DialogResource> ParseDialog(uint16_t id_num);
+  std::unique_ptr<MenuResource> ParseMenu(IntOrStringName name);
+  std::unique_ptr<DialogResource> ParseDialog(IntOrStringName name);
   std::unique_ptr<StringtableResource> ParseStringtable();
   bool ParseAccelerator(AcceleratorsResource::Accelerator* accelerator);
-  std::unique_ptr<AcceleratorsResource> ParseAccelerators(uint16_t id_num);
+  std::unique_ptr<AcceleratorsResource> ParseAccelerators(IntOrStringName name);
   std::unique_ptr<VersioninfoResource::BlockData> ParseVersioninfoBlock();
-  std::unique_ptr<VersioninfoResource> ParseVersioninfo(uint16_t id_num);
+  std::unique_ptr<VersioninfoResource> ParseVersioninfo(IntOrStringName name);
   std::unique_ptr<Resource> ParseResource();
   std::unique_ptr<FileBlock> ParseFile(std::string* err);
 
@@ -800,15 +819,15 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
 }
 
 
-std::unique_ptr<MenuResource> Parser::ParseMenu(uint16_t id_num) {
+std::unique_ptr<MenuResource> Parser::ParseMenu(IntOrStringName name) {
   std::unique_ptr<MenuResource::SubmenuEntryData> entries = ParseMenuBlock();
   if (!entries)
     return std::unique_ptr<MenuResource>();
   return std::unique_ptr<MenuResource>(
-      new MenuResource(id_num, std::move(*entries.get())));
+      new MenuResource(name, std::move(*entries.get())));
 }
 
-std::unique_ptr<DialogResource> Parser::ParseDialog(uint16_t id_num) {
+std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
   // Parse attributes of dialog itself.
   uint16_t rect[4];
   for (int i = 0; i < 4; ++i) {
@@ -953,7 +972,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(uint16_t id_num) {
   }
 
   return std::unique_ptr<DialogResource>(new DialogResource(
-      id_num, rect[0], rect[1], rect[2], rect[3], caption_val, std::move(clazz),
+      name, rect[0], rect[1], rect[2], rect[3], caption_val, std::move(clazz),
       exstyle, std::move(font), std::move(menu), style));
 }
 
@@ -1076,9 +1095,8 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
         accelerator->key = (accelerator->key << 8) + c;
     }
     // Convert char to upper if SHIFT is specified, or if it's a VIRTKEY.
-    if ((flags & (kAccelSHIFT | kAccelVIRTKEY)) && accelerator->key >= 'a' &&
-        accelerator->key <= 'z')
-      accelerator->key = accelerator->key - 'a' + 'A';
+    if (flags & (kAccelSHIFT | kAccelVIRTKEY))
+      accelerator->key = ascii_toupper(accelerator->key);
   }
   accelerator->id = id_num;
   accelerator->pad = 0;
@@ -1086,7 +1104,7 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
 }
 
 std::unique_ptr<AcceleratorsResource> Parser::ParseAccelerators(
-    uint16_t id_num) {
+IntOrStringName name) {
   if (!Match(Token::kStartBlock)) {
     err_ = "expected START or {, got " + cur_or_last_token().value_.to_string();
     return std::unique_ptr<AcceleratorsResource>();
@@ -1104,7 +1122,7 @@ std::unique_ptr<AcceleratorsResource> Parser::ParseAccelerators(
     return std::unique_ptr<AcceleratorsResource>();
   }
   return std::unique_ptr<AcceleratorsResource>(
-      new AcceleratorsResource(id_num, std::move(entries)));
+      new AcceleratorsResource(name, std::move(entries)));
 }
 
 std::unique_ptr<VersioninfoResource::BlockData>
@@ -1203,7 +1221,8 @@ Parser::ParseVersioninfoBlock() {
   return block;
 }
 
-std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(uint16_t id_num) {
+std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(
+    IntOrStringName name) {
   // Parse fixed info.
   VersioninfoResource::FixedInfo fixed_info = {};
   std::unordered_map<std::experimental::string_view, uint32_t*> fields = {
@@ -1264,7 +1283,7 @@ std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(uint16_t id_num) {
   if (!block)
     return std::unique_ptr<VersioninfoResource>();
   return std::unique_ptr<VersioninfoResource>(
-      new VersioninfoResource(id_num, fixed_info, std::move(*block.get())));
+      new VersioninfoResource(name, fixed_info, std::move(*block.get())));
 }
 
 std::unique_ptr<Resource> Parser::ParseResource() {
@@ -1280,12 +1299,17 @@ std::unique_ptr<Resource> Parser::ParseResource() {
       return ParseStringtable();
   }
 
-  if (id.type() != Token::kInt) {
-    err_ = "only int names supported for now";
+  // FIXME: rc.exe allows unquoted names like `foo.bmp`
+  if (id.type() != Token::kInt && id.type() != Token::kString) {
+    err_ =
+        "expected int or string, got " + cur_or_last_token().value_.to_string();
     return std::unique_ptr<Resource>();
   }
   // Fun fact: rc.exe silently truncates to 16 bit as well.
-  uint16_t id_num = atoi(id.value_.to_string().c_str());
+  IntOrStringName name =
+      id.type() == Token::kInt
+          ? IntOrStringName::MakeInt(atoi(id.value_.to_string().c_str()))
+          : IntOrStringName::MakeUpperString(id.value_);  // Do NOT strip quotes
 
   // Normally, name first.
   //
@@ -1311,14 +1335,14 @@ std::unique_ptr<Resource> Parser::ParseResource() {
 
   // FIXME: MENUEX
   if (type.type_ == Token::kIdentifier && type.value_ == "MENU")
-    return ParseMenu(id_num);
+    return ParseMenu(name);
   // FIXME: DIALOGEX
   if (type.type_ == Token::kIdentifier && type.value_ == "DIALOG")
-    return ParseDialog(id_num);
+    return ParseDialog(name);
   if (type.type_ == Token::kIdentifier && type.value_ == "ACCELERATORS")
-    return ParseAccelerators(id_num);
+    return ParseAccelerators(name);
   if (type.type_ == Token::kIdentifier && type.value_ == "VERSIONINFO")
-    return ParseVersioninfo(id_num);
+    return ParseVersioninfo(name);
 
   if (type.type_ == Token::kIdentifier && cur_token().type_ == Token::kString) {
     const Token& string = Consume();
@@ -1328,17 +1352,17 @@ std::unique_ptr<Resource> Parser::ParseResource() {
 
     // FIXME: case-insensitive
     if (type.value_ == "CURSOR")
-      return std::unique_ptr<Resource>(new CursorResource(id_num, str_val));
+      return std::unique_ptr<Resource>(new CursorResource(name, str_val));
     if (type.value_ == "BITMAP")
-      return std::unique_ptr<Resource>(new BitmapResource(id_num, str_val));
+      return std::unique_ptr<Resource>(new BitmapResource(name, str_val));
     if (type.value_ == "ICON")
-      return std::unique_ptr<Resource>(new IconResource(id_num, str_val));
+      return std::unique_ptr<Resource>(new IconResource(name, str_val));
     if (type.value_ == "RCDATA")
-      return std::unique_ptr<Resource>(new RcdataResource(id_num, str_val));
+      return std::unique_ptr<Resource>(new RcdataResource(name, str_val));
     if (type.value_ == "DLGINCLUDE")
-      return std::unique_ptr<Resource>(new DlgincludeResource(id_num, str_val));
+      return std::unique_ptr<Resource>(new DlgincludeResource(name, str_val));
     if (type.value_ == "HTML")
-      return std::unique_ptr<Resource>(new HtmlResource(id_num, str_val));
+      return std::unique_ptr<Resource>(new HtmlResource(name, str_val));
   }
 
   err_ = "unknown resource";
@@ -1402,16 +1426,6 @@ static void write_little_short(FILE* f, uint16_t l) {
   fwrite(bytes, 1, sizeof(bytes), f);
 }
 
-static void write_numeric_type(FILE* f, uint16_t n) {
-  write_little_short(f, 0xffff);
-  write_little_short(f, n);
-}
-
-static void write_numeric_name(FILE* f, uint16_t n) {
-  write_little_short(f, 0xffff);
-  write_little_short(f, n);
-}
-
 static uint16_t read_little_short(FILE* f) {
   uint16_t r = fgetc(f);  // XXX error handling
   r |= fgetc(f) << 8;
@@ -1430,6 +1444,12 @@ class SerializationVisitor : public Visitor {
  public:
   SerializationVisitor(FILE* f, std::string* err)
       : out_(f), err_(err), next_icon_id_(1) {}
+
+  void WriteResHeader(uint32_t data_size,
+                      IntOrStringName type,
+                      IntOrStringName name,
+                      uint16_t memory_flags = 0x1030,
+                      uint16_t language = 1033);
 
   bool VisitCursorResource(const CursorResource* r) override;
   bool VisitBitmapResource(const BitmapResource* r) override;
@@ -1472,6 +1492,30 @@ void copy(FILE* to, FILE* from, size_t n) {
     n -= len;
   }
   // XXX if (ferror(from) || ferror(to))...
+}
+
+void SerializationVisitor::WriteResHeader(uint32_t data_size,
+                                          IntOrStringName type,
+                                          IntOrStringName name,
+                                          uint16_t memory_flags,
+                                          uint16_t language) {
+  uint32_t header_size = 0x18 + type.serialized_size() + name.serialized_size();
+  bool pad = false;
+  if (header_size % 4) {
+    header_size += 2;
+    pad = true;
+  }
+  write_little_long(out_, data_size);
+  write_little_long(out_, header_size);
+  type.write(out_);
+  name.write(out_);
+  if (pad)  // pad to uint32_t after type and name.
+    write_little_short(out_, 0);
+  write_little_long(out_, 0);              // data version
+  write_little_short(out_, memory_flags);  // memory flags XXX
+  write_little_short(out_, language);      // language id XXX
+  write_little_long(out_, 0);              // version XXX
+  write_little_long(out_, 0);              // characteristics
 }
 
 bool SerializationVisitor::WriteIconOrCursorGroup(const FileResource* r,
@@ -1537,15 +1581,10 @@ bool SerializationVisitor::WriteIconOrCursorGroup(const FileResource* r,
   for (IconEntry& entry : entries) {
     // XXX padding?
     // Cursors are prepended by their hotspot.
-    write_little_long(out_, entry.data_size + (type == kCursor ? 4 : 0));
-    write_little_long(out_, 0x20);  // header size
-    write_numeric_type(out_, type == kIcon ? kRT_ICON : kRT_CURSOR);
-    write_numeric_name(out_, next_icon_id_);
-    write_little_long(out_, 0);        // data version
-    write_little_short(out_, 0x1010);  // memory flags XXX
-    write_little_short(out_, 1033);    // language id XXX
-    write_little_long(out_, 0);     // version
-    write_little_long(out_, 0);     // characteristics
+    WriteResHeader(
+        entry.data_size + (type == kCursor ? 4 : 0),
+        IntOrStringName::MakeInt(type == kIcon ? kRT_ICON : kRT_CURSOR),
+        IntOrStringName::MakeInt(next_icon_id_), 0x1010);
 
     if (type == kCursor) {
       write_little_short(out_, entry.num_planes);  // hotspot_x
@@ -1563,15 +1602,10 @@ bool SerializationVisitor::WriteIconOrCursorGroup(const FileResource* r,
   // Write final kRT_GROUP_ICON resource.
   uint16_t group_size = 6 + dir.count * 14;   // 1 IconDir + n IconEntry
   uint8_t group_padding = ((4 - (group_size & 3)) & 3);  // DWORD-align.
-  write_little_long(out_, group_size);
-  write_little_long(out_, 0x20);  // header size
-  write_numeric_type(out_, type == kIcon ? kRT_GROUP_ICON : kRT_GROUP_CURSOR);
-  write_numeric_name(out_, r->name());  // XXX support string names too
-  write_little_long(out_, 0);        // data version
-  write_little_short(out_, 0x1030);  // memory flags XXX
-  write_little_short(out_, 1033);    // language id XXX
-  write_little_long(out_, 0);        // version
-  write_little_long(out_, 0);        // characteristics
+  WriteResHeader(group_size,
+                 IntOrStringName::MakeInt(type == kIcon ? kRT_GROUP_ICON
+                                                        : kRT_GROUP_CURSOR),
+                 r->name());
 
   write_little_short(out_, dir.reserved);
   write_little_short(out_, dir.type);
@@ -1628,15 +1662,7 @@ bool SerializationVisitor::VisitBitmapResource(const BitmapResource* r) {
   size -= kBitmapFileHeaderSize;
 
   // XXX padding?
-  write_little_long(out_, size);  // data size
-  write_little_long(out_, 0x20);  // header size
-  write_numeric_type(out_, kRT_BITMAP);
-  write_numeric_name(out_, r->name());
-  write_little_long(out_, 0);      // data version
-  write_little_short(out_, 0x30);  // memory flags XXX
-  write_little_short(out_, 1033);  // language id XXX
-  write_little_long(out_, 0);      // version
-  write_little_long(out_, 0);      // characteristics
+  WriteResHeader(size, IntOrStringName::MakeInt(kRT_BITMAP), r->name(), 0x30);
 
   fseek(f, kBitmapFileHeaderSize, SEEK_SET);
   copy(out_, f, size);
@@ -1693,15 +1719,7 @@ bool SerializationVisitor::VisitMenuResource(const MenuResource* r) {
   size_t size = 4 + (num_submenus + 2*num_items + total_string_length) * 2;
 
   // XXX padding?
-  write_little_long(out_, size);  // data size
-  write_little_long(out_, 0x20);  // header size
-  write_numeric_type(out_, kRT_MENU);
-  write_numeric_name(out_, r->name());
-  write_little_long(out_, 0);      // data version
-  write_little_short(out_, 0x1030);  // memory flags XXX
-  write_little_short(out_, 1033);  // language id XXX
-  write_little_long(out_, 0);      // version
-  write_little_long(out_, 0);      // characteristics
+  WriteResHeader(size, IntOrStringName::MakeInt(kRT_MENU), r->name());
 
   // After header, 4 bytes, always 0 as far as I can tell.
   // Maybe style and name of toplevel menu.
@@ -1736,15 +1754,7 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
   }
   size += r->menu.serialized_size();
 
-  write_little_long(out_, size);  // data size
-  write_little_long(out_, 0x20);  // header size
-  write_numeric_type(out_, kRT_DIALOG);
-  write_numeric_name(out_, r->name());
-  write_little_long(out_, 0);      // data version
-  write_little_short(out_, 0x1030);  // memory flags XXX
-  write_little_short(out_, 1033);  // language id XXX
-  write_little_long(out_, 0);      // version
-  write_little_long(out_, 0);      // characteristics
+  WriteResHeader(size, IntOrStringName::MakeInt(kRT_DIALOG), r->name());
 
   // DIALOGEX seems to have a pretty different layout :-/
   struct DialogData {
@@ -1834,16 +1844,8 @@ bool SerializationVisitor::VisitStringtableResource(
 bool SerializationVisitor::VisitAcceleratorsResource(
     const AcceleratorsResource* r) {
   size_t size = r->accelerators().size() * 8;
-  write_little_long(out_, size);  // data size
-  write_little_long(out_, 0x20);  // header size
-  write_numeric_type(out_, kRT_ACCELERATOR);
-  write_numeric_name(out_, r->name());
-  write_little_long(out_, 0);      // data version
-  write_little_short(out_, 0x30);  // memory flags XXX
-  write_little_short(out_, 1033);  // language id XXX
-  write_little_long(out_, 0);      // version
-  write_little_long(out_, 0);      // characteristics
-
+  WriteResHeader(size, IntOrStringName::MakeInt(kRT_ACCELERATOR), r->name(),
+                 0x30);
   for (const auto& accelerator : r->accelerators()) {
     uint16_t flags = accelerator.flags;
     if (&accelerator == &r->accelerators().back())
@@ -1866,15 +1868,7 @@ bool SerializationVisitor::VisitRcdataResource(const RcdataResource* r) {
   fseek(f, 0, SEEK_END);
   size_t size = ftell(f);
 
-  write_little_long(out_, size);  // data size
-  write_little_long(out_, 0x20);  // header size
-  write_numeric_type(out_, kRT_RCDATA);
-  write_numeric_name(out_, r->name());
-  write_little_long(out_, 0);      // data version
-  write_little_short(out_, 0x30);  // memory flags XXX
-  write_little_short(out_, 1033);  // language id XXX
-  write_little_long(out_, 0);      // version
-  write_little_long(out_, 0);      // characteristics
+  WriteResHeader(size, IntOrStringName::MakeInt(kRT_RCDATA), r->name(), 0x30);
 
   fseek(f, 0, SEEK_SET);
   copy(out_, f, size);
@@ -1968,15 +1962,7 @@ bool SerializationVisitor::VisitVersioninfoResource(
 
   const size_t kFixedInfoSize = 0x5c;
   size_t size = kFixedInfoSize + block_size;
-  write_little_long(out_, size);  // data size
-  write_little_long(out_, 0x20);      // header size
-  write_numeric_type(out_, kRT_VERSION);
-  write_numeric_name(out_, r->name());
-  write_little_long(out_, 0);         // data version
-  write_little_short(out_, 0x30);     // memory flags XXX
-  write_little_short(out_, 1033);     // language id XXX
-  write_little_long(out_, 0);         // version
-  write_little_long(out_, 0);         // characteristics
+  WriteResHeader(size, IntOrStringName::MakeInt(kRT_VERSION), r->name(), 0x30);
 
   // The fixed info block seems to always start with the same fixed bytes:
   write_little_short(out_, size);
@@ -2009,15 +1995,7 @@ bool SerializationVisitor::VisitVersioninfoResource(
 bool SerializationVisitor::VisitDlgincludeResource(
     const DlgincludeResource* r) {
   size_t size = r->data().size() + 1; // include trailing \0
-  write_little_long(out_, size);  // data size
-  write_little_long(out_, 0x20);      // header size
-  write_numeric_type(out_, kRT_DLGINCLUDE);
-  write_numeric_name(out_, r->name());
-  write_little_long(out_, 0);         // data version
-  write_little_short(out_, 0x1030);   // memory flags XXX
-  write_little_short(out_, 1033);     // language id XXX
-  write_little_long(out_, 0);         // version
-  write_little_long(out_, 0);         // characteristics
+  WriteResHeader(size, IntOrStringName::MakeInt(kRT_DLGINCLUDE), r->name());
   // data() is a string_view and might not be \0-terminated, so write \0
   // separately.
   fwrite(r->data().data(), 1, r->data().size(), out_);
@@ -2037,15 +2015,7 @@ bool SerializationVisitor::VisitHtmlResource(const HtmlResource* r) {
   fseek(f, 0, SEEK_END);
   size_t size = ftell(f);
 
-  write_little_long(out_, size);  // data size
-  write_little_long(out_, 0x20);  // header size
-  write_numeric_type(out_, kRT_HTML);
-  write_numeric_name(out_, r->name());
-  write_little_long(out_, 0);      // data version
-  write_little_short(out_, 0x30);  // memory flags XXX
-  write_little_short(out_, 1033);  // language id XXX
-  write_little_long(out_, 0);      // version
-  write_little_long(out_, 0);      // characteristics
+  WriteResHeader(size, IntOrStringName::MakeInt(kRT_HTML), r->name(), 0x30);
 
   fseek(f, 0, SEEK_SET);
   copy(out_, f, size);
@@ -2066,15 +2036,8 @@ void SerializationVisitor::EmitOneStringtable(
   for (int i = 0; i < 16; ++i)
     size += 2 * (1 + (bundle[i] ? bundle[i]->size() : 0));
 
-  write_little_long(out_, size);  // data size
-  write_little_long(out_, 0x20);      // header size
-  write_numeric_type(out_, kRT_STRING);
-  write_numeric_name(out_, (bundle_start / 16) + 1);
-  write_little_long(out_, 0);        // data version
-  write_little_short(out_, 0x1030);  // memory flags XXX
-  write_little_short(out_, 1033);    // language id XXX
-  write_little_long(out_, 0);        // version
-  write_little_long(out_, 0);        // characteristics
+  WriteResHeader(size, IntOrStringName::MakeInt(kRT_STRING),
+                 IntOrStringName::MakeInt((bundle_start / 16) + 1));
   for (int i = 0; i < 16; ++i) {
     if (!bundle[i]) {
       fwrite("\0", 1, 2, out_);
@@ -2136,18 +2099,12 @@ bool WriteRes(const FileBlock& file, std::string* err) {
   }
   FClose closer(f);
 
-  // First write the "this is not the ancient 16-bit format" header.
-  write_little_long(f, 0);     // data size
-  write_little_long(f, 0x20);  // header size
-  write_numeric_type(f, 0);    // type
-  write_numeric_name(f, 0);    // name
-  write_little_long(f, 0);     // data version
-  write_little_short(f, 0);    // memory flags
-  write_little_short(f, 0);    // language id
-  write_little_long(f, 0);     // version
-  write_little_long(f, 0);     // characteristics
-
   SerializationVisitor serializer(f, err);
+
+  // First write the "this is not the ancient 16-bit format" header.
+  serializer.WriteResHeader(0, IntOrStringName::MakeInt(0),
+                            IntOrStringName::MakeInt(0), 0, 0);
+
   for (int i = 0; i < file.res_.size(); ++i) {
     const Resource* res = file.res_[i].get();
     if (!res->Visit(&serializer))
