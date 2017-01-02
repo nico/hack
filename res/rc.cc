@@ -1294,7 +1294,16 @@ std::unique_ptr<Resource> Parser::ParseResource() {
     return std::unique_ptr<Resource>();
   }
 
+  // Normally, name first.
+  //
+  // Exceptions:
+  // - LANGUAGE
+  // - STRINGTABLE
   if (id.type() == Token::kIdentifier) {
+    if (id.value_ == "LANGUAGE") {
+      err_ = "LANGUAGE not implemented yet";  // FIXME
+      return std::unique_ptr<Resource>();
+    }
     if (id.value_ == "STRINGTABLE")
       return ParseStringtable();
   }
@@ -1311,17 +1320,6 @@ std::unique_ptr<Resource> Parser::ParseResource() {
           ? IntOrStringName::MakeInt(atoi(id.value_.to_string().c_str()))
           : IntOrStringName::MakeUpperString(id.value_);  // Do NOT strip quotes
 
-  // Normally, name first.
-  //
-  // Exceptions:
-  // - LANGUAGE
-  //   "When the LANGUAGE statement appears before the beginning of the body of
-  //    an ACCELERATORS, DIALOGEX, MENU, RCDATA, or STRINGTABLE resource
-  //    definition, the specified language applies only to that resource."
-  // - STRINGTABLE
-  // - VERSION, in front of ACCELERATORS, DIALOGEX, MENU, RCDATA, STRINGTABLE 
-
-
   const Token& type = Consume();
   if (at_end()) {
     err_ = "expected resource type";
@@ -1333,14 +1331,24 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   // They have been ignored since the 16-bit days, so hopefully they no longer
   // exist in practice.
 
-  // FIXME: MENUEX
   if (type.type_ == Token::kIdentifier && type.value_ == "MENU")
     return ParseMenu(name);
-  // FIXME: DIALOGEX
+  if (type.type_ == Token::kIdentifier && type.value_ == "MENUEX") {
+    err_ = "MENUEX not implemented yet";  // FIXME
+    return std::unique_ptr<Resource>();
+  }
   if (type.type_ == Token::kIdentifier && type.value_ == "DIALOG")
     return ParseDialog(name);
+  if (type.type_ == Token::kIdentifier && type.value_ == "DIALOGEX") {
+    err_ = "DIALOGEX not implemented yet";  // FIXME
+    return std::unique_ptr<Resource>();
+  }
   if (type.type_ == Token::kIdentifier && type.value_ == "ACCELERATORS")
     return ParseAccelerators(name);
+  if (type.type_ == Token::kIdentifier && type.value_ == "MESSAGETABLE") {
+    err_ = "MESSAGETABLE not implemented yet";  // FIXME
+    return std::unique_ptr<Resource>();
+  }
   if (type.type_ == Token::kIdentifier && type.value_ == "VERSIONINFO")
     return ParseVersioninfo(name);
 
@@ -1355,6 +1363,10 @@ std::unique_ptr<Resource> Parser::ParseResource() {
       return std::unique_ptr<Resource>(new CursorResource(name, str_val));
     if (type.value_ == "BITMAP")
       return std::unique_ptr<Resource>(new BitmapResource(name, str_val));
+    if (type.value_ == "FONT") {
+      err_ = "FONT not implemented yet";  // FIXME
+      return std::unique_ptr<Resource>();
+    }
     if (type.value_ == "ICON")
       return std::unique_ptr<Resource>(new IconResource(name, str_val));
     if (type.value_ == "RCDATA")
