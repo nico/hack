@@ -284,6 +284,7 @@ class CursorResource;
 class BitmapResource;
 class IconResource;
 class MenuResource;
+class DialogResource;
 class StringtableResource;
 class AcceleratorsResource;
 class RcdataResource;
@@ -297,6 +298,7 @@ class Visitor {
   virtual bool VisitBitmapResource(const BitmapResource* r) = 0;
   virtual bool VisitIconResource(const IconResource* r) = 0;
   virtual bool VisitMenuResource(const MenuResource* r) = 0;
+  virtual bool VisitDialogResource(const DialogResource* r) = 0;
   virtual bool VisitStringtableResource(const StringtableResource* r) = 0;
   virtual bool VisitAcceleratorsResource(const AcceleratorsResource* r) = 0;
   virtual bool VisitRcdataResource(const RcdataResource* r) = 0;
@@ -398,6 +400,35 @@ class MenuResource : public Resource {
   bool Visit(Visitor* v) const override { return v->VisitMenuResource(this); }
 
   SubmenuEntryData entries_;
+};
+
+class DialogResource : public Resource {
+ public:
+
+  struct DialogData {
+    // 0x4000<<16 if FONT, 0x8880 default, 0x4000 if CAPTION, STYLE overwrites
+    uint32_t style;
+    uint16_t exstyle;
+    uint16_t unk2;
+    uint16_t unk3;
+    uint16_t x;
+    uint16_t y;
+    uint16_t w;
+    uint16_t h;
+    // If there's a MENU, it's here instead of menu  (either 0xffff 0x2a, or
+    // 0-terminated utf-16 text; pad). If there isn't, then menu is 0.
+    uint16_t menu;
+    // If there's a CLASS, it's here instead of clazz  (either 0xffff 0x2a, or
+    // 0-terminated utf-16 text; pad). If there isn't, then clazz is 0.
+    uint16_t clazz;
+    // If there's a CAPTION, it's here instead of caption  (always
+    // 0-terminated utf-16 text; pad). If there isn't, then caption is 0.
+    uint16_t caption;
+    // If there's a FONT, it trails this. uint16 size,
+    // \0-term utf-16 name , name, pad)
+  };
+
+  bool Visit(Visitor* v) const override { return v->VisitDialogResource(this); }
 };
 
 class StringtableResource : public Resource {
@@ -557,6 +588,7 @@ class Parser {
   void MaybeParseMenuOptions(uint16_t* style);
   std::unique_ptr<MenuResource::SubmenuEntryData> ParseMenuBlock();
   std::unique_ptr<MenuResource> ParseMenu(uint16_t id_num);
+  std::unique_ptr<DialogResource> ParseDialog(uint16_t id_num);
   std::unique_ptr<StringtableResource> ParseStringtable();
   bool ParseAccelerator(AcceleratorsResource::Accelerator* accelerator);
   std::unique_ptr<AcceleratorsResource> ParseAccelerators(uint16_t id_num);
@@ -713,6 +745,11 @@ std::unique_ptr<MenuResource> Parser::ParseMenu(uint16_t id_num) {
     return std::unique_ptr<MenuResource>();
   return std::unique_ptr<MenuResource>(
       new MenuResource(id_num, std::move(*entries.get())));
+}
+
+std::unique_ptr<DialogResource> Parser::ParseDialog(uint16_t id_num) {
+  // FIXME: implement
+  return std::unique_ptr<DialogResource>();
 }
 
 std::unique_ptr<StringtableResource> Parser::ParseStringtable() {
@@ -1070,6 +1107,9 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   // FIXME: MENUEX
   if (type.type_ == Token::kIdentifier && type.value_ == "MENU")
     return ParseMenu(id_num);
+  // FIXME: DIALOGEX
+  if (type.type_ == Token::kIdentifier && type.value_ == "DIALOG")
+    return ParseDialog(id_num);
   if (type.type_ == Token::kIdentifier && type.value_ == "ACCELERATORS")
     return ParseAccelerators(id_num);
   if (type.type_ == Token::kIdentifier && type.value_ == "VERSIONINFO")
@@ -1190,6 +1230,7 @@ class SerializationVisitor : public Visitor {
   bool VisitBitmapResource(const BitmapResource* r) override;
   bool VisitIconResource(const IconResource* r) override;
   bool VisitMenuResource(const MenuResource* r) override;
+  bool VisitDialogResource(const DialogResource* r) override;
   bool VisitStringtableResource(const StringtableResource* r) override;
   bool VisitAcceleratorsResource(const AcceleratorsResource* r) override;
   bool VisitRcdataResource(const RcdataResource* r) override;
@@ -1477,6 +1518,11 @@ bool SerializationVisitor::VisitMenuResource(const MenuResource* r) {
   // (Turns out this representation is much easier to work with than what I
   // have chosen!)
   WriteMenu(out_, r->entries_);
+  return true;
+}
+
+bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
+  // FIXME: implement
   return true;
 }
 
