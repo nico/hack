@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -eu
-clang++ -std=c++11 -o rc rc.cc -Wall -Wno-c++11-narrowing
+clang++ -std=c++14 -o rc rc.cc -Wall -Wno-c++11-narrowing
 
 # Useful for debugging: `diff <(xxd out.res) <(xxd test.res)`
 # Intentionally not using && since `set -e` doesn't work with it.
@@ -18,6 +18,9 @@ cmp test/icon.res out.res
 cmp test/menu.res out.res
 ./rc < test/menu_opts.rc
 cmp test/menu_opts.res out.res
+
+./rc < test/dialog_nocontrols.rc
+cmp test/dialog_nocontrols.res out.res
 
 ./rc < test/stringtable.rc
 cmp test/stringtable.res out.res

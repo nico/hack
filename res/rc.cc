@@ -1,5 +1,5 @@
 /*
-clang++ -std=c++11 -o rc rc.cc -Wall -Wno-c++11-narrowing
+clang++ -std=c++14 -o rc rc.cc -Wall -Wno-c++11-narrowing
 ./rc < foo.rc
 
 A sketch of a reimplemenation of rc.exe, for research purposes.
@@ -29,6 +29,7 @@ Also missing, but not yet for chromium:
 - MESSAGETABLE
 */
 
+#include <experimental/optional>
 #include <experimental/string_view>
 #include <iostream>
 #include <map>
@@ -310,6 +311,43 @@ class Visitor {
   ~Visitor() {}
 };
 
+// Every resource's type or name can be a uint16_t or an utf-16 string.
+// The uint16_t looks like (0xffff value) when serialized, the utf-16 string
+// is just a \0-terminated utf-16le string.  This class represents that concept.
+// (Also used in a few other places, e.g. DIALOG's CLASS, MENU, etc).
+class IntOrStringName {
+ public:
+  static IntOrStringName MakeInt(uint16_t val) {
+    IntOrStringName r{0xffff, val};
+    return r;
+  }
+
+  // This takes an ASCII-string_view and expands it to UTF-16.
+  static IntOrStringName MakeString(std::experimental::string_view val) {
+    IntOrStringName r;
+    for (int j = 0; j < val.size(); ++j)
+      r.data_.push_back(val[j]);
+    r.data_.push_back(0);  // \0-terminate.
+    return r;
+  }
+
+  static IntOrStringName MakeEmpty() {
+    IntOrStringName r{0};  // Note: Picks std::initializer_list ctor with 1 elt
+    return r;
+  }
+
+  bool is_empty() const { return data_[0] == 0; }
+  size_t serialized_size() const { return data_.size() * 2; }
+  bool write(FILE* f) const {
+    return fwrite(data_.data(), 2, data_.size(), f) == data_.size();
+  }
+
+ private:
+  IntOrStringName() {}
+  IntOrStringName(std::initializer_list<uint16_t> init) : data_(init) {}
+  std::vector<uint16_t> data_;
+};
+
 // Root of AST class hierarchy.
 class Resource {
  public:
@@ -404,32 +442,54 @@ class MenuResource : public Resource {
 
 class DialogResource : public Resource {
  public:
-
-  // DIALOGEX seems to have a pretty different layout :-/
-  struct DialogData {
-    // 0x4000<<16 if FONT, 0x8880 default, 0x4000 if CAPTION; STYLE overwrites
-    uint32_t style;
-    uint16_t exstyle;
-    uint16_t unk2;
-    uint16_t num_controls;
-    uint16_t x;
-    uint16_t y;
-    uint16_t w;
-    uint16_t h;
-    // If there's a MENU, it's here instead of menu  (either 0xffff 0x2a, or
-    // 0-terminated utf-16 text; pad). If there isn't, then menu is 0.
-    uint16_t menu;
-    // If there's a CLASS, it's here instead of clazz  (either 0xffff 0x2a, or
-    // 0-terminated utf-16 text; pad). If there isn't, then clazz is 0.
-    uint16_t clazz;
-    // If there's a CAPTION, it's here instead of caption  (always
-    // 0-terminated utf-16 text; pad). If there isn't, then caption is 0.
-    uint16_t caption;
-    // If there's a FONT, it trails this. uint16 size,
-    // \0-term utf-16 name , name, pad)
+  struct FontInfo {
+    uint16_t size;
+    std::experimental::string_view name;
   };
 
+  DialogResource(uint16_t name,
+                 uint16_t x,
+                 uint16_t y,
+                 uint16_t w,
+                 uint16_t h,
+                 std::experimental::string_view caption,
+                 IntOrStringName clazz,
+                 uint16_t exstyle,
+                 std::experimental::fundamentals_v1::optional<FontInfo> font,
+                 IntOrStringName menu,
+                 std::experimental::fundamentals_v1::optional<uint32_t> style)
+      : Resource(name),
+        x(x),
+        y(y),
+        w(w),
+        h(h),
+        caption(caption),
+        clazz(std::move(clazz)),
+        exstyle(exstyle),
+        font(std::move(font)),
+        menu(std::move(menu)),
+        style(style) {}
+
   bool Visit(Visitor* v) const override { return v->VisitDialogResource(this); }
+
+  uint16_t x, y, w, h;
+
+  // Empty if not set. rc.exe also writes no caption for `CAPTION ""`.
+  std::experimental::string_view caption;
+
+  // Empty if not set. rc.exe also writes a 0 class for `CLASS ""`.
+  IntOrStringName clazz;
+
+  uint16_t exstyle;
+
+  std::experimental::fundamentals_v1::optional<FontInfo> font;
+
+  // This is only empty as default value: Weirdly, for string names, rc
+  // includes the quotes, so `MENU ""` produces `""` (with quotes) in the
+  // output.
+  IntOrStringName menu;
+
+  std::experimental::fundamentals_v1::optional<uint32_t> style;
 };
 
 class StringtableResource : public Resource {
@@ -749,8 +809,152 @@ std::unique_ptr<MenuResource> Parser::ParseMenu(uint16_t id_num) {
 }
 
 std::unique_ptr<DialogResource> Parser::ParseDialog(uint16_t id_num) {
-  // FIXME: implement
-  return std::unique_ptr<DialogResource>();
+  // Parse attributes of dialog itself.
+  uint16_t rect[4];
+  for (int i = 0; i < 4; ++i) {
+    if (i > 0 && !Match(Token::kComma)) {
+      err_ = "expected comma, got " + cur_or_last_token().value_.to_string();
+      return std::unique_ptr<DialogResource>();
+    }
+    if (!Is(Token::kInt)) {
+      err_ = "expected int, got " + cur_or_last_token().value_.to_string();
+      return std::unique_ptr<DialogResource>();
+    }
+    const Token& val = Consume();
+    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+    // 1234L.
+    rect[i] = atoi(val.value_.to_string().c_str());
+  }
+
+  std::experimental::string_view caption_val;
+  IntOrStringName clazz = IntOrStringName::MakeEmpty();
+  uint16_t exstyle = 0;
+  std::experimental::fundamentals_v1::optional<DialogResource::FontInfo> font;
+  IntOrStringName menu = IntOrStringName::MakeEmpty();
+  std::experimental::fundamentals_v1::optional<uint32_t> style;
+  while (!at_end() && cur_token().type() != Token::kStartBlock) {
+    const Token& tok = Consume();  // FIXME: implement
+    if (tok.type() == Token::kIdentifier && tok.value_ == "CAPTION") {
+      if (!Is(Token::kString)) {
+        err_ = "expected string, got " + cur_or_last_token().value_.to_string();
+        return std::unique_ptr<DialogResource>();
+      }
+      const Token& caption = Consume();
+      caption_val = caption.value_;
+      // The literal includes quotes, strip them.
+      // FIXME: give Token a StringValue() function that handles \-escapes,
+      // "quoting""rules", L"asdf", etc.
+      caption_val = caption_val.substr(1, caption_val.size() - 2);
+    }
+    else if (tok.type() == Token::kIdentifier && tok.value_ == "CLASS") {
+      if (!Is(Token::kString) && !Is(Token::kInt)) {
+        err_ = "expected string or int, got " +
+               cur_or_last_token().value_.to_string();
+        return std::unique_ptr<DialogResource>();
+      }
+      const Token& clazz_tok = Consume();
+      if (clazz_tok.type() == Token::kString) {
+        std::experimental::string_view clazz_val = clazz_tok.value_;
+        // The literal includes quotes, strip them.
+        // FIXME: give Token a StringValue() function that handles \-escapes,
+        // "quoting""rules", L"asdf", etc.
+        clazz_val = clazz_val.substr(1, clazz_val.size() - 2);
+        clazz = IntOrStringName::MakeString(clazz_val);
+      } else {
+        // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+        // 1234L.
+        uint16_t clazz_val = atoi(clazz_tok.value_.to_string().c_str());
+        clazz = IntOrStringName::MakeInt(clazz_val);
+      }
+    }
+    else if (tok.type() == Token::kIdentifier && tok.value_ == "EXSTYLE") {
+      if (!Is(Token::kInt)) {
+        err_ = "expected int, got " + cur_or_last_token().value_.to_string();
+        return std::unique_ptr<DialogResource>();
+      }
+      const Token& exstyle_tok = Consume();
+      // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+      // 1234L.
+      exstyle = atoi(exstyle_tok.value_.to_string().c_str());
+    }
+    else if (tok.type() == Token::kIdentifier && tok.value_ == "FONT") {
+      DialogResource::FontInfo info;
+      if (!Is(Token::kInt)) {
+        err_ = "expected int, got " + cur_or_last_token().value_.to_string();
+        return std::unique_ptr<DialogResource>();
+      }
+      const Token& fontsize = Consume();
+      // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+      // 1234L.
+      info.size = atoi(fontsize.value_.to_string().c_str());
+      if (!Match(Token::kComma)) {
+        err_ = "expected comma, got " + cur_or_last_token().value_.to_string();
+        return std::unique_ptr<DialogResource>();
+      }
+      if (!Is(Token::kString)) {
+        err_ = "expected string, got " + cur_or_last_token().value_.to_string();
+        return std::unique_ptr<DialogResource>();
+      }
+      const Token& fontname = Consume();
+      std::experimental::string_view fontname_val = fontname.value_;
+      // The literal includes quotes, strip them.
+      // FIXME: give Token a StringValue() function that handles \-escapes,
+      // "quoting""rules", L"asdf", etc.
+      fontname_val = fontname_val.substr(1, fontname_val.size() - 2);
+      info.name = fontname_val;
+      font = info;
+    }
+    else if (tok.type() == Token::kIdentifier && tok.value_ == "MENU") {
+      if (!Is(Token::kString) && !Is(Token::kInt)) {
+        err_ = "expected string or int, got " +
+               cur_or_last_token().value_.to_string();
+        return std::unique_ptr<DialogResource>();
+      }
+      const Token& menu_tok = Consume();
+      if (menu_tok.type() == Token::kString) {
+        // Do NOT strip the quotes here, rc.exe includes them too.
+        menu = IntOrStringName::MakeString(menu_tok.value_);
+      } else {
+        // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+        // 1234L.
+        uint16_t menu_val = atoi(menu_tok.value_.to_string().c_str());
+        menu = IntOrStringName::MakeInt(menu_val);
+      }
+    }
+    else if (tok.type() == Token::kIdentifier && tok.value_ == "STYLE") {
+      if (!Is(Token::kInt)) {
+        err_ = "expected int, got " + cur_or_last_token().value_.to_string();
+        return std::unique_ptr<DialogResource>();
+      }
+      const Token& style_tok = Consume();
+      // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+      // 1234L.
+      style = atoi(style_tok.value_.to_string().c_str());
+    }
+    /*if (!Is(Token::kIdentifier)) {
+      err_ = "expected identifier START or {, got " +
+             cur_or_last_token().value_.to_string();
+      return std::unique_ptr<DialogResource>();
+    }
+    const Token& name = Consume();*/
+  }
+
+  // Parse resources block.
+  if (!Match(Token::kStartBlock)) {
+    err_ = "expected START or {, got " + cur_or_last_token().value_.to_string();
+    return std::unique_ptr<DialogResource>();
+  }
+  while (!at_end() && cur_token().type() != Token::kEndBlock) {
+    Consume();  // FIXME
+  }
+  if (!Match(Token::kEndBlock)) {
+    err_ = "expected END or }, got " + cur_or_last_token().value_.to_string();
+    return std::unique_ptr<DialogResource>();
+  }
+
+  return std::unique_ptr<DialogResource>(new DialogResource(
+      id_num, rect[0], rect[1], rect[2], rect[3], caption_val, std::move(clazz),
+      exstyle, std::move(font), std::move(menu), style));
 }
 
 std::unique_ptr<StringtableResource> Parser::ParseStringtable() {
@@ -1523,7 +1727,95 @@ bool SerializationVisitor::VisitMenuResource(const MenuResource* r) {
 }
 
 bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
-  // FIXME: implement
+  size_t size = 0x12;
+  size += r->clazz.serialized_size();
+  size += (r->caption.size() + 1) * 2;
+  if (r->font) {
+    size += 2;  // Font size.
+    size += 2 * (r->font->name.size() + 1);
+  }
+  size += r->menu.serialized_size();
+
+  write_little_long(out_, size);  // data size
+  write_little_long(out_, 0x20);  // header size
+  write_numeric_type(out_, kRT_DIALOG);
+  write_numeric_name(out_, r->name());
+  write_little_long(out_, 0);      // data version
+  write_little_short(out_, 0x1030);  // memory flags XXX
+  write_little_short(out_, 1033);  // language id XXX
+  write_little_long(out_, 0);      // version
+  write_little_long(out_, 0);      // characteristics
+
+  // DIALOGEX seems to have a pretty different layout :-/
+  struct DialogData {
+    // 0x40 if FONT, 0x8880<<16 default, 0x40<<16 if CAPTION;
+    // STYLE overwrites
+    uint32_t style;
+    uint16_t exstyle;
+    uint16_t unk2;
+    uint16_t num_controls;
+    uint16_t x;
+    uint16_t y;
+    uint16_t w;
+    uint16_t h;
+    // If there's a MENU, it's here instead of menu  (either 0xffff 0x2a, or
+    // 0-terminated utf-16 text; pad). If there isn't, then menu is 0.
+    uint16_t menu;
+    // If there's a CLASS, it's here instead of clazz  (either 0xffff 0x2a, or
+    // 0-terminated utf-16 text; pad). If there isn't, then clazz is 0.
+    uint16_t clazz;
+    // If there's a CAPTION, it's here instead of caption  (always
+    // 0-terminated utf-16 text; pad). If there isn't, then caption is 0.
+    uint16_t caption;
+    // If there's a FONT, it trails this. uint16 size,
+    // \0-term utf-16 name , name, pad)
+  };
+
+  uint32_t style = 0x80880000;
+  if (!r->caption.empty())
+    style |= 0x400000;
+  if (r->font)
+    style |= 0x40;
+  if (r->style)
+    style = *r->style;
+
+  write_little_long(out_, style);
+  write_little_short(out_, r->exstyle);
+  write_little_short(out_, 0);  // FIXME
+  write_little_short(out_, 0);  // FIXME num_controls
+  write_little_short(out_, r->x);
+  write_little_short(out_, r->y);
+  write_little_short(out_, r->w);
+  write_little_short(out_, r->h);
+  r->menu.write(out_);
+  r->clazz.write(out_);
+  if (r->caption.empty())
+    write_little_short(out_, 0);
+  else {
+    for (int j = 0; j < r->caption.size(); ++j) {
+      // FIXME: Real UTF16 support.
+      fputc(r->caption[j], out_);
+      fputc('\0', out_);
+    }
+    write_little_short(out_, 0);
+  }
+  if (r->font) {
+    write_little_short(out_, r->font->size);
+    for (int j = 0; j < r->font->name.size(); ++j) {
+      // FIXME: Real UTF16 support.
+      fputc(r->font->name[j], out_);
+      fputc('\0', out_);
+    }
+    write_little_short(out_, 0);
+  }
+
+  if (size % 4) {
+    // pad to dword after FIXME header | controls | both?
+    write_little_short(out_, 0);
+  }
+
+  // FIXME: implement writing of controls in dialog
+
   return true;
 }
 
