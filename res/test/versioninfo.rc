@@ -46,7 +46,7 @@ BEGIN
   BEGIN
     VALUE "Translation", 0, 0
     // 0x409 == 1033, 0x407 == 1031
-    VALUE "Translation", 1033, 1252, 1031, 0  // Last one wins.
+    VALUE "Translation", 1033, 1252, 1031, 0
   END
 END
 

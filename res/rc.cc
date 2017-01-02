@@ -7,7 +7,6 @@ Doesn't do any preprocessing for now.
 
 Missing for chromium:
 - DIALOG(EX)
-- VERSIONINFO
 - LANGUAGE
 - #pragma code_page() and unicode handling
 - case-insensitive keywords
@@ -488,9 +487,12 @@ class VersioninfoResource : public Resource {
     std::unique_ptr<InfoData> data;
   };
   struct ValueData : public InfoData {
-    explicit ValueData(std::experimental::string_view value)
-        : InfoData(kValue), value(value) {}
-    std::experimental::string_view value;
+    explicit ValueData(bool is_text, std::vector<uint8_t> value)
+        : InfoData(kValue), is_text(is_text), value(std::move(value)) {}
+    // If this is true, value contains (0-terminated) utf-16 string data,
+    // else it contains arbitrary binary data.
+    bool is_text;
+    std::vector<uint8_t> value;
   };
   struct BlockData : public InfoData {
     BlockData() : InfoData(kBlock) {}
@@ -894,17 +896,48 @@ Parser::ParseVersioninfoBlock() {
         err_ = "expected comma, got " + cur_or_last_token().value_.to_string();
         return std::unique_ptr<VersioninfoResource::BlockData>();
       }
-      if (!Is(Token::kString)) {
-        err_ = "expected string, got " + cur_or_last_token().value_.to_string();
+      if (!Is(Token::kString) && !Is(Token::kInt)) {
+        err_ = "expected string or int, got " +
+               cur_or_last_token().value_.to_string();
         return std::unique_ptr<VersioninfoResource::BlockData>();
       }
+      bool is_text = Is(Token::kString);
       const Token& value = Consume();
-      std::experimental::string_view value_val = value.value_;
-      // The literal includes quotes, strip them.
-      // FIXME: give Token a StringValue() function that handles \-escapes,
-      // "quoting""rules", L"asdf", etc.
-      value_val = value_val.substr(1, value_val.size() - 2);
-      info_data.reset(new VersioninfoResource::ValueData(value_val));
+      std::vector<uint8_t> val;
+      if (is_text) {
+        std::experimental::string_view value_val = value.value_;
+        // The literal includes quotes, strip them.
+        // FIXME: give Token a StringValue() function that handles \-escapes,
+        // "quoting""rules", L"asdf", etc.
+        value_val = value_val.substr(1, value_val.size() - 2);
+        for (int j = 0; j < value_val.size(); ++j) {
+          // FIXME: Real UTF16 support.
+          val.push_back(value_val[j]);
+          val.push_back(0);
+        }
+        val.push_back(0);  // \0-terminate.
+        val.push_back(0);
+      } else {
+        // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+        // 1234L.
+        uint16_t value_num = atoi(value.value_.to_string().c_str());
+        val.push_back(value_num & 0xFF);
+        val.push_back(value_num >> 8);
+        while (Is(Token::kComma)) {
+          Consume();  // Eat comma.
+          if (!Is(Token::kInt)) {
+            err_ =
+                "expected int, got " + cur_or_last_token().value_.to_string();
+            return std::unique_ptr<VersioninfoResource::BlockData>();
+          }
+          const Token& value = Consume();
+          uint16_t value_num = atoi(value.value_.to_string().c_str());
+          val.push_back(value_num & 0xFF);
+          val.push_back(value_num >> 8);
+        }
+      }
+      info_data.reset(
+          new VersioninfoResource::ValueData(is_text, std::move(val)));
     } else {
       std::unique_ptr<VersioninfoResource::BlockData> block =
           ParseVersioninfoBlock();
@@ -1516,18 +1549,18 @@ uint16_t CountBlock(
     if (size % 4)
       size += 2;  // Pad to 4 bytes after name.
     if (value->data->type_ == VersioninfoResource::InfoData::kValue) {
-      size += sizeof(char16_t) *
-              (static_cast<VersioninfoResource::ValueData&>(*value->data)
-                   .value.size() +
-               1);
-      if (size % 4)
-        size += 2;  // Pad to 4 bytes after value too.
+      size += static_cast<VersioninfoResource::ValueData&>(*value->data)
+                  .value.size();
     } else {
       // Children are already padded to 4 bytes.
       size += CountBlock(
           static_cast<VersioninfoResource::BlockData&>(*value->data), sizes);
     }
     (*sizes)[value.get()] = size;
+
+    // The padding after the object isn't include in that object's size.
+    if (size % 4)
+      size += 2;  // Pad to 4 bytes after value too.
     total_size += size;
   }
   return total_size;
@@ -1539,22 +1572,28 @@ void WriteBlock(
     const std::unordered_map<VersioninfoResource::Entry*, uint16_t> sizes) {
   for (const auto& value : block.values) {
     size_t value_size = 0;
-    std::experimental::string_view value_str;
+    const std::vector<uint8_t>* data;
+    bool is_text = true;
     if (value->data->type_ == VersioninfoResource::InfoData::kValue) {
-      value_str =
-          static_cast<VersioninfoResource::ValueData&>(*value->data).value;
-      value_size = value_str.size() + 1;
+      const VersioninfoResource::ValueData& value_data =
+          static_cast<VersioninfoResource::ValueData&>(*value->data);
+      data = &value_data.value;
+      value_size = data->size();
+      if (value_data.is_text)
+        value_size /= 2;
+       else
+        is_text = false;
     }
 
     // Every block / value there seems to start with a 3-uint16_t header:
     // - uint16_t total_size (including header)
     // - value_size (in char16_ts, only for VALUE, 0 for BLOCKs, including \0)
-    // - uint16_t always 1?
+    // - uint16_t is 1 for text values and blocks, 0 for int values
     // Followed by node data, followed by optional padding to uint32_t boundary
     uint16_t size = sizes.find(value.get())->second;
     write_little_short(out, size);
     write_little_short(out, value_size);
-    write_little_short(out, 1);
+    write_little_short(out, is_text ? 1 : 0);
 
     for (int j = 0; j < value->key.size(); ++j) {
       // FIXME: Real UTF16 support.
@@ -1566,13 +1605,8 @@ void WriteBlock(
       write_little_short(out, 0);  // padding to dword after 3 uint16_t and key
 
     if (value->data->type_ == VersioninfoResource::InfoData::kValue) {
-      for (int j = 0; j < value_str.size(); ++j) {
-        // FIXME: Real UTF16 support.
-        fputc(value_str[j], out);
-        fputc('\0', out);
-      }
-      write_little_short(out, 0);  // \0-terminate.
-      if (value_str.size() % 2 == 0)
+      fwrite(data->data(), 1, data->size(), out);
+      if (data->size() % 4)
         write_little_short(out, 0);  // pad to dword after value
     } else {
       WriteBlock(out,
@@ -1600,7 +1634,7 @@ bool SerializationVisitor::VisitVersioninfoResource(
   write_little_long(out_, 0);         // characteristics
 
   // The fixed info block seems to always start with the same fixed bytes:
-  write_little_short(out_, kFixedInfoSize);
+  write_little_short(out_, size);
   write_little_long(out_, 52);
   fwrite(u"VS_VERSION_INFO", 2, 16, out_);
   write_little_short(out_, 0);

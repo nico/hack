@@ -30,8 +30,8 @@ cmp test/rcdata.res out.res
 
 ./rc < test/versioninfo_fixedonly.rc
 cmp test/versioninfo_fixedonly.res out.res
-# FIXME ./rc < test/versioninfo.rc
-# FIXME cmp test/versioninfo.res out.res
+./rc < test/versioninfo.rc
+cmp test/versioninfo.res out.res
 
 ./rc < test/dlginclude.rc
 cmp test/dlginclude.res out.res
