@@ -1,5 +1,7 @@
 /*
-clang++ -std=c++14 -o rc rc.cc -Wall -Wno-c++11-narrowing
+  clang++ -std=c++14 -o rc rc.cc -Wall -Wno-c++11-narrowing
+or
+  cl /c rc.cc /EHsc /wd4838 /nologo
 ./rc < foo.rc
 
 A sketch of a reimplemenation of rc.exe, for research purposes.
@@ -25,14 +27,67 @@ Also missing, but not yet for chromium:
 - MESSAGETABLE
 */
 
-#include <experimental/optional>
-#include <experimental/string_view>
+#include <algorithm>
 #include <iostream>
 #include <map>
+#include <memory>
+#include <string>
+#include <stdint.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
+#if !defined(_MSC_VER)
+#include <experimental/optional>
+#include <experimental/string_view>
+#else
+namespace std {
+namespace experimental {
+class string_view {
+  const char* str_;
+  size_t size_;
+ public:
+  string_view() : size_(0) {}
+  string_view(const char* str) : str_(str), size_(strlen(str)) {}
+  string_view(const char* str, size_t size) : str_(str), size_(size) {}
+  string_view(const std::string& s) : str_(s.data()), size_(s.size()) {}
+  size_t size() const { return size_; }
+  char operator[](size_t i) const { return str_[i]; }
+  bool operator==(const string_view& rhs) const {
+    return size_ == rhs.size_ && strncmp(str_, rhs.str_, size_);
+  }
+  bool operator!=(const string_view& rhs) const { return !(*this == rhs); }
+  string_view substr(size_t start, size_t len) const {
+    return string_view(str_ + start, len);
+  }
+  std::string to_string() const { return std::string(str_, size_); }
+  const char* data() const { return str_; }
+  bool empty() const { return size_ > 0; }
+  const char* begin() const { return data(); }
+  const char* end() const { return begin() + size(); }
+};
+namespace fundamentals_v1 {
+template<class T>
+class optional {
+  bool has_val = false;
+  T val;
+ public:
+  void operator=(const T& t) { val = t; has_val = true; }
+  operator bool() const { return has_val; }
+  T* operator->() { return &val; }
+  const T* operator->() const { return &val; }
+  T& operator*() { return val; }
+  const T& operator*() const { return val; }
+};
+}  // fundamentals_v1
+}  // experimental
+template<> struct hash<experimental::string_view> {
+  size_t operator()(const experimental::string_view& x) const {
+    return 0;  // FIXME
+  }
+};
+}
+#endif
 // Like toupper(), but locale-independent.
 int ascii_toupper(int c) {
   if (c >= 'a' && c <= 'z')
