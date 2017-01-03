@@ -42,6 +42,9 @@ cmp test/dlginclude.res out.res
 ./rc < test/html.rc
 cmp test/html.res out.res
 
+./rc < test/custom.rc
+cmp test/custom.res out.res
+
 ./rc < test/stringnames.rc
 cmp test/stringnames.res out.res
 

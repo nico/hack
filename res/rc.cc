@@ -10,10 +10,8 @@ Missing for chromium:
 - LANGUAGE
 - #pragma code_page() and unicode handling
 - case-insensitive keywords
-- custom types (both int and string)
-  - includes TEXTINCLUDE, TYPELIB, EULA, REGISTRY,
-    GOOGLEUPDATEAPPLICATIONCOMMANDS
 - inline block data for RCDATA, DLGINCLUDE, HTML, custom types
+- text resource names without quotes (`IDR_OEMPG_HU.HTML` etc).
 - real string and int literal parsers (L"\0", 0xff)
 - int expression parse/eval (+ - | & ~) for DIALOGEX (DIALOG?) MENU
   VERSIONINFO and maybe more
@@ -298,6 +296,7 @@ class RcdataResource;
 class VersioninfoResource;
 class DlgincludeResource;
 class HtmlResource;
+class UserDefinedResource;
 
 class Visitor {
  public:
@@ -312,6 +311,7 @@ class Visitor {
   virtual bool VisitVersioninfoResource(const VersioninfoResource* r) = 0;
   virtual bool VisitDlgincludeResource(const DlgincludeResource* r) = 0;
   virtual bool VisitHtmlResource(const HtmlResource* r) = 0;
+  virtual bool VisitUserDefinedResource(const UserDefinedResource* r) = 0;
 
  protected:
   ~Visitor() {}
@@ -648,6 +648,24 @@ class HtmlResource : public FileResource {
       : FileResource(name, path) {}
 
   bool Visit(Visitor* v) const override { return v->VisitHtmlResource(this); }
+};
+
+// FIXME: either file, or block with data
+class UserDefinedResource : public FileResource {
+ public:
+  UserDefinedResource(IntOrStringName type,
+                      IntOrStringName name,
+                      std::experimental::string_view path)
+      : FileResource(name, path), type_(type) {}
+
+  bool Visit(Visitor* v) const override {
+    return v->VisitUserDefinedResource(this);
+  }
+
+  const IntOrStringName& type() const { return type_; }
+
+ private:
+  IntOrStringName type_;
 };
 
 class FileBlock {
@@ -1331,6 +1349,12 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   // They have been ignored since the 16-bit days, so hopefully they no longer
   // exist in practice.
 
+  // FIXME: rc.exe also allows using well-known ints instead of text most of
+  // the time. For example, a block with type 4 (kRT_MENU) is parsed the same
+  // as a MENU (or MENUEX) block.  However, type 3 (kRT_ICON) seems to be
+  // slightly different from an ICON, it complains that the input .ico file
+  // isn't quite right.
+
   if (type.type_ == Token::kIdentifier && type.value_ == "MENU")
     return ParseMenu(name);
   if (type.type_ == Token::kIdentifier && type.value_ == "MENUEX") {
@@ -1352,8 +1376,9 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   if (type.type_ == Token::kIdentifier && type.value_ == "VERSIONINFO")
     return ParseVersioninfo(name);
 
-  if (type.type_ == Token::kIdentifier && cur_token().type_ == Token::kString) {
-    const Token& string = Consume();
+  const Token& data = Consume();
+  if (type.type_ == Token::kIdentifier && data.type_ == Token::kString) {
+    const Token& string = data;
     std::experimental::string_view str_val = string.value_;
     // The literal includes quotes, strip them.
     str_val = str_val.substr(1, str_val.size() - 2);
@@ -1398,7 +1423,25 @@ std::unique_ptr<Resource> Parser::ParseResource() {
       return std::unique_ptr<Resource>(new HtmlResource(name, str_val));
   }
 
-  err_ = "unknown resource";
+  // Not a known resource type, so it's a User-Defined Resource.
+  if ((type.type_ == Token::kIdentifier || type.type_ == Token::kInt ||
+       type.type_ == Token::kString) &&
+      data.type_ == Token::kString) {
+    const Token& string = data;
+    std::experimental::string_view str_val = string.value_;
+    // The literal includes quotes, strip them.
+    str_val = str_val.substr(1, str_val.size() - 2);
+
+    IntOrStringName type_name =
+        type.type() == Token::kInt
+            ? IntOrStringName::MakeInt(atoi(type.value_.to_string().c_str()))
+            : IntOrStringName::MakeUpperString(
+                  type.value_);  // Do NOT strip quotes
+    return std::unique_ptr<Resource>(
+        new UserDefinedResource(type_name, name, str_val));
+  }
+
+  err_ = "unknown resource, type " + type.value_.to_string();
   return std::unique_ptr<Resource>();
 }
 
@@ -1495,6 +1538,7 @@ class SerializationVisitor : public Visitor {
   bool VisitVersioninfoResource(const VersioninfoResource* r) override;
   bool VisitDlgincludeResource(const DlgincludeResource* r) override;
   bool VisitHtmlResource(const HtmlResource* r) override;
+  bool VisitUserDefinedResource(const UserDefinedResource* r) override;
 
   void EmitOneStringtable(const std::experimental::string_view** bundle,
                          uint16_t bundle_start);
@@ -2049,6 +2093,27 @@ bool SerializationVisitor::VisitHtmlResource(const HtmlResource* r) {
   size_t size = ftell(f);
 
   WriteResHeader(size, IntOrStringName::MakeInt(kRT_HTML), r->name(), 0x30);
+
+  fseek(f, 0, SEEK_SET);
+  copy(out_, f, size);
+  uint8_t padding = ((4 - (size & 3)) & 3);  // DWORD-align.
+  fwrite("\0\0", 1, padding, out_);
+
+  return true;
+}
+
+bool SerializationVisitor::VisitUserDefinedResource(
+    const UserDefinedResource* r) {
+  FILE* f = fopen(r->path().to_string().c_str(), "rb");
+  if (!f) {
+    *err_ = "failed to open " + r->path().to_string();
+    return false;
+  }
+  FClose closer(f);
+  fseek(f, 0, SEEK_END);
+  size_t size = ftell(f);
+
+  WriteResHeader(size, r->type(), r->name(), 0x30);
 
   fseek(f, 0, SEEK_SET);
   copy(out_, f, size);

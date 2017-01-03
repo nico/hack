@@ -1,0 +1,9 @@
+// FIXME: Also support the form with data in an inline BEGIN END block.
+1 TEXTINCLUDE "test/foo.html"
+2 TYPELIB "test/foo.html"
+3 REGISTRY "test/foo.html"
+3 GOOGLEUPDATEAPPLICATIONCOMMANDS "test/foo.html"
+4 foo "test/foo.html"
+5 1234 "test/foo.html"
+"bar" 1234 "test/foo.html"
+"bar" baz "test/foo.html"
