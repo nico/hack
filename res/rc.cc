@@ -1,7 +1,7 @@
 /*
   clang++ -std=c++14 -o rc rc.cc -Wall -Wno-c++11-narrowing
 or
-  cl /c rc.cc /EHsc /wd4838 /nologo
+  cl rc.cc /EHsc /wd4838 /nologo
 ./rc < foo.rc
 
 A sketch of a reimplemenation of rc.exe, for research purposes.
@@ -54,7 +54,7 @@ class string_view {
   size_t size() const { return size_; }
   char operator[](size_t i) const { return str_[i]; }
   bool operator==(const string_view& rhs) const {
-    return size_ == rhs.size_ && strncmp(str_, rhs.str_, size_);
+    return size_ == rhs.size_ && strncmp(str_, rhs.str_, size_) == 0;
   }
   bool operator!=(const string_view& rhs) const { return !(*this == rhs); }
   string_view substr(size_t start, size_t len) const {
@@ -83,7 +83,10 @@ class optional {
 }  // experimental
 template<> struct hash<experimental::string_view> {
   size_t operator()(const experimental::string_view& x) const {
-    return 0;  // FIXME
+    size_t hash = 5381;  // djb2
+    for (char c : x)
+      hash = 33 * hash + c;
+    return hash;
   }
 };
 }
