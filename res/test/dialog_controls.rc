@@ -1,0 +1,24 @@
+1 DIALOG 1,2,3,4
+BEGIN
+  // rc.exe warns on dupe control ids:
+  // " warning RC2182 : duplicate dialog control ID 54"
+  AUTO3STATE "a32", 41, 0, 0, 100, 80  // optional [, style [, extended-style]]
+  AUTOCHECKBOX "ac", 42, 0, 0, 100, 80  // optional [, style [, extended-style]]
+  COMBOBOX 43, 0, 0, 100, 80  // optional [, style [, extended-style]]
+  CONTROL "c", 44, "static", 0, 1, 2, 100, 80  // optional [, extended-style]
+  CTEXT "ct", 45, 0, 1, 100, 80  // optional [, style [, extended-style]]
+  DEFPUSHBUTTON "b", 46, 0, 1, 100, 80  // optional [, style [, extended-style]]
+  EDITTEXT 47, 0, 1, 100, 80  // optional [, style [, extended-style]]
+  GROUPBOX "gb", 48, 0, 1, 100, 80  // optional [, style [, extended-style]]
+  HEDIT 58, 0, 1, 100, 80
+  IEDIT 59, 0, 1, 100, 80
+  ICON "i", 49, 0, 1, 0, 0 // optional [, style [, extended-style]]
+  LISTBOX 50, 0, 1, 100, 80 // optional [, style [, extended-style]]
+  LTEXT "lt", 51, 0, 1, 100, 80 // optional [, style [, extended-style]]
+  PUSHBOX "pbx", 52, 0, 1, 100, 80 // optional [, style [, extended-style]]
+  PUSHBUTTON "pb", 53, 0, 1, 100, 80 // optional [, style [, extended-style]]
+  RADIOBUTTON "rb", 54, 0, 1, 100, 80 // optional [, style [, extended-style]]
+  RTEXT "rt", 55, 0, 1, 100, 80 // optional [, style [, extended-style]]
+  SCROLLBAR 56, 0, 1, 100, 80 // optional [, style [, extended-style]]
+  STATE3 "s3", 57, 0, 1, 100, 80 // optional [, style [, extended-style]]
+END

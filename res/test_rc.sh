@@ -22,7 +22,7 @@ cmp test/menu_opts.res out.res
 ./rc < test/dialog_nocontrols.rc
 cmp test/dialog_nocontrols.res out.res
 ./rc < test/dialog_controls.rc
-# FIXME cmp test/dialog_controls.res out.res
+cmp test/dialog_controls.res out.res
 
 ./rc < test/stringtable.rc
 cmp test/stringtable.res out.res

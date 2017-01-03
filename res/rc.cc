@@ -920,9 +920,15 @@ bool Parser::ParseDialogControl(DialogResource::Control* control) {
     // Special: Has id, class, style, so id_and_rect[0] below will actually
     // be style not id for this type only.
     // FIXME: class can be either string or int
-    // FIXME: use those, don't throw away
-    if (!Match(Token::kInt, "expected int") ||
-        !Match(Token::kComma, "expected comma") ||
+    if (!Is(Token::kInt, "expected int"))
+      return false;
+    const Token& id = Consume();
+    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+    // 1234L.
+    control->id = atoi(id.value_.to_string().c_str());
+
+    // FIXME: use class, don't throw away
+    if (!Match(Token::kComma, "expected comma") ||
         !Match(Token::kString, "expected string") ||
         !Match(Token::kComma, "expected comma"))
       return false;
@@ -949,7 +955,71 @@ bool Parser::ParseDialogControl(DialogResource::Control* control) {
   control->w = id_and_rect[3];
   control->h = id_and_rect[4];
 
-  control->clazz = IntOrStringName::MakeInt(0x80);  // FIXME
+  uint16_t control_class = 0;
+  uint32_t default_style = 0;
+  if (type.value_ == "AUTO3STATE") {
+    default_style = 0x50010006;
+    control_class = 0x80;
+  } else if (type.value_ == "AUTOCHECKBOX") {
+    default_style = 0x50010003;
+    control_class = 0x80;
+  } else if (type.value_ == "COMBOBOX") {
+    default_style = 0x50000000;
+    control_class = 0x85;
+  } else if (type.value_ == "CONTROL") {
+    // FIXME: This probably depends on the class of the control.
+    // Hardcode for "static" for now.
+    default_style = 0x50000000;
+    control_class = 0x82;
+  } else if (type.value_ == "CTEXT") {
+    default_style = 0x50020001;
+    control_class = 0x82;
+  } else if (type.value_ == "DEFPUSHBUTTON") {
+    default_style = 0x50010001;
+    control_class = 0x80;
+  } else if (type.value_ == "EDITTEXT") {
+    default_style = 0x50810000;
+    control_class = 0x81;
+  } else if (type.value_ == "GROUPBOX") {
+    default_style = 0x50000007;
+    control_class = 0x80;
+  } else if (type.value_ == "HEDIT") {
+    default_style = 0x50810000;
+    control_class = 0x80;
+  } else if (type.value_ == "IEDIT") {
+    default_style = 0x50810000;
+    control_class = 0x80;
+  } else if (type.value_ == "ICON") {
+    default_style = 0x50000003;
+    control_class = 0x82;
+  } else if (type.value_ == "LISTBOX") {
+    default_style = 0x50800001;
+    control_class = 0x83;
+  } else if (type.value_ == "LTEXT") {
+    default_style = 0x50020000;
+    control_class = 0x82;
+  } else if (type.value_ == "PUSHBOX") {
+    default_style = 0x5001000a;
+    control_class = 0x80;
+  } else if (type.value_ == "PUSHBUTTON") {
+    default_style = 0x50010000;
+    control_class = 0x80;
+  } else if (type.value_ == "RADIOBUTTON") {
+    default_style = 0x50000004;
+    control_class = 0x80;
+  } else if (type.value_ == "RTEXT") {
+    default_style = 0x50020002;
+    control_class = 0x82;
+  } else if (type.value_ == "SCROLLBAR") {
+    default_style = 0x50000000;
+    control_class = 0x84;
+  } else if (type.value_ == "STATE3") {
+    default_style = 0x50010005;
+    control_class = 0x80;
+  }
+
+  control->clazz = IntOrStringName::MakeInt(control_class);
+  control->style = default_style;
 
   // FIXME: parse optional trailing style (for not-CONTROL) and optional
   // trailing extended-style.
@@ -1967,9 +2037,8 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
 
   // Write dialog controls.
   for (const auto& c : r->controls) {
-    uint32_t style = 0x50010006;  // FIXME
-    write_little_long(out_, style);
-    write_little_long(out_, 0);  // FIXME: exstyle
+    write_little_long(out_, c.style);
+    write_little_long(out_, c.exstyle);
     write_little_short(out_, c.x);
     write_little_short(out_, c.y);
     write_little_short(out_, c.w);
