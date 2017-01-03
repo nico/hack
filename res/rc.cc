@@ -515,7 +515,7 @@ class StringtableResource : public Resource {
   };
 
   StringtableResource(Entry* entries, size_t num_entries)
-      // STRINGTABLES have no names.
+      // STRINGTABLEs have no names.
       : Resource(IntOrStringName::MakeInt(0)),
         entries_(entries, entries + num_entries) {}
 
@@ -1363,16 +1363,37 @@ std::unique_ptr<Resource> Parser::ParseResource() {
       return std::unique_ptr<Resource>(new CursorResource(name, str_val));
     if (type.value_ == "BITMAP")
       return std::unique_ptr<Resource>(new BitmapResource(name, str_val));
-    if (type.value_ == "FONT") {
-      err_ = "FONT not implemented yet";  // FIXME
-      return std::unique_ptr<Resource>();
-    }
     if (type.value_ == "ICON")
       return std::unique_ptr<Resource>(new IconResource(name, str_val));
+    if (type.value_ == "FONTDIR") {
+      err_ = "FONTDIR not implemented yet";  // FIXME
+      return std::unique_ptr<Resource>();
+    }
+    if (type.value_ == "FONT") {
+      err_ = "FONT not implemented yet";  // FIXME
+      // If this gets implemented: rc requires numeric names for FONTs.
+      return std::unique_ptr<Resource>();
+    }
     if (type.value_ == "RCDATA")
       return std::unique_ptr<Resource>(new RcdataResource(name, str_val));
     if (type.value_ == "DLGINCLUDE")
       return std::unique_ptr<Resource>(new DlgincludeResource(name, str_val));
+    if (type.value_ == "PLUGPLAY") {
+      err_ = "PLUGPLAY not implemented";
+      return std::unique_ptr<Resource>();
+    }
+    if (type.value_ == "VXD") {
+      err_ = "VXD not implemented";
+      return std::unique_ptr<Resource>();
+    }
+    if (type.value_ == "ANICURSOR") {
+      err_ = "ANICURSOR not implemented yet";  // FIXME
+      return std::unique_ptr<Resource>();
+    }
+    if (type.value_ == "ANIICON") {
+      err_ = "ANIICON not implemented yet";  // FIXME
+      return std::unique_ptr<Resource>();
+    }
     if (type.value_ == "HTML")
       return std::unique_ptr<Resource>(new HtmlResource(name, str_val));
   }
@@ -1410,7 +1431,7 @@ enum {
   kRT_ICON = 3,
   kRT_MENU = 4,
   kRT_DIALOG = 5,
-  kRT_STRING = 6,
+  kRT_STRING = 6,  // For STRINGTABLE.
   kRT_FONTDIR = 7,
   kRT_FONT = 8,
   kRT_ACCELERATOR = 9,
@@ -1418,7 +1439,7 @@ enum {
   kRT_MESSAGETABLE = 11,
   kRT_GROUP_CURSOR = 12,
   kRT_GROUP_ICON = 14,
-  kRT_VERSION = 16,    // Not stored in image file.
+  kRT_VERSION = 16,  // For VERSIONINFO, not VERSION
   kRT_DLGINCLUDE = 17,
   kRT_PLUGPLAY = 19,
   kRT_VXD = 20,
