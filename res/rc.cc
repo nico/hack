@@ -6,15 +6,14 @@ A sketch of a reimplemenation of rc.exe, for research purposes.
 Doesn't do any preprocessing for now.
 
 Missing for chromium:
-- DIALOG(EX)
 - LANGUAGE
 - #pragma code_page() and unicode handling
 - case-insensitive keywords
 - inline block data for RCDATA, DLGINCLUDE, HTML, custom types
 - text resource names without quotes (`IDR_OEMPG_HU.HTML` etc).
 - real string and int literal parsers (L"\0", 0xff)
-- int expression parse/eval (+ - | & ~) for DIALOGEX (DIALOG?) MENU
-  VERSIONINFO and maybe more
+- int expression parse/eval (+ - | & ~) for DIALOGEX DIALOG MENU VERSIONINFO
+  and maybe more
 - preprocessor
 - (chrome uses DESIGNINFO but only behind `#ifdef APSTUDIO_INVOKED` which is
   only set by MSVC not rc, and rc.exe doesn't understand DESIGNINFO)
@@ -469,6 +468,21 @@ class DialogResource : public Resource {
     uint8_t charset;
   };
 
+  struct ControlEx {  // 8 bytes larger than Control; unk1 and unk3 new,
+                      // style and exstyle appear swapped
+    uint32_t unk1;
+    uint32_t unk2;  // exstyle?
+    uint32_t style;  // ? often 50010006h, 50010003, 50000000
+    uint16_t x;
+    uint16_t y;
+    uint16_t w;
+    uint16_t h;
+    uint16_t id;
+    uint16_t unk3;
+    IntOrStringName clazz;  // ? 80 for AUTO3STATE, AUTOCHECKBOX, 85 for COMBOBOX
+    uint16_t mystery0;
+  };
+
   // about 30 bytes per control.
   struct Control {
     Control()  // FIXME: remove, probably
@@ -493,11 +507,15 @@ class DialogResource : public Resource {
     // For controls that have no text, an empty string (\0) is written to .res.
     std::experimental::string_view text;
 
-    uint16_t serialized_size(bool is_last) const {
+    // There's another uint16_t field here that seems to be always 0.
+
+    uint16_t serialized_size(bool is_last, DialogKind kind) const {
       uint16_t size = 2*4 + 5*2; // style, exstyle, x, y, w, h, id
       size += clazz.serialized_size();
       size += 2 * (text.size() + 1);
       size += 2;  // FIXME: Mystery 0 field after the control text.
+      if (kind == kDialogEx)
+        size += 4 + 2;  // unk1, unk3
       if (!is_last && size % 4)
         size += 2;  // pad to uint32_t
       return size;
@@ -2009,7 +2027,7 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
 
   size_t size = fixed_size;
   for (const auto& c : r->controls)
-    size += c.serialized_size(&c == &r->controls.back());
+    size += c.serialized_size(&c == &r->controls.back(), r->kind);
 
   WriteResHeader(size, IntOrStringName::MakeInt(kRT_DIALOG), r->name());
 
@@ -2079,7 +2097,7 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
     write_little_short(out_, 1);  // FIXME
     write_little_short(out_, 0xffff);  // FIXME
     write_little_long(out_, r->help_id);
-    write_little_long(out_, r->exstyle);  // FIXME
+    write_little_long(out_, r->exstyle);
     write_little_long(out_, style);
   } else {
     write_little_long(out_, style);
@@ -2125,13 +2143,21 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
 
   // Write dialog controls.
   for (const auto& c : r->controls) {
-    write_little_long(out_, c.style);
-    write_little_long(out_, c.exstyle);
+    if (r->kind == DialogResource::kDialogEx) {
+      write_little_long(out_, 0);  // unk1, FIXME
+      write_little_long(out_, c.exstyle);
+      write_little_long(out_, c.style);
+    } else {
+      write_little_long(out_, c.style);
+      write_little_long(out_, c.exstyle);
+    }
     write_little_short(out_, c.x);
     write_little_short(out_, c.y);
     write_little_short(out_, c.w);
     write_little_short(out_, c.h);
     write_little_short(out_, c.id);
+    if (r->kind == DialogResource::kDialogEx)
+      write_little_short(out_, 0);  // unk3, FIXME
     c.clazz.write(out_);
     // FIXME: if this has a text class, then the length of that is important
     // to determine padding at the end
@@ -2148,7 +2174,8 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
     // ends on a uint32_t boundary.
     write_little_short(out_, 0);
 
-    if (c.text.size() % 2 == 0)
+    // In DIALOGEX, the unk3 uint16_t shifts everything by 2 bytes.
+    if (c.text.size() % 2 == int(r->kind == DialogResource::kDialogEx))
       write_little_short(out_, 0);  // pad, but see FIXME above
   }
 
