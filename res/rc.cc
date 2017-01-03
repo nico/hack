@@ -31,6 +31,7 @@ Also missing, but not yet for chromium:
 #include <iostream>
 #include <map>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 // Like toupper(), but locale-independent.
@@ -462,6 +463,21 @@ class DialogResource : public Resource {
     std::experimental::string_view name;
   };
 
+#if 0
+  // about 30 bytes per control.
+  struct Control {
+    uint32_t style;  // ? often 50010006h, 50010003, 50000000
+    uint32_t exstyle;  // ? always 0?
+    uint16_t x;
+    uint16_t y;
+    uint16_t w;
+    uint16_t h;
+    uint16_t id;
+    IntOrStringName clazz;  // ? 80 for AUTO3STATE, AUTOCHECKBOX, 85 for COMBOBOX
+    name (utf-16, \0-terminated, padded to 4 bytes), but only if control has name
+  };
+#endif
+
   DialogResource(IntOrStringName name,
                  uint16_t x,
                  uint16_t y,
@@ -686,6 +702,7 @@ class Parser {
   void MaybeParseMenuOptions(uint16_t* style);
   std::unique_ptr<MenuResource::SubmenuEntryData> ParseMenuBlock();
   std::unique_ptr<MenuResource> ParseMenu(IntOrStringName name);
+  bool ParseDialogControl();  // FIXME: return type
   std::unique_ptr<DialogResource> ParseDialog(IntOrStringName name);
   std::unique_ptr<StringtableResource> ParseStringtable();
   bool ParseAccelerator(AcceleratorsResource::Accelerator* accelerator);
@@ -842,6 +859,62 @@ std::unique_ptr<MenuResource> Parser::ParseMenu(IntOrStringName name) {
       new MenuResource(name, std::move(*entries.get())));
 }
 
+bool Parser::ParseDialogControl() {
+  // https://msdn.microsoft.com/en-us/library/windows/desktop/aa380902(v=vs.85).aspx
+  if (!Is(Token::kIdentifier, "expected identifier"))
+    return false;
+  const Token& type = Consume();
+  if (std::unordered_set<std::experimental::string_view>{
+          "AUTO3STATE", "AUTOCHECKBOX", "COMBOBOX", "CONTROL", "CTEXT",
+          "DEFPUSHBUTTON", "EDITTEXT", "GROUPBOX", "HEDIT", "IEDIT", "ICON",
+          "LISTBOX", "LTEXT", "PUSHBOX", "PUSHBUTTON", "RADIOBUTTON", "RTEXT",
+          "SCROLLBAR", "STATE3"}
+          .count(type.value_) == 0) {
+    err_ = "unknown control type " + type.value_.to_string();
+    return false;
+  }
+
+  bool wants_text =
+      std::unordered_set<std::experimental::string_view>{
+          "COMBOBOX", "EDITTEXT", "HEDIT", "IEDIT", "LISTBOX", "SCROLLBAR"}
+          .count(type.value_) == 0;
+  if (wants_text) {
+    if (!Is(Token::kString, "expected string"))
+      return false;
+    const Token& text = Consume();
+    (void)text;  // FIXME: use
+    if (!Match(Token::kComma, "expected comma"))
+      return false;
+  }
+
+  if (type.value_ == "CONTROL") {
+    // Special: Has id, class, style, so id_and_rect[0] below will actually
+    // be style not id for this type only.
+    // FIXME: class can be either string or int
+    if (!Match(Token::kInt, "expected int") ||
+        !Match(Token::kComma, "expected comma") ||
+        !Match(Token::kString, "expected string") ||
+        !Match(Token::kComma, "expected comma"))
+      return false;
+  }
+
+  uint16_t id_and_rect[5];
+  for (int i = 0; i < 5; ++i) {
+    if (i > 0 && !Match(Token::kComma, "expected comma"))
+      return false;
+    if (!Is(Token::kInt, "expected int"))
+      return false;
+    const Token& val = Consume();
+    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+    // 1234L.
+    id_and_rect[i] = atoi(val.value_.to_string().c_str());
+  }
+
+  // FIXME: parse optional trailing style (for not-CONTROL) and optional
+  // trailing extended-style.
+  return true;
+}
+
 std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
   // Parse attributes of dialog itself.
   uint16_t rect[4];
@@ -960,7 +1033,8 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
   if (!Match(Token::kStartBlock, "expected START of {"))
     return std::unique_ptr<DialogResource>();
   while (!at_end() && cur_token().type() != Token::kEndBlock) {
-    Consume();  // FIXME
+    if (!ParseDialogControl())
+      return std::unique_ptr<DialogResource>();
   }
   if (!Match(Token::kEndBlock, "exptected END or }"))
     return std::unique_ptr<DialogResource>();
