@@ -696,7 +696,8 @@ class Parser {
   std::unique_ptr<FileBlock> ParseFile(std::string* err);
 
   bool Is(Token::Type type);
-  bool Match(Token::Type type);
+  // If |error_message| is non-nullptr, sets err_ if expected token isn't found.
+  bool Match(Token::Type type, const char* error_message);
   const Token& Consume();
 
   // Call this only if !at_end().
@@ -731,9 +732,14 @@ bool Parser::Is(Token::Type type) {
   return cur_token().type() == type;
 }
 
-bool Parser::Match(Token::Type type) {
-  if (!Is(type))
+bool Parser::Match(Token::Type type, const char* error_message) {
+  if (!Is(type)) {
+    if (error_message) {
+      err_ = error_message + std::string(", got ") +
+             cur_or_last_token().value_.to_string();
+    }
     return false;
+  }
   Consume();
   return true;
 }
@@ -754,7 +760,7 @@ void Parser::MaybeParseMenuOptions(uint16_t* style) {
     {"HELP", kMenuHELP},
   };
   while (Is(Token::kComma) || Is(Token::kIdentifier)) {
-    if (Match(Token::kComma))
+    if (Match(Token::kComma, nullptr))
       continue;
 
     auto it = styles.find(cur_token().value_);
@@ -767,10 +773,8 @@ void Parser::MaybeParseMenuOptions(uint16_t* style) {
 }
 
 std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
-  if (!Match(Token::kStartBlock)) {
-    err_ = "expected START or {, got " + cur_or_last_token().value_.to_string();
+  if (!Match(Token::kStartBlock, "expected START or {"))
     return std::unique_ptr<MenuResource::SubmenuEntryData>();
-  }
 
   std::unique_ptr<MenuResource::SubmenuEntryData> entries(
       new MenuResource::SubmenuEntryData);
@@ -782,7 +786,7 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
       return std::unique_ptr<MenuResource::SubmenuEntryData>();
     }
     bool is_item = cur_token().value_ == "MENUITEM";
-    Consume();
+    Consume();  // Eat MENUITEM or POPUP.
     if (!Is(Token::kString)) {
       err_ = "expected string, got " + cur_or_last_token().value_.to_string();
       return std::unique_ptr<MenuResource::SubmenuEntryData>();
@@ -797,10 +801,8 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
 
     uint16_t style = 0;
     if (is_item) {
-      if (!Match(Token::kComma)) {
-        err_ = "expected comma, got " + cur_or_last_token().value_.to_string();
+      if (!Match(Token::kComma, "expected comma"))
         return std::unique_ptr<MenuResource::SubmenuEntryData>();
-      }
       if (!Is(Token::kInt)) {
         err_ = "expected int, got " + cur_or_last_token().value_.to_string();
         return std::unique_ptr<MenuResource::SubmenuEntryData>();
@@ -825,10 +827,8 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
     entries->subentries.push_back(std::unique_ptr<MenuResource::Entry>(
         new MenuResource::Entry(style, name_val, std::move(entry_data))));
   }
-  if (!Match(Token::kEndBlock)) {
-    err_ = "expected END or }, got " + cur_or_last_token().value_.to_string();
+  if (!Match(Token::kEndBlock, "expected END or }"))
     return std::unique_ptr<MenuResource::SubmenuEntryData>();
-  }
   if (entries->subentries.empty()) {
     err_ = "empty menus are not allowed";
     return std::unique_ptr<MenuResource::SubmenuEntryData>();
@@ -849,10 +849,8 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
   // Parse attributes of dialog itself.
   uint16_t rect[4];
   for (int i = 0; i < 4; ++i) {
-    if (i > 0 && !Match(Token::kComma)) {
-      err_ = "expected comma, got " + cur_or_last_token().value_.to_string();
+    if (i > 0 && !Match(Token::kComma, "expected comma"))
       return std::unique_ptr<DialogResource>();
-    }
     if (!Is(Token::kInt)) {
       err_ = "expected int, got " + cur_or_last_token().value_.to_string();
       return std::unique_ptr<DialogResource>();
@@ -924,10 +922,8 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
       // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
       // 1234L.
       info.size = atoi(fontsize.value_.to_string().c_str());
-      if (!Match(Token::kComma)) {
-        err_ = "expected comma, got " + cur_or_last_token().value_.to_string();
+      if (!Match(Token::kComma, "expected comma"))
         return std::unique_ptr<DialogResource>();
-      }
       if (!Is(Token::kString)) {
         err_ = "expected string, got " + cur_or_last_token().value_.to_string();
         return std::unique_ptr<DialogResource>();
@@ -977,17 +973,13 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
   }
 
   // Parse resources block.
-  if (!Match(Token::kStartBlock)) {
-    err_ = "expected START or {, got " + cur_or_last_token().value_.to_string();
+  if (!Match(Token::kStartBlock, "expected START of {"))
     return std::unique_ptr<DialogResource>();
-  }
   while (!at_end() && cur_token().type() != Token::kEndBlock) {
     Consume();  // FIXME
   }
-  if (!Match(Token::kEndBlock)) {
-    err_ = "expected END or }, got " + cur_or_last_token().value_.to_string();
+  if (!Match(Token::kEndBlock, "exptected END or }"))
     return std::unique_ptr<DialogResource>();
-  }
 
   return std::unique_ptr<DialogResource>(new DialogResource(
       name, rect[0], rect[1], rect[2], rect[3], caption_val, std::move(clazz),
@@ -995,10 +987,8 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
 }
 
 std::unique_ptr<StringtableResource> Parser::ParseStringtable() {
-  if (!Match(Token::kStartBlock)) {
-    err_ = "expected START or {, got " + cur_or_last_token().value_.to_string();
+  if (!Match(Token::kStartBlock, "expected START or {"))
     return std::unique_ptr<StringtableResource>();
-  }
   std::vector<StringtableResource::Entry> entries;
   while (!at_end() && cur_token().type() != Token::kEndBlock) {
     if (!Is(Token::kInt)) {
@@ -1006,7 +996,7 @@ std::unique_ptr<StringtableResource> Parser::ParseStringtable() {
       return std::unique_ptr<StringtableResource>();
     }
     const Token& key = Consume();
-    Match(Token::kComma);  // Eat optional comma between key and value.
+    Match(Token::kComma, nullptr);  // Eat optional comma between key and value.
 
     if (!Is(Token::kString)) {
       err_ = "expected string, got " + cur_or_last_token().value_.to_string();
@@ -1024,10 +1014,8 @@ std::unique_ptr<StringtableResource> Parser::ParseStringtable() {
     str_val = str_val.substr(1, str_val.size() - 2);
     entries.push_back(StringtableResource::Entry{key_num, str_val});
   }
-  if (!Match(Token::kEndBlock)) {
-    err_ = "expected END or }, got " + cur_or_last_token().value_.to_string();
+  if (!Match(Token::kEndBlock, "expected END or }"))
     return std::unique_ptr<StringtableResource>();
-  }
   return std::unique_ptr<StringtableResource>(
       new StringtableResource(entries.data(), entries.size()));
 }
@@ -1039,10 +1027,8 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
     return false;
   }
   const Token& name = Consume();
-  if (!Match(Token::kComma)) {
-      err_ = "expected comma, got " + cur_or_last_token().value_.to_string();
-      return false;
-  }
+  if (!Match(Token::kComma, "expected comma"))
+    return false;
   if (!Is(Token::kInt)) {
     err_ = "expected int, got " + cur_or_last_token().value_.to_string();
     return false;
@@ -1122,11 +1108,9 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
 }
 
 std::unique_ptr<AcceleratorsResource> Parser::ParseAccelerators(
-IntOrStringName name) {
-  if (!Match(Token::kStartBlock)) {
-    err_ = "expected START or {, got " + cur_or_last_token().value_.to_string();
+    IntOrStringName name) {
+  if (!Match(Token::kStartBlock, "expected START or {"))
     return std::unique_ptr<AcceleratorsResource>();
-  }
 
   std::vector<AcceleratorsResource::Accelerator> entries;
   while (!at_end() && cur_token().type() != Token::kEndBlock) {
@@ -1135,20 +1119,16 @@ IntOrStringName name) {
       return std::unique_ptr<AcceleratorsResource>();
     entries.push_back(accelerator);
   }
-  if (!Match(Token::kEndBlock)) {
-    err_ = "expected END or }, got " + cur_or_last_token().value_.to_string();
+  if (!Match(Token::kEndBlock, "expected END or }"))
     return std::unique_ptr<AcceleratorsResource>();
-  }
   return std::unique_ptr<AcceleratorsResource>(
       new AcceleratorsResource(name, std::move(entries)));
 }
 
 std::unique_ptr<VersioninfoResource::BlockData>
 Parser::ParseVersioninfoBlock() {
-  if (!Match(Token::kStartBlock)) {
-    err_ = "expected START or {, got " + cur_or_last_token().value_.to_string();
+  if (!Match(Token::kStartBlock, "expected START or {"))
     return std::unique_ptr<VersioninfoResource::BlockData>();
-  }
 
   std::unique_ptr<VersioninfoResource::BlockData> block(
       new VersioninfoResource::BlockData);
@@ -1174,10 +1154,8 @@ Parser::ParseVersioninfoBlock() {
     std::unique_ptr<VersioninfoResource::InfoData> info_data;
 
     if (is_value) {
-      if (!Match(Token::kComma)) {
-        err_ = "expected comma, got " + cur_or_last_token().value_.to_string();
+      if (!Match(Token::kComma, "expected comma"))
         return std::unique_ptr<VersioninfoResource::BlockData>();
-      }
       if (!Is(Token::kString) && !Is(Token::kInt)) {
         err_ = "expected string or int, got " +
                cur_or_last_token().value_.to_string();
@@ -1232,10 +1210,8 @@ Parser::ParseVersioninfoBlock() {
     block->values.push_back(std::unique_ptr<VersioninfoResource::Entry>(
         new VersioninfoResource::Entry(name_val, std::move(info_data))));
   }
-  if (!Match(Token::kEndBlock)) {
-    err_ = "expected END or }, got " + cur_or_last_token().value_.to_string();
+  if (!Match(Token::kEndBlock, "expected END or }"))
     return std::unique_ptr<VersioninfoResource::BlockData>();
-  }
   return block;
 }
 
