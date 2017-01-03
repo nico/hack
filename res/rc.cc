@@ -458,9 +458,15 @@ class MenuResource : public Resource {
 
 class DialogResource : public Resource {
  public:
+  enum DialogKind { kDialog, kDialogEx };
+
   struct FontInfo {
     uint16_t size;
     std::experimental::string_view name;
+    // The rest only set if kind == kDialogEx:
+    uint16_t weight;
+    uint8_t italic;
+    uint8_t charset;
   };
 
   // about 30 bytes per control.
@@ -499,10 +505,12 @@ class DialogResource : public Resource {
   };
 
   DialogResource(IntOrStringName name,
+                 DialogKind kind,
                  uint16_t x,
                  uint16_t y,
                  uint16_t w,
                  uint16_t h,
+                 uint32_t help_id,
                  std::experimental::string_view caption,
                  IntOrStringName clazz,
                  uint16_t exstyle,
@@ -511,10 +519,12 @@ class DialogResource : public Resource {
                  std::experimental::fundamentals_v1::optional<uint32_t> style,
                  std::vector<Control> controls)
       : Resource(name),
+        kind(kind),
         x(x),
         y(y),
         w(w),
         h(h),
+        help_id(help_id),
         caption(caption),
         clazz(std::move(clazz)),
         exstyle(exstyle),
@@ -525,7 +535,10 @@ class DialogResource : public Resource {
 
   bool Visit(Visitor* v) const override { return v->VisitDialogResource(this); }
 
+  DialogKind kind;
+
   uint16_t x, y, w, h;
+  uint32_t help_id;  // only set if kind == kDialogEx
 
   // Empty if not set. rc.exe also writes no caption for `CAPTION ""`.
   std::experimental::string_view caption;
@@ -727,7 +740,9 @@ class Parser {
   std::unique_ptr<MenuResource::SubmenuEntryData> ParseMenuBlock();
   std::unique_ptr<MenuResource> ParseMenu(IntOrStringName name);
   bool ParseDialogControl(DialogResource::Control* control);
-  std::unique_ptr<DialogResource> ParseDialog(IntOrStringName name);
+  std::unique_ptr<DialogResource> ParseDialog(
+      IntOrStringName name,
+      DialogResource::DialogKind dialog_kind);
   std::unique_ptr<StringtableResource> ParseStringtable();
   bool ParseAccelerator(AcceleratorsResource::Accelerator* accelerator);
   std::unique_ptr<AcceleratorsResource> ParseAccelerators(IntOrStringName name);
@@ -1026,7 +1041,9 @@ bool Parser::ParseDialogControl(DialogResource::Control* control) {
   return true;
 }
 
-std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
+std::unique_ptr<DialogResource> Parser::ParseDialog(
+    IntOrStringName name,
+    DialogResource::DialogKind dialog_kind) {
   // Parse attributes of dialog itself.
   uint16_t rect[4];
   for (int i = 0; i < 4; ++i) {
@@ -1040,9 +1057,20 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
     rect[i] = atoi(val.value_.to_string().c_str());
   }
 
+  // DIALOGEX can have an optional helpID after the dialog rect.
+  uint32_t help_id = 0;
+  if (dialog_kind == DialogResource::kDialogEx && Is(Token::kComma)) {
+    Consume();  // Eat comma.
+    if (!Is(Token::kInt, "expected int"))
+      return std::unique_ptr<DialogResource>();
+    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+    // 1234L.
+    help_id =  atoi(Consume().value_.to_string().c_str());
+  }
+
   std::experimental::string_view caption_val;
   IntOrStringName clazz = IntOrStringName::MakeEmpty();
-  uint16_t exstyle = 0;
+  uint32_t exstyle = 0;
   std::experimental::fundamentals_v1::optional<DialogResource::FontInfo> font;
   IntOrStringName menu = IntOrStringName::MakeEmpty();
   std::experimental::fundamentals_v1::optional<uint32_t> style;
@@ -1108,6 +1136,23 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
       // "quoting""rules", L"asdf", etc.
       fontname_val = fontname_val.substr(1, fontname_val.size() - 2);
       info.name = fontname_val;
+
+      // DIALOGEX can have optional font weight, italic, encoding flags.
+      if (dialog_kind == DialogResource::kDialogEx) {
+        uint16_t vals[3] = {};
+        for (int i = 0; i < 3 && Is(Token::kComma); ++i) {
+          Consume();  // Eat comma.
+          if (!Is(Token::kInt, "expected int"))
+            return std::unique_ptr<DialogResource>();
+          // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+          // 1234L.
+          vals[i] = atoi(Consume().value_.to_string().c_str());
+        }
+        info.weight = vals[0];
+        info.italic = vals[1];
+        info.charset = vals[2];
+      }
+
       font = info;
     }
     else if (tok.value_ == "MENU") {
@@ -1154,8 +1199,9 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
     return std::unique_ptr<DialogResource>();
 
   return std::unique_ptr<DialogResource>(new DialogResource(
-      name, rect[0], rect[1], rect[2], rect[3], caption_val, std::move(clazz),
-      exstyle, std::move(font), std::move(menu), style, std::move(controls)));
+      name, dialog_kind, rect[0], rect[1], rect[2], rect[3], help_id,
+      caption_val, std::move(clazz), exstyle, std::move(font), std::move(menu),
+      style, std::move(controls)));
 }
 
 std::unique_ptr<StringtableResource> Parser::ParseStringtable() {
@@ -1490,11 +1536,9 @@ std::unique_ptr<Resource> Parser::ParseResource() {
     return std::unique_ptr<Resource>();
   }
   if (type.type_ == Token::kIdentifier && type.value_ == "DIALOG")
-    return ParseDialog(name);
-  if (type.type_ == Token::kIdentifier && type.value_ == "DIALOGEX") {
-    err_ = "DIALOGEX not implemented yet";  // FIXME
-    return std::unique_ptr<Resource>();
-  }
+    return ParseDialog(name, DialogResource::kDialog);
+  if (type.type_ == Token::kIdentifier && type.value_ == "DIALOGEX")
+    return ParseDialog(name, DialogResource::kDialogEx);
   if (type.type_ == Token::kIdentifier && type.value_ == "ACCELERATORS")
     return ParseAccelerators(name);
   if (type.type_ == Token::kIdentifier && type.value_ == "MESSAGETABLE") {
@@ -1950,11 +1994,13 @@ bool SerializationVisitor::VisitMenuResource(const MenuResource* r) {
 }
 
 bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
-  size_t fixed_size = 0x12;
+  size_t fixed_size = r->kind == DialogResource::kDialogEx ? 0x1a : 0x12;
   fixed_size += r->clazz.serialized_size();
   fixed_size += (r->caption.size() + 1) * 2;
   if (r->font) {
-    fixed_size += 2;  // Font size.
+    fixed_size += 2;  // 1 uint16_t font size.
+    if (r->kind == DialogResource::kDialogEx)
+      fixed_size += 4;  // uint16_t font weight, 2 uint8_t italic, charset
     fixed_size += 2 * (r->font->name.size() + 1);
   }
   fixed_size += r->menu.serialized_size();
@@ -1972,13 +2018,42 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
     // 0x40 if FONT, 0x8880<<16 default, 0x40<<16 if CAPTION;
     // STYLE overwrites
     uint32_t style;
-    uint16_t exstyle;
-    uint16_t unk2;
+    uint32_t exstyle;
+
     uint16_t num_controls;
     uint16_t x;
     uint16_t y;
     uint16_t w;
     uint16_t h;
+    // If there's a MENU, it's here instead of menu  (either 0xffff 0x2a, or
+    // 0-terminated utf-16 text; pad). If there isn't, then menu is 0.
+    uint16_t menu;
+    // If there's a CLASS, it's here instead of clazz  (either 0xffff 0x2a, or
+    // 0-terminated utf-16 text; pad). If there isn't, then clazz is 0.
+    uint16_t clazz;
+    // If there's a CAPTION, it's here instead of caption  (always
+    // 0-terminated utf-16 text; pad). If there isn't, then caption is 0.
+    uint16_t caption;
+    // If there's a FONT, it trails this. uint16 size, weight, uint8_t italic,
+    // charset, \0-term utf-16 name , name, pad)
+  };
+
+  struct DialogExData {
+    uint16_t unk1;  // always 1?
+    uint16_t unk2;  // always 0xffff?
+    uint32_t help_id;
+      // (0xffff help_id kind of seems like the help id could be an
+      // IntOrStringName, but rc.exe rejects string helpIDs.)
+    uint32_t exstyle;
+    uint32_t style;
+
+    // The rest is identical, except that FONT at the end has more stuff:
+    uint16_t num_controls;
+    uint16_t x;
+    uint16_t y;
+    uint16_t w;
+    uint16_t h;
+
     // If there's a MENU, it's here instead of menu  (either 0xffff 0x2a, or
     // 0-terminated utf-16 text; pad). If there isn't, then menu is 0.
     uint16_t menu;
@@ -2000,9 +2075,17 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
   if (r->style)
     style = *r->style;
 
-  write_little_long(out_, style);
-  write_little_short(out_, r->exstyle);
-  write_little_short(out_, 0);  // FIXME
+  if (r->kind == DialogResource::kDialogEx) {
+    write_little_short(out_, 1);  // FIXME
+    write_little_short(out_, 0xffff);  // FIXME
+    write_little_long(out_, r->help_id);
+    write_little_long(out_, r->exstyle);  // FIXME
+    write_little_long(out_, style);
+  } else {
+    write_little_long(out_, style);
+    write_little_long(out_, r->exstyle);
+  }
+
   write_little_short(out_, r->controls.size());
   write_little_short(out_, r->x);
   write_little_short(out_, r->y);
@@ -2022,6 +2105,11 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
   }
   if (r->font) {
     write_little_short(out_, r->font->size);
+    if (r->kind == DialogResource::kDialogEx) {
+      write_little_short(out_, r->font->weight);
+      fputc(r->font->italic, out_);
+      fputc(r->font->charset, out_);
+    }
     for (int j = 0; j < r->font->name.size(); ++j) {
       // FIXME: Real UTF16 support.
       fputc(r->font->name[j], out_);

@@ -24,6 +24,9 @@ cmp test/dialog_nocontrols.res out.res
 ./rc < test/dialog_controls.rc
 cmp test/dialog_controls.res out.res
 
+./rc < test/dialogex_nocontrols.rc
+cmp test/dialogex_nocontrols.res out.res
+
 ./rc < test/stringtable.rc
 cmp test/stringtable.res out.res
 

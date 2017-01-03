@@ -1,0 +1,39 @@
+// DIALOGEX is like DIALOG but also allows (only non-control related):
+// - a helpID after the size rect
+// - font weight and italic setting for FONT
+
+1 DIALOGEX 1,2,3,4, 33  // Now with helpID
+BEGIN END
+
+2 DIALOGEX 1,2,3,4
+CAPTION "Hi"
+BEGIN END
+
+31 DIALOGEX 1,2,3,4
+CLASS "Hi"
+BEGIN END
+
+32 DIALOGEX 1,2,3,4
+CLASS 42  // uint16_t; can have math here
+BEGIN END
+
+4 DIALOGEX 1,2,3,4
+EXSTYLE 8  // WS_EX_TOPMOST; can have math here
+BEGIN END
+
+5 DIALOGEX 1,2,3,4
+// Now with `weight, italic, charset` fields.
+FONT 12, "Inconsolata", 400, /*italic=*/1, 1
+BEGIN END
+
+61 DIALOGEX 1,2,3,4
+MENU "MyMenu"
+BEGIN END
+
+62 DIALOGEX 1,2,3,4
+MENU 42
+BEGIN END
+
+7 DIALOGEX 1,2,3,4
+STYLE 42  // Not a real WS_ or DS_ style; can have math here.
+BEGIN END
