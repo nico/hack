@@ -695,7 +695,8 @@ class Parser {
   std::unique_ptr<Resource> ParseResource();
   std::unique_ptr<FileBlock> ParseFile(std::string* err);
 
-  bool Is(Token::Type type);
+  // If |error_message| is non-nullptr, sets err_ if expected token isn't found.
+  bool Is(Token::Type type, const char* error_message = nullptr);
   // If |error_message| is non-nullptr, sets err_ if expected token isn't found.
   bool Match(Token::Type type, const char* error_message);
   const Token& Consume();
@@ -726,20 +727,20 @@ std::unique_ptr<FileBlock> Parser::Parse(std::vector<Token> tokens,
 Parser::Parser(std::vector<Token> tokens)
     : tokens_(std::move(tokens)), cur_(0) {}
 
-bool Parser::Is(Token::Type type) {
+bool Parser::Is(Token::Type type, const char* error_message) {
   if (at_end())
     return false;
-  return cur_token().type() == type;
+  bool is_match = cur_token().type() == type;
+  if (!is_match && error_message) {
+    err_ = error_message + std::string(", got ") +
+           cur_or_last_token().value_.to_string();
+  }
+  return is_match;
 }
 
 bool Parser::Match(Token::Type type, const char* error_message) {
-  if (!Is(type)) {
-    if (error_message) {
-      err_ = error_message + std::string(", got ") +
-             cur_or_last_token().value_.to_string();
-    }
+  if (!Is(type, error_message))
     return false;
-  }
   Consume();
   return true;
 }
@@ -787,10 +788,8 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
     }
     bool is_item = cur_token().value_ == "MENUITEM";
     Consume();  // Eat MENUITEM or POPUP.
-    if (!Is(Token::kString)) {
-      err_ = "expected string, got " + cur_or_last_token().value_.to_string();
+    if (!Is(Token::kString, "expected string"))
       return std::unique_ptr<MenuResource::SubmenuEntryData>();
-    }
     const Token& name = Consume();
     std::experimental::string_view name_val = name.value_;
     // The literal includes quotes, strip them.
@@ -803,10 +802,8 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
     if (is_item) {
       if (!Match(Token::kComma, "expected comma"))
         return std::unique_ptr<MenuResource::SubmenuEntryData>();
-      if (!Is(Token::kInt)) {
-        err_ = "expected int, got " + cur_or_last_token().value_.to_string();
+      if (!Is(Token::kInt, "expected int"))
         return std::unique_ptr<MenuResource::SubmenuEntryData>();
-      }
       const Token& id = Consume();
       // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
       // 1234L.
@@ -851,10 +848,8 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
   for (int i = 0; i < 4; ++i) {
     if (i > 0 && !Match(Token::kComma, "expected comma"))
       return std::unique_ptr<DialogResource>();
-    if (!Is(Token::kInt)) {
-      err_ = "expected int, got " + cur_or_last_token().value_.to_string();
+    if (!Is(Token::kInt, "expected int"))
       return std::unique_ptr<DialogResource>();
-    }
     const Token& val = Consume();
     // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
     // 1234L.
@@ -868,17 +863,12 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
   IntOrStringName menu = IntOrStringName::MakeEmpty();
   std::experimental::fundamentals_v1::optional<uint32_t> style;
   while (!at_end() && cur_token().type() != Token::kStartBlock) {
-    if (!Is(Token::kIdentifier)) {
-      err_ = "expected identifier START or {, got " +
-             cur_or_last_token().value_.to_string();
+    if (!Is(Token::kIdentifier, "expected identifier, START or {"))
       return std::unique_ptr<DialogResource>();
-    }
     const Token& tok = Consume();
     if (tok.value_ == "CAPTION") {
-      if (!Is(Token::kString)) {
-        err_ = "expected string, got " + cur_or_last_token().value_.to_string();
+      if (!Is(Token::kString, "expected string"))
         return std::unique_ptr<DialogResource>();
-      }
       const Token& caption = Consume();
       caption_val = caption.value_;
       // The literal includes quotes, strip them.
@@ -908,10 +898,8 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
       }
     }
     else if (tok.value_ == "EXSTYLE") {
-      if (!Is(Token::kInt)) {
-        err_ = "expected int, got " + cur_or_last_token().value_.to_string();
+      if (!Is(Token::kInt, "expected int"))
         return std::unique_ptr<DialogResource>();
-      }
       const Token& exstyle_tok = Consume();
       // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
       // 1234L.
@@ -919,20 +907,16 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
     }
     else if (tok.value_ == "FONT") {
       DialogResource::FontInfo info;
-      if (!Is(Token::kInt)) {
-        err_ = "expected int, got " + cur_or_last_token().value_.to_string();
+      if (!Is(Token::kInt, "expected int"))
         return std::unique_ptr<DialogResource>();
-      }
       const Token& fontsize = Consume();
       // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
       // 1234L.
       info.size = atoi(fontsize.value_.to_string().c_str());
       if (!Match(Token::kComma, "expected comma"))
         return std::unique_ptr<DialogResource>();
-      if (!Is(Token::kString)) {
-        err_ = "expected string, got " + cur_or_last_token().value_.to_string();
+      if (!Is(Token::kString, "expected string"))
         return std::unique_ptr<DialogResource>();
-      }
       const Token& fontname = Consume();
       std::experimental::string_view fontname_val = fontname.value_;
       // The literal includes quotes, strip them.
@@ -960,10 +944,8 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
       }
     }
     else if (tok.value_ == "STYLE") {
-      if (!Is(Token::kInt)) {
-        err_ = "expected int, got " + cur_or_last_token().value_.to_string();
+      if (!Is(Token::kInt, "expected int"))
         return std::unique_ptr<DialogResource>();
-      }
       const Token& style_tok = Consume();
       // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
       // 1234L.
@@ -990,17 +972,13 @@ std::unique_ptr<StringtableResource> Parser::ParseStringtable() {
     return std::unique_ptr<StringtableResource>();
   std::vector<StringtableResource::Entry> entries;
   while (!at_end() && cur_token().type() != Token::kEndBlock) {
-    if (!Is(Token::kInt)) {
-      err_ = "expected int, got " + cur_or_last_token().value_.to_string();
+    if (!Is(Token::kInt, "expected int"))
       return std::unique_ptr<StringtableResource>();
-    }
     const Token& key = Consume();
     Match(Token::kComma, nullptr);  // Eat optional comma between key and value.
 
-    if (!Is(Token::kString)) {
-      err_ = "expected string, got " + cur_or_last_token().value_.to_string();
+    if (!Is(Token::kString, "expected string"))
       return std::unique_ptr<StringtableResource>();
-    }
     const Token& value = Consume();
 
     // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
@@ -1028,10 +1006,8 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
   const Token& name = Consume();
   if (!Match(Token::kComma, "expected comma"))
     return false;
-  if (!Is(Token::kInt)) {
-    err_ = "expected int, got " + cur_or_last_token().value_.to_string();
+  if (!Is(Token::kInt, "expected int"))
     return false;
-  }
   const Token& id = Consume();
   // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
   // 1234L.
@@ -1039,11 +1015,9 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
 
   uint16_t flags = 0;
   while (Is(Token::kComma)) {
-    Consume();
-    if (!Is(Token::kIdentifier)) {
-      err_ = "expected ident, got " + cur_or_last_token().value_.to_string();
+    Consume();  // Eat comma.
+    if (!Is(Token::kIdentifier, "expected identifier"))
       return false;
-    }
     const Token& flag = Consume();
     if (flag.value_ == "ASCII")
       ;
@@ -1140,10 +1114,8 @@ Parser::ParseVersioninfoBlock() {
     }
     bool is_value = cur_token().value_ == "VALUE";
     Consume();
-    if (!Is(Token::kString)) {
-      err_ = "expected string, got " + cur_or_last_token().value_.to_string();
+    if (!Is(Token::kString, "expected string"))
       return std::unique_ptr<VersioninfoResource::BlockData>();
-    }
     const Token& name = Consume();
     std::experimental::string_view name_val = name.value_;
     // The literal includes quotes, strip them.
@@ -1186,11 +1158,8 @@ Parser::ParseVersioninfoBlock() {
         val.push_back(value_num >> 8);
         while (Is(Token::kComma)) {
           Consume();  // Eat comma.
-          if (!Is(Token::kInt)) {
-            err_ =
-                "expected int, got " + cur_or_last_token().value_.to_string();
+          if (!Is(Token::kInt, "expected int"))
             return std::unique_ptr<VersioninfoResource::BlockData>();
-          }
           const Token& value = Consume();
           uint16_t value_num = atoi(value.value_.to_string().c_str());
           val.push_back(value_num & 0xFF);
@@ -1226,16 +1195,11 @@ std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(
     {"FILESUBTYPE", &fixed_info.filesubtype},
   };
   while (!at_end() && cur_token().type() != Token::kStartBlock) {
-    if (!Is(Token::kIdentifier)) {
-      err_ = "expected identifier START or {, got " +
-             cur_or_last_token().value_.to_string();
+    if (!Is(Token::kIdentifier, "expected identifier, START or {"))
       return std::unique_ptr<VersioninfoResource>();
-    }
     const Token& name = Consume();
-    if (!Is(Token::kInt)) {
-      err_ = "expected int, got " + cur_or_last_token().value_.to_string();
+    if (!Is(Token::kInt, "expected int"))
       return std::unique_ptr<VersioninfoResource>();
-    }
     const Token& val = Consume();
     // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
     // 1234L.
@@ -1244,10 +1208,8 @@ std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(
       uint16_t val_nums[4] = { val_num };
       for (int i = 0; i < 3 && Is(Token::kComma); ++i) {
         Consume();  // Eat comma.
-        if (!Is(Token::kInt)) {
-          err_ = "expected int, got " + cur_or_last_token().value_.to_string();
+        if (!Is(Token::kInt, "expected int"))
           return std::unique_ptr<VersioninfoResource>();
-        }
         const Token& val = Consume();
         // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
         // 1234L.
