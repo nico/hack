@@ -463,9 +463,18 @@ class DialogResource : public Resource {
     std::experimental::string_view name;
   };
 
-#if 0
   // about 30 bytes per control.
   struct Control {
+    Control()  // FIXME: remove, probably
+        : style(0),
+          exstyle(0),
+          x(0),
+          y(0),
+          w(0),
+          h(0),
+          id(0),
+          clazz(IntOrStringName::MakeEmpty()) {}
+
     uint32_t style;  // ? often 50010006h, 50010003, 50000000
     uint32_t exstyle;  // ? always 0?
     uint16_t x;
@@ -474,9 +483,20 @@ class DialogResource : public Resource {
     uint16_t h;
     uint16_t id;
     IntOrStringName clazz;  // ? 80 for AUTO3STATE, AUTOCHECKBOX, 85 for COMBOBOX
-    name (utf-16, \0-terminated, padded to 4 bytes), but only if control has name
+
+    // For controls that have no text, an empty string (\0) is written to .res.
+    std::experimental::string_view text;
+
+    uint16_t serialized_size(bool is_last) const {
+      uint16_t size = 2*4 + 5*2; // style, exstyle, x, y, w, h, id
+      size += clazz.serialized_size();
+      size += 2 * (text.size() + 1);
+      size += 2;  // FIXME: Mystery 0 field after the control text.
+      if (!is_last && size % 4)
+        size += 2;  // pad to uint32_t
+      return size;
+    }
   };
-#endif
 
   DialogResource(IntOrStringName name,
                  uint16_t x,
@@ -488,7 +508,8 @@ class DialogResource : public Resource {
                  uint16_t exstyle,
                  std::experimental::fundamentals_v1::optional<FontInfo> font,
                  IntOrStringName menu,
-                 std::experimental::fundamentals_v1::optional<uint32_t> style)
+                 std::experimental::fundamentals_v1::optional<uint32_t> style,
+                 std::vector<Control> controls)
       : Resource(name),
         x(x),
         y(y),
@@ -499,7 +520,8 @@ class DialogResource : public Resource {
         exstyle(exstyle),
         font(std::move(font)),
         menu(std::move(menu)),
-        style(style) {}
+        style(style),
+        controls(std::move(controls)) {}
 
   bool Visit(Visitor* v) const override { return v->VisitDialogResource(this); }
 
@@ -521,6 +543,8 @@ class DialogResource : public Resource {
   IntOrStringName menu;
 
   std::experimental::fundamentals_v1::optional<uint32_t> style;
+
+  std::vector<Control> controls;
 };
 
 class StringtableResource : public Resource {
@@ -702,7 +726,7 @@ class Parser {
   void MaybeParseMenuOptions(uint16_t* style);
   std::unique_ptr<MenuResource::SubmenuEntryData> ParseMenuBlock();
   std::unique_ptr<MenuResource> ParseMenu(IntOrStringName name);
-  bool ParseDialogControl();  // FIXME: return type
+  bool ParseDialogControl(DialogResource::Control* control);
   std::unique_ptr<DialogResource> ParseDialog(IntOrStringName name);
   std::unique_ptr<StringtableResource> ParseStringtable();
   bool ParseAccelerator(AcceleratorsResource::Accelerator* accelerator);
@@ -859,7 +883,7 @@ std::unique_ptr<MenuResource> Parser::ParseMenu(IntOrStringName name) {
       new MenuResource(name, std::move(*entries.get())));
 }
 
-bool Parser::ParseDialogControl() {
+bool Parser::ParseDialogControl(DialogResource::Control* control) {
   // https://msdn.microsoft.com/en-us/library/windows/desktop/aa380902(v=vs.85).aspx
   if (!Is(Token::kIdentifier, "expected identifier"))
     return false;
@@ -882,7 +906,12 @@ bool Parser::ParseDialogControl() {
     if (!Is(Token::kString, "expected string"))
       return false;
     const Token& text = Consume();
-    (void)text;  // FIXME: use
+    std::experimental::string_view text_val = text.value_;
+    // The literal includes quotes, strip them.
+    // FIXME: give Token a StringValue() function that handles \-escapes,
+    // "quoting""rules", L"asdf", etc.
+    text_val = text_val.substr(1, text_val.size() - 2);
+    control->text = text_val;
     if (!Match(Token::kComma, "expected comma"))
       return false;
   }
@@ -891,6 +920,7 @@ bool Parser::ParseDialogControl() {
     // Special: Has id, class, style, so id_and_rect[0] below will actually
     // be style not id for this type only.
     // FIXME: class can be either string or int
+    // FIXME: use those, don't throw away
     if (!Match(Token::kInt, "expected int") ||
         !Match(Token::kComma, "expected comma") ||
         !Match(Token::kString, "expected string") ||
@@ -909,6 +939,17 @@ bool Parser::ParseDialogControl() {
     // 1234L.
     id_and_rect[i] = atoi(val.value_.to_string().c_str());
   }
+
+  if (type.value_ == "CONTROL")
+    control->style = id_and_rect[0];
+  else
+    control->id = id_and_rect[0];
+  control->x = id_and_rect[1];
+  control->y = id_and_rect[2];
+  control->w = id_and_rect[3];
+  control->h = id_and_rect[4];
+
+  control->clazz = IntOrStringName::MakeInt(0x80);  // FIXME
 
   // FIXME: parse optional trailing style (for not-CONTROL) and optional
   // trailing extended-style.
@@ -1032,16 +1073,19 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
   // Parse resources block.
   if (!Match(Token::kStartBlock, "expected START of {"))
     return std::unique_ptr<DialogResource>();
+  std::vector<DialogResource::Control> controls;
   while (!at_end() && cur_token().type() != Token::kEndBlock) {
-    if (!ParseDialogControl())
+    DialogResource::Control control;
+    if (!ParseDialogControl(&control))
       return std::unique_ptr<DialogResource>();
+    controls.push_back(control);
   }
   if (!Match(Token::kEndBlock, "exptected END or }"))
     return std::unique_ptr<DialogResource>();
 
   return std::unique_ptr<DialogResource>(new DialogResource(
       name, rect[0], rect[1], rect[2], rect[3], caption_val, std::move(clazz),
-      exstyle, std::move(font), std::move(menu), style));
+      exstyle, std::move(font), std::move(menu), style, std::move(controls)));
 }
 
 std::unique_ptr<StringtableResource> Parser::ParseStringtable() {
@@ -1836,14 +1880,20 @@ bool SerializationVisitor::VisitMenuResource(const MenuResource* r) {
 }
 
 bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
-  size_t size = 0x12;
-  size += r->clazz.serialized_size();
-  size += (r->caption.size() + 1) * 2;
+  size_t fixed_size = 0x12;
+  fixed_size += r->clazz.serialized_size();
+  fixed_size += (r->caption.size() + 1) * 2;
   if (r->font) {
-    size += 2;  // Font size.
-    size += 2 * (r->font->name.size() + 1);
+    fixed_size += 2;  // Font size.
+    fixed_size += 2 * (r->font->name.size() + 1);
   }
-  size += r->menu.serialized_size();
+  fixed_size += r->menu.serialized_size();
+  if (r->controls.size() && fixed_size % 4)
+    fixed_size += 2;  // pad to uint32_t after header.
+
+  size_t size = fixed_size;
+  for (const auto& c : r->controls)
+    size += c.serialized_size(&c == &r->controls.back());
 
   WriteResHeader(size, IntOrStringName::MakeInt(kRT_DIALOG), r->name());
 
@@ -1883,7 +1933,7 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
   write_little_long(out_, style);
   write_little_short(out_, r->exstyle);
   write_little_short(out_, 0);  // FIXME
-  write_little_short(out_, 0);  // FIXME num_controls
+  write_little_short(out_, r->controls.size());
   write_little_short(out_, r->x);
   write_little_short(out_, r->y);
   write_little_short(out_, r->w);
@@ -1910,12 +1960,40 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
     write_little_short(out_, 0);
   }
 
-  if (size % 4) {
-    // pad to dword after FIXME header | controls | both?
+  if (fixed_size % 4) {
+    // Pad to dword after header.
     write_little_short(out_, 0);
   }
 
-  // FIXME: implement writing of controls in dialog
+  // Write dialog controls.
+  for (const auto& c : r->controls) {
+    uint32_t style = 0x50010006;  // FIXME
+    write_little_long(out_, style);
+    write_little_long(out_, 0);  // FIXME: exstyle
+    write_little_short(out_, c.x);
+    write_little_short(out_, c.y);
+    write_little_short(out_, c.w);
+    write_little_short(out_, c.h);
+    write_little_short(out_, c.id);
+    c.clazz.write(out_);
+    // FIXME: if this has a text class, then the length of that is important
+    // to determine padding at the end
+    for (int j = 0; j < c.text.size(); ++j) {
+      // FIXME: Real UTF16 support.
+      fputc(c.text[j], out_);
+      fputc('\0', out_);
+    }
+    write_little_short(out_, 0);  // \0-terminate.
+
+    // Huh, looks like there's another 0 uint16_t after the name!
+    // FIXME: figure out what this is and if it's ever non-0. Doesn't look like
+    // padding since it's there (followed by a padding 0) even if the control
+    // ends on a uint32_t boundary.
+    write_little_short(out_, 0);
+
+    if (c.text.size() % 2 == 0)
+      write_little_short(out_, 0);  // pad, but see FIXME above
+  }
 
   return true;
 }
