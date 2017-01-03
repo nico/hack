@@ -11,7 +11,7 @@ BEGIN
     END
     POPUP "&Help"
     BEGIN
-        MENUITEM "F&oo",       555 //, CHECKED  XXX
+        MENUITEM "F&oo",       555
         MENUITEM "&About",     556
     END
 END

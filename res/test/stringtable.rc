@@ -8,7 +8,7 @@ END
 // This is fine, but must have IDs distinct from prior string table.
 STRINGTABLE BEGIN 3 "another stringtable" END
 
-// TODO: test negative IDs, unicode strings, ...
+// FIXME: test negative IDs, unicode strings, ...
 // STRINGTABLEs go at the end of the .res file, no matter where they are in the
 // .rc file.
 
