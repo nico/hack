@@ -950,6 +950,9 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
       // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
       // 1234L.
       style = atoi(style_tok.value_.to_string().c_str());
+    } else {
+      err_ = "unknown DIALOG attribute " + tok.value_.to_string();
+      return std::unique_ptr<DialogResource>();
     }
   }
 
