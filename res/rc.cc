@@ -868,8 +868,13 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
   IntOrStringName menu = IntOrStringName::MakeEmpty();
   std::experimental::fundamentals_v1::optional<uint32_t> style;
   while (!at_end() && cur_token().type() != Token::kStartBlock) {
-    const Token& tok = Consume();  // FIXME: implement
-    if (tok.type() == Token::kIdentifier && tok.value_ == "CAPTION") {
+    if (!Is(Token::kIdentifier)) {
+      err_ = "expected identifier START or {, got " +
+             cur_or_last_token().value_.to_string();
+      return std::unique_ptr<DialogResource>();
+    }
+    const Token& tok = Consume();
+    if (tok.value_ == "CAPTION") {
       if (!Is(Token::kString)) {
         err_ = "expected string, got " + cur_or_last_token().value_.to_string();
         return std::unique_ptr<DialogResource>();
@@ -881,7 +886,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
       // "quoting""rules", L"asdf", etc.
       caption_val = caption_val.substr(1, caption_val.size() - 2);
     }
-    else if (tok.type() == Token::kIdentifier && tok.value_ == "CLASS") {
+    else if (tok.value_ == "CLASS") {
       if (!Is(Token::kString) && !Is(Token::kInt)) {
         err_ = "expected string or int, got " +
                cur_or_last_token().value_.to_string();
@@ -902,7 +907,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
         clazz = IntOrStringName::MakeInt(clazz_val);
       }
     }
-    else if (tok.type() == Token::kIdentifier && tok.value_ == "EXSTYLE") {
+    else if (tok.value_ == "EXSTYLE") {
       if (!Is(Token::kInt)) {
         err_ = "expected int, got " + cur_or_last_token().value_.to_string();
         return std::unique_ptr<DialogResource>();
@@ -912,7 +917,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
       // 1234L.
       exstyle = atoi(exstyle_tok.value_.to_string().c_str());
     }
-    else if (tok.type() == Token::kIdentifier && tok.value_ == "FONT") {
+    else if (tok.value_ == "FONT") {
       DialogResource::FontInfo info;
       if (!Is(Token::kInt)) {
         err_ = "expected int, got " + cur_or_last_token().value_.to_string();
@@ -937,7 +942,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
       info.name = fontname_val;
       font = info;
     }
-    else if (tok.type() == Token::kIdentifier && tok.value_ == "MENU") {
+    else if (tok.value_ == "MENU") {
       if (!Is(Token::kString) && !Is(Token::kInt)) {
         err_ = "expected string or int, got " +
                cur_or_last_token().value_.to_string();
@@ -954,7 +959,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
         menu = IntOrStringName::MakeInt(menu_val);
       }
     }
-    else if (tok.type() == Token::kIdentifier && tok.value_ == "STYLE") {
+    else if (tok.value_ == "STYLE") {
       if (!Is(Token::kInt)) {
         err_ = "expected int, got " + cur_or_last_token().value_.to_string();
         return std::unique_ptr<DialogResource>();
@@ -964,12 +969,6 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(IntOrStringName name) {
       // 1234L.
       style = atoi(style_tok.value_.to_string().c_str());
     }
-    /*if (!Is(Token::kIdentifier)) {
-      err_ = "expected identifier START or {, got " +
-             cur_or_last_token().value_.to_string();
-      return std::unique_ptr<DialogResource>();
-    }
-    const Token& name = Consume();*/
   }
 
   // Parse resources block.
