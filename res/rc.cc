@@ -11,7 +11,7 @@ Missing for chromium:
 - LANGUAGE
 - #pragma code_page() and unicode handling
 - case-insensitive keywords
-- inline block data for RCDATA, DLGINCLUDE, HTML, custom types
+- inline block data for RCDATA, DLGINCLUDE, HTML, custom types, DIALOG controls
 - text resource names without quotes (`IDR_OEMPG_HU.HTML` etc).
 - real string and int literal parsers (L"\0", 0xff)
 - int expression parse/eval (+ - | & ~) for DIALOGEX DIALOG MENU VERSIONINFO
@@ -526,21 +526,6 @@ class DialogResource : public Resource {
     uint8_t charset;
   };
 
-  struct ControlEx {  // 6 bytes larger than Control: help_id new, id now 32 bit
-                      // style and exstyle are swapped
-    uint32_t help_id;
-    uint32_t exstyle;
-    uint32_t style;
-    uint16_t x;
-    uint16_t y;
-    uint16_t w;
-    uint16_t h;
-    uint32_t id;
-    IntOrStringName clazz;
-    uint16_t mystery0;
-  };
-
-  // about 30 bytes per control.
   struct Control {
     Control()  // FIXME: remove, probably
         : help_id(0),
@@ -2240,7 +2225,7 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
     // ends on a uint32_t boundary.
     write_little_short(out_, 0);
 
-    // In DIALOGEX, the unk3 uint16_t shifts everything by 2 bytes.
+    // In DIALOGEX, the bigger id shifts everything by 2 bytes.
     if (c.text.serialized_size() % 4 !=
         2*int(r->kind == DialogResource::kDialogEx))
       write_little_short(out_, 0);  // pad, but see FIXME above
