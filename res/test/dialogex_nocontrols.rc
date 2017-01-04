@@ -23,7 +23,7 @@ BEGIN END
 
 5 DIALOGEX 1,2,3,4
 // Now with `weight, italic, charset` fields.
-FONT 12, "Inconsolata", 400, /*italic=*/1, 1
+FONT 12, "Inconsolata", 400, /*italic=*/1, 2
 BEGIN END
 
 61 DIALOGEX 1,2,3,4
