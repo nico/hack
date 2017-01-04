@@ -939,10 +939,9 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
         return std::unique_ptr<MenuResource::SubmenuEntryData>();
       if (!Is(Token::kInt, "expected int"))
         return std::unique_ptr<MenuResource::SubmenuEntryData>();
-      const Token& id = Consume();
       // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
       // 1234L.
-      uint16_t id_num = atoi(id.value_.to_string().c_str());
+      uint16_t id_num = atoi(Consume().value_.to_string().c_str());
 
       MaybeParseMenuOptions(&style);
       entry_data.reset(new MenuResource::ItemEntryData(id_num));
@@ -1012,15 +1011,14 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
   }
 
   if (type.value_ == "CONTROL") {
-    // Special: Has id, class, style, so id_and_rect[0] below will actually
-    // be style not id for this type only.
+    // Special: Has id, class, style, so id below will actually be style not id
+    // for this type only.
     // FIXME: class can be either string or int
     if (!Is(Token::kInt, "expected int"))
       return false;
-    const Token& id = Consume();
     // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
     // 1234L.
-    control->id = atoi(id.value_.to_string().c_str());
+    control->id = atoi(Consume().value_.to_string().c_str());
 
     // FIXME: use class, don't throw away
     if (!Match(Token::kComma, "expected comma") ||
@@ -1149,10 +1147,9 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
       return std::unique_ptr<DialogResource>();
     if (!Is(Token::kInt, "expected int"))
       return std::unique_ptr<DialogResource>();
-    const Token& val = Consume();
     // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
     // 1234L.
-    rect[i] = atoi(val.value_.to_string().c_str());
+    rect[i] = atoi(Consume().value_.to_string().c_str());
   }
 
   // DIALOGEX can have an optional helpID after the dialog rect.
@@ -1209,19 +1206,17 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
     else if (tok.value_ == "EXSTYLE") {
       if (!Is(Token::kInt, "expected int"))
         return std::unique_ptr<DialogResource>();
-      const Token& exstyle_tok = Consume();
       // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
       // 1234L.
-      exstyle = atoi(exstyle_tok.value_.to_string().c_str());
+      exstyle = atoi(Consume().value_.to_string().c_str());
     }
     else if (tok.value_ == "FONT") {
       DialogResource::FontInfo info;
       if (!Is(Token::kInt, "expected int"))
         return std::unique_ptr<DialogResource>();
-      const Token& fontsize = Consume();
       // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
       // 1234L.
-      info.size = atoi(fontsize.value_.to_string().c_str());
+      info.size = atoi(Consume().value_.to_string().c_str());
       if (!Match(Token::kComma, "expected comma"))
         return std::unique_ptr<DialogResource>();
       if (!Is(Token::kString, "expected string"))
@@ -1271,10 +1266,9 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
     else if (tok.value_ == "STYLE") {
       if (!Is(Token::kInt, "expected int"))
         return std::unique_ptr<DialogResource>();
-      const Token& style_tok = Consume();
       // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
       // 1234L.
-      style = atoi(style_tok.value_.to_string().c_str());
+      style = atoi(Consume().value_.to_string().c_str());
     } else {
       err_ = "unknown DIALOG attribute " + tok.value_.to_string();
       return std::unique_ptr<DialogResource>();
@@ -1307,17 +1301,14 @@ std::unique_ptr<StringtableResource> Parser::ParseStringtable() {
   while (!at_end() && cur_token().type() != Token::kEndBlock) {
     if (!Is(Token::kInt, "expected int"))
       return std::unique_ptr<StringtableResource>();
-    const Token& key = Consume();
+    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+    // 1234L.
+    uint16_t key_num = atoi(Consume().value_.to_string().c_str());
     Match(Token::kComma);  // Eat optional comma between key and value.
 
     if (!Is(Token::kString, "expected string"))
       return std::unique_ptr<StringtableResource>();
-    const Token& value = Consume();
-
-    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-    // 1234L.
-    uint16_t key_num = atoi(key.value_.to_string().c_str());
-    std::experimental::string_view str_val = value.value_;
+    std::experimental::string_view str_val = Consume().value_;
     // The literal includes quotes, strip them.
     // FIXME: give Token a StringValue() function that handles \-escapes,
     // "quoting""rules", L"asdf", etc.
@@ -1341,10 +1332,9 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
     return false;
   if (!Is(Token::kInt, "expected int"))
     return false;
-  const Token& id = Consume();
   // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
   // 1234L.
-  uint16_t id_num = atoi(id.value_.to_string().c_str());
+  uint16_t id_num = atoi(Consume().value_.to_string().c_str());
 
   uint16_t flags = 0;
   while (Match(Token::kComma)) {
@@ -1491,8 +1481,7 @@ Parser::ParseVersioninfoBlock() {
         while (Match(Token::kComma)) {
           if (!Is(Token::kInt, "expected int"))
             return std::unique_ptr<VersioninfoResource::BlockData>();
-          const Token& value = Consume();
-          uint16_t value_num = atoi(value.value_.to_string().c_str());
+          uint16_t value_num = atoi(Consume().value_.to_string().c_str());
           val.push_back(value_num & 0xFF);
           val.push_back(value_num >> 8);
         }
@@ -1531,19 +1520,17 @@ std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(
     const Token& name = Consume();
     if (!Is(Token::kInt, "expected int"))
       return std::unique_ptr<VersioninfoResource>();
-    const Token& val = Consume();
     // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
     // 1234L.
-    uint16_t val_num = atoi(val.value_.to_string().c_str());
+    uint16_t val_num = atoi(Consume().value_.to_string().c_str());
     if (name.value_ == "FILEVERSION" || name.value_ == "PRODUCTVERSION") {
       uint16_t val_nums[4] = { val_num };
       for (int i = 0; i < 3 && Match(Token::kComma); ++i) {
         if (!Is(Token::kInt, "expected int"))
           return std::unique_ptr<VersioninfoResource>();
-        const Token& val = Consume();
         // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
         // 1234L.
-        val_nums[i + 1] = atoi(val.value_.to_string().c_str());
+        val_nums[i + 1] = atoi(Consume().value_.to_string().c_str());
       }
       if (name.value_ == "FILEVERSION") {
         fixed_info.fileversion_high = (val_nums[0] << 16) | val_nums[1];
