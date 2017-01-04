@@ -551,7 +551,8 @@ class DialogResource : public Resource {
           w(0),
           h(0),
           id(0),
-          clazz(IntOrStringName::MakeEmpty()) {}
+          clazz(IntOrStringName::MakeEmpty()),
+          text(IntOrStringName::MakeString("")) {}
 
     uint32_t help_id;  // only set if kind == kDialogEx
 
@@ -565,14 +566,14 @@ class DialogResource : public Resource {
     IntOrStringName clazz;
 
     // For controls that have no text, an empty string (\0) is written to .res.
-    std::experimental::string_view text;
+    IntOrStringName text;
 
     // There's another uint16_t field here that seems to be always 0.
 
     uint16_t serialized_size(bool is_last, DialogKind kind) const {
       uint16_t size = 2*4 + 5*2; // style, exstyle, x, y, w, h, id
       size += clazz.serialized_size();
-      size += 2 * (text.size() + 1);
+      size += text.serialized_size();
       size += 2;  // FIXME: Mystery 0 field after the control text.
       if (kind == kDialogEx)
         size += 4 + 2;  // help_id and 32-bit id.
@@ -997,15 +998,24 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
           "COMBOBOX", "EDITTEXT", "HEDIT", "IEDIT", "LISTBOX", "SCROLLBAR"}
           .count(type.value_) == 0;
   if (wants_text) {
-    if (!Is(Token::kString, "expected string"))
+    // FIXME: rc.exe also accepts identifiers (bare `adsf`, no quotes).
+    if (!Is(Token::kString) && !Is(Token::kInt)) {
+      err_ = "expected string or int, got " +
+             cur_or_last_token().value_.to_string();
       return false;
+    }
     const Token& text = Consume();
     std::experimental::string_view text_val = text.value_;
-    // The literal includes quotes, strip them.
-    // FIXME: give Token a StringValue() function that handles \-escapes,
-    // "quoting""rules", L"asdf", etc.
-    text_val = text_val.substr(1, text_val.size() - 2);
-    control->text = text_val;
+    if (text.type() == Token::kString) {
+      // The literal includes quotes, strip them.
+      // FIXME: give Token a StringValue() function that handles \-escapes,
+      // "quoting""rules", L"asdf", etc.
+      text_val = text_val.substr(1, text_val.size() - 2);
+    }
+    control->text = 
+        text.type() == Token::kInt
+            ? IntOrStringName::MakeInt(atoi(text.value_.to_string().c_str()))
+            : IntOrStringName::MakeString(text_val);
     if (!Match(Token::kComma, "expected comma"))
       return false;
   }
@@ -2222,14 +2232,7 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
     else
       write_little_short(out_, c.id);
     c.clazz.write(out_);
-    // FIXME: if this has a text class, then the length of that is important
-    // to determine padding at the end
-    for (int j = 0; j < c.text.size(); ++j) {
-      // FIXME: Real UTF16 support.
-      fputc(c.text[j], out_);
-      fputc('\0', out_);
-    }
-    write_little_short(out_, 0);  // \0-terminate.
+    c.text.write(out_);
 
     // Huh, looks like there's another 0 uint16_t after the name!
     // FIXME: figure out what this is and if it's ever non-0. Doesn't look like
@@ -2238,7 +2241,8 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
     write_little_short(out_, 0);
 
     // In DIALOGEX, the unk3 uint16_t shifts everything by 2 bytes.
-    if (c.text.size() % 2 == int(r->kind == DialogResource::kDialogEx))
+    if (c.text.serialized_size() % 4 !=
+        2*int(r->kind == DialogResource::kDialogEx))
       write_little_short(out_, 0);  // pad, but see FIXME above
   }
 
