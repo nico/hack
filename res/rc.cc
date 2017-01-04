@@ -62,7 +62,7 @@ class string_view {
   }
   std::string to_string() const { return std::string(str_, size_); }
   const char* data() const { return str_; }
-  bool empty() const { return size_ > 0; }
+  bool empty() const { return size_ == 0; }
   const char* begin() const { return data(); }
   const char* end() const { return begin() + size(); }
 };
