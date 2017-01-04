@@ -830,7 +830,7 @@ class Parser {
   // If |error_message| is non-nullptr, sets err_ if expected token isn't found.
   bool Is(Token::Type type, const char* error_message = nullptr);
   // If |error_message| is non-nullptr, sets err_ if expected token isn't found.
-  bool Match(Token::Type type, const char* error_message);
+  bool Match(Token::Type type, const char* error_message = nullptr);
   const Token& Consume();
 
   // Call this only if !at_end().
@@ -893,7 +893,7 @@ void Parser::MaybeParseMenuOptions(uint16_t* style) {
     {"HELP", kMenuHELP},
   };
   while (Is(Token::kComma) || Is(Token::kIdentifier)) {
-    if (Match(Token::kComma, nullptr))
+    if (Match(Token::kComma))
       continue;
 
     auto it = styles.find(cur_token().value_);
@@ -1135,8 +1135,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
 
   // DIALOGEX can have an optional helpID after the dialog rect.
   uint32_t help_id = 0;
-  if (dialog_kind == DialogResource::kDialogEx && Is(Token::kComma)) {
-    Consume();  // Eat comma.
+  if (dialog_kind == DialogResource::kDialogEx && Match(Token::kComma)) {
     if (!Is(Token::kInt, "expected int"))
       return std::unique_ptr<DialogResource>();
     // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
@@ -1216,8 +1215,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
       // DIALOGEX can have optional font weight, italic, encoding flags.
       if (dialog_kind == DialogResource::kDialogEx) {
         uint16_t vals[3] = {};
-        for (int i = 0; i < 3 && Is(Token::kComma); ++i) {
-          Consume();  // Eat comma.
+        for (int i = 0; i < 3 && Match(Token::kComma); ++i) {
           if (!Is(Token::kInt, "expected int"))
             return std::unique_ptr<DialogResource>();
           // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
@@ -1288,7 +1286,7 @@ std::unique_ptr<StringtableResource> Parser::ParseStringtable() {
     if (!Is(Token::kInt, "expected int"))
       return std::unique_ptr<StringtableResource>();
     const Token& key = Consume();
-    Match(Token::kComma, nullptr);  // Eat optional comma between key and value.
+    Match(Token::kComma);  // Eat optional comma between key and value.
 
     if (!Is(Token::kString, "expected string"))
       return std::unique_ptr<StringtableResource>();
@@ -1327,8 +1325,7 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
   uint16_t id_num = atoi(id.value_.to_string().c_str());
 
   uint16_t flags = 0;
-  while (Is(Token::kComma)) {
-    Consume();  // Eat comma.
+  while (Match(Token::kComma)) {
     if (!Is(Token::kIdentifier, "expected identifier"))
       return false;
     const Token& flag = Consume();
@@ -1469,8 +1466,7 @@ Parser::ParseVersioninfoBlock() {
         uint16_t value_num = atoi(value.value_.to_string().c_str());
         val.push_back(value_num & 0xFF);
         val.push_back(value_num >> 8);
-        while (Is(Token::kComma)) {
-          Consume();  // Eat comma.
+        while (Match(Token::kComma)) {
           if (!Is(Token::kInt, "expected int"))
             return std::unique_ptr<VersioninfoResource::BlockData>();
           const Token& value = Consume();
@@ -1519,8 +1515,7 @@ std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(
     uint16_t val_num = atoi(val.value_.to_string().c_str());
     if (name.value_ == "FILEVERSION" || name.value_ == "PRODUCTVERSION") {
       uint16_t val_nums[4] = { val_num };
-      for (int i = 0; i < 3 && Is(Token::kComma); ++i) {
-        Consume();  // Eat comma.
+      for (int i = 0; i < 3 && Match(Token::kComma); ++i) {
         if (!Is(Token::kInt, "expected int"))
           return std::unique_ptr<VersioninfoResource>();
         const Token& val = Consume();
