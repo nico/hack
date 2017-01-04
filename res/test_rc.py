@@ -4,7 +4,7 @@ import filecmp, subprocess, sys
 if sys.platform == 'win32':
   cmd = 'cl rc.cc /EHsc /wd4838 /nologo'
 else:
-  cmd = 'clang++ -std=c++14 -o rc rc.cc -Wall -Wno-c++11-narrowing'
+  cmd = 'clang++ -std=c++14 -o rc rc.cc -Wall -Wno-c++11-narrowing'.split()
 subprocess.check_call(cmd)
 
 tests = [
@@ -27,7 +27,7 @@ tests = [
 
 for test in tests:
   print(test)
-  subprocess.check_call('rc.exe' if sys.platform == 'win32' else 'rc',
+  subprocess.check_call('rc.exe' if sys.platform == 'win32' else './rc',
                         stdin=open('test/%s.rc' % test))
   assert filecmp.cmp('out.res', 'test/%s.res' % test)
 
