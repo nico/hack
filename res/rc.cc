@@ -526,25 +526,26 @@ class DialogResource : public Resource {
     uint8_t charset;
   };
 
-  struct ControlEx {  // 8 bytes larger than Control; unk1 and unk3 new,
-                      // style and exstyle appear swapped
-    uint32_t unk1;
-    uint32_t unk2;  // exstyle?
-    uint32_t style;  // ? often 50010006h, 50010003, 50000000
+  struct ControlEx {  // 8 bytes larger than Control; help_id and unk3 new,
+                      // style and exstyle are swapped
+    uint32_t help_id;
+    uint32_t exstyle;
+    uint32_t style;
     uint16_t x;
     uint16_t y;
     uint16_t w;
     uint16_t h;
     uint16_t id;
     uint16_t unk3;
-    IntOrStringName clazz;  // ? 80 for AUTO3STATE, AUTOCHECKBOX, 85 for COMBOBOX
+    IntOrStringName clazz;
     uint16_t mystery0;
   };
 
   // about 30 bytes per control.
   struct Control {
     Control()  // FIXME: remove, probably
-        : style(0),
+        : help_id(0),
+          style(0),
           exstyle(0),
           x(0),
           y(0),
@@ -553,14 +554,16 @@ class DialogResource : public Resource {
           id(0),
           clazz(IntOrStringName::MakeEmpty()) {}
 
-    uint32_t style;  // ? often 50010006h, 50010003, 50000000
-    uint32_t exstyle;  // ? always 0?
+    uint32_t help_id;  // only set if kind == kDialogEx
+
+    uint32_t style;
+    uint32_t exstyle;
     uint16_t x;
     uint16_t y;
     uint16_t w;
     uint16_t h;
     uint16_t id;
-    IntOrStringName clazz;  // ? 80 for AUTO3STATE, AUTOCHECKBOX, 85 for COMBOBOX
+    IntOrStringName clazz;
 
     // For controls that have no text, an empty string (\0) is written to .res.
     std::experimental::string_view text;
@@ -815,7 +818,8 @@ class Parser {
   void MaybeParseMenuOptions(uint16_t* style);
   std::unique_ptr<MenuResource::SubmenuEntryData> ParseMenuBlock();
   std::unique_ptr<MenuResource> ParseMenu(IntOrStringName name);
-  bool ParseDialogControl(DialogResource::Control* control);
+  bool ParseDialogControl(DialogResource::Control* control,
+                          DialogResource::DialogKind dialog_kind);
   std::unique_ptr<DialogResource> ParseDialog(
       IntOrStringName name,
       DialogResource::DialogKind dialog_kind);
@@ -974,7 +978,8 @@ std::unique_ptr<MenuResource> Parser::ParseMenu(IntOrStringName name) {
       new MenuResource(name, std::move(*entries.get())));
 }
 
-bool Parser::ParseDialogControl(DialogResource::Control* control) {
+bool Parser::ParseDialogControl(DialogResource::Control* control,
+                                DialogResource::DialogKind dialog_kind) {
   // https://msdn.microsoft.com/en-us/library/windows/desktop/aa380902(v=vs.85).aspx
   if (!Is(Token::kIdentifier, "expected identifier"))
     return false;
@@ -1111,6 +1116,20 @@ bool Parser::ParseDialogControl(DialogResource::Control* control) {
 
   control->clazz = IntOrStringName::MakeInt(control_class);
   control->style = default_style;
+
+  if (Match(Token::kComma) && Is(Token::kInt))
+    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+    // 1234L.
+    control->style |= atoi(Consume().value_.to_string().c_str());
+  if (Match(Token::kComma) && Is(Token::kInt))
+    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+    // 1234L.
+    control->exstyle |= atoi(Consume().value_.to_string().c_str());
+  if (dialog_kind == DialogResource::kDialogEx && Match(Token::kComma) &&
+      Is(Token::kInt))
+    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+    // 1234L.
+    control->help_id = atoi(Consume().value_.to_string().c_str());
 
   // FIXME: parse optional trailing style (for not-CONTROL) and optional
   // trailing extended-style.
@@ -1265,7 +1284,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
   std::vector<DialogResource::Control> controls;
   while (!at_end() && cur_token().type() != Token::kEndBlock) {
     DialogResource::Control control;
-    if (!ParseDialogControl(&control))
+    if (!ParseDialogControl(&control, dialog_kind))
       return std::unique_ptr<DialogResource>();
     controls.push_back(control);
   }
@@ -2197,7 +2216,7 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
   // Write dialog controls.
   for (const auto& c : r->controls) {
     if (r->kind == DialogResource::kDialogEx) {
-      write_little_long(out_, 0);  // unk1, FIXME
+      write_little_long(out_, c.help_id);
       write_little_long(out_, c.exstyle);
       write_little_long(out_, c.style);
     } else {
