@@ -526,7 +526,7 @@ class DialogResource : public Resource {
     uint8_t charset;
   };
 
-  struct ControlEx {  // 8 bytes larger than Control; help_id and unk3 new,
+  struct ControlEx {  // 6 bytes larger than Control: help_id new, id now 32 bit
                       // style and exstyle are swapped
     uint32_t help_id;
     uint32_t exstyle;
@@ -535,8 +535,7 @@ class DialogResource : public Resource {
     uint16_t y;
     uint16_t w;
     uint16_t h;
-    uint16_t id;
-    uint16_t unk3;
+    uint32_t id;
     IntOrStringName clazz;
     uint16_t mystery0;
   };
@@ -562,7 +561,7 @@ class DialogResource : public Resource {
     uint16_t y;
     uint16_t w;
     uint16_t h;
-    uint16_t id;
+    uint32_t id;  // 32 bit in DIALOGEX, 16 bit in DIALOG
     IntOrStringName clazz;
 
     // For controls that have no text, an empty string (\0) is written to .res.
@@ -576,7 +575,7 @@ class DialogResource : public Resource {
       size += 2 * (text.size() + 1);
       size += 2;  // FIXME: Mystery 0 field after the control text.
       if (kind == kDialogEx)
-        size += 4 + 2;  // unk1, unk3
+        size += 4 + 2;  // help_id and 32-bit id.
       if (!is_last && size % 4)
         size += 2;  // pad to uint32_t
       return size;
@@ -1030,26 +1029,30 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
       return false;
   }
 
-  uint16_t id_and_rect[5];
-  for (int i = 0; i < 5; ++i) {
-    if (i > 0 && !Match(Token::kComma, "expected comma"))
+  if (!Is(Token::kInt, "expected int"))
+    return false;
+  // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
+  // 1234L.
+  uint32_t id = atoi(Consume().value_.to_string().c_str());
+  uint16_t rect[4];
+  for (int i = 0; i < 4; ++i) {
+    if (!Match(Token::kComma, "expected comma"))
       return false;
     if (!Is(Token::kInt, "expected int"))
       return false;
-    const Token& val = Consume();
     // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
     // 1234L.
-    id_and_rect[i] = atoi(val.value_.to_string().c_str());
+    rect[i] = atoi(Consume().value_.to_string().c_str());
   }
 
   if (type.value_ == "CONTROL")
-    control->style = id_and_rect[0];
+    control->style = id;
   else
-    control->id = id_and_rect[0];
-  control->x = id_and_rect[1];
-  control->y = id_and_rect[2];
-  control->w = id_and_rect[3];
-  control->h = id_and_rect[4];
+    control->id = id;
+  control->x = rect[0];
+  control->y = rect[1];
+  control->w = rect[2];
+  control->h = rect[3];
 
   uint16_t control_class = 0;
   uint32_t default_style = 0;
@@ -2227,9 +2230,10 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
     write_little_short(out_, c.y);
     write_little_short(out_, c.w);
     write_little_short(out_, c.h);
-    write_little_short(out_, c.id);
     if (r->kind == DialogResource::kDialogEx)
-      write_little_short(out_, 0);  // unk3, FIXME
+      write_little_long(out_, c.id);
+    else
+      write_little_short(out_, c.id);
     c.clazz.write(out_);
     // FIXME: if this has a text class, then the length of that is important
     // to determine padding at the end
