@@ -1,0 +1,8 @@
+// Tests integer expressions in various places.
+// The goal is to produce the same output as rc.exe in all cases where the
+// reimplementation produces output, but it's allowed to be more strict
+// and reject nonsensical input (e.g. `10*10` silently produces `10` in rc.exe)
+1 DIALOG 1, 2, 3, 4
+STYLE -1 & 3 | 8 + 4
+BEGIN
+END

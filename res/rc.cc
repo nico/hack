@@ -111,6 +111,15 @@ struct Token {
     kComma,        // ,
     kStartBlock,   // { or BEGIN (rc.exe accepts `{ .. END`)
     kEndBlock,     // } or END
+
+    kPlus,        // +
+    kMinus,       // -
+    kPipe,        // |
+    kAmp,         // &
+    kTilde,       // ~
+    kLeftParen,   // (
+    kRightParen,  // )
+
     kDirective,    // #foo
     kLineComment,  // //foo
     kStarComment,  // /* foo */
@@ -258,6 +267,21 @@ Token::Type Tokenizer::ClassifyCurrent() const {
   if (next_char == '}')
     return Token::kEndBlock;
 
+  if (next_char == '+')
+    return Token::kPlus;
+  if (next_char == '-')
+    return Token::kMinus;
+  if (next_char == '|')
+    return Token::kPipe;
+  if (next_char == '&')
+    return Token::kAmp;
+  if (next_char == '~')
+    return Token::kTilde;
+  if (next_char == '(')
+    return Token::kLeftParen;
+  if (next_char == ')')
+    return Token::kRightParen;
+
   if (next_char == '#')
     return Token::kDirective;
   if (next_char == '/' && cur_ + 1 < input_.size()) {
@@ -306,6 +330,13 @@ void Tokenizer::AdvanceToEndOfToken(Token::Type type) {
     case Token::kComma:
     case Token::kStartBlock:
     case Token::kEndBlock:
+    case Token::kPlus:
+    case Token::kMinus:
+    case Token::kPipe:
+    case Token::kAmp:
+    case Token::kTilde:
+    case Token::kLeftParen:
+    case Token::kRightParen:
       Advance();  // All are one char.
       break;
 
@@ -800,6 +831,22 @@ class Parser {
 
  private:
   Parser(std::vector<Token> tokens);
+
+  // Parses an expression matching
+  //    expr ::= unary_expr [binary_op expr]
+  // where
+  //    binary_op = "+" "-" "|" "&"
+  //    unary_op = "-" "~"
+  //    unary_expr ::= unary_op unary_expr | primary_expr
+  //    primary_expr ::= int | "(" expr ")"
+  // All operators have the same precedence and are evaluated left-to-right,
+  // except for parentheses which are evaluated first.
+  // FIXME: consider building and storing an AST for the full expression and
+  // calling Eval() on the root expression node in the serializer instead.
+  bool EvalIntExpression(uint32_t* out);
+  bool EvalIntExpressionUnary(uint32_t* out);
+  bool EvalIntExpressionPrimary(uint32_t* out);
+
   void MaybeParseMenuOptions(uint16_t* style);
   std::unique_ptr<MenuResource::SubmenuEntryData> ParseMenuBlock();
   std::unique_ptr<MenuResource> ParseMenu(IntOrStringName name);
@@ -868,6 +915,53 @@ bool Parser::Match(Token::Type type, const char* error_message) {
 
 const Token& Parser::Consume() {
   return tokens_[cur_++];
+}
+
+bool Parser::EvalIntExpression(uint32_t* out) {
+  if (!EvalIntExpressionUnary(out))
+    return false;
+
+  if (Is(Token::kPlus) || Is(Token::kMinus) || Is(Token::kPipe) ||
+      Is(Token::kAmp)) {
+    Token::Type op = Consume().type_;
+    uint32_t rhs;
+    if (!EvalIntExpression(&rhs))
+      return false;
+    switch (op) {
+      case Token::kPlus:  *out = *out + rhs; break;
+      case Token::kMinus: *out = *out - rhs; break;
+      case Token::kPipe:  *out = *out | rhs; break;
+      case Token::kAmp:   *out = *out & rhs; break;
+    }
+  }
+
+  return true;
+}
+
+bool Parser::EvalIntExpressionUnary(uint32_t* out) {
+  if (Match(Token::kMinus)) {
+    if (!EvalIntExpressionUnary(out))
+      return false;
+    *out = -*out;
+    return true;
+  }
+  if (Match(Token::kTilde)) {
+    if (!EvalIntExpressionUnary(out))
+      return false;
+    *out = ~*out;
+    return true;
+  }
+  return EvalIntExpressionPrimary(out);
+}
+
+bool Parser::EvalIntExpressionPrimary(uint32_t* out) {
+  if (Match(Token::kLeftParen))
+    return EvalIntExpression(out) && Match(Token::kRightParen, "expected )");
+  if (!Is(Token::kInt, "expected int, +, ~, or ("))
+    return false;
+  // FIXME: give Token an IntValue() function that handles 0x123, 0o123, 1234L.
+  *out = atoi(Consume().value_.to_string().c_str());
+  return true;
 }
 
 void Parser::MaybeParseMenuOptions(uint16_t* style) {
@@ -1259,11 +1353,10 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
       }
     }
     else if (tok.value_ == "STYLE") {
-      if (!Is(Token::kInt, "expected int"))
+      uint32_t style_val;
+      if (!EvalIntExpression(&style_val))
         return std::unique_ptr<DialogResource>();
-      // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-      // 1234L.
-      style = atoi(Consume().value_.to_string().c_str());
+      style = style_val;
     } else {
       err_ = "unknown DIALOG attribute " + tok.value_.to_string();
       return std::unique_ptr<DialogResource>();

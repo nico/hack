@@ -23,6 +23,7 @@ tests = [
 'html',
 'custom',
 'stringnames',
+'eval',
 ]
 
 for test in tests:
