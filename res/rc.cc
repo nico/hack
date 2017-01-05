@@ -1202,10 +1202,11 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
       return false;
     control->style |= parsed_style;
   }
+  // FIXME: The Is(Token::kInt) should really be IsIntExprStart
+  // (int "-" "~" "("); currently this wrongly rejects "..., ~0"
   if (Match(Token::kComma) && Is(Token::kInt))
-    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-    // 1234L.
-    control->exstyle |= atoi(Consume().value_.to_string().c_str());
+    if (!EvalIntExpression(&control->exstyle))
+      return false;
   if (dialog_kind == DialogResource::kDialogEx && Match(Token::kComma) &&
       Is(Token::kInt))
     // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
