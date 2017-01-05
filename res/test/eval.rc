@@ -6,4 +6,22 @@
 STYLE -1 & 3 | 8 + 4
 EXSTYLE ~1 & 3 | 8 - 1
 BEGIN
+  AUTO3STATE "a32", 30+30, 0+0, 0|0, 101-1, 80+0, 0+1
+  // FIXME: a style of 0-2 produces the default style, not 0xfffffffe.
+  // Maybe - in a style only clears bits but can't set them?
+  // FIXME: making the next line end with "2-0" confuses rc.exe very much.
+  // FIXME: making the next line end with "2-1" lets rc subtract 1 from the
+  // default style instead of or'ing 1 in. Maybe a - anywhere in the style
+  // means "remove bit" even if the whole expression is positive??
+  //AUTO3STATE "a32", 31+30, 0+0, 0|0, 101-1, 80+0, 2-1
+  AUTO3STATE "a32", 32+30, 0+0, 0|0, 101-1, 80+0, 0|3
+  // FIXME: expressions containing & in style:
+  // Madness: If a & appears in the style constant, then rc.exe sets the
+  // style to the result of that expression instead of or'ing it to the
+  // default style as usual.
+  //AUTO3STATE "a32", 34+30, 0+0, 0|0, 101-1, 80+0, 0&4
+  // Hm no it's even more crazy: The next two lines both produce a style of 4!
+  //AUTO3STATE "a32", 33+30, 0+0, 0|0, 101-1, 80+0, 2|(0&4)
+  //AUTO3STATE "a32", 35+30, 0+0, 0|0, 101-1, 80+0, (2&3)|0
+  //CONTROL "c", 4+4, "static", 0, 1, 2, 100, 80
 END

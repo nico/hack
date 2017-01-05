@@ -1102,35 +1102,25 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
   if (type.value_ == "CONTROL") {
     // Special: Has id, class, style, so id below will actually be style not id
     // for this type only.
-    // FIXME: class can be either string or int
-    if (!Is(Token::kInt, "expected int"))
+    if (!EvalIntExpression(&control->id))
       return false;
-    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-    // 1234L.
-    control->id = atoi(Consume().value_.to_string().c_str());
 
-    // FIXME: use class, don't throw away
     if (!Match(Token::kComma, "expected comma") ||
+        // FIXME: use class, don't throw away
+        // FIXME: class can be either string or int
         !Match(Token::kString, "expected string") ||
         !Match(Token::kComma, "expected comma"))
       return false;
   }
 
-  if (!Is(Token::kInt, "expected int"))
+
+  uint32_t id;
+  if (!EvalIntExpression(&id))
     return false;
-  // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-  // 1234L.
-  uint32_t id = atoi(Consume().value_.to_string().c_str());
-  uint16_t rect[4];
-  for (int i = 0; i < 4; ++i) {
-    if (!Match(Token::kComma, "expected comma"))
+  uint32_t rect[4];
+  for (int i = 0; i < 4; ++i)
+    if (!Match(Token::kComma, "expected comma") || !EvalIntExpression(&rect[i]))
       return false;
-    if (!Is(Token::kInt, "expected int"))
-      return false;
-    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-    // 1234L.
-    rect[i] = atoi(Consume().value_.to_string().c_str());
-  }
 
   if (type.value_ == "CONTROL")
     control->style = id;
@@ -1207,10 +1197,12 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
   control->clazz = IntOrStringName::MakeInt(control_class);
   control->style = default_style;
 
-  if (Match(Token::kComma) && Is(Token::kInt))
-    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-    // 1234L.
-    control->style |= atoi(Consume().value_.to_string().c_str());
+  if (Match(Token::kComma)) {
+    uint32_t parsed_style;
+    if (!EvalIntExpression(&parsed_style))
+      return false;
+    control->style |= parsed_style;
+  }
   if (Match(Token::kComma) && Is(Token::kInt))
     // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
     // 1234L.
