@@ -14,7 +14,7 @@ Missing for chromium:
 - inline block data for RCDATA, DLGINCLUDE, HTML, custom types, DIALOG controls
 - text resource names without quotes (`IDR_OEMPG_HU.HTML` etc).
 - real string and int literal parsers (L"\0", 0xff)
-- int expression parse/eval (+ - | & ~) for DIALOGEX DIALOG MENU VERSIONINFO
+- int expression parse/eval (+ - | & ~) for MENU
   and maybe more
 - preprocessor
 - (chrome uses DESIGNINFO but only behind `#ifdef APSTUDIO_INVOKED` which is
@@ -1595,20 +1595,14 @@ std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(
     if (!Is(Token::kIdentifier, "expected identifier, START or {"))
       return std::unique_ptr<VersioninfoResource>();
     const Token& name = Consume();
-    if (!Is(Token::kInt, "expected int"))
+    uint32_t val_num;
+    if (!EvalIntExpression(&val_num))
       return std::unique_ptr<VersioninfoResource>();
-    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-    // 1234L.
-    uint16_t val_num = atoi(Consume().value_.to_string().c_str());
     if (name.value_ == "FILEVERSION" || name.value_ == "PRODUCTVERSION") {
-      uint16_t val_nums[4] = { val_num };
-      for (int i = 0; i < 3 && Match(Token::kComma); ++i) {
-        if (!Is(Token::kInt, "expected int"))
+      uint32_t val_nums[4] = { val_num };
+      for (int i = 0; i < 3 && Match(Token::kComma); ++i)
+        if (!EvalIntExpression(&val_nums[i + 1]))
           return std::unique_ptr<VersioninfoResource>();
-        // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-        // 1234L.
-        val_nums[i + 1] = atoi(Consume().value_.to_string().c_str());
-      }
       if (name.value_ == "FILEVERSION") {
         fixed_info.fileversion_high = (val_nums[0] << 16) | val_nums[1];
         fixed_info.fileversion_low = (val_nums[2] << 16) | val_nums[3];
