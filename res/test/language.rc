@@ -1,0 +1,17 @@
+// The type of these doesn't matter, this file tests that the language
+// of the resource is set right.  This uses HTML since that's a simple resource
+// type.
+1 HTML "test/foo.html"
+
+LANGUAGE 9, 4
+2 HTML "test/foo.html"
+3 HTML "test/foo.html"
+
+LANGUAGE 9, 1
+4 HTML "test/foo.html"
+
+LANGUAGE 12, 10
+7 HTML "test/foo.html"
+
+LANGUAGE 255, 26
+7 HTML "test/foo.html"

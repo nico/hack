@@ -8,6 +8,7 @@ else:
 subprocess.check_call(cmd)
 
 tests = [
+'language',
 'cursor',
 'bitmap',
 'icon',

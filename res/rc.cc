@@ -8,7 +8,6 @@ A sketch of a reimplemenation of rc.exe, for research purposes.
 Doesn't do any preprocessing for now.
 
 Missing for chromium:
-- LANGUAGE
 - #pragma code_page() and unicode handling
 - case-insensitive keywords
 - inline block data for RCDATA, DLGINCLUDE, HTML, custom types, DIALOG controls
@@ -19,6 +18,8 @@ Missing for chromium:
   only set by MSVC not rc, and rc.exe doesn't understand DESIGNINFO)
 
 Also missing, but not yet for chromium:
+- per-element LANGUAGE for ACCELERATORS, DIALOG(EX), MENU(EX), RCDATA,
+  STRINGTABLE (and custom elts?)
 - FONT
 - MENUITEM SEPARATOR
 - MENUEX (including int expression parse/eval)
@@ -71,6 +72,8 @@ class optional {
   bool has_val = false;
   T val;
  public:
+  optional() = default;
+  optional(const T& t) { val = t; has_val = true; }
   void operator=(const T& t) { val = t; has_val = true; }
   operator bool() const { return has_val; }
   T* operator->() { return &val; }
@@ -373,6 +376,7 @@ bool Tokenizer::IsCurrentWhitespace() const {
 //////////////////////////////////////////////////////////////////////////////
 // AST
 
+class LanguageResource;
 class CursorResource;
 class BitmapResource;
 class IconResource;
@@ -388,6 +392,7 @@ class UserDefinedResource;
 
 class Visitor {
  public:
+  virtual bool VisitLanguageResource(const LanguageResource* r) = 0;
   virtual bool VisitCursorResource(const CursorResource* r) = 0;
   virtual bool VisitBitmapResource(const BitmapResource* r) = 0;
   virtual bool VisitIconResource(const IconResource* r) = 0;
@@ -461,6 +466,30 @@ class Resource {
 
  private:
   IntOrStringName name_;
+};
+
+class LanguageResource : public Resource {
+ public:
+  struct Language {
+    uint8_t language;
+    uint8_t sublanguage;
+  };
+
+  // LANGUAGE doesn't get emitted as its own entry to the .res file, instead
+  // it modifies the language field in all the other emitted resources.  So
+  // it doesn't have an id itself.
+  LanguageResource(uint8_t language, uint8_t sublanguage)
+      : Resource(IntOrStringName::MakeEmpty()),
+        language_{language, sublanguage} {}
+
+  bool Visit(Visitor* v) const override {
+    return v->VisitLanguageResource(this);
+  }
+
+  Language language() const { return language_; }
+
+ private:
+  Language language_;
 };
 
 class FileResource : public Resource {
@@ -846,6 +875,7 @@ class Parser {
   bool EvalIntExpressionUnary(uint32_t* out);
   bool EvalIntExpressionPrimary(uint32_t* out);
 
+  std::unique_ptr<LanguageResource> ParseLanguage();
   void MaybeParseMenuOptions(uint16_t* style);
   std::unique_ptr<MenuResource::SubmenuEntryData> ParseMenuBlock();
   std::unique_ptr<MenuResource> ParseMenu(IntOrStringName name);
@@ -961,6 +991,20 @@ bool Parser::EvalIntExpressionPrimary(uint32_t* out) {
   // FIXME: give Token an IntValue() function that handles 0x123, 0o123, 1234L.
   *out = atoi(Consume().value_.to_string().c_str());
   return true;
+}
+
+std::unique_ptr<LanguageResource> Parser::ParseLanguage() {
+  if (!Is(Token::kInt, "expected int"))
+    return std::unique_ptr<LanguageResource>();
+  // FIXME: give Token an IntValue() function that handles 0x123, 0o123, 1234L.
+  uint8_t language = atoi(Consume().value_.to_string().c_str());
+  if (!Match(Token::kComma, "expected comma") ||
+      !Is(Token::kInt, "expected int"))
+    return std::unique_ptr<LanguageResource>();
+  // FIXME: give Token an IntValue() function that handles 0x123, 0o123, 1234L.
+  uint8_t sub_language = atoi(Consume().value_.to_string().c_str());
+  return std::unique_ptr<LanguageResource>(
+      new LanguageResource(language, sub_language));
 }
 
 void Parser::MaybeParseMenuOptions(uint16_t* style) {
@@ -1642,10 +1686,8 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   // - LANGUAGE
   // - STRINGTABLE
   if (id.type() == Token::kIdentifier) {
-    if (id.value_ == "LANGUAGE") {
-      err_ = "LANGUAGE not implemented yet";  // FIXME
-      return std::unique_ptr<Resource>();
-    }
+    if (id.value_ == "LANGUAGE")
+      return ParseLanguage();
     if (id.value_ == "STRINGTABLE")
       return ParseStringtable();
   }
@@ -1840,15 +1882,20 @@ static uint32_t read_little_long(FILE* f) {
 
 class SerializationVisitor : public Visitor {
  public:
+  // FIXME: rc.exe gets the default language from the system while this
+  // hardcodes US English. Neither seems like a great default.
   SerializationVisitor(FILE* f, std::string* err)
-      : out_(f), err_(err), next_icon_id_(1) {}
+      : out_(f), err_(err), next_icon_id_(1), cur_language_{9, 1} {}
 
-  void WriteResHeader(uint32_t data_size,
-                      IntOrStringName type,
-                      IntOrStringName name,
-                      uint16_t memory_flags = 0x1030,
-                      uint16_t language = 1033);
+  void WriteResHeader(
+      uint32_t data_size,
+      IntOrStringName type,
+      IntOrStringName name,
+      uint16_t memory_flags = 0x1030,
+      std::experimental::fundamentals_v1::optional<uint16_t> language =
+          std::experimental::fundamentals_v1::optional<uint16_t>());
 
+  bool VisitLanguageResource(const LanguageResource* r) override;
   bool VisitCursorResource(const CursorResource* r) override;
   bool VisitBitmapResource(const BitmapResource* r) override;
   bool VisitIconResource(const IconResource* r) override;
@@ -1873,6 +1920,7 @@ class SerializationVisitor : public Visitor {
   FILE* out_;
   std::string* err_;
   int next_icon_id_;
+  LanguageResource::Language cur_language_;
 
   std::map<uint16_t, std::experimental::string_view> stringtable_;
 };
@@ -1893,11 +1941,12 @@ void copy(FILE* to, FILE* from, size_t n) {
   // XXX if (ferror(from) || ferror(to))...
 }
 
-void SerializationVisitor::WriteResHeader(uint32_t data_size,
-                                          IntOrStringName type,
-                                          IntOrStringName name,
-                                          uint16_t memory_flags,
-                                          uint16_t language) {
+void SerializationVisitor::WriteResHeader(
+    uint32_t data_size,
+    IntOrStringName type,
+    IntOrStringName name,
+    uint16_t memory_flags,
+    std::experimental::fundamentals_v1::optional<uint16_t> language) {
   uint32_t header_size = 0x18 + type.serialized_size() + name.serialized_size();
   bool pad = false;
   if (header_size % 4) {
@@ -1912,7 +1961,10 @@ void SerializationVisitor::WriteResHeader(uint32_t data_size,
     write_little_short(out_, 0);
   write_little_long(out_, 0);              // data version
   write_little_short(out_, memory_flags);  // memory flags XXX
-  write_little_short(out_, language);      // language id XXX
+  uint16_t lang = cur_language_.language | cur_language_.sublanguage << 10;
+  if (language)
+    lang = *language;
+  write_little_short(out_, lang);
   write_little_long(out_, 0);              // version XXX
   write_little_long(out_, 0);              // characteristics
 }
@@ -2038,6 +2090,11 @@ bool SerializationVisitor::WriteIconOrCursorGroup(const FileResource* r,
   //fwrite(":)", 1, group_padding, out_);
   fwrite("\0\0", 1, group_padding, out_);
 
+  return true;
+}
+
+bool SerializationVisitor::VisitLanguageResource(const LanguageResource* r) {
+  cur_language_ = r->language();
   return true;
 }
 
