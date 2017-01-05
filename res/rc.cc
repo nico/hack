@@ -833,10 +833,10 @@ class Parser {
   Parser(std::vector<Token> tokens);
 
   // Parses an expression matching
-  //    expr ::= unary_expr [binary_op expr]
+  //    expr ::= unary_expr {binary_op unary_expr}
   // where
   //    binary_op = "+" "-" "|" "&"
-  //    unary_op = "-" "~"
+  //    unary_op = "-" "~"  // FIXME: +?
   //    unary_expr ::= unary_op unary_expr | primary_expr
   //    primary_expr ::= int | "(" expr ")"
   // All operators have the same precedence and are evaluated left-to-right,
@@ -921,11 +921,11 @@ bool Parser::EvalIntExpression(uint32_t* out) {
   if (!EvalIntExpressionUnary(out))
     return false;
 
-  if (Is(Token::kPlus) || Is(Token::kMinus) || Is(Token::kPipe) ||
+  while (Is(Token::kPlus) || Is(Token::kMinus) || Is(Token::kPipe) ||
       Is(Token::kAmp)) {
     Token::Type op = Consume().type_;
     uint32_t rhs;
-    if (!EvalIntExpression(&rhs))
+    if (!EvalIntExpressionUnary(&rhs))
       return false;
     switch (op) {
       case Token::kPlus:  *out = *out + rhs; break;
@@ -1293,11 +1293,8 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
       }
     }
     else if (tok.value_ == "EXSTYLE") {
-      if (!Is(Token::kInt, "expected int"))
+      if (!EvalIntExpression(&exstyle))
         return std::unique_ptr<DialogResource>();
-      // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-      // 1234L.
-      exstyle = atoi(Consume().value_.to_string().c_str());
     }
     else if (tok.value_ == "FONT") {
       DialogResource::FontInfo info;

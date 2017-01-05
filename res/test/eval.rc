@@ -4,5 +4,6 @@
 // and reject nonsensical input (e.g. `10*10` silently produces `10` in rc.exe)
 1 DIALOG 1, 2, 3, 4
 STYLE -1 & 3 | 8 + 4
+EXSTYLE ~1 & 3 | 8 - 1
 BEGIN
 END
