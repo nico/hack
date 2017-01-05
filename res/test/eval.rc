@@ -23,5 +23,5 @@ BEGIN
   // Hm no it's even more crazy: The next two lines both produce a style of 4!
   //AUTO3STATE "a32", 33+30, 0+0, 0|0, 101-1, 80+0, 2|(0&4)
   //AUTO3STATE "a32", 35+30, 0+0, 0|0, 101-1, 80+0, (2&3)|0
-  //CONTROL "c", 4+4, "static", 0, 1, 2, 100, 80
+  CONTROL "c", 4+4, "static", 0, 1, 2, 100, 80
 END

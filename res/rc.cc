@@ -1113,7 +1113,6 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
       return false;
   }
 
-
   uint32_t id;
   if (!EvalIntExpression(&id))
     return false;
