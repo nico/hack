@@ -14,8 +14,6 @@ Missing for chromium:
 - inline block data for RCDATA, DLGINCLUDE, HTML, custom types, DIALOG controls
 - text resource names without quotes (`IDR_OEMPG_HU.HTML` etc).
 - real string and int literal parsers (L"\0", 0xff)
-- int expression parse/eval (+ - | & ~) for MENU
-  and maybe more
 - preprocessor
 - (chrome uses DESIGNINFO but only behind `#ifdef APSTUDIO_INVOKED` which is
   only set by MSVC not rc, and rc.exe doesn't understand DESIGNINFO)
@@ -23,8 +21,9 @@ Missing for chromium:
 Also missing, but not yet for chromium:
 - FONT
 - MENUITEM SEPARATOR
-- MENUEX
+- MENUEX (including int expression parse/eval)
 - MESSAGETABLE
+- rc.exe probably supports int exprs in more places (see all the atoi calls)
 */
 
 #include <algorithm>
