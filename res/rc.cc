@@ -29,18 +29,23 @@ Also missing, but not yet for chromium:
 - CHARACTERISTICS LANGUAGE VERSION for ACCELERATORS, DIALOG(EX), MENU(EX),
   RCDATA, or STRINGTABLE (and custom elts?)
 */
+#if defined(__linux__)
+// Work around broken older libstdc++s, http://llvm.org/PR31562
+extern char *gets (char *__s) __attribute__ ((__deprecated__));
+#endif
 
 #include <algorithm>
 #include <iostream>
 #include <map>
 #include <memory>
-#include <string>
 #include <stdint.h>
+#include <string.h>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
-#if !defined(_MSC_VER)
+#if !defined(_MSC_VER) && !defined(__linux__)
 #include <experimental/optional>
 #include <experimental/string_view>
 #else
