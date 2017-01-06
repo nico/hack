@@ -18,13 +18,16 @@ Missing for chromium:
   only set by MSVC not rc, and rc.exe doesn't understand DESIGNINFO)
 
 Also missing, but not yet for chromium:
-- per-element LANGUAGE for ACCELERATORS, DIALOG(EX), MENU(EX), RCDATA,
-  STRINGTABLE (and custom elts?)
 - FONT
 - MENUITEM SEPARATOR
 - MENUEX (including int expression parse/eval)
 - MESSAGETABLE
 - rc.exe probably supports int exprs in more places (see all the atoi calls)
+- mem attrs (PRELOAD LOADONCALL FIXED MOVEABLE DISCARDABLE PURE IMPURE SHARED
+  NONSHARED) on all resources. all no-ops nowadays, but sometimes in rc files.
+  https://msdn.microsoft.com/en-us/library/windows/desktop/aa380908(v=vs.85).aspx
+- CHARACTERISTICS LANGUAGE VERSION for ACCELERATORS, DIALOG(EX), MENU(EX),
+  RCDATA, or STRINGTABLE (and custom elts?)
 */
 
 #include <algorithm>
