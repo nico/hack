@@ -1,8 +1,16 @@
 /*
 prototype that does something like `cc -E`; to be used in rc
 
+// FIXME: it should would be nice if there was a clang-config or a way to tell
+// llvm-config that I want clang headers.
 cc -c pptest.cc -I$($HOME/src/llvm-build/bin/llvm-config --src-root)/tools/clang/include -I$($HOME/src/llvm-build/bin/llvm-config --obj-root)/tools/clang/include $($HOME/src/llvm-build/bin/llvm-config --cxxflags)
+
+// FIXME: why doesn't llvm-config --libs include -lz -lcurses?
+// FIXME: also, clang-config --libs
+// (and why did we take that silly curses dep :-/)
 c++ -o pptest pptest.o $($HOME/src/llvm-build/bin/llvm-config --ldflags) $($HOME/src/llvm-build/bin/llvm-config --libs) -lclangParse -lclangSerialization -lclangDriver -lclangSema -lclangAnalysis -lclangEdit -lclangAST -lclangFrontend -lclangLex -lclangBasic -lz -lcurses
+
+./pptest test/accelerators.rc
  */
 
 #include <string>
@@ -43,7 +51,7 @@ class VoidModuleLoader : public clang::ModuleLoader {
   }
 };
 
-int main() {
+int main(int argc, char* argv[]) {
   clang::DiagnosticOptions* diagnosticOptions = new clang::DiagnosticOptions;
   clang::DiagnosticConsumer* diagClient =
       new clang::TextDiagnosticPrinter(llvm::outs(), diagnosticOptions);
@@ -67,6 +75,30 @@ int main() {
       new clang::PreprocessorOptions();
   VoidModuleLoader nomodules;
   clang::Preprocessor pp(ppopts, diags, opts, sm, headers, nomodules);
+
+
+  const clang::FileEntry* File = fm.getFile(argv[1]);
+  if (!File) {
+    llvm::errs() << "Failed to open \'" << argv[1] << "\'";
+    return 1;
+  }
+  sm.setMainFileID(
+      sm.createFileID(File, clang::SourceLocation(), clang::SrcMgr::C_User));
+  pp.EnterMainSourceFile();
+  diagClient->BeginSourceFile(opts, &pp);
+
+
+  // Parse it
+  clang::Token Tok;
+  do {
+    pp.Lex(Tok);
+    if (diags.hasErrorOccurred())
+      break;
+    pp.DumpToken(Tok);
+    llvm::errs() << "\n";
+  } while (Tok.isNot(clang::tok::eof));
+
+  diagClient->EndSourceFile();
 
   delete target;
 }
