@@ -1011,8 +1011,7 @@ std::unique_ptr<LanguageResource> Parser::ParseLanguage() {
     return std::unique_ptr<LanguageResource>();
   // FIXME: give Token an IntValue() function that handles 0x123, 0o123, 1234L.
   uint8_t sub_language = atoi(Consume().value_.to_string().c_str());
-  return std::unique_ptr<LanguageResource>(
-      new LanguageResource(language, sub_language));
+  return std::make_unique<LanguageResource>(language, sub_language);
 }
 
 void Parser::MaybeParseMenuOptions(uint16_t* style) {
@@ -1103,8 +1102,7 @@ std::unique_ptr<MenuResource> Parser::ParseMenu(IntOrStringName name) {
   std::unique_ptr<MenuResource::SubmenuEntryData> entries = ParseMenuBlock();
   if (!entries)
     return std::unique_ptr<MenuResource>();
-  return std::unique_ptr<MenuResource>(
-      new MenuResource(name, std::move(*entries.get())));
+  return std::make_unique<MenuResource>(name, std::move(*entries.get()));
 }
 
 bool Parser::ParseDialogControl(DialogResource::Control* control,
@@ -1416,10 +1414,10 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
   if (!Match(Token::kEndBlock, "exptected END or }"))
     return std::unique_ptr<DialogResource>();
 
-  return std::unique_ptr<DialogResource>(new DialogResource(
+  return std::make_unique<DialogResource>(
       name, dialog_kind, rect[0], rect[1], rect[2], rect[3], help_id,
       caption_val, std::move(clazz), exstyle, std::move(font), std::move(menu),
-      style, std::move(controls)));
+      style, std::move(controls));
 }
 
 std::unique_ptr<StringtableResource> Parser::ParseStringtable() {
@@ -1445,8 +1443,7 @@ std::unique_ptr<StringtableResource> Parser::ParseStringtable() {
   }
   if (!Match(Token::kEndBlock, "expected END or }"))
     return std::unique_ptr<StringtableResource>();
-  return std::unique_ptr<StringtableResource>(
-      new StringtableResource(entries.data(), entries.size()));
+  return std::make_unique<StringtableResource>(entries.data(), entries.size());
 }
 
 bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
@@ -1544,8 +1541,7 @@ std::unique_ptr<AcceleratorsResource> Parser::ParseAccelerators(
   }
   if (!Match(Token::kEndBlock, "expected END or }"))
     return std::unique_ptr<AcceleratorsResource>();
-  return std::unique_ptr<AcceleratorsResource>(
-      new AcceleratorsResource(name, std::move(entries)));
+  return std::make_unique<AcceleratorsResource>(name, std::move(entries));
 }
 
 std::unique_ptr<VersioninfoResource::BlockData>
@@ -1676,8 +1672,8 @@ std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(
       ParseVersioninfoBlock();
   if (!block)
     return std::unique_ptr<VersioninfoResource>();
-  return std::unique_ptr<VersioninfoResource>(
-      new VersioninfoResource(name, fixed_info, std::move(*block.get())));
+  return std::make_unique<VersioninfoResource>(name, fixed_info,
+                                               std::move(*block.get()));
 }
 
 std::unique_ptr<Resource> Parser::ParseResource() {
@@ -1757,11 +1753,11 @@ std::unique_ptr<Resource> Parser::ParseResource() {
 
     // FIXME: case-insensitive
     if (type.value_ == "CURSOR")
-      return std::unique_ptr<Resource>(new CursorResource(name, str_val));
+      return std::make_unique<CursorResource>(name, str_val);
     if (type.value_ == "BITMAP")
-      return std::unique_ptr<Resource>(new BitmapResource(name, str_val));
+      return std::make_unique<BitmapResource>(name, str_val);
     if (type.value_ == "ICON")
-      return std::unique_ptr<Resource>(new IconResource(name, str_val));
+      return std::make_unique<IconResource>(name, str_val);
     if (type.value_ == "FONTDIR") {
       err_ = "FONTDIR not implemented yet";  // FIXME
       return std::unique_ptr<Resource>();
@@ -1772,9 +1768,9 @@ std::unique_ptr<Resource> Parser::ParseResource() {
       return std::unique_ptr<Resource>();
     }
     if (type.value_ == "RCDATA")
-      return std::unique_ptr<Resource>(new RcdataResource(name, str_val));
+      return std::make_unique<RcdataResource>(name, str_val);
     if (type.value_ == "DLGINCLUDE")
-      return std::unique_ptr<Resource>(new DlgincludeResource(name, str_val));
+      return std::make_unique<DlgincludeResource>(name, str_val);
     if (type.value_ == "PLUGPLAY") {
       err_ = "PLUGPLAY not implemented";
       return std::unique_ptr<Resource>();
@@ -1792,7 +1788,7 @@ std::unique_ptr<Resource> Parser::ParseResource() {
       return std::unique_ptr<Resource>();
     }
     if (type.value_ == "HTML")
-      return std::unique_ptr<Resource>(new HtmlResource(name, str_val));
+      return std::make_unique<HtmlResource>(name, str_val);
   }
 
   // Not a known resource type, so it's a User-Defined Resource.
@@ -1809,8 +1805,7 @@ std::unique_ptr<Resource> Parser::ParseResource() {
             ? IntOrStringName::MakeInt(atoi(type.value_.to_string().c_str()))
             : IntOrStringName::MakeUpperString(
                   type.value_);  // Do NOT strip quotes
-    return std::unique_ptr<Resource>(
-        new UserDefinedResource(type_name, name, str_val));
+    return std::make_unique<UserDefinedResource>(type_name, name, str_val);
   }
 
   err_ = "unknown resource, type " + type.value_.to_string();
