@@ -22,7 +22,7 @@ Also missing, but not yet for chromium:
 - MENUITEM SEPARATOR
 - MENUEX (including int expression parse/eval)
 - MESSAGETABLE
-- rc.exe probably supports int exprs in more places (see all the atoi calls)
+- rc.exe probably supports int exprs in more places (see all the IntValue calls)
 - mem attrs (PRELOAD LOADONCALL FIXED MOVEABLE DISCARDABLE PURE IMPURE SHARED
   NONSHARED) on all resources. all no-ops nowadays, but sometimes in rc files.
   https://msdn.microsoft.com/en-us/library/windows/desktop/aa380908(v=vs.85).aspx
@@ -140,9 +140,17 @@ struct Token {
 
   Type type() const { return type_; }
 
+  // Only valid if type() == kInt.
+  uint32_t IntValue() const;
+
   Type type_;
   std::experimental::string_view value_;
 };
+
+uint32_t Token::IntValue() const {
+  // FIXME: Handle 0x, 0o prefix, L suffix.
+  return atoi(value_.to_string().c_str());
+}
 
 class Tokenizer {
  public:
@@ -997,20 +1005,18 @@ bool Parser::EvalIntExpressionPrimary(uint32_t* out) {
   if (!Is(Token::kInt, "expected int, +, ~, or ("))
     return false;
   // FIXME: give Token an IntValue() function that handles 0x123, 0o123, 1234L.
-  *out = atoi(Consume().value_.to_string().c_str());
+  *out = Consume().IntValue();
   return true;
 }
 
 std::unique_ptr<LanguageResource> Parser::ParseLanguage() {
   if (!Is(Token::kInt, "expected int"))
     return std::unique_ptr<LanguageResource>();
-  // FIXME: give Token an IntValue() function that handles 0x123, 0o123, 1234L.
-  uint8_t language = atoi(Consume().value_.to_string().c_str());
+  uint8_t language = Consume().IntValue();
   if (!Match(Token::kComma, "expected comma") ||
       !Is(Token::kInt, "expected int"))
     return std::unique_ptr<LanguageResource>();
-  // FIXME: give Token an IntValue() function that handles 0x123, 0o123, 1234L.
-  uint8_t sub_language = atoi(Consume().value_.to_string().c_str());
+  uint8_t sub_language = Consume().IntValue();
   return std::make_unique<LanguageResource>(language, sub_language);
 }
 
@@ -1069,9 +1075,7 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
         return std::unique_ptr<MenuResource::SubmenuEntryData>();
       if (!Is(Token::kInt, "expected int"))
         return std::unique_ptr<MenuResource::SubmenuEntryData>();
-      // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-      // 1234L.
-      uint16_t id_num = atoi(Consume().value_.to_string().c_str());
+      uint16_t id_num = Consume().IntValue();
 
       MaybeParseMenuOptions(&style);
       entry_data.reset(new MenuResource::ItemEntryData(id_num));
@@ -1140,10 +1144,9 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
       // "quoting""rules", L"asdf", etc.
       text_val = text_val.substr(1, text_val.size() - 2);
     }
-    control->text = 
-        text.type() == Token::kInt
-            ? IntOrStringName::MakeInt(atoi(text.value_.to_string().c_str()))
-            : IntOrStringName::MakeString(text_val);
+    control->text = text.type() == Token::kInt
+                        ? IntOrStringName::MakeInt(text.IntValue())
+                        : IntOrStringName::MakeString(text_val);
     if (!Match(Token::kComma, "expected comma"))
       return false;
   }
@@ -1258,9 +1261,7 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
       return false;
   if (dialog_kind == DialogResource::kDialogEx && Match(Token::kComma) &&
       Is(Token::kInt))
-    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-    // 1234L.
-    control->help_id = atoi(Consume().value_.to_string().c_str());
+    control->help_id = Consume().IntValue();
 
   // FIXME: parse optional trailing style (for not-CONTROL) and optional
   // trailing extended-style.
@@ -1277,9 +1278,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
       return std::unique_ptr<DialogResource>();
     if (!Is(Token::kInt, "expected int"))
       return std::unique_ptr<DialogResource>();
-    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-    // 1234L.
-    rect[i] = atoi(Consume().value_.to_string().c_str());
+    rect[i] = Consume().IntValue();
   }
 
   // DIALOGEX can have an optional helpID after the dialog rect.
@@ -1287,9 +1286,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
   if (dialog_kind == DialogResource::kDialogEx && Match(Token::kComma)) {
     if (!Is(Token::kInt, "expected int"))
       return std::unique_ptr<DialogResource>();
-    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-    // 1234L.
-    help_id =  atoi(Consume().value_.to_string().c_str());
+    help_id = Consume().IntValue();
   }
 
   std::experimental::string_view caption_val;
@@ -1327,9 +1324,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
         clazz_val = clazz_val.substr(1, clazz_val.size() - 2);
         clazz = IntOrStringName::MakeString(clazz_val);
       } else {
-        // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-        // 1234L.
-        uint16_t clazz_val = atoi(clazz_tok.value_.to_string().c_str());
+        uint16_t clazz_val = clazz_tok.IntValue();
         clazz = IntOrStringName::MakeInt(clazz_val);
       }
     }
@@ -1341,9 +1336,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
       DialogResource::FontInfo info;
       if (!Is(Token::kInt, "expected int"))
         return std::unique_ptr<DialogResource>();
-      // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-      // 1234L.
-      info.size = atoi(Consume().value_.to_string().c_str());
+      info.size = Consume().IntValue();
       if (!Match(Token::kComma, "expected comma"))
         return std::unique_ptr<DialogResource>();
       if (!Is(Token::kString, "expected string"))
@@ -1362,9 +1355,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
         for (int i = 0; i < 3 && Match(Token::kComma); ++i) {
           if (!Is(Token::kInt, "expected int"))
             return std::unique_ptr<DialogResource>();
-          // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-          // 1234L.
-          vals[i] = atoi(Consume().value_.to_string().c_str());
+          vals[i] = Consume().IntValue();
         }
         info.weight = vals[0];
         info.italic = vals[1];
@@ -1384,9 +1375,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
         // Do NOT strip the quotes here, rc.exe includes them too.
         menu = IntOrStringName::MakeString(menu_tok.value_);
       } else {
-        // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-        // 1234L.
-        uint16_t menu_val = atoi(menu_tok.value_.to_string().c_str());
+        uint16_t menu_val = menu_tok.IntValue();
         menu = IntOrStringName::MakeInt(menu_val);
       }
     }
@@ -1427,9 +1416,7 @@ std::unique_ptr<StringtableResource> Parser::ParseStringtable() {
   while (!at_end() && cur_token().type() != Token::kEndBlock) {
     if (!Is(Token::kInt, "expected int"))
       return std::unique_ptr<StringtableResource>();
-    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-    // 1234L.
-    uint16_t key_num = atoi(Consume().value_.to_string().c_str());
+    uint16_t key_num = Consume().IntValue();
     Match(Token::kComma);  // Eat optional comma between key and value.
 
     if (!Is(Token::kString, "expected string"))
@@ -1457,9 +1444,7 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
     return false;
   if (!Is(Token::kInt, "expected int"))
     return false;
-  // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-  // 1234L.
-  uint16_t id_num = atoi(Consume().value_.to_string().c_str());
+  uint16_t id_num = Consume().IntValue();
 
   uint16_t flags = 0;
   while (Match(Token::kComma)) {
@@ -1487,9 +1472,7 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
   accelerator->flags = flags;
   accelerator->key = 0;
   if (name.type() == Token::kInt) {
-    // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-    // 1234L.
-    accelerator->key = atoi(name.value_.to_string().c_str());
+    accelerator->key = name.IntValue();
   } else {
     std::experimental::string_view name_val = name.value_;
     // The literal includes quotes, strip them.
@@ -1597,15 +1580,13 @@ Parser::ParseVersioninfoBlock() {
         val.push_back(0);  // \0-terminate.
         val.push_back(0);
       } else {
-        // FIXME: give Token an IntValue() function that handles 0x123, 0o123,
-        // 1234L.
-        uint16_t value_num = atoi(value.value_.to_string().c_str());
+        uint16_t value_num = value.IntValue();
         val.push_back(value_num & 0xFF);
         val.push_back(value_num >> 8);
         while (Match(Token::kComma)) {
           if (!Is(Token::kInt, "expected int"))
             return std::unique_ptr<VersioninfoResource::BlockData>();
-          uint16_t value_num = atoi(Consume().value_.to_string().c_str());
+          uint16_t value_num = Consume().IntValue();
           val.push_back(value_num & 0xFF);
           val.push_back(value_num >> 8);
         }
@@ -1705,7 +1686,7 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   // Fun fact: rc.exe silently truncates to 16 bit as well.
   IntOrStringName name =
       id.type() == Token::kInt
-          ? IntOrStringName::MakeInt(atoi(id.value_.to_string().c_str()))
+          ? IntOrStringName::MakeInt(id.IntValue())
           : IntOrStringName::MakeUpperString(id.value_);  // Do NOT strip quotes
 
   const Token& type = Consume();
@@ -1800,11 +1781,10 @@ std::unique_ptr<Resource> Parser::ParseResource() {
     // The literal includes quotes, strip them.
     str_val = str_val.substr(1, str_val.size() - 2);
 
-    IntOrStringName type_name =
-        type.type() == Token::kInt
-            ? IntOrStringName::MakeInt(atoi(type.value_.to_string().c_str()))
-            : IntOrStringName::MakeUpperString(
-                  type.value_);  // Do NOT strip quotes
+    IntOrStringName type_name = type.type() == Token::kInt
+                                    ? IntOrStringName::MakeInt(type.IntValue())
+                                    : IntOrStringName::MakeUpperString(
+                                          type.value_);  // Do NOT strip quotes
     return std::make_unique<UserDefinedResource>(type_name, name, str_val);
   }
 
