@@ -13,6 +13,7 @@ c++ -o pptest pptest.o $($HOME/src/llvm-build/bin/llvm-config --ldflags) $($HOME
 ./pptest test/accelerators.rc
  */
 
+#include <memory>
 #include <string>
 
 #include "llvm/Config/config.h"
@@ -23,11 +24,17 @@ c++ -o pptest pptest.o $($HOME/src/llvm-build/bin/llvm-config --ldflags) $($HOME
 #include "clang/Basic/FileManager.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/HeaderSearchOptions.h"
+#include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/TextDiagnosticPrinter.h"
 
+//#include "clang/Driver/Types.h"
+#include "llvm/ADT/StringSwitch.h"
+#include "llvm/Support/Path.h"
+
+namespace {
 class VoidModuleLoader : public clang::ModuleLoader {
   clang::ModuleLoadResult loadModule(
       clang::SourceLocation ImportLoc,
@@ -51,7 +58,55 @@ class VoidModuleLoader : public clang::ModuleLoader {
   }
 };
 
+// rc.exe ignores all non-preprocessor directives from .h and .c files. This
+// tracks if we're in such a file.
+struct MyPPCallbacks : public clang::PPCallbacks {
+  MyPPCallbacks(clang::SourceManager& SM) : SM(SM) {}
+
+  void FileChanged(clang::SourceLocation Loc,
+                   FileChangeReason Reason,
+                   clang::SrcMgr::CharacteristicKind FileType,
+                   clang::FileID PrevFID) override {
+    if (Reason != PPCallbacks::EnterFile && Reason != PPCallbacks::ExitFile)
+      return;
+
+    // rc doesn't support #line directives, so no need to worry about presumed
+    // locations.
+    const clang::FileEntry* FE =
+        SM.getFileEntryForID(SM.getFileID(SM.getExpansionLoc(Loc)));
+    if (!FE)
+      return;
+
+    StringRef Filename = FE->getName();
+
+    // FIXME: docs only say .c and .h; but check what rc does for .hh, .hpp,
+    // .cc, .cxx etc
+    is_in_h_or_c =
+        llvm::StringSwitch<bool>(llvm::sys::path::extension(Filename))
+            .Cases(".h", ".H", ".c", ".C", true)
+            .Default(false);
+    // FIXME: consider using libDriver:
+    //clang::driver::types::ID Ty = clang::driver::types::TY_INVALID;
+    //if (const char* Ext = strrchr(Filename, '.'))
+      //Ty = clang::driver::types::LookupTypeForExtension(Ext + 1);
+    //is_in_h_or_c = Ty == clang::driver::types::TY_C ||
+                   //Ty == clang::driver::types::TY_CHeader;
+
+    // Dump state changes for debugging:
+    //if (Reason == PPCallbacks::EnterFile)
+      //printf("file entered %s\n", Filename.str().c_str());
+    //else
+      //printf("file exited %s\n", Filename.str().c_str());
+  }
+
+  clang::SourceManager& SM;
+  bool is_in_h_or_c = false;
+};
+
+}  // namespace
+
 int main(int argc, char* argv[]) {
+  // Do the long and painful dance to set up a clang::Preprocessor.
   clang::DiagnosticOptions* diagnosticOptions = new clang::DiagnosticOptions;
   clang::DiagnosticConsumer* diagClient =
       new clang::TextDiagnosticPrinter(llvm::outs(), diagnosticOptions);
@@ -68,15 +123,22 @@ int main(int argc, char* argv[]) {
   clang::FileSystemOptions fileSystemOptions;
   clang::FileManager fm(fileSystemOptions);
   clang::SourceManager sm(diags, fm);
-  llvm::IntrusiveRefCntPtr<clang::HeaderSearchOptions> hso =
-      new clang::HeaderSearchOptions();
+  std::shared_ptr<clang::HeaderSearchOptions> hso =
+      std::make_shared<clang::HeaderSearchOptions>();
   clang::HeaderSearch headers(hso, sm, diags, opts, target);
-  llvm::IntrusiveRefCntPtr<clang::PreprocessorOptions> ppopts =
-      new clang::PreprocessorOptions();
+  std::shared_ptr<clang::PreprocessorOptions> ppopts =
+      std::make_shared<clang::PreprocessorOptions>();
   VoidModuleLoader nomodules;
   clang::Preprocessor pp(ppopts, diags, opts, sm, headers, nomodules);
 
+  // XXX define RC_INVOKED
 
+  // Add callback to be notified on file changes.
+  std::unique_ptr<MyPPCallbacks> cb(new MyPPCallbacks(sm));
+  MyPPCallbacks* my_callbacks = cb.get();
+  pp.addPPCallbacks(std::move(cb));  // Callbacks now owned by preprocessor.
+
+  // Load intput file into preprocessor.
   const clang::FileEntry* File = fm.getFile(argv[1]);
   if (!File) {
     llvm::errs() << "Failed to open \'" << argv[1] << "\'";
@@ -87,13 +149,14 @@ int main(int argc, char* argv[]) {
   pp.EnterMainSourceFile();
   diagClient->BeginSourceFile(opts, &pp);
 
-
   // Parse it
   clang::Token Tok;
   do {
     pp.Lex(Tok);
     if (diags.hasErrorOccurred())
       break;
+    if (my_callbacks->is_in_h_or_c)
+      continue;
     pp.DumpToken(Tok);
     llvm::errs() << "\n";
   } while (Tok.isNot(clang::tok::eof));
