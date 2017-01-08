@@ -107,6 +107,8 @@ struct MyPPCallbacks : public clang::PPCallbacks {
 
 int main(int argc, char* argv[]) {
   // Do the long and painful dance to set up a clang::Preprocessor.
+  // FIXME: consider CompilerInstance::createPreprocessor() instead, but that
+  // does a bunch of stuff we don't necessarily want.
   clang::DiagnosticOptions* diagnosticOptions = new clang::DiagnosticOptions;
   clang::DiagnosticConsumer* diagClient =
       new clang::TextDiagnosticPrinter(llvm::outs(), diagnosticOptions);
@@ -151,15 +153,38 @@ int main(int argc, char* argv[]) {
 
   // Parse it
   clang::Token Tok;
-  do {
+  char Buffer[256];
+  bool emitted_tokens_on_this_line = false;
+  while (1) {
     pp.Lex(Tok);
-    if (diags.hasErrorOccurred())
+    if (Tok.is(clang::tok::eof) || diags.hasErrorOccurred())
       break;
     if (my_callbacks->is_in_h_or_c)
       continue;
-    pp.DumpToken(Tok);
-    llvm::errs() << "\n";
-  } while (Tok.isNot(clang::tok::eof));
+
+    if (Tok.isAtStartOfLine() && emitted_tokens_on_this_line) {
+      llvm::outs() << '\n';
+      emitted_tokens_on_this_line = false;
+    } else if (Tok.hasLeadingSpace()) {
+      llvm::outs() << ' ';
+    }
+
+    if (clang::IdentifierInfo* II = Tok.getIdentifierInfo()) {
+      llvm::outs() << II->getName();
+    } else if (Tok.isLiteral() && !Tok.needsCleaning() &&
+               Tok.getLiteralData()) {
+      llvm::outs().write(Tok.getLiteralData(), Tok.getLength());
+    } else if (Tok.getLength() < 256) {
+      const char *TokPtr = Buffer;
+      unsigned Len = pp.getSpelling(Tok, TokPtr);
+      llvm::outs().write(TokPtr, Len);
+    } else {
+      std::string S = pp.getSpelling(Tok);
+      llvm::outs().write(&S[0], S.size());
+    }
+    emitted_tokens_on_this_line = true;
+  }
+  llvm::outs() << "\n";
 
   diagClient->EndSourceFile();
 }
