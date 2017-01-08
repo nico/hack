@@ -118,14 +118,14 @@ int main(int argc, char* argv[]) {
   std::shared_ptr<clang::TargetOptions> targetOptions =
       std::make_shared<clang::TargetOptions>();
   targetOptions->Triple = llvm::sys::getDefaultTargetTriple();
-  clang::TargetInfo* target =
-      clang::TargetInfo::CreateTargetInfo(diags, targetOptions);
+  std::unique_ptr<clang::TargetInfo> target(
+      clang::TargetInfo::CreateTargetInfo(diags, targetOptions));
   clang::FileSystemOptions fileSystemOptions;
   clang::FileManager fm(fileSystemOptions);
   clang::SourceManager sm(diags, fm);
   std::shared_ptr<clang::HeaderSearchOptions> hso =
       std::make_shared<clang::HeaderSearchOptions>();
-  clang::HeaderSearch headers(hso, sm, diags, opts, target);
+  clang::HeaderSearch headers(hso, sm, diags, opts, target.get());
   std::shared_ptr<clang::PreprocessorOptions> ppopts =
       std::make_shared<clang::PreprocessorOptions>();
   VoidModuleLoader nomodules;
@@ -162,6 +162,4 @@ int main(int argc, char* argv[]) {
   } while (Tok.isNot(clang::tok::eof));
 
   diagClient->EndSourceFile();
-
-  delete target;
 }
