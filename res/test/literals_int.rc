@@ -1,0 +1,10 @@
+// VERSIONINFO 'cause it contains many int literals.
+1 VERSIONINFO
+// FIXME: rc.exe complains if an int has a L suffix in a place where it expects
+// a 16-bit number, e.g. here:
+FILEVERSION     1,2,0x3,0o4
+PRODUCTVERSION  0X10,010,0o10,0O0
+FILEFLAGSMASK   0x17l
+FILEFLAGS       124oxabcdeflOXABCDEFL  // Makes no sense; rc.exe says it's 124
+BEGIN
+END

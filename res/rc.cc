@@ -148,8 +148,16 @@ struct Token {
 };
 
 uint32_t Token::IntValue() const {
-  // FIXME: Handle 0x, 0o prefix, L suffix.
-  return atoi(value_.to_string().c_str());
+  // C++11 has std::stoll, C++17 will likey have string_view, but there's
+  // no std::stoll overload taking a string_view. C has atoi / strtol, but
+  // both assume \0-termination.
+  if (value_.size() >= 2) {
+    if (value_[0] == '0' && ascii_toupper(value_[1]) == 'X')
+      return std::stol(value_.substr(2).to_string(), nullptr, 16);
+    if (value_[0] == '0' && ascii_toupper(value_[1]) == 'O')
+      return std::stol(value_.substr(2).to_string(), nullptr, 8);
+  }
+  return std::stol(value_.to_string(), nullptr, 10);
 }
 
 class Tokenizer {
@@ -158,6 +166,7 @@ class Tokenizer {
                                      std::string* err);
 
   static bool IsDigit(char c);
+  static bool IsDigitContinuingChar(char c);
   static bool IsIdentifierFirstChar(char c);
   static bool IsIdentifierContinuingChar(char c);
 
@@ -231,6 +240,14 @@ std::vector<Token> Tokenizer::Run(std::string* err) {
 // static
 bool Tokenizer::IsDigit(char c) {
   return c >= '0' && c <= '9';
+}
+
+// static
+bool Tokenizer::IsDigitContinuingChar(char c) {
+  // FIXME: it feels like rc.exe just allows everything non-whitespace here...
+  return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
+         (c >= 'A' && c <= 'F') || c == 'l' || c == 'L' || c == 'x' ||
+         c == 'X' || c == 'o' || c == 'O';
 }
 
 // static
@@ -318,7 +335,7 @@ void Tokenizer::AdvanceToEndOfToken(Token::Type type) {
     case Token::kInt:
       do {
         Advance();
-      } while (!at_end() && IsDigit(cur_char()));
+      } while (!at_end() && IsDigitContinuingChar(cur_char()));
       break;
 
     case Token::kString: {

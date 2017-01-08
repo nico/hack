@@ -25,6 +25,7 @@ tests = [
 'custom',
 'stringnames',
 'eval',
+'literals_int',
 ]
 
 for test in tests:
