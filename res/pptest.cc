@@ -29,34 +29,13 @@ c++ -o pptest pptest.o $($HOME/src/llvm-build/bin/llvm-config --ldflags) $($HOME
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/TextDiagnosticPrinter.h"
+#include "clang/Frontend/Utils.h"
 
 //#include "clang/Driver/Types.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Path.h"
 
 namespace {
-class VoidModuleLoader : public clang::ModuleLoader {
-  clang::ModuleLoadResult loadModule(
-      clang::SourceLocation ImportLoc,
-      clang::ModuleIdPath Path,
-      clang::Module::NameVisibilityKind Visibility,
-      bool IsInclusionDirective) override {
-    return clang::ModuleLoadResult();
-  }
-
-  void makeModuleVisible(clang::Module* Mod,
-                         clang::Module::NameVisibilityKind Visibility,
-                         clang::SourceLocation ImportLoc) override {}
-
-  clang::GlobalModuleIndex* loadGlobalModuleIndex(
-      clang::SourceLocation TriggerLoc) override {
-    return nullptr;
-  }
-  bool lookupMissingImports(StringRef Name,
-                            clang::SourceLocation TriggerLoc) override {
-    return 0;
-  }
-};
 
 // rc.exe ignores all non-preprocessor directives from .h and .c files. This
 // tracks if we're in such a file.
@@ -107,33 +86,48 @@ struct MyPPCallbacks : public clang::PPCallbacks {
 
 int main(int argc, char* argv[]) {
   // Do the long and painful dance to set up a clang::Preprocessor.
-  // FIXME: consider CompilerInstance::createPreprocessor() instead, but that
-  // does a bunch of stuff we don't necessarily want.
-  clang::DiagnosticOptions* diagnosticOptions = new clang::DiagnosticOptions;
-  clang::DiagnosticConsumer* diagClient =
-      new clang::TextDiagnosticPrinter(llvm::outs(), diagnosticOptions);
-  llvm::IntrusiveRefCntPtr<clang::DiagnosticIDs> diagIDs =
-      new clang::DiagnosticIDs;
-  // Takes ownership of diagnosticOptions and diagClient:
-  clang::DiagnosticsEngine diags(diagIDs, diagnosticOptions, diagClient);
-  clang::LangOptions opts;
+  llvm::Triple MSVCTriple("i686-pc-win32");
+  clang::CompilerInstance ci;
+  ci.createDiagnostics();
+
   std::shared_ptr<clang::TargetOptions> targetOptions =
       std::make_shared<clang::TargetOptions>();
-  targetOptions->Triple = llvm::sys::getDefaultTargetTriple();
+  targetOptions->Triple = MSVCTriple.str();
   std::unique_ptr<clang::TargetInfo> target(
-      clang::TargetInfo::CreateTargetInfo(diags, targetOptions));
-  clang::FileSystemOptions fileSystemOptions;
-  clang::FileManager fm(fileSystemOptions);
-  clang::SourceManager sm(diags, fm);
-  std::shared_ptr<clang::HeaderSearchOptions> hso =
-      std::make_shared<clang::HeaderSearchOptions>();
-  clang::HeaderSearch headers(hso, sm, diags, opts, target.get());
-  std::shared_ptr<clang::PreprocessorOptions> ppopts =
-      std::make_shared<clang::PreprocessorOptions>();
-  VoidModuleLoader nomodules;
-  clang::Preprocessor pp(ppopts, diags, opts, sm, headers, nomodules);
+      clang::TargetInfo::CreateTargetInfo(ci.getDiagnostics(), targetOptions));
+  ci.setTarget(target.release());
 
+  ci.createFileManager();
+  ci.createSourceManager(ci.getFileManager());
+
+  // Add path to windows sdk headers.
+  for (const char* p : {"win_sdk/Include/10.0.10586.0/um",
+                        "win_sdk/Include/10.0.10586.0/shared",
+                        "win_sdk/Include/10.0.10586.0/winrt",
+                        "win_sdk/Include/10.0.10586.0/ucrt", "VC/include",
+                        "VC/atlmfc/include"}) {
+    std::string Base =
+        "/Users/thakis/src/depot_tools/win_toolchain/vs_files/"
+        "d5dc33b15d1b2c086f2f6632e2fd15882f80dbd3/";
+    std::string Val = Base + p;
+    ci.getHeaderSearchOpts().AddPath(Val, clang::frontend::System, false,
+                                     false);
+  }
   // XXX define RC_INVOKED
+
+
+  ci.createPreprocessor(clang::TU_Complete);
+
+  clang::LangOptions& opts = ci.getLangOpts();
+  clang::FileManager& fm = ci.getFileManager();
+  clang::SourceManager& sm = ci.getSourceManager();
+  clang::DiagnosticConsumer* diagClient = &ci.getDiagnosticClient();
+  clang::DiagnosticsEngine& diags = ci.getDiagnostics();
+  clang::Preprocessor& pp = ci.getPreprocessor();
+
+  opts.MSCompatibilityVersion = 19 * 100000;
+  opts.MicrosoftExt = true;
+  opts.MSVCCompat = true;
 
   // Add callback to be notified on file changes.
   std::unique_ptr<MyPPCallbacks> cb(new MyPPCallbacks(sm));
@@ -165,7 +159,8 @@ int main(int argc, char* argv[]) {
     if (Tok.isAtStartOfLine() && emitted_tokens_on_this_line) {
       llvm::outs() << '\n';
       emitted_tokens_on_this_line = false;
-    } else if (Tok.hasLeadingSpace()) {
+    }
+    if (Tok.hasLeadingSpace()) {
       llvm::outs() << ' ';
     }
 
