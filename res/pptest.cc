@@ -102,14 +102,14 @@ int main(int argc, char* argv[]) {
   ci.createSourceManager(ci.getFileManager());
 
   // Add path to windows sdk headers.
-  for (const char* p : {"win_sdk/Include/10.0.10586.0/um",
-                        "win_sdk/Include/10.0.10586.0/shared",
-                        "win_sdk/Include/10.0.10586.0/winrt",
-                        "win_sdk/Include/10.0.10586.0/ucrt", "VC/include",
+  for (const char* p : {"win_sdk/Include/10.0.14393.0/um",
+                        "win_sdk/Include/10.0.14393.0/shared",
+                        "win_sdk/Include/10.0.14393.0/winrt",
+                        "win_sdk/Include/10.0.14393.0/ucrt", "VC/include",
                         "VC/atlmfc/include"}) {
-    std::string Base =
-        "/Users/thakis/src/depot_tools/win_toolchain/vs_files/"
-        "d5dc33b15d1b2c086f2f6632e2fd15882f80dbd3/";
+    std::string Base = std::string(getenv("HOME")) +
+                       "/src/depot_tools/win_toolchain/vs_files/"
+                       "d3cb0e37bdd120ad0ac4650b674b09e81be45616/";
     std::string Val = Base + p;
     ci.getHeaderSearchOpts().AddPath(Val, clang::frontend::System, false,
                                      false);
