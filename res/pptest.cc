@@ -9,7 +9,7 @@ cc -c pptest.cc -I$($LLVMBUILD/bin/llvm-config --src-root)/tools/clang/include -
 // FIXME: why doesn't llvm-config --libs include -lz -lcurses?
 // FIXME: also, clang-config --libs
 // (and why did we take that silly curses dep :-/)
-c++ -o pptest pptest.o $($LLVMBUILD/bin/llvm-config --ldflags) -lclangFrontend -lclangDriver -lclangParse -lclangSema -lclangSerialization -lclangAnalysis -lclangAST -lclangEdit -lclangLex -lclangBasic $($LLVMBUILD/bin/llvm-config --libs) -lz -lcurses -lpthread -ldl
+c++ -o pptest pptest.o $($LLVMBUILD/bin/llvm-config --ldflags) -lclangFrontend -lclangDriver -lclangParse -lclangSema -lclangSerialization -lclangAnalysis -lclangAST -lclangEdit -lclangLex -lclangBasic $($LLVMBUILD/bin/llvm-config --libs) $($LLVMBUILD/bin/llvm-config --system-libs)
 
 ./pptest test/accelerators.rc
  */
