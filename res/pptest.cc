@@ -3,12 +3,13 @@ prototype that does something like `cc -E`; to be used in rc
 
 // FIXME: it should would be nice if there was a clang-config or a way to tell
 // llvm-config that I want clang headers.
-cc -c pptest.cc -I$($HOME/src/llvm-build/bin/llvm-config --src-root)/tools/clang/include -I$($HOME/src/llvm-build/bin/llvm-config --obj-root)/tools/clang/include $($HOME/src/llvm-build/bin/llvm-config --cxxflags)
+export LLVMBUILD=$HOME/src/llvm-build
+cc -c pptest.cc -I$($LLVMBUILD/bin/llvm-config --src-root)/tools/clang/include -I$($LLVMBUILD/bin/llvm-config --obj-root)/tools/clang/include $($LLVMBUILD/bin/llvm-config --cxxflags)
 
 // FIXME: why doesn't llvm-config --libs include -lz -lcurses?
 // FIXME: also, clang-config --libs
 // (and why did we take that silly curses dep :-/)
-c++ -o pptest pptest.o $($HOME/src/llvm-build/bin/llvm-config --ldflags) $($HOME/src/llvm-build/bin/llvm-config --libs) -lclangParse -lclangSerialization -lclangDriver -lclangSema -lclangAnalysis -lclangEdit -lclangAST -lclangFrontend -lclangLex -lclangBasic -lz -lcurses
+c++ -o pptest pptest.o $($LLVMBUILD/bin/llvm-config --ldflags) -lclangFrontend -lclangDriver -lclangParse -lclangSema -lclangSerialization -lclangAnalysis -lclangAST -lclangEdit -lclangLex -lclangBasic $($LLVMBUILD/bin/llvm-config --libs) -lz -lcurses -lpthread -ldl
 
 ./pptest test/accelerators.rc
  */
