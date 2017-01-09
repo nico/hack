@@ -65,8 +65,8 @@ class string_view {
     return size_ == rhs.size_ && strncmp(str_, rhs.str_, size_) == 0;
   }
   bool operator!=(const string_view& rhs) const { return !(*this == rhs); }
-  string_view substr(size_t start, size_t len) const {
-    return string_view(str_ + start, len);
+  string_view substr(size_t start, size_t len = -1) const {
+    return string_view(str_ + start, std::min(len, size() - start));
   }
   std::string to_string() const { return std::string(str_, size_); }
   const char* data() const { return str_; }
