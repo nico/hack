@@ -45,6 +45,12 @@ extern char *gets (char *__s) __attribute__ ((__deprecated__));
 #include <unordered_set>
 #include <vector>
 
+#if defined(_MSC_VER)
+#include <direct.h>
+#else
+#include <unistd.h>
+#endif
+
 #if !defined(_MSC_VER) && !defined(__linux__)
 #include <experimental/optional>
 #include <experimental/string_view>
@@ -2655,10 +2661,10 @@ void SerializationVisitor::WriteStringtables() {
   stringtable_.clear();
 }
 
-bool WriteRes(const FileBlock& file, std::string* err) {
-  FILE* f = fopen("out.res", "wb");
+bool WriteRes(const FileBlock& file, const std::string& out, std::string* err) {
+  FILE* f = fopen(out.c_str(), "wb");
   if (!f) {
-    *err = "failed to open out.res";
+    *err = "failed to open " + out;
     return false;
   }
   FClose closer(f);
@@ -2683,6 +2689,29 @@ bool WriteRes(const FileBlock& file, std::string* err) {
 // Driver
 
 int main(int argc, char* argv[]) {
+  std::string output = "out.res";
+  std::vector<std::string> defines;
+  while (argc > 1 && argv[1][0] == '/') {
+    if (strncmp(argv[1], "/fo", 3) == 0) {
+      output = std::string(argv[1] + 3);
+    } else if (strncmp(argv[1], "/cd", 3) == 0) {
+#if defined(_MSC_VER)
+      _chdir(argv[1] + 3);
+#else
+      chdir(argv[1] + 3);
+#endif
+    } else if (strcmp(argv[1], "--") == 0) {
+      --argc;
+      ++argv;
+      break;
+    } else {
+      fprintf(stderr, "rc: unrecognized option `%s'\n", argv[1]);
+      return 1;
+    }
+    --argc;
+    ++argv;
+  }
+
   std::istreambuf_iterator<char> begin(std::cin), end;
   std::string s(begin, end);
 
@@ -2697,7 +2726,7 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "%s\n", err.c_str());
     return 1;
   }
-  if (!WriteRes(*file.get(), &err)) {
+  if (!WriteRes(*file.get(), output, &err)) {
     fprintf(stderr, "%s\n", err.c_str());
     return 1;
   }
