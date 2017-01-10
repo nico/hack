@@ -17,6 +17,7 @@ c++ -o pptest pptest.o $($LLVMBUILD/bin/llvm-config --ldflags) -lclangFrontend -
 Windows:
 
 set LLVMBUILD=c:\src\llvm-build
+for /F "usebackq delims=" %l in (`%LLVMBUILD%\bin\llvm-config --cxxflags`) do for /F "usebackq delims=" %s in (`%LLVMBUILD%\bin\llvm-config --src-root`) do for /F "usebackq delims=" %o in (`%LLVMBUILD%\bin\llvm-config --obj-root`) do cl /c pptest.cc /I%s\tools\clang\include /I%o\tools\clang\include %l
 for /F "usebackq delims=" %l in (`%LLVMBUILD%\bin\llvm-config --ldflags`) do for /F "usebackq delims=" %b in (`%LLVMBUILD%\bin\llvm-config --libs`) do for /F "usebackq delims=" %s in (`%LLVMBUILD%\bin\llvm-config --system-libs`) do link pptest.obj %l clangFrontend.lib clangDriver.lib clangParse.lib clangSema.lib clangSerialization.lib clangAnalysis.lib clangAST.lib clangEdit.lib clangLex.lib clangBasic.lib %b %s version.lib
 
 pptest test\accelerators.rc
@@ -110,6 +111,8 @@ int main(int argc, char* argv[]) {
   ci.createSourceManager(ci.getFileManager());
 
   // Add path to windows sdk headers.
+  // On Windows, assume that %INCLUDE% is set (and $HOME doesn't exist there).
+#if !defined(_WIN32)
   for (const char* p : {"win_sdk/Include/10.0.14393.0/um",
                         "win_sdk/Include/10.0.14393.0/shared",
                         "win_sdk/Include/10.0.14393.0/winrt",
@@ -122,6 +125,8 @@ int main(int argc, char* argv[]) {
     ci.getHeaderSearchOpts().AddPath(Val, clang::frontend::System, false,
                                      false);
   }
+#endif
+
   // XXX define RC_INVOKED
 
 
