@@ -45,6 +45,11 @@ pptest test\accelerators.rc
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Path.h"
 
+#if defined(_WIN32)
+//#include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Process.h"
+#endif
+
 namespace {
 
 // rc.exe ignores all non-preprocessor directives from .h and .c files. This
@@ -124,6 +129,19 @@ int main(int argc, char* argv[]) {
     std::string Val = Base + p;
     ci.getHeaderSearchOpts().AddPath(Val, clang::frontend::System, false,
                                      false);
+  }
+#else
+  // FIXME: MSVCToolChain in libDriver does this as well. But we probably don't
+  // want to go through the driver?
+  // Honor %INCLUDE%. It should know essential search paths with vcvarsall.bat.
+  if (llvm::Optional<std::string> cl_include_dir =
+          llvm::sys::Process::GetEnv("INCLUDE")) {
+    llvm::SmallVector<StringRef, 8> Dirs;
+    StringRef(*cl_include_dir)
+        .split(Dirs, ";", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+    for (StringRef Dir : Dirs)
+      ci.getHeaderSearchOpts().AddPath(Dir, clang::frontend::System, false,
+                                       false);
   }
 #endif
 
