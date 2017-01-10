@@ -171,8 +171,13 @@ int main(int argc, char* argv[]) {
                                      /*IgnoreSysRoot=*/false);
   }
 
-  // FIXME define RC_INVOKED
-  // FIXME add defines from `defines`
+  // Define RC_INVOKED and defines from -D flags
+  // (must happen before createPreprocessor).
+  ci.getPreprocessorOpts().addMacroDef("RC_INVOKED");
+  for (const std::string define : defines)
+    ci.getPreprocessorOpts().addMacroDef(define);
+  // FIXME: We end up with all kinds of default-on defines from Lex and
+  // Frontend that we don't really want. Guess they don't hurt much either.
 
 
   ci.createPreprocessor(clang::TU_Complete);
