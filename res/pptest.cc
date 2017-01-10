@@ -100,6 +100,27 @@ struct MyPPCallbacks : public clang::PPCallbacks {
 }  // namespace
 
 int main(int argc, char* argv[]) {
+  // I couldn't figure out how to make llvm::cl accept "-Ifoo" without space or
+  // = between I and foo, so do manual parsing.
+  std::vector<std::string> includes;
+  std::vector<std::string> defines;
+  while (argc > 1 && argv[1][0] == '-') {
+    if (strncmp(argv[1], "-I", 2) == 0) {
+      includes.push_back(argv[1] + 2);
+    } else if (strncmp(argv[1], "-D", 2) == 0) {
+      defines.push_back(argv[1] + 2);
+    } else if (strcmp(argv[1], "--") == 0) {
+      --argc;
+      ++argv;
+      break;
+    } else {
+      fprintf(stderr, "ppttest: unrecognized option `%s'\n", argv[1]);
+      return 1;
+    }
+    --argc;
+    ++argv;
+  }
+
   // Do the long and painful dance to set up a clang::Preprocessor.
   llvm::Triple MSVCTriple("i686-pc-win32");
   clang::CompilerInstance ci;
@@ -144,8 +165,14 @@ int main(int argc, char* argv[]) {
                                        false);
   }
 #endif
+  for (const std::string include : includes) {
+    ci.getHeaderSearchOpts().AddPath(include, clang::frontend::Angled,
+                                     /*IsFramework=*/false,
+                                     /*IgnoreSysRoot=*/false);
+  }
 
-  // XXX define RC_INVOKED
+  // FIXME define RC_INVOKED
+  // FIXME add defines from `defines`
 
 
   ci.createPreprocessor(clang::TU_Complete);
