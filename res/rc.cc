@@ -2042,7 +2042,6 @@ bool SerializationVisitor::WriteIconOrCursorGroup(const FileResource* r,
 
   // For each entry, write a kRT_ICON resource.
   for (IconEntry& entry : entries) {
-    // XXX padding?
     // Cursors are prepended by their hotspot.
     WriteResHeader(
         entry.data_size + (type == kCursor ? 4 : 0),
@@ -2060,6 +2059,9 @@ bool SerializationVisitor::WriteIconOrCursorGroup(const FileResource* r,
       entry.data_size += 4;
 
     entry.id = next_icon_id_++;
+
+    uint8_t padding = (4 - (entry.data_size & 3)) & 3;  // DWORD-align.
+    fwrite("\0\0", 1, padding, out_);
   }
 
   // Write final kRT_GROUP_ICON resource.
