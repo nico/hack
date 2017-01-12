@@ -201,7 +201,7 @@ int main(int argc, char* argv[]) {
   // Load intput file into preprocessor.
   const clang::FileEntry* File = fm.getFile(argv[1]);
   if (!File) {
-    llvm::errs() << "Failed to open \'" << argv[1] << "\'";
+    llvm::errs() << "Failed to open \'" << argv[1] << "\'\n";
     return 1;
   }
   sm.setMainFileID(
