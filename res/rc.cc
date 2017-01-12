@@ -1211,67 +1211,75 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
   control->w = rect[2];
   control->h = rect[3];
 
+  // https://msdn.microsoft.com/en-us/library/windows/desktop/ms644997(v=vs.85).aspx
+  const uint16_t kButton = 0x80;
+  const uint16_t kEdit = 0x81;
+  const uint16_t kStatic = 0x82;
+  const uint16_t kListBox = 0x83;
+  const uint16_t kScrollBar = 0x84;
+  const uint16_t kComboBox = 0x85;
+
   uint16_t control_class = 0;
   uint32_t default_style = 0;
   if (type.value_ == "AUTO3STATE") {
     default_style = 0x50010006;
-    control_class = 0x80;
+    control_class = kButton;
   } else if (type.value_ == "AUTOCHECKBOX") {
     default_style = 0x50010003;
-    control_class = 0x80;
+    control_class = kButton;
   } else if (type.value_ == "COMBOBOX") {
     default_style = 0x50000000;
-    control_class = 0x85;
+    control_class = kComboBox;
   } else if (type.value_ == "CONTROL") {
     // FIXME: This probably depends on the class of the control.
     // Hardcode for "static" for now.
     default_style = 0x50000000;
-    control_class = 0x82;
+    control_class = kStatic;
   } else if (type.value_ == "CTEXT") {
     default_style = 0x50020001;
-    control_class = 0x82;
+    control_class = kStatic;
   } else if (type.value_ == "DEFPUSHBUTTON") {
     default_style = 0x50010001;
-    control_class = 0x80;
+    control_class = kButton;
   } else if (type.value_ == "EDITTEXT") {
     default_style = 0x50810000;
-    control_class = 0x81;
+    control_class = kEdit;
   } else if (type.value_ == "GROUPBOX") {
     default_style = 0x50000007;
-    control_class = 0x80;
+    control_class = kButton;
   } else if (type.value_ == "HEDIT") {
     default_style = 0x50810000;
-    control_class = 0x80;
+    control_class = kButton;
   } else if (type.value_ == "IEDIT") {
     default_style = 0x50810000;
-    control_class = 0x80;
+    control_class = kButton;
   } else if (type.value_ == "ICON") {
     default_style = 0x50000003;
-    control_class = 0x82;
+    control_class = kStatic;
   } else if (type.value_ == "LISTBOX") {
     default_style = 0x50800001;
-    control_class = 0x83;
+    control_class = kListBox;
   } else if (type.value_ == "LTEXT") {
     default_style = 0x50020000;
-    control_class = 0x82;
+    control_class = kStatic;
   } else if (type.value_ == "PUSHBOX") {
     default_style = 0x5001000a;
-    control_class = 0x80;
+    control_class = kButton;
   } else if (type.value_ == "PUSHBUTTON") {
     default_style = 0x50010000;
-    control_class = 0x80;
+    control_class = kButton;
   } else if (type.value_ == "RADIOBUTTON") {
     default_style = 0x50000004;
-    control_class = 0x80;
+    control_class = kButton;
   } else if (type.value_ == "RTEXT") {
     default_style = 0x50020002;
-    control_class = 0x82;
+    control_class = kStatic;
   } else if (type.value_ == "SCROLLBAR") {
     default_style = 0x50000000;
-    control_class = 0x84;
+    control_class = kScrollBar;
   } else if (type.value_ == "STATE3") {
     default_style = 0x50010005;
-    control_class = 0x80;
+    control_class = kButton;
   }
 
   control->clazz = IntOrStringName::MakeInt(control_class);
@@ -1892,6 +1900,8 @@ static uint32_t read_little_long(FILE* f) {
   return r;
 }
 
+// The format of .res files is documented at
+// https://msdn.microsoft.com/en-us/library/windows/desktop/ms648007(v=vs.85).aspx
 class SerializationVisitor : public Visitor {
  public:
   // FIXME: rc.exe gets the default language from the system while this
