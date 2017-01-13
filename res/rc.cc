@@ -162,23 +162,23 @@ struct Token {
 uint32_t Token::IntValue(bool* is_32) const {
   // C++11 has std::stoll, C++17 will likey have string_view, but there's
   // no std::stoll overload taking a string_view. C has atoi / strtol, but
-  // both assume \0-termination.
+  // both assume \0-termination.  Also no std::stoul.
   size_t idx;
-  uint32_t val;
+  int64_t val;
   if (value_.size() >= 2 && value_[0] == '0' &&
       ascii_toupper(value_[1]) == 'X') {
-    val = std::stol(value_.substr(2).to_string(), &idx, 16);
+    val = std::stoll(value_.substr(2).to_string(), &idx, 16);
     idx += 2;
   } else if (value_.size() >= 2 && value_[0] == '0' &&
              ascii_toupper(value_[1]) == 'O') {
-    val = std::stol(value_.substr(2).to_string(), &idx, 8);
+    val = std::stoll(value_.substr(2).to_string(), &idx, 8);
     idx += 2;
   } else
-    val = std::stol(value_.to_string(), &idx, 10);
+    val = std::stoll(value_.to_string(), &idx, 10);
 
   if (is_32 && idx < value_.size() && ascii_toupper(value_[idx]) == 'L')
     *is_32 = true;
-  return val;
+  return (uint32_t)(uint64_t)val;;
 }
 
 class Tokenizer {
