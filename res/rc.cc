@@ -1064,10 +1064,12 @@ static bool EndsData(const Token& t) {
 bool Parser::ParseData(std::vector<uint8_t>* data,
                        uint16_t* value_size,
                        bool* is_text) {
+  bool is_prev_string = false;
   bool is_right_after_comma = false;
   while (!at_end() && !EndsData(cur_token())) {
     if (Match(Token::kComma)) {
       is_right_after_comma = true;
+      is_prev_string = false;
       continue;
     }
     if (!Is(Token::kInt) && !Is(Token::kString)) {
@@ -1085,6 +1087,12 @@ bool Parser::ParseData(std::vector<uint8_t>* data,
       // FIXME: give Token a StringValue() function that handles \-escapes,
       // "quoting""rules", L"asdf", etc.
       value_val = value_val.substr(1, value_val.size() - 2);
+
+      if (is_prev_string) {
+        // Overwrite \0 from immediately preceding string.
+        data->pop_back();
+        data->pop_back();
+      }
       for (int j = 0; j < value_val.size(); ++j) {
         // FIXME: Real UTF16 support.
         data->push_back(value_val[j]);
@@ -1095,7 +1103,9 @@ bool Parser::ParseData(std::vector<uint8_t>* data,
       *value_size += value_val.size();
       if (is_right_after_comma)
         *value_size += 1;
+      is_prev_string = true;
     } else {
+      is_prev_string = false;
       // FIXME: The Is(Token::kInt) should probably be IsIntExprStart
       // (int "-" "~" "("); currently this rejects "..., ~0"
       uint32_t value_num;
@@ -2486,12 +2496,6 @@ uint16_t CountBlock(
     std::unordered_map<VersioninfoResource::Entry*, uint16_t>* sizes) {
   uint16_t total_size = 0;
   for (const auto& value : block.values) {
-    // VALUEs without contents are omitted.
-    if (value->data->type_ == VersioninfoResource::InfoData::kValue &&
-        static_cast<VersioninfoResource::ValueData&>(*value->data)
-            .value.empty())
-      continue;
-
     uint16_t size =
         3 * sizeof(uint16_t) + sizeof(char16_t) * (value->key.size() + 1);
     if (size % 4)
@@ -2525,10 +2529,6 @@ void WriteBlock(
     if (value->data->type_ == VersioninfoResource::InfoData::kValue) {
       const VersioninfoResource::ValueData& value_data =
           static_cast<VersioninfoResource::ValueData&>(*value->data);
-      // VALUEs without contents are omitted.
-      if (value_data.value.empty())
-        continue;
-
       value_size = value_data.value_size;
       is_text = value_data.is_text;
       data = &value_data.value;

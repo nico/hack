@@ -15,5 +15,32 @@
                                        // Don't bother with this for now.
   // FIXME: L (and l?) suffix on ints
 
+  VALUE "foo" // empty value
+
+  VALUE "key", "val1" "val2"
+  VALUE "key", "val1", "val2"
+
+  VALUE "key", "val1" 8 "val2"
+  VALUE "key", "val1", 8 "val2"
+  VALUE "key", "val1" 8, "val2"
+  VALUE "key", "val1" "v" "v", 8, "val2" "v"
+
+  VALUE "key", "val1" 8 "val2",
+  VALUE "key", "val1", 8 "val2",
+  VALUE "key", "val1" 8, "val2",
+  VALUE "key", "val1", 8, "val2",
+
+  VALUE "key", 8 "val1" 9
+  VALUE "key", 8, "val1", 9
+  VALUE "key", 8 "val1", 9
+  VALUE "key", 8, "val1", 9
+
+  BLOCK "empty" {
+    // Trailing empty value
+    VALUE "foo"
+  }
+
+  // several empty values:
+  VALUE "foo"
   VALUE "foo"
 }
