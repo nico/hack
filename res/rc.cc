@@ -13,7 +13,7 @@ Missing for chromium:
 - inline block data for RCDATA, DLGINCLUDE, HTML, custom types, DIALOG controls
 - text resource names without quotes (`IDR_OEMPG_HU.HTML` etc).
 - real string and int literal parsers (L"\0", 0xff)
-- preprocessor
+- preprocessor (but see pptest next to this; `pptest file | rc` kinda works)
 - (chrome uses DESIGNINFO but only behind `#ifdef APSTUDIO_INVOKED` which is
   only set by MSVC not rc, and rc.exe doesn't understand DESIGNINFO)
 
