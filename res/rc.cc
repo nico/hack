@@ -820,8 +820,21 @@ class VersioninfoResource : public Resource {
     std::unique_ptr<InfoData> data;
   };
   struct ValueData : public InfoData {
-    explicit ValueData(bool is_text, std::vector<uint8_t> value)
-        : InfoData(kValue), is_text(is_text), value(std::move(value)) {}
+    explicit ValueData(uint16_t value_size,
+                       bool is_text,
+                       std::vector<uint8_t> value)
+        : InfoData(kValue),
+          value_size(value_size),
+          is_text(is_text),
+          value(std::move(value)) {}
+    // For string VALUEs, this is the number of char16_ts in the string,
+    // including the terminating \0. For int VALUEs, this is the byte size of
+    // all values. For VALUEs that combine int and string VALUEs, this is the
+    // sum of the string value_sizes for the string parts and the int
+    // value_sizes for the int parts.  In other words, for mixed VALUEs, this
+    // field is completely useless -- rc probably didn't intend to accept
+    // mixed VALUEs.
+    uint16_t value_size;
     // If this is true, value contains (0-terminated) utf-16 string data,
     // else it contains arbitrary binary data.
     bool is_text;
@@ -919,6 +932,10 @@ class Parser {
   bool EvalIntExpression(uint32_t* out);
   bool EvalIntExpressionUnary(uint32_t* out);
   bool EvalIntExpressionPrimary(uint32_t* out);
+
+  bool ParseData(std::vector<uint8_t>* data,
+                 uint16_t* value_size,
+                 bool* is_text);
 
   std::unique_ptr<LanguageResource> ParseLanguage();
   void MaybeParseMenuOptions(uint16_t* style);
@@ -1035,6 +1052,63 @@ bool Parser::EvalIntExpressionPrimary(uint32_t* out) {
     return false;
   // FIXME: give Token an IntValue() function that handles 0x123, 0o123, 1234L.
   *out = Consume().IntValue();
+  return true;
+}
+
+static bool EndsData(const Token& t) {
+  return t.type() == Token::kEndBlock ||
+         (t.type() == Token::kIdentifier &&
+          (t.value_ == "VALUE" || t.value_ == "BLOCK"));
+}
+
+bool Parser::ParseData(std::vector<uint8_t>* data,
+                       uint16_t* value_size,
+                       bool* is_text) {
+  bool is_right_after_comma = false;
+  while (!at_end() && !EndsData(cur_token())) {
+    if (Match(Token::kComma)) {
+      is_right_after_comma = true;
+      continue;
+    }
+    if (!Is(Token::kInt) && !Is(Token::kString)) {
+      err_ = "expected int or string, got " +
+             cur_or_last_token().value_.to_string();
+      return false;
+    }
+    // FIXME: test "s1" "s2" and "s1", "s2" -- do those have zero termination
+    // in between?
+    bool is_text_token = Is(Token::kString);
+    if (is_text_token) {
+      const Token& value = Consume();
+      std::experimental::string_view value_val = value.value_;
+      // The literal includes quotes, strip them.
+      // FIXME: give Token a StringValue() function that handles \-escapes,
+      // "quoting""rules", L"asdf", etc.
+      value_val = value_val.substr(1, value_val.size() - 2);
+      for (int j = 0; j < value_val.size(); ++j) {
+        // FIXME: Real UTF16 support.
+        data->push_back(value_val[j]);
+        data->push_back(0);
+      }
+      data->push_back(0);  // \0-terminate.
+      data->push_back(0);
+      *value_size += value_val.size();
+      if (is_right_after_comma)
+        *value_size += 1;
+    } else {
+      // FIXME: The Is(Token::kInt) should probably be IsIntExprStart
+      // (int "-" "~" "("); currently this rejects "..., ~0"
+      uint32_t value_num;
+      if (!EvalIntExpression(&value_num))
+        return false;
+      *is_text = false;
+      // FIXME: if L/l suffix, 32-bit int value
+      data->push_back(value_num & 0xFF);
+      data->push_back(value_num >> 8);
+      *value_size += 2;
+    }
+    is_right_after_comma = false;
+  }
   return true;
 }
 
@@ -1591,45 +1665,13 @@ Parser::ParseVersioninfoBlock() {
     std::unique_ptr<VersioninfoResource::InfoData> info_data;
 
     if (is_value) {
-      if (!Match(Token::kComma, "expected comma"))
-        return std::unique_ptr<VersioninfoResource::BlockData>();
-      if (!Is(Token::kString) && !Is(Token::kInt)) {
-        err_ = "expected string or int, got " +
-               cur_or_last_token().value_.to_string();
-        return std::unique_ptr<VersioninfoResource::BlockData>();
-      }
-      bool is_text = Is(Token::kString);
-      const Token& value = Consume();
       std::vector<uint8_t> val;
-      // FIXME: rc.exe allows mixed-value things like `value "FOO", 4, "hi", 5`.
-      // Figure out what exactly happens there and support that too.
-      if (is_text) {
-        std::experimental::string_view value_val = value.value_;
-        // The literal includes quotes, strip them.
-        // FIXME: give Token a StringValue() function that handles \-escapes,
-        // "quoting""rules", L"asdf", etc.
-        value_val = value_val.substr(1, value_val.size() - 2);
-        for (int j = 0; j < value_val.size(); ++j) {
-          // FIXME: Real UTF16 support.
-          val.push_back(value_val[j]);
-          val.push_back(0);
-        }
-        val.push_back(0);  // \0-terminate.
-        val.push_back(0);
-      } else {
-        uint16_t value_num = value.IntValue();
-        val.push_back(value_num & 0xFF);
-        val.push_back(value_num >> 8);
-        while (Match(Token::kComma)) {
-          if (!Is(Token::kInt, "expected int"))
-            return std::unique_ptr<VersioninfoResource::BlockData>();
-          uint16_t value_num = Consume().IntValue();
-          val.push_back(value_num & 0xFF);
-          val.push_back(value_num >> 8);
-        }
-      }
-      info_data.reset(
-          new VersioninfoResource::ValueData(is_text, std::move(val)));
+      uint16_t value_size = 0;
+      bool is_text = true;
+      if (!ParseData(&val, &value_size, &is_text))
+        return std::unique_ptr<VersioninfoResource::BlockData>();
+      info_data.reset(new VersioninfoResource::ValueData(value_size, is_text,
+                                                         std::move(val)));
     } else {
       std::unique_ptr<VersioninfoResource::BlockData> block =
           ParseVersioninfoBlock();
@@ -2444,6 +2486,12 @@ uint16_t CountBlock(
     std::unordered_map<VersioninfoResource::Entry*, uint16_t>* sizes) {
   uint16_t total_size = 0;
   for (const auto& value : block.values) {
+    // VALUEs without contents are omitted.
+    if (value->data->type_ == VersioninfoResource::InfoData::kValue &&
+        static_cast<VersioninfoResource::ValueData&>(*value->data)
+            .value.empty())
+      continue;
+
     uint16_t size =
         3 * sizeof(uint16_t) + sizeof(char16_t) * (value->key.size() + 1);
     if (size % 4)
@@ -2471,18 +2519,19 @@ void WriteBlock(
     const VersioninfoResource::BlockData& block,
     const std::unordered_map<VersioninfoResource::Entry*, uint16_t> sizes) {
   for (const auto& value : block.values) {
-    size_t value_size = 0;
+    uint16_t value_size = 0;
     const std::vector<uint8_t>* data;
     bool is_text = true;
     if (value->data->type_ == VersioninfoResource::InfoData::kValue) {
       const VersioninfoResource::ValueData& value_data =
           static_cast<VersioninfoResource::ValueData&>(*value->data);
+      // VALUEs without contents are omitted.
+      if (value_data.value.empty())
+        continue;
+
+      value_size = value_data.value_size;
+      is_text = value_data.is_text;
       data = &value_data.value;
-      value_size = data->size();
-      if (value_data.is_text)
-        value_size /= 2;
-       else
-        is_text = false;
     }
 
     // Every block / value there seems to start with a 3-uint16_t header:

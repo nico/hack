@@ -1,0 +1,19 @@
+1 VERSIONINFO
+{
+  // rc.exe also accepts 3.5 but it just has value 3 (similar to 3asdf and
+  // 3*8 -- suffices on ints are just ignored).
+  VALUE "foo", 2, 3, "bar"
+  VALUE "foo" 2, 3, "bar"
+  VALUE "foo" 2 3 "bar"
+  VALUE "foo",,, 2 3,,, "bar",,,,,  // no , after VALUE accepted
+  //VALUE "foo" 2 adsf 3,,, "bar"  // "undefined keyword or name: adsf"
+  VALUE "foo" 2 + 3 3 "bar"  // Accepted
+  //VALUE "foo" BEGIN // Rejected, "expected VALUE, BLOCK, or END keyword"
+  //VALUE "foo" 2 3 "bar" + "foo"  // likewise.
+  //VALUE "foo" 2 + 3 3 "hi" )( "bar"  // Has funny error messages; but
+                                       // with just ) this is accepted.
+                                       // Don't bother with this for now.
+  // FIXME: L (and l?) suffix on ints
+
+  VALUE "foo"
+}

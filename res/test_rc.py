@@ -19,7 +19,7 @@ tests = [
 'stringtable',
 'accelerators',
 'rcdata',
-'versioninfo_fixedonly', 'versioninfo',
+'versioninfo_fixedonly', 'versioninfo', 'versioninfo_slurp',
 'dlginclude',
 'html',
 'custom',
