@@ -153,23 +153,32 @@ struct Token {
   Type type() const { return type_; }
 
   // Only valid if type() == kInt.
-  uint32_t IntValue() const;
+  uint32_t IntValue(bool* is_32 = nullptr) const;
 
   Type type_;
   std::experimental::string_view value_;
 };
 
-uint32_t Token::IntValue() const {
+uint32_t Token::IntValue(bool* is_32) const {
   // C++11 has std::stoll, C++17 will likey have string_view, but there's
   // no std::stoll overload taking a string_view. C has atoi / strtol, but
   // both assume \0-termination.
-  if (value_.size() >= 2) {
-    if (value_[0] == '0' && ascii_toupper(value_[1]) == 'X')
-      return std::stol(value_.substr(2).to_string(), nullptr, 16);
-    if (value_[0] == '0' && ascii_toupper(value_[1]) == 'O')
-      return std::stol(value_.substr(2).to_string(), nullptr, 8);
-  }
-  return std::stol(value_.to_string(), nullptr, 10);
+  size_t idx;
+  uint32_t val;
+  if (value_.size() >= 2 && value_[0] == '0' &&
+      ascii_toupper(value_[1]) == 'X') {
+    val = std::stol(value_.substr(2).to_string(), &idx, 16);
+    idx += 2;
+  } else if (value_.size() >= 2 && value_[0] == '0' &&
+             ascii_toupper(value_[1]) == 'O') {
+    val = std::stol(value_.substr(2).to_string(), &idx, 8);
+    idx += 2;
+  } else
+    val = std::stol(value_.to_string(), &idx, 10);
+
+  if (is_32 && idx < value_.size() && ascii_toupper(value_[idx]) == 'L')
+    *is_32 = true;
+  return val;
 }
 
 class Tokenizer {
@@ -929,9 +938,9 @@ class Parser {
   // except for parentheses which are evaluated first.
   // FIXME: consider building and storing an AST for the full expression and
   // calling Eval() on the root expression node in the serializer instead.
-  bool EvalIntExpression(uint32_t* out);
-  bool EvalIntExpressionUnary(uint32_t* out);
-  bool EvalIntExpressionPrimary(uint32_t* out);
+  bool EvalIntExpression(uint32_t* out, bool* is_32 = nullptr);
+  bool EvalIntExpressionUnary(uint32_t* out, bool* is_32);
+  bool EvalIntExpressionPrimary(uint32_t* out, bool* is_32);
 
   bool ParseData(std::vector<uint8_t>* data,
                  uint16_t* value_size,
@@ -1008,15 +1017,15 @@ const Token& Parser::Consume() {
   return tokens_[cur_++];
 }
 
-bool Parser::EvalIntExpression(uint32_t* out) {
-  if (!EvalIntExpressionUnary(out))
+bool Parser::EvalIntExpression(uint32_t* out, bool* is_32) {
+  if (!EvalIntExpressionUnary(out, is_32))
     return false;
 
   while (Is(Token::kPlus) || Is(Token::kMinus) || Is(Token::kPipe) ||
       Is(Token::kAmp)) {
     Token::Type op = Consume().type_;
     uint32_t rhs;
-    if (!EvalIntExpressionUnary(&rhs))
+    if (!EvalIntExpressionUnary(&rhs, is_32))
       return false;
     switch (op) {
       case Token::kPlus:  *out = *out + rhs; break;
@@ -1029,29 +1038,30 @@ bool Parser::EvalIntExpression(uint32_t* out) {
   return true;
 }
 
-bool Parser::EvalIntExpressionUnary(uint32_t* out) {
+bool Parser::EvalIntExpressionUnary(uint32_t* out, bool* is_32) {
   if (Match(Token::kMinus)) {
-    if (!EvalIntExpressionUnary(out))
+    if (!EvalIntExpressionUnary(out, is_32))
       return false;
     *out = -*out;
     return true;
   }
   if (Match(Token::kTilde)) {
-    if (!EvalIntExpressionUnary(out))
+    if (!EvalIntExpressionUnary(out, is_32))
       return false;
     *out = ~*out;
     return true;
   }
-  return EvalIntExpressionPrimary(out);
+  return EvalIntExpressionPrimary(out, is_32);
 }
 
-bool Parser::EvalIntExpressionPrimary(uint32_t* out) {
+bool Parser::EvalIntExpressionPrimary(uint32_t* out, bool* is_32) {
   if (Match(Token::kLeftParen))
-    return EvalIntExpression(out) && Match(Token::kRightParen, "expected )");
+    return EvalIntExpression(out, is_32) &&
+           Match(Token::kRightParen, "expected )");
   if (!Is(Token::kInt, "expected int, +, ~, or ("))
     return false;
-  // FIXME: give Token an IntValue() function that handles 0x123, 0o123, 1234L.
-  *out = Consume().IntValue();
+  const Token& t = Consume();
+  *out = t.IntValue(is_32);
   return true;
 }
 
@@ -1077,8 +1087,6 @@ bool Parser::ParseData(std::vector<uint8_t>* data,
              cur_or_last_token().value_.to_string();
       return false;
     }
-    // FIXME: test "s1" "s2" and "s1", "s2" -- do those have zero termination
-    // in between?
     bool is_text_token = Is(Token::kString);
     if (is_text_token) {
       const Token& value = Consume();
@@ -1109,13 +1117,18 @@ bool Parser::ParseData(std::vector<uint8_t>* data,
       // FIXME: The Is(Token::kInt) should probably be IsIntExprStart
       // (int "-" "~" "("); currently this rejects "..., ~0"
       uint32_t value_num;
-      if (!EvalIntExpression(&value_num))
+      bool is_32 = false;
+      if (!EvalIntExpression(&value_num, &is_32))
         return false;
       *is_text = false;
-      // FIXME: if L/l suffix, 32-bit int value
       data->push_back(value_num & 0xFF);
-      data->push_back(value_num >> 8);
+      data->push_back((value_num >> 8) & 0xFF);
       *value_size += 2;
+      if (is_32) {
+        data->push_back((value_num >> 16) & 0xFF);
+        data->push_back(value_num >> 24);
+        *value_size += 2;
+      }
     }
     is_right_after_comma = false;
   }

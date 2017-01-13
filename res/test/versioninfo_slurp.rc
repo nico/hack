@@ -35,6 +35,17 @@
   VALUE "key", 8 "val1", 9
   VALUE "key", 8, "val1", 9
 
+  VALUE "w", 4L, 2L      // 32
+  VALUE "x", 4l, 2L      // 32
+  VALUE "y", 4labdf, 2L  // 32
+  VALUE "z", 4Labdf, 2L  // 32
+  VALUE "a", 4abdfl, 2L  // 16
+  VALUE "b", 4abdfL, 2L  // 16
+
+  VALUE "s", 4 + 2L, 5
+  VALUE "s2", 4L + 2, 5
+  VALUE "s3", 4L + 2L, 5
+
   BLOCK "empty" {
     // Trailing empty value
     VALUE "foo"
