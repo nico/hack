@@ -1808,6 +1808,9 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   // slightly different from an ICON, it complains that the input .ico file
   // isn't quite right.
 
+  // FIXME: case-insensitive
+
+  // Types with custom parsers.
   if (type.type_ == Token::kIdentifier && type.value_ == "MENU")
     return ParseMenu(name);
   if (type.type_ == Token::kIdentifier && type.value_ == "MENUEX") {
@@ -1827,7 +1830,60 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   if (type.type_ == Token::kIdentifier && type.value_ == "VERSIONINFO")
     return ParseVersioninfo(name);
 
+  // Unsupported types.
+  if (type.value_ == "FONTDIR") {
+    err_ = "FONTDIR not implemented yet";  // FIXME
+    return std::unique_ptr<Resource>();
+  }
+  if (type.value_ == "FONT") {
+    err_ = "FONT not implemented yet";  // FIXME
+    // If this gets implemented: rc requires numeric names for FONTs.
+    return std::unique_ptr<Resource>();
+  }
+  if (type.value_ == "PLUGPLAY") {
+    err_ = "PLUGPLAY not implemented";
+    return std::unique_ptr<Resource>();
+  }
+  if (type.value_ == "VXD") {
+    err_ = "VXD not implemented";
+    return std::unique_ptr<Resource>();
+  }
+  if (type.value_ == "ANICURSOR") {
+    err_ = "ANICURSOR not implemented yet";  // FIXME
+    return std::unique_ptr<Resource>();
+  }
+  if (type.value_ == "ANIICON") {
+    err_ = "ANIICON not implemented yet";  // FIXME
+    return std::unique_ptr<Resource>();
+  }
+
+  // Types always taking a string parameter.
+  bool needs_string = type.value_ == "CURSOR" || type.value_ == "BITMAP" ||
+                      type.value_ == "ICON";
+  if (needs_string) {
+    if (!Is(Token::kString, "expected string"))
+      return std::unique_ptr<DialogResource>();
+    const Token& data = Consume();
+    std::experimental::string_view str_val = data.value_;
+    // The literal includes quotes, strip them.
+    str_val = str_val.substr(1, str_val.size() - 2);
+
+    if (type.value_ == "CURSOR")
+      return std::make_unique<CursorResource>(name, str_val);
+    if (type.value_ == "BITMAP")
+      return std::make_unique<BitmapResource>(name, str_val);
+    if (type.value_ == "ICON")
+      return std::make_unique<IconResource>(name, str_val);
+  }
+
+  // The remaining types can either take a string filename or a BEGIN END
+  // block containing inline data.
   const Token& data = Consume();
+  if (data.type_ == Token::kStartBlock) {
+    err_ = "inline data blocks not yet supported";  // FIXME
+    return std::unique_ptr<Resource>();
+  }
+
   if (type.type_ == Token::kIdentifier && data.type_ == Token::kString) {
     const Token& string = data;
     std::experimental::string_view str_val = string.value_;
@@ -1835,41 +1891,10 @@ std::unique_ptr<Resource> Parser::ParseResource() {
     str_val = str_val.substr(1, str_val.size() - 2);
 
     // FIXME: case-insensitive
-    if (type.value_ == "CURSOR")
-      return std::make_unique<CursorResource>(name, str_val);
-    if (type.value_ == "BITMAP")
-      return std::make_unique<BitmapResource>(name, str_val);
-    if (type.value_ == "ICON")
-      return std::make_unique<IconResource>(name, str_val);
-    if (type.value_ == "FONTDIR") {
-      err_ = "FONTDIR not implemented yet";  // FIXME
-      return std::unique_ptr<Resource>();
-    }
-    if (type.value_ == "FONT") {
-      err_ = "FONT not implemented yet";  // FIXME
-      // If this gets implemented: rc requires numeric names for FONTs.
-      return std::unique_ptr<Resource>();
-    }
     if (type.value_ == "RCDATA")
       return std::make_unique<RcdataResource>(name, str_val);
     if (type.value_ == "DLGINCLUDE")
       return std::make_unique<DlgincludeResource>(name, str_val);
-    if (type.value_ == "PLUGPLAY") {
-      err_ = "PLUGPLAY not implemented";
-      return std::unique_ptr<Resource>();
-    }
-    if (type.value_ == "VXD") {
-      err_ = "VXD not implemented";
-      return std::unique_ptr<Resource>();
-    }
-    if (type.value_ == "ANICURSOR") {
-      err_ = "ANICURSOR not implemented yet";  // FIXME
-      return std::unique_ptr<Resource>();
-    }
-    if (type.value_ == "ANIICON") {
-      err_ = "ANIICON not implemented yet";  // FIXME
-      return std::unique_ptr<Resource>();
-    }
     if (type.value_ == "HTML")
       return std::make_unique<HtmlResource>(name, str_val);
   }
