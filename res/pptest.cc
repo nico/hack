@@ -104,11 +104,14 @@ int main(int argc, char* argv[]) {
   // = between I and foo, so do manual parsing.
   std::vector<std::string> includes;
   std::vector<std::string> defines;
+  bool show_includes = false;
   while (argc > 1 && argv[1][0] == '-') {
     if (strncmp(argv[1], "-I", 2) == 0) {
       includes.push_back(argv[1] + 2);
     } else if (strncmp(argv[1], "-D", 2) == 0) {
       defines.push_back(argv[1] + 2);
+    } else if (strncmp(argv[1], "--show-includes", 15) == 0) {
+      show_includes = true;
     } else if (strcmp(argv[1], "--") == 0) {
       --argc;
       ++argv;
@@ -170,6 +173,9 @@ int main(int argc, char* argv[]) {
                                      /*IsFramework=*/false,
                                      /*IgnoreSysRoot=*/false);
   }
+
+  if (show_includes)
+    ci.getDependencyOutputOpts().PrintShowIncludes = true;
 
   // Define RC_INVOKED and defines from -D flags
   // (must happen before createPreprocessor).
