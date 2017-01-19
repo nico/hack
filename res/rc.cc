@@ -1996,8 +1996,12 @@ class SerializationVisitor : public Visitor {
  public:
   // FIXME: rc.exe gets the default language from the system while this
   // hardcodes US English. Neither seems like a great default.
-  SerializationVisitor(FILE* f, std::string* err)
-      : out_(f), err_(err), next_icon_id_(1), cur_language_{9, 1} {}
+  SerializationVisitor(FILE* f, bool show_includes, std::string* err)
+      : out_(f),
+        show_includes_(show_includes),
+        err_(err),
+        next_icon_id_(1),
+        cur_language_{9, 1} {}
 
   void WriteResHeader(
       uint32_t data_size,
@@ -2026,10 +2030,13 @@ class SerializationVisitor : public Visitor {
   void WriteStringtables();
 
  private:
+  FILE* OpenFile(const char* path);
+
   enum GroupType { kIcon = 1, kCursor = 2 };
   bool WriteIconOrCursorGroup(const FileResource* r, GroupType type);
 
   FILE* out_;
+  bool show_includes_;
   std::string* err_;
   int next_icon_id_;
   LanguageResource::Language cur_language_;
@@ -2051,6 +2058,25 @@ void copy(FILE* to, FILE* from, size_t n) {
     n -= len;
   }
   // XXX if (ferror(from) || ferror(to))...
+}
+
+FILE* SerializationVisitor::OpenFile(const char* path) {
+  FILE* f = fopen(path, "rb");
+  if (!f) {
+    *err_ = std::string("failed to open ") + path;
+    return NULL;
+  }
+  if (show_includes_) {
+#if !defined(_WIN32)
+    char full_path[PATH_MAX];
+    realpath(path, full_path);
+#else
+    char full_path[_MAX_PATH];
+    GetFullPathName(path, sizeof(full_path), full_path, NULL);
+#endif
+    printf("Note: including file: %s\n", full_path);
+  }
+  return f;
 }
 
 void SerializationVisitor::WriteResHeader(
@@ -2088,11 +2114,9 @@ bool SerializationVisitor::WriteIconOrCursorGroup(const FileResource* r,
   //kRT_GROUP_ICON.
   // .ico format: https://msdn.microsoft.com/en-us/library/ms997538.aspx
 
-  FILE* f = fopen(r->path().to_string().c_str(), "rb");
-  if (!f) {
-    *err_ = "failed to open " + r->path().to_string();
+  FILE* f = OpenFile(r->path().to_string().c_str());
+  if (!f)
     return false;
-  }
   FClose closer(f);
 
   struct IconDir {
@@ -2217,11 +2241,9 @@ bool SerializationVisitor::VisitCursorResource(const CursorResource* r) {
 }
 
 bool SerializationVisitor::VisitBitmapResource(const BitmapResource* r) {
-  FILE* f = fopen(r->path().to_string().c_str(), "rb");
-  if (!f) {
-    *err_ = "failed to open " + r->path().to_string();
+  FILE* f = OpenFile(r->path().to_string().c_str());
+  if (!f)
     return false;
-  }
   FClose closer(f);
   fseek(f, 0, SEEK_END);
   size_t size = ftell(f);
@@ -2510,11 +2532,9 @@ bool SerializationVisitor::VisitAcceleratorsResource(
 }
 
 bool SerializationVisitor::VisitRcdataResource(const RcdataResource* r) {
-  FILE* f = fopen(r->path().to_string().c_str(), "rb");
-  if (!f) {
-    *err_ = "failed to open " + r->path().to_string();
+  FILE* f = OpenFile(r->path().to_string().c_str());
+  if (!f)
     return false;
-  }
   FClose closer(f);
   fseek(f, 0, SEEK_END);
   size_t size = ftell(f);
@@ -2654,11 +2674,9 @@ bool SerializationVisitor::VisitDlgincludeResource(
 }
 
 bool SerializationVisitor::VisitHtmlResource(const HtmlResource* r) {
-  FILE* f = fopen(r->path().to_string().c_str(), "rb");
-  if (!f) {
-    *err_ = "failed to open " + r->path().to_string();
+  FILE* f = OpenFile(r->path().to_string().c_str());
+  if (!f)
     return false;
-  }
   FClose closer(f);
   fseek(f, 0, SEEK_END);
   size_t size = ftell(f);
@@ -2675,11 +2693,9 @@ bool SerializationVisitor::VisitHtmlResource(const HtmlResource* r) {
 
 bool SerializationVisitor::VisitUserDefinedResource(
     const UserDefinedResource* r) {
-  FILE* f = fopen(r->path().to_string().c_str(), "rb");
-  if (!f) {
-    *err_ = "failed to open " + r->path().to_string();
+  FILE* f = OpenFile(r->path().to_string().c_str());
+  if (!f)
     return false;
-  }
   FClose closer(f);
   fseek(f, 0, SEEK_END);
   size_t size = ftell(f);
@@ -2760,7 +2776,10 @@ void SerializationVisitor::WriteStringtables() {
   stringtable_.clear();
 }
 
-bool WriteRes(const FileBlock& file, const std::string& out, std::string* err) {
+bool WriteRes(const FileBlock& file,
+              const std::string& out,
+              bool show_includes,
+              std::string* err) {
   FILE* f = fopen(out.c_str(), "wb");
   if (!f) {
     *err = "failed to open " + out;
@@ -2768,7 +2787,7 @@ bool WriteRes(const FileBlock& file, const std::string& out, std::string* err) {
   }
   FClose closer(f);
 
-  SerializationVisitor serializer(f, err);
+  SerializationVisitor serializer(f, show_includes, err);
 
   // First write the "this is not the ancient 16-bit format" header.
   serializer.WriteResHeader(0, IntOrStringName::MakeInt(0),
@@ -2790,6 +2809,7 @@ bool WriteRes(const FileBlock& file, const std::string& out, std::string* err) {
 int main(int argc, char* argv[]) {
   std::string output = "out.res";
   std::vector<std::string> defines;
+  bool show_includes = false;
   while (argc > 1 && argv[1][0] == '/') {
     if (strncmp(argv[1], "/fo", 3) == 0) {
       output = std::string(argv[1] + 3);
@@ -2799,6 +2819,8 @@ int main(int argc, char* argv[]) {
 #else
       chdir(argv[1] + 3);
 #endif
+    } else if (strncmp(argv[1], "/showIncludes", 13) == 0) {
+      show_includes = true;
     } else if (strcmp(argv[1], "--") == 0) {
       --argc;
       ++argv;
@@ -2825,7 +2847,7 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "%s\n", err.c_str());
     return 1;
   }
-  if (!WriteRes(*file.get(), output, &err)) {
+  if (!WriteRes(*file.get(), output, show_includes, &err)) {
     fprintf(stderr, "%s\n", err.c_str());
     return 1;
   }
