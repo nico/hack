@@ -47,6 +47,9 @@ extern char *gets (char *__s) __attribute__ ((__deprecated__));
 
 #if defined(_MSC_VER)
 #include <direct.h>
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>  // GetFullPathName
 #else
 #include <unistd.h>
 #endif
@@ -942,9 +945,10 @@ class Parser {
   bool EvalIntExpressionUnary(uint32_t* out, bool* is_32);
   bool EvalIntExpressionPrimary(uint32_t* out, bool* is_32);
 
-  bool ParseData(std::vector<uint8_t>* data,
-                 uint16_t* value_size,
-                 bool* is_text);
+  bool ParseVersioninfoData(std::vector<uint8_t>* data,
+                            uint16_t* value_size,
+                            bool* is_text);
+  bool ParseRawData(std::vector<uint8_t>* data);
 
   std::unique_ptr<LanguageResource> ParseLanguage();
   void MaybeParseMenuOptions(uint16_t* style);
@@ -1065,18 +1069,18 @@ bool Parser::EvalIntExpressionPrimary(uint32_t* out, bool* is_32) {
   return true;
 }
 
-static bool EndsData(const Token& t) {
+static bool EndsVersioninfoData(const Token& t) {
   return t.type() == Token::kEndBlock ||
          (t.type() == Token::kIdentifier &&
           (t.value_ == "VALUE" || t.value_ == "BLOCK"));
 }
 
-bool Parser::ParseData(std::vector<uint8_t>* data,
-                       uint16_t* value_size,
-                       bool* is_text) {
+bool Parser::ParseVersioninfoData(std::vector<uint8_t>* data,
+                                  uint16_t* value_size,
+                                  bool* is_text) {
   bool is_prev_string = false;
   bool is_right_after_comma = false;
-  while (!at_end() && !EndsData(cur_token())) {
+  while (!at_end() && !EndsVersioninfoData(cur_token())) {
     if (Match(Token::kComma)) {
       is_right_after_comma = true;
       is_prev_string = false;
@@ -1131,6 +1135,50 @@ bool Parser::ParseData(std::vector<uint8_t>* data,
       }
     }
     is_right_after_comma = false;
+  }
+  return true;
+}
+
+// FIXME: share code with ParseVersioninfoData()?
+bool Parser::ParseRawData(std::vector<uint8_t>* data) {
+  while (!at_end() && !Is(Token::kEndBlock)) {
+    if (Match(Token::kComma)) {
+      continue;
+    }
+    if (!Is(Token::kInt) && !Is(Token::kString)) {
+      err_ = "expected int or string, got " +
+             cur_or_last_token().value_.to_string();
+      return false;
+    }
+    bool is_text_token = Is(Token::kString);
+    if (is_text_token) {
+      const Token& value = Consume();
+      std::experimental::string_view value_val = value.value_;
+      // The literal includes quotes, strip them.
+      // FIXME: give Token a StringValue() function that handles \-escapes,
+      // "quoting""rules", L"asdf", etc.
+      value_val = value_val.substr(1, value_val.size() - 2);
+
+      // FIXME: 1-byte strings for "asdf", 2-byte for L"asdf".
+      for (int j = 0; j < value_val.size(); ++j) {
+        // FIXME: Real UTF16 support.
+        data->push_back(value_val[j]);
+      }
+      // No implicit \0-termination in raw blocks.
+    } else {
+      // FIXME: The Is(Token::kInt) should probably be IsIntExprStart
+      // (int "-" "~" "("); currently this rejects "..., ~0"
+      uint32_t value_num;
+      bool is_32 = false;
+      if (!EvalIntExpression(&value_num, &is_32))
+        return false;
+      data->push_back(value_num & 0xFF);
+      data->push_back((value_num >> 8) & 0xFF);
+      if (is_32) {
+        data->push_back((value_num >> 16) & 0xFF);
+        data->push_back(value_num >> 24);
+      }
+    }
   }
   return true;
 }
@@ -1691,7 +1739,7 @@ Parser::ParseVersioninfoBlock() {
       std::vector<uint8_t> val;
       uint16_t value_size = 0;
       bool is_text = true;
-      if (!ParseData(&val, &value_size, &is_text))
+      if (!ParseVersioninfoData(&val, &value_size, &is_text))
         return std::unique_ptr<VersioninfoResource::BlockData>();
       info_data.reset(new VersioninfoResource::ValueData(value_size, is_text,
                                                          std::move(val)));
@@ -1880,6 +1928,9 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   // block containing inline data.
   const Token& data = Consume();
   if (data.type_ == Token::kStartBlock) {
+    std::vector<uint8_t> raw_data;
+    if (!ParseRawData(&raw_data))
+      return std::unique_ptr<Resource>();
     err_ = "inline data blocks not yet supported";  // FIXME
     return std::unique_ptr<Resource>();
   }
