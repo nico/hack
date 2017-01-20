@@ -18,7 +18,7 @@ tests = [
 'dialogex_nocontrols', 'dialogex_controls',
 'stringtable',
 'accelerators',
-'rcdata',
+'rcdata', 'rcdata_inline',
 'versioninfo_fixedonly', 'versioninfo', 'versioninfo_slurp',
 'dlginclude',
 'html',

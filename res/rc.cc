@@ -1166,9 +1166,6 @@ bool Parser::ParseVersioninfoData(std::vector<uint8_t>* data,
 // FIXME: share code with ParseVersioninfoData()?
 bool Parser::ParseRawData(std::vector<uint8_t>* data) {
   while (!at_end() && !Is(Token::kEndBlock)) {
-    if (Match(Token::kComma)) {
-      continue;
-    }
     if (!Is(Token::kInt) && !Is(Token::kString)) {
       err_ = "expected int or string, got " +
              cur_or_last_token().value_.to_string();
@@ -1202,6 +1199,9 @@ bool Parser::ParseRawData(std::vector<uint8_t>* data) {
         data->push_back((value_num >> 16) & 0xFF);
         data->push_back(value_num >> 24);
       }
+    }
+    while (Match(Token::kComma)) {
+      // Ignore arbitrary many trailing commas after each value.
     }
   }
   return Match(Token::kEndBlock, "expected END or }");

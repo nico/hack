@@ -1,0 +1,37 @@
+1 RCDATA { "foo" }
+1 RCDATA { "foo" "b" }  // No trailing \0!
+1 RCDATA { "foo" "ba" }
+1 RCDATA { "foo" "bar" }
+2 RCDATA { "foo", "bar" }
+// Can't have a comma right after {
+2 RCDATA { "foo",, "bar",,, }
+3 RCDATA { "val1" 8 "val2" }
+4 RCDATA { "val1", 8 "val2" END
+5 RCDATA BEGIN "val1" 8, "val2" }
+6 RCDATA { "val1" "v" "v", 8, "val2" "v" }
+7 RCDATA { 8 "val1" 9 }
+8 RCDATA { 8, "val1", 9 }
+9 RCDATA { 8 "val1", 9 }
+10 RCDATA { 8, "val1", 9 }
+
+// FIXME:
+//1 RCDATA { L"foo" }
+
+11 RCDATA { 4L, 2L }     // 32
+12 RCDATA { 4l, 2L }     // 32
+13 RCDATA { 4labdf, 2L } // 32
+14 RCDATA { 4Labdf, 2L } // 32
+15 RCDATA { 4abdfl, 2L } // 16
+16 RCDATA { 4abdfL, 2L } // 16
+
+17 RCDATA {}
+18 RCDATA { "" }
+19 RCDATA { "" "" }
+20 RCDATA { "",,, "" }
+//21 RCDATA { BLOCK }  // error
+//21 RCDATA { VALUE }  // error
+
+30 RCDATA { 4 + 2L, 5 }
+31 RCDATA { 4L + 2, 5 }
+32 RCDATA { 4L + 2L, 5 }
+
