@@ -1,4 +1,3 @@
-// FIXME: Also support the form with data in an inline BEGIN END block.
 1 TEXTINCLUDE "test/foo.html"
 2 TYPELIB "test/foo.html"
 3 REGISTRY "test/foo.html"

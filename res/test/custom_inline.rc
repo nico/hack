@@ -1,0 +1,37 @@
+1 CUSTOM { "foo" }
+1 CSTOM { "foo" "b" }  // No trailing \0!
+1 CUOM { "foo" "ba" }
+1 CUS { "foo" "bar" }
+2 CM { "foo", "bar" }
+// Can't have a comma right after {
+2 C { "foo",, "bar",,, }
+3 CUSTOM { "val1" 8 "val2" }
+4 CUSTOM { "val1", 8 "val2" END
+5 CUSTOM BEGIN "val1" 8, "val2" }
+6 CUSTOM { "val1" "v" "v", 8, "val2" "v" }
+7 CUSTOM { 8 "val1" 9 }
+8 CUSTOM { 8, "val1", 9 }
+9 CUSTOM { 8 "val1", 9 }
+10 CUSTOM { 8, "val1", 9 }
+
+// FIXME:
+//1 CUSTOM { L"foo" }
+
+11 CUSTOM { 4L, 2L }     // 32
+12 CUSTOM { 4l, 2L }     // 32
+13 CUSTOM { 4labdf, 2L } // 32
+14 CUSTOM { 4Labdf, 2L } // 32
+15 CUSTOM { 4abdfl, 2L } // 16
+16 CUSTOM { 4abdfL, 2L } // 16
+
+17 CUSTOM {}
+18 CUSTOM { "" }
+19 CUSTOM { "" "" }
+20 CUSTOM { "",,, "" }
+//21 CUSTOM { BLOCK }  // error
+//21 CUSTOM { VALUE }  // error
+
+30 CUSTOM { 4 + 2L, 5 }
+31 CUSTOM { 4L + 2, 5 }
+32 CUSTOM { 4L + 2L, 5 }
+

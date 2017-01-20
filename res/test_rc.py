@@ -22,7 +22,7 @@ tests = [
 'versioninfo_fixedonly', 'versioninfo', 'versioninfo_slurp',
 'dlginclude',
 'html', 'html_inline',
-'custom',
+'custom', 'custom_inline',
 'stringnames',
 'eval',
 'literals_int',

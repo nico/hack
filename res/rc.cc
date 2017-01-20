@@ -10,7 +10,8 @@ Doesn't do any preprocessing for now.
 Missing for chromium:
 - #pragma code_page() and unicode handling
 - case-insensitive keywords
-- inline block data for custom types, DIALOG controls
+- inline block data for DIALOG controls
+- full CONTROL support in DIALOG (currently always assumes "STATIC")
 - text resource names without quotes (`IDR_OEMPG_HU.HTML` etc).
 - real string and int literal parsers (L"\0", 0xff)
 - preprocessor (but see pptest next to this; `pptest file | rc` kinda works)
@@ -922,12 +923,17 @@ class HtmlResource : public FileOrDataResource {
 };
 
 // FIXME: either file, or block with data
-class UserDefinedResource : public FileResource {
+class UserDefinedResource : public FileOrDataResource {
  public:
   UserDefinedResource(IntOrStringName type,
                       IntOrStringName name,
                       std::experimental::string_view path)
-      : FileResource(name, path), type_(type) {}
+      : FileOrDataResource(name, kFile, path, std::vector<uint8_t>()),
+        type_(type) {}
+  UserDefinedResource(IntOrStringName type,
+                      IntOrStringName name,
+                      std::vector<uint8_t> data)
+      : FileOrDataResource(name, kData, "", std::move(data)), type_(type) {}
 
   bool Visit(Visitor* v) const override {
     return v->VisitUserDefinedResource(this);
@@ -1964,8 +1970,16 @@ std::unique_ptr<Resource> Parser::ParseResource() {
     if (type.value_ == "HTML")
       return std::make_unique<HtmlResource>(name, std::move(raw_data));
 
-    err_ = "inline data blocks not yet supported";  // FIXME
-    return std::unique_ptr<Resource>();
+    // Not a known resource type, so it's a User-Defined Resource.
+    if (type.type_ == Token::kIdentifier || type.type_ == Token::kInt ||
+        type.type_ == Token::kString) {
+      IntOrStringName type_name =
+          type.type() == Token::kInt
+             ? IntOrStringName::MakeInt(type.IntValue())
+             : IntOrStringName::MakeUpperString(type.value_);  // Don't strip ""
+      return std::make_unique<UserDefinedResource>(type_name, name,
+                                                   std::move(raw_data));
+    }
   }
 
   if (type.type_ == Token::kIdentifier && data.type_ == Token::kString) {
@@ -2777,21 +2791,7 @@ bool SerializationVisitor::VisitHtmlResource(const HtmlResource* r) {
 
 bool SerializationVisitor::VisitUserDefinedResource(
     const UserDefinedResource* r) {
-  FILE* f = OpenFile(r->path().to_string().c_str());
-  if (!f)
-    return false;
-  FClose closer(f);
-  fseek(f, 0, SEEK_END);
-  size_t size = ftell(f);
-
-  WriteResHeader(size, r->type(), r->name(), 0x30);
-
-  fseek(f, 0, SEEK_SET);
-  copy(out_, f, size);
-  uint8_t padding = ((4 - (size & 3)) & 3);  // DWORD-align.
-  fwrite("\0\0", 1, padding, out_);
-
-  return true;
+  return WriteFileOrDataResource(r->type(), r);
 }
 
 void SerializationVisitor::EmitOneStringtable(
