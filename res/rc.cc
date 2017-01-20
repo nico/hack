@@ -10,7 +10,7 @@ Doesn't do any preprocessing for now.
 Missing for chromium:
 - #pragma code_page() and unicode handling
 - case-insensitive keywords
-- inline block data for RCDATA, DLGINCLUDE, HTML, custom types, DIALOG controls
+- inline block data for HTML, custom types, DIALOG controls
 - text resource names without quotes (`IDR_OEMPG_HU.HTML` etc).
 - real string and int literal parsers (L"\0", 0xff)
 - preprocessor (but see pptest next to this; `pptest file | rc` kinda works)
@@ -1931,7 +1931,7 @@ std::unique_ptr<Resource> Parser::ParseResource() {
 
   // Types always taking a string parameter.
   bool needs_string = type.value_ == "CURSOR" || type.value_ == "BITMAP" ||
-                      type.value_ == "ICON";
+                      type.value_ == "ICON" || type.value_ == "DLGINCLUDE";
   if (needs_string) {
     if (!Is(Token::kString, "expected string"))
       return std::unique_ptr<DialogResource>();
@@ -1946,6 +1946,8 @@ std::unique_ptr<Resource> Parser::ParseResource() {
       return std::make_unique<BitmapResource>(name, str_val);
     if (type.value_ == "ICON")
       return std::make_unique<IconResource>(name, str_val);
+    if (type.value_ == "DLGINCLUDE")
+      return std::make_unique<DlgincludeResource>(name, str_val);
   }
 
   // The remaining types can either take a string filename or a BEGIN END
@@ -1972,8 +1974,6 @@ std::unique_ptr<Resource> Parser::ParseResource() {
     // FIXME: case-insensitive
     if (type.value_ == "RCDATA")
       return std::make_unique<RcdataResource>(name, str_val);
-    if (type.value_ == "DLGINCLUDE")
-      return std::make_unique<DlgincludeResource>(name, str_val);
     if (type.value_ == "HTML")
       return std::make_unique<HtmlResource>(name, str_val);
   }
