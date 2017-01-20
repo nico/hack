@@ -1,0 +1,37 @@
+1 HTML { "foo" }
+1 HTML { "foo" "b" }  // No trailing \0!
+1 HTML { "foo" "ba" }
+1 HTML { "foo" "bar" }
+2 HTML { "foo", "bar" }
+// Can't have a comma right after {
+2 HTML { "foo",, "bar",,, }
+3 HTML { "val1" 8 "val2" }
+4 HTML { "val1", 8 "val2" END
+5 HTML BEGIN "val1" 8, "val2" }
+6 HTML { "val1" "v" "v", 8, "val2" "v" }
+7 HTML { 8 "val1" 9 }
+8 HTML { 8, "val1", 9 }
+9 HTML { 8 "val1", 9 }
+10 HTML { 8, "val1", 9 }
+
+// FIXME:
+//1 HTML { L"foo" }
+
+11 HTML { 4L, 2L }     // 32
+12 HTML { 4l, 2L }     // 32
+13 HTML { 4labdf, 2L } // 32
+14 HTML { 4Labdf, 2L } // 32
+15 HTML { 4abdfl, 2L } // 16
+16 HTML { 4abdfL, 2L } // 16
+
+17 HTML {}
+18 HTML { "" }
+19 HTML { "" "" }
+20 HTML { "",,, "" }
+//21 HTML { BLOCK }  // error
+//21 HTML { VALUE }  // error
+
+30 HTML { 4 + 2L, 5 }
+31 HTML { 4L + 2, 5 }
+32 HTML { 4L + 2L, 5 }
+

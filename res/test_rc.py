@@ -21,7 +21,7 @@ tests = [
 'rcdata', 'rcdata_inline',
 'versioninfo_fixedonly', 'versioninfo', 'versioninfo_slurp',
 'dlginclude',
-'html',
+'html', 'html_inline',
 'custom',
 'stringnames',
 'eval',

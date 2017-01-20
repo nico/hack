@@ -10,7 +10,7 @@ Doesn't do any preprocessing for now.
 Missing for chromium:
 - #pragma code_page() and unicode handling
 - case-insensitive keywords
-- inline block data for HTML, custom types, DIALOG controls
+- inline block data for custom types, DIALOG controls
 - text resource names without quotes (`IDR_OEMPG_HU.HTML` etc).
 - real string and int literal parsers (L"\0", 0xff)
 - preprocessor (but see pptest next to this; `pptest file | rc` kinda works)
@@ -911,11 +911,12 @@ class DlgincludeResource : public Resource {
   std::experimental::string_view data_;
 };
 
-// FIXME: either file, or block with data
-class HtmlResource : public FileResource {
+class HtmlResource : public FileOrDataResource {
  public:
   HtmlResource(IntOrStringName name, std::experimental::string_view path)
-      : FileResource(name, path) {}
+      : FileOrDataResource(name, kFile, path, std::vector<uint8_t>()) {}
+  HtmlResource(IntOrStringName name, std::vector<uint8_t> data)
+      : FileOrDataResource(name, kData, "", std::move(data)) {}
 
   bool Visit(Visitor* v) const override { return v->VisitHtmlResource(this); }
 };
@@ -1960,6 +1961,8 @@ std::unique_ptr<Resource> Parser::ParseResource() {
 
     if (type.value_ == "RCDATA")
       return std::make_unique<RcdataResource>(name, std::move(raw_data));
+    if (type.value_ == "HTML")
+      return std::make_unique<HtmlResource>(name, std::move(raw_data));
 
     err_ = "inline data blocks not yet supported";  // FIXME
     return std::unique_ptr<Resource>();
@@ -2089,6 +2092,8 @@ class SerializationVisitor : public Visitor {
       uint16_t memory_flags = 0x1030,
       std::experimental::fundamentals_v1::optional<uint16_t> language =
           std::experimental::fundamentals_v1::optional<uint16_t>());
+  bool WriteFileOrDataResource(
+      IntOrStringName type, const FileOrDataResource* r);
 
   bool VisitLanguageResource(const LanguageResource* r) override;
   bool VisitCursorResource(const CursorResource* r) override;
@@ -2184,6 +2189,34 @@ void SerializationVisitor::WriteResHeader(
   write_little_short(out_, lang);
   write_little_long(out_, 0);              // version XXX
   write_little_long(out_, 0);              // characteristics
+}
+
+bool SerializationVisitor::WriteFileOrDataResource(
+    IntOrStringName type, const FileOrDataResource* r) {
+  size_t size;
+  FILE* f = NULL;
+  if (r->type() == FileOrDataResource::kFile) {
+    f = OpenFile(r->path().to_string().c_str());
+    if (!f)
+      return false;
+    fseek(f, 0, SEEK_END);
+    size = ftell(f);
+  } else {
+    size = r->data().size();
+  }
+  FClose closer(f);
+
+  WriteResHeader(size, type, r->name(), 0x30);
+
+  if (r->type() == FileOrDataResource::kFile) {
+    fseek(f, 0, SEEK_SET);
+    copy(out_, f, size);
+  } else
+    fwrite(r->data().data(), 1, size, out_);
+  uint8_t padding = ((4 - (size & 3)) & 3);  // DWORD-align.
+  fwrite("\0\0", 1, padding, out_);
+
+  return true;
 }
 
 bool SerializationVisitor::WriteIconOrCursorGroup(const FileResource* r,
@@ -2611,30 +2644,7 @@ bool SerializationVisitor::VisitAcceleratorsResource(
 }
 
 bool SerializationVisitor::VisitRcdataResource(const RcdataResource* r) {
-  size_t size;
-  FILE* f = NULL;
-  if (r->type() == FileOrDataResource::kFile) {
-    f = OpenFile(r->path().to_string().c_str());
-    if (!f)
-      return false;
-    fseek(f, 0, SEEK_END);
-    size = ftell(f);
-  } else {
-    size = r->data().size();
-  }
-  FClose closer(f);
-
-  WriteResHeader(size, IntOrStringName::MakeInt(kRT_RCDATA), r->name(), 0x30);
-
-  if (r->type() == FileOrDataResource::kFile) {
-    fseek(f, 0, SEEK_SET);
-    copy(out_, f, size);
-  } else
-    fwrite(r->data().data(), 1, size, out_);
-  uint8_t padding = ((4 - (size & 3)) & 3);  // DWORD-align.
-  fwrite("\0\0", 1, padding, out_);
-
-  return true;
+  return WriteFileOrDataResource(IntOrStringName::MakeInt(kRT_RCDATA), r);
 }
 
 uint16_t CountBlock(
@@ -2762,21 +2772,7 @@ bool SerializationVisitor::VisitDlgincludeResource(
 }
 
 bool SerializationVisitor::VisitHtmlResource(const HtmlResource* r) {
-  FILE* f = OpenFile(r->path().to_string().c_str());
-  if (!f)
-    return false;
-  FClose closer(f);
-  fseek(f, 0, SEEK_END);
-  size_t size = ftell(f);
-
-  WriteResHeader(size, IntOrStringName::MakeInt(kRT_HTML), r->name(), 0x30);
-
-  fseek(f, 0, SEEK_SET);
-  copy(out_, f, size);
-  uint8_t padding = ((4 - (size & 3)) & 3);  // DWORD-align.
-  fwrite("\0\0", 1, padding, out_);
-
-  return true;
+  return WriteFileOrDataResource(IntOrStringName::MakeInt(kRT_HTML), r);
 }
 
 bool SerializationVisitor::VisitUserDefinedResource(
