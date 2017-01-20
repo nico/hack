@@ -796,11 +796,35 @@ class AcceleratorsResource : public Resource {
   std::vector<Accelerator> accelerators_;
 };
 
-// FIXME: either file, or block with data
-class RcdataResource : public FileResource {
+// Either refers to data read from a file, or to data from an inline data
+// block/
+class FileOrDataResource : public Resource {
+ public:
+  enum Type { kFile, kData };
+
+  FileOrDataResource(IntOrStringName name,
+                     Type type,
+                     std::experimental::string_view path,
+                     std::vector<uint8_t> data)
+      : Resource(name), type_(type), path_(path), data_(std::move(data)) {}
+
+  std::experimental::string_view path() const { return path_; }
+
+  Type type() const { return type_; }
+  const std::vector<uint8_t>& data() const { return data_; }
+
+ private:
+  Type type_;
+  std::experimental::string_view path_;
+  std::vector<uint8_t> data_;
+};
+
+class RcdataResource : public FileOrDataResource {
  public:
   RcdataResource(IntOrStringName name, std::experimental::string_view path)
-      : FileResource(name, path) {}
+      : FileOrDataResource(name, kFile, path, std::vector<uint8_t>()) {}
+  RcdataResource(IntOrStringName name, std::vector<uint8_t> data)
+      : FileOrDataResource(name, kData, "", std::move(data)) {}
 
   bool Visit(Visitor* v) const override { return v->VisitRcdataResource(this); }
 };
@@ -1180,7 +1204,7 @@ bool Parser::ParseRawData(std::vector<uint8_t>* data) {
       }
     }
   }
-  return true;
+  return Match(Token::kEndBlock, "expected END or }");
 }
 
 std::unique_ptr<LanguageResource> Parser::ParseLanguage() {
@@ -1931,6 +1955,10 @@ std::unique_ptr<Resource> Parser::ParseResource() {
     std::vector<uint8_t> raw_data;
     if (!ParseRawData(&raw_data))
       return std::unique_ptr<Resource>();
+
+    if (type.value_ == "RCDATA")
+      return std::make_unique<RcdataResource>(name, std::move(raw_data));
+
     err_ = "inline data blocks not yet supported";  // FIXME
     return std::unique_ptr<Resource>();
   }
@@ -2097,7 +2125,7 @@ class SerializationVisitor : public Visitor {
 
 struct FClose {
   FClose(FILE* f) : f_(f) {}
-  ~FClose() { fclose(f_); }
+  ~FClose() { if (f_) fclose(f_); }
   FILE* f_;
 };
 
@@ -2583,17 +2611,26 @@ bool SerializationVisitor::VisitAcceleratorsResource(
 }
 
 bool SerializationVisitor::VisitRcdataResource(const RcdataResource* r) {
-  FILE* f = OpenFile(r->path().to_string().c_str());
-  if (!f)
-    return false;
+  size_t size;
+  FILE* f = NULL;
+  if (r->type() == FileOrDataResource::kFile) {
+    f = OpenFile(r->path().to_string().c_str());
+    if (!f)
+      return false;
+    fseek(f, 0, SEEK_END);
+    size = ftell(f);
+  } else {
+    size = r->data().size();
+  }
   FClose closer(f);
-  fseek(f, 0, SEEK_END);
-  size_t size = ftell(f);
 
   WriteResHeader(size, IntOrStringName::MakeInt(kRT_RCDATA), r->name(), 0x30);
 
-  fseek(f, 0, SEEK_SET);
-  copy(out_, f, size);
+  if (r->type() == FileOrDataResource::kFile) {
+    fseek(f, 0, SEEK_SET);
+    copy(out_, f, size);
+  } else
+    fwrite(r->data().data(), 1, size, out_);
   uint8_t padding = ((4 - (size & 3)) & 3);  // DWORD-align.
   fwrite("\0\0", 1, padding, out_);
 
