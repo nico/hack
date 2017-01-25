@@ -2331,7 +2331,8 @@ bool SerializationVisitor::WriteIconOrCursorGroup(const FileResource* r,
       fputc(entry.height, out_);
       fputc(entry.num_colors, out_);
       fputc(entry.reserved, out_);
-      write_little_short(out_, entry.num_planes);
+      // Some files have num_planes set to 0, but rc.exe still writes 1 here.
+      write_little_short(out_, 1);
       write_little_short(out_, entry.bpp);
     } else {
       // .cur files are weird, they store width and height as shorts instead
