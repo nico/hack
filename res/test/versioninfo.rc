@@ -55,3 +55,17 @@ END
 2 VERSIONINFO
 {
 }
+
+3 VERSIONINFO
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904E4"
+    BEGIN
+      VALUE "a", "a1"
+      // Test size of block when there's padding after last VALUE:
+      VALUE "a", "a2"
+    END
+  END
+  VALUE "a", "a3"
+END

@@ -2682,7 +2682,8 @@ uint16_t CountBlock(
     (*sizes)[value.get()] = size;
 
     // The padding after the object isn't include in that object's size.
-    if (size % 4)
+    // Padding after the last object isn't included in the block's size.
+    if (size % 4 && &value != &block.values.back())
       size += 2;  // Pad to 4 bytes after value too.
     total_size += size;
   }
