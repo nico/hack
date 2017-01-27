@@ -13,9 +13,22 @@
   //VALUE "foo" 2 + 3 3 "hi" )( "bar"  // Has funny error messages; but
                                        // with just ) this is accepted.
                                        // Don't bother with this for now.
-  // FIXME: L (and l?) suffix on ints
 
-  VALUE "foo" // empty value
+  // FIXME: empty strings aren't handled right
+  VALUE "fo1" // empty value
+  //VALUE "fo2", "" // different empty value
+  //VALUE "fo3", "", // different empty value
+  //VALUE "fo4", "",,,, // different empty value
+  //VALUE "fo5", "" "" // different empty value
+  //VALUE "fo6", "", "" // different empty value
+  //VALUE "fo7", "",,,, "" // different empty value
+  //VALUE "fo8", "", "", // different empty value
+
+  // FIXME: test them followed by ints too
+  //VALUE "fo1", "" "hi" ""  // len 2
+  //VALUE "fo2", "", "hi" ""  // len 3
+  //VALUE "fo3", "" "hi", ""  // len 2
+  //VALUE "fo4", "", "hi", ""  // len 3
 
   VALUE "key", "val1" "val2"
   VALUE "key", "val1", "val2"
