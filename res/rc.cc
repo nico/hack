@@ -135,7 +135,7 @@ struct Token {
     kString,       // "foo"
     kIdentifier,   // foo
     kComma,        // ,
-    kStartBlock,   // { or BEGIN (rc.exe accepts `{ .. END`)
+    kBeginBlock,   // { or BEGIN (rc.exe accepts `{ .. END`)
     kEndBlock,     // } or END
 
     kPlus,        // +
@@ -248,7 +248,7 @@ std::vector<Token> Tokenizer::Run(std::string* err) {
                                                token_end - token_begin);
     if (type == Token::kIdentifier) {
       if (token_value == "BEGIN")
-        type = Token::kStartBlock;
+        type = Token::kBeginBlock;
       else if (token_value == "END")
         type = Token::kEndBlock;
     }
@@ -323,7 +323,7 @@ Token::Type Tokenizer::ClassifyCurrent() const {
   if (next_char == ',')
     return Token::kComma;
   if (next_char == '{')
-    return Token::kStartBlock;
+    return Token::kBeginBlock;
   if (next_char == '}')
     return Token::kEndBlock;
 
@@ -388,7 +388,7 @@ void Tokenizer::AdvanceToEndOfToken(Token::Type type) {
       break;
 
     case Token::kComma:
-    case Token::kStartBlock:
+    case Token::kBeginBlock:
     case Token::kEndBlock:
     case Token::kPlus:
     case Token::kMinus:
@@ -1250,7 +1250,7 @@ void Parser::MaybeParseMenuOptions(uint16_t* style) {
 }
 
 std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
-  if (!Match(Token::kStartBlock, "expected START or {"))
+  if (!Match(Token::kBeginBlock, "expected BEGIN or {"))
     return std::unique_ptr<MenuResource::SubmenuEntryData>();
 
   std::unique_ptr<MenuResource::SubmenuEntryData> entries(
@@ -1508,8 +1508,8 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
   std::experimental::fundamentals_v1::optional<DialogResource::FontInfo> font;
   IntOrStringName menu = IntOrStringName::MakeEmpty();
   std::experimental::fundamentals_v1::optional<uint32_t> style;
-  while (!at_end() && cur_token().type() != Token::kStartBlock) {
-    if (!Is(Token::kIdentifier, "expected identifier, START or {"))
+  while (!at_end() && cur_token().type() != Token::kBeginBlock) {
+    if (!Is(Token::kIdentifier, "expected identifier, BEGIN or {"))
       return std::unique_ptr<DialogResource>();
     const Token& tok = Consume();
     if (tok.value_ == "CAPTION") {
@@ -1604,7 +1604,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
   }
 
   // Parse resources block.
-  if (!Match(Token::kStartBlock, "expected START of {"))
+  if (!Match(Token::kBeginBlock, "expected BEGIN of {"))
     return std::unique_ptr<DialogResource>();
   std::vector<DialogResource::Control> controls;
   while (!at_end() && cur_token().type() != Token::kEndBlock) {
@@ -1623,7 +1623,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
 }
 
 std::unique_ptr<StringtableResource> Parser::ParseStringtable() {
-  if (!Match(Token::kStartBlock, "expected START or {"))
+  if (!Match(Token::kBeginBlock, "expected BEGIN or {"))
     return std::unique_ptr<StringtableResource>();
   std::vector<StringtableResource::Entry> entries;
   while (!at_end() && cur_token().type() != Token::kEndBlock) {
@@ -1725,7 +1725,7 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
 
 std::unique_ptr<AcceleratorsResource> Parser::ParseAccelerators(
     IntOrStringName name) {
-  if (!Match(Token::kStartBlock, "expected START or {"))
+  if (!Match(Token::kBeginBlock, "expected BEGIN or {"))
     return std::unique_ptr<AcceleratorsResource>();
 
   std::vector<AcceleratorsResource::Accelerator> entries;
@@ -1742,7 +1742,7 @@ std::unique_ptr<AcceleratorsResource> Parser::ParseAccelerators(
 
 std::unique_ptr<VersioninfoResource::BlockData>
 Parser::ParseVersioninfoBlock() {
-  if (!Match(Token::kStartBlock, "expected START or {"))
+  if (!Match(Token::kBeginBlock, "expected BEGIN or {"))
     return std::unique_ptr<VersioninfoResource::BlockData>();
 
   std::unique_ptr<VersioninfoResource::BlockData> block(
@@ -1800,8 +1800,8 @@ std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(
     {"FILETYPE", &fixed_info.filetype},
     {"FILESUBTYPE", &fixed_info.filesubtype},
   };
-  while (!at_end() && cur_token().type() != Token::kStartBlock) {
-    if (!Is(Token::kIdentifier, "expected identifier, START or {"))
+  while (!at_end() && cur_token().type() != Token::kBeginBlock) {
+    if (!Is(Token::kIdentifier, "expected identifier, BEGIN or {"))
       return std::unique_ptr<VersioninfoResource>();
     const Token& name = Consume();
     uint32_t val_num;
@@ -1960,7 +1960,7 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   // The remaining types can either take a string filename or a BEGIN END
   // block containing inline data.
   const Token& data = Consume();
-  if (data.type_ == Token::kStartBlock) {
+  if (data.type_ == Token::kBeginBlock) {
     std::vector<uint8_t> raw_data;
     if (!ParseRawData(&raw_data))
       return std::unique_ptr<Resource>();
