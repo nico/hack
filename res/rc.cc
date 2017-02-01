@@ -11,7 +11,6 @@ Missing for chromium:
 - #pragma code_page() and unicode handling
 - case-insensitive keywords
 - inline block data for DIALOG controls
-- full CONTROL support in DIALOG (currently always assumes "STATIC")
 - text resource names without quotes (`IDR_OEMPG_HU.HTML` etc).
 - real string and int literal parsers (L"\0", 0xff)
 - preprocessor (but see pptest next to this; `pptest file | rc` kinda works)
@@ -1314,6 +1313,75 @@ std::unique_ptr<MenuResource> Parser::ParseMenu(IntOrStringName name) {
   return std::make_unique<MenuResource>(name, std::move(*entries.get()));
 }
 
+static void ClassAndStyleForControl(std::experimental::string_view type,
+                                    uint16_t* control_class,
+                                    uint32_t* default_style) {
+  // https://msdn.microsoft.com/en-us/library/windows/desktop/ms644997(v=vs.85).aspx
+  const uint16_t kButton = 0x80;
+  const uint16_t kEdit = 0x81;
+  const uint16_t kStatic = 0x82;
+  const uint16_t kListBox = 0x83;
+  const uint16_t kScrollBar = 0x84;
+  const uint16_t kComboBox = 0x85;
+
+  // FIXME: case-insensitive
+  if (type == "AUTO3STATE") {
+    *default_style = 0x50010006;
+    *control_class = kButton;
+  } else if (type == "AUTOCHECKBOX") {
+    *default_style = 0x50010003;
+    *control_class = kButton;
+  } else if (type == "COMBOBOX") {
+    *default_style = 0x50000000;
+    *control_class = kComboBox;
+  } else if (type == "CTEXT") {
+    *default_style = 0x50020001;
+    *control_class = kStatic;
+  } else if (type == "DEFPUSHBUTTON") {
+    *default_style = 0x50010001;
+    *control_class = kButton;
+  } else if (type == "EDITTEXT") {
+    *default_style = 0x50810000;
+    *control_class = kEdit;
+  } else if (type == "GROUPBOX") {
+    *default_style = 0x50000007;
+    *control_class = kButton;
+  } else if (type == "HEDIT") {
+    *default_style = 0x50810000;
+    *control_class = kButton;
+  } else if (type == "IEDIT") {
+    *default_style = 0x50810000;
+    *control_class = kButton;
+  } else if (type == "ICON") {
+    *default_style = 0x50000003;
+    *control_class = kStatic;
+  } else if (type == "LISTBOX") {
+    *default_style = 0x50800001;
+    *control_class = kListBox;
+  } else if (type == "LTEXT") {
+    *default_style = 0x50020000;
+    *control_class = kStatic;
+  } else if (type == "PUSHBOX") {
+    *default_style = 0x5001000a;
+    *control_class = kButton;
+  } else if (type == "PUSHBUTTON") {
+    *default_style = 0x50010000;
+    *control_class = kButton;
+  } else if (type == "RADIOBUTTON") {
+    *default_style = 0x50000004;
+    *control_class = kButton;
+  } else if (type == "RTEXT") {
+    *default_style = 0x50020002;
+    *control_class = kStatic;
+  } else if (type == "SCROLLBAR") {
+    *default_style = 0x50000000;
+    *control_class = kScrollBar;
+  } else if (type == "STATE3") {
+    *default_style = 0x50010005;
+    *control_class = kButton;
+  }
+}
+
 bool Parser::ParseDialogControl(DialogResource::Control* control,
                                 DialogResource::DialogKind dialog_kind) {
   // https://msdn.microsoft.com/en-us/library/windows/desktop/aa380902(v=vs.85).aspx
@@ -1356,6 +1424,7 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
       return false;
   }
 
+  const Token* control_type = nullptr;
   if (type.value_ == "CONTROL") {
     // Special: Has id, class, style, so id below will actually be style not id
     // for this type only.
@@ -1363,10 +1432,11 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
       return false;
 
     if (!Match(Token::kComma, "expected comma") ||
-        // FIXME: use class, don't throw away
         // FIXME: class can be either string or int
-        !Match(Token::kString, "expected string") ||
-        !Match(Token::kComma, "expected comma"))
+        !Is(Token::kString, "expected string"))
+      return false;
+    control_type = &Consume();
+    if (!Match(Token::kComma, "expected comma"))
       return false;
   }
 
@@ -1397,68 +1467,33 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
 
   uint16_t control_class = 0;
   uint32_t default_style = 0;
-  if (type.value_ == "AUTO3STATE") {
-    default_style = 0x50010006;
-    control_class = kButton;
-  } else if (type.value_ == "AUTOCHECKBOX") {
-    default_style = 0x50010003;
-    control_class = kButton;
-  } else if (type.value_ == "COMBOBOX") {
+  if (type.value_ == "CONTROL") {
     default_style = 0x50000000;
-    control_class = kComboBox;
-  } else if (type.value_ == "CONTROL") {
-    // FIXME: This probably depends on the class of the control.
-    // Hardcode for "static" for now.
-    default_style = 0x50000000;
-    control_class = kStatic;
-  } else if (type.value_ == "CTEXT") {
-    default_style = 0x50020001;
-    control_class = kStatic;
-  } else if (type.value_ == "DEFPUSHBUTTON") {
-    default_style = 0x50010001;
-    control_class = kButton;
-  } else if (type.value_ == "EDITTEXT") {
-    default_style = 0x50810000;
-    control_class = kEdit;
-  } else if (type.value_ == "GROUPBOX") {
-    default_style = 0x50000007;
-    control_class = kButton;
-  } else if (type.value_ == "HEDIT") {
-    default_style = 0x50810000;
-    control_class = kButton;
-  } else if (type.value_ == "IEDIT") {
-    default_style = 0x50810000;
-    control_class = kButton;
-  } else if (type.value_ == "ICON") {
-    default_style = 0x50000003;
-    control_class = kStatic;
-  } else if (type.value_ == "LISTBOX") {
-    default_style = 0x50800001;
-    control_class = kListBox;
-  } else if (type.value_ == "LTEXT") {
-    default_style = 0x50020000;
-    control_class = kStatic;
-  } else if (type.value_ == "PUSHBOX") {
-    default_style = 0x5001000a;
-    control_class = kButton;
-  } else if (type.value_ == "PUSHBUTTON") {
-    default_style = 0x50010000;
-    control_class = kButton;
-  } else if (type.value_ == "RADIOBUTTON") {
-    default_style = 0x50000004;
-    control_class = kButton;
-  } else if (type.value_ == "RTEXT") {
-    default_style = 0x50020002;
-    control_class = kStatic;
-  } else if (type.value_ == "SCROLLBAR") {
-    default_style = 0x50000000;
-    control_class = kScrollBar;
-  } else if (type.value_ == "STATE3") {
-    default_style = 0x50010005;
-    control_class = kButton;
+    std::experimental::string_view type_val = control_type->value_;
+    // The literal includes quotes, strip them.
+    // FIXME: give Token a StringValue() function that handles \-escapes,
+    // "quoting""rules", L"asdf", etc.
+    type_val = type_val.substr(1, type_val.size() - 2);
+    // FIXME: case-insensitive
+    if (type_val == "BUTTON")
+      control->clazz = IntOrStringName::MakeInt(kButton);
+    else if (type_val == "EDIT")
+      control->clazz = IntOrStringName::MakeInt(kEdit);
+    else if (type_val == "STATIC")
+      control->clazz = IntOrStringName::MakeInt(kStatic);
+    else if (type_val == "LISTBOX")
+      control->clazz = IntOrStringName::MakeInt(kListBox);
+    else if (type_val == "SCROLLBAR")
+      control->clazz = IntOrStringName::MakeInt(kScrollBar);
+    else if (type_val == "COMBOBOX")
+      control->clazz = IntOrStringName::MakeInt(kComboBox);
+    else
+      control->clazz = IntOrStringName::MakeString(type_val);
+  } else {
+    ClassAndStyleForControl(type.value_, &control_class, &default_style);
+    control->clazz = IntOrStringName::MakeInt(control_class);
   }
 
-  control->clazz = IntOrStringName::MakeInt(control_class);
   control->style = default_style;
 
   if (Match(Token::kComma)) {

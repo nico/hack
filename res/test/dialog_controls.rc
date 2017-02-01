@@ -7,8 +7,8 @@ BEGIN
   AUTOCHECKBOX "ac", 42, 0, 0, 100, 80  // optional [, style [, extended-style]]
   AUTOCHECKBOX 135, 142, 0, 0, 100, 80  // optional [, style [, extended-style]]
   COMBOBOX 43, 0, 0, 100, 80  // optional [, style [, extended-style]]
-  CONTROL "c", 44, "static", 0, 1, 2, 100, 80  // optional [, extended-style]
-  CONTROL 135, 144, "static", 0, 1, 2, 100, 80  // optional [, extended-style]
+  CONTROL "c", 44, "STATIC", 0, 1, 2, 100, 80  // optional [, extended-style]
+  CONTROL 135, 144, "STATIC", 0, 1, 2, 100, 80  // optional [, extended-style]
   CTEXT "ct", 45, 0, 1, 100, 80  // optional [, style [, extended-style]]
   CTEXT 135, 145, 0, 1, 100, 80  // optional [, style [, extended-style]]
   DEFPUSHBUTTON "b", 46, 0, 1, 100, 80  // optional [, style [, extended-style]]
@@ -38,4 +38,16 @@ BEGIN
   AUTO3STATE "a32", 60, 0, 0, 100, 80, 50,
   AUTO3STATE "a32", 610000, 0, 0, 100, 80, 500000, 600000
   //AUTO3STATE "a32", 43, 0, 0, 100, 80, 50, 60, 70  // Only valid in DIALOGEX
+END
+
+1 DIALOG 1,2,3,4
+BEGIN
+  CONTROL "", 44, "STATIC", 0, 1, 2, 100, 80 
+  CONTROL "", 45, "STATIC", 0, 1, 2, 100, 80 
+  CONTROL "", 46, "BUTTON", 0, 1, 2, 100, 80 
+  CONTROL "", 47, "SCROLLBAR", 0, 1, 2, 100, 80 
+  CONTROL "", 48, "LISTBOX", 0, 1, 2, 100, 80 
+  CONTROL "", 49, "EDIT", 0, 1, 2, 100, 80 
+  CONTROL "", 50, "COMBOBOX", 0, 1, 2, 100, 80 
+  CONTROL "", 51, "SysListView32", 0, 1, 2, 100, 80 
 END
