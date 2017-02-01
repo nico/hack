@@ -1496,7 +1496,9 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
 
   control->style = default_style;
 
-  if (Match(Token::kComma)) {
+  // `, style` is only accepted for non-CONTROL controls. CONTROL only has
+  // a trailing `, exstyle`, since style precedes `x` there already.
+  if (!control_type && Match(Token::kComma)) {
     uint32_t parsed_style;
     if (!EvalIntExpression(&parsed_style))
       return false;
