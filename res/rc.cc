@@ -1494,7 +1494,7 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
     control->clazz = IntOrStringName::MakeInt(control_class);
   }
 
-  control->style = default_style;
+  control->style |= default_style;
 
   // `, style` is only accepted for non-CONTROL controls. CONTROL only has
   // a trailing `, exstyle`, since style precedes `x` there already.

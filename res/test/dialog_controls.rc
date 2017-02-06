@@ -45,7 +45,7 @@ BEGIN
   CONTROL "", 44, "STATIC", 0, 1, 2, 100, 80 
   CONTROL "", 45, "STATIC", 0, 1, 2, 100, 80, 42
   CONTROL "", 46, "BUTTON", 0, 1, 2, 100, 80 
-  CONTROL "", 47, "SCROLLBAR", 0, 1, 2, 100, 80 
+  CONTROL "", 47, "SCROLLBAR", 5, 1, 2, 100, 80 
   CONTROL "", 48, "LISTBOX", 0, 1, 2, 100, 80 
   CONTROL "", 49, "EDIT", 0, 1, 2, 100, 80 
   CONTROL "", 50, "COMBOBOX", 0, 1, 2, 100, 80 
