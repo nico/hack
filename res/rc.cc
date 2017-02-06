@@ -2862,7 +2862,8 @@ void SerializationVisitor::EmitOneStringtable(
       fputc('\0', out_);
     }
   }
-  // XXX padding?
+  uint8_t padding = ((4 - (size & 3)) & 3);  // DWORD-align.
+  fwrite("\0\0", 1, padding, out_);
 
   std::fill_n(bundle, 16, nullptr);
 }

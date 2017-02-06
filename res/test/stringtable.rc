@@ -6,7 +6,11 @@ BEGIN
 END
 
 // This is fine, but must have IDs distinct from prior string table.
-STRINGTABLE BEGIN 3 "another stringtable" END
+// The first 16-block has an odd number of uint16_ts, and needs uint32_t padding
+STRINGTABLE BEGIN 3 "anotherstringtable" END
+
+// Also has an odd number of uint16_ts, needs padding after it.
+STRINGTABLE BEGIN 77 "no" END
 
 // FIXME: test negative IDs, unicode strings, ...
 // STRINGTABLEs go at the end of the .res file, no matter where they are in the
