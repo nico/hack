@@ -2515,10 +2515,11 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
     fixed_size += 2 * (r->font->name.size() + 1);
   }
   fixed_size += r->menu.serialized_size();
-  if (r->controls.size() && fixed_size % 4)
-    fixed_size += 2;  // pad to uint32_t after header.
 
   size_t size = fixed_size;
+  if (r->controls.size() && fixed_size % 4)
+    size += 2;  // pad to uint32_t after header.
+
   for (const auto& c : r->controls)
     size += c.serialized_size(&c == &r->controls.back(), r->kind);
 

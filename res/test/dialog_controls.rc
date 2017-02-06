@@ -51,3 +51,10 @@ BEGIN
   CONTROL "", 50, "COMBOBOX", 0, 1, 2, 100, 80 
   CONTROL "", 51, "SysListView32", 0, 1, 2, 100, 80 
 END
+
+// Tests padding after CAPTION with controls present.
+3 DIALOG 1,2,3,4
+CAPTION "Hey"
+BEGIN
+  LTEXT "lt", 51, 0, 1, 100, 80
+END
