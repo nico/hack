@@ -282,7 +282,8 @@ bool Tokenizer::IsIdentifierFirstChar(char c) {
 // static
 bool Tokenizer::IsIdentifierContinuingChar(char c) {
   // Also allow digits after the first char.
-  return IsIdentifierFirstChar(c) || IsDigit(c);
+  // FIXME: it feels like rc.exe allows much more here
+  return IsIdentifierFirstChar(c) || IsDigit(c) || c == '.';
 }
 
 bool Tokenizer::IsCurrentStringTerminator(char quote_char) const {
@@ -1896,12 +1897,15 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   }
 
   // FIXME: rc.exe allows unquoted names like `foo.bmp`
-  if (id.type() != Token::kInt && id.type() != Token::kString) {
-    err_ =
-        "expected int or string, got " + cur_or_last_token().value_.to_string();
+  if (id.type() != Token::kInt && id.type() != Token::kString &&
+      id.type() != Token::kIdentifier) {
+    err_ = "expected int, string, or identifier, got " +
+           cur_or_last_token().value_.to_string();
     return std::unique_ptr<Resource>();
   }
   // Fun fact: rc.exe silently truncates to 16 bit as well.
+  // FIXME: consider warning on non-int IDs, that seems to be unintentional
+  // quite often.
   IntOrStringName name =
       id.type() == Token::kInt
           ? IntOrStringName::MakeInt(id.IntValue())

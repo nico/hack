@@ -1,6 +1,8 @@
 42 RCDATA "test/rcdata.rc"
-//43 RCDATA BEGIN "test/rcdata.rc" END
-//44 RCDATA { "test/rcdata.rc" }
+43 RCDATA BEGIN "test/rcdata.rc" END
+44 RCDATA { "test/rcdata.rc" }
+FOO RCDATA { "asdf" }
+FOO.CSS RCDATA { "asdf" }
 //44 RCDATA {
   //"asdf1"
   // FIXME: tab escapes, " escaping, numbers, floats, arithmetic
