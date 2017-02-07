@@ -2135,8 +2135,11 @@ class SerializationVisitor : public Visitor {
  public:
   // FIXME: rc.exe gets the default language from the system while this
   // hardcodes US English. Neither seems like a great default.
-  SerializationVisitor(FILE* f, bool show_includes, std::string* err)
+  SerializationVisitor(
+      FILE* f, const std::vector<std::string>& include_dirs,
+      bool show_includes, std::string* err)
       : out_(f),
+        include_dirs_(include_dirs),
         show_includes_(show_includes),
         err_(err),
         next_icon_id_(1),
@@ -2177,6 +2180,7 @@ class SerializationVisitor : public Visitor {
   bool WriteIconOrCursorGroup(const FileResource* r, GroupType type);
 
   FILE* out_;
+  const std::vector<std::string>& include_dirs_;
   bool show_includes_;
   std::string* err_;
   int next_icon_id_;
@@ -2203,9 +2207,26 @@ void copy(FILE* to, FILE* from, size_t n) {
 
 FILE* SerializationVisitor::OpenFile(const char* path) {
   FILE* f = fopen(path, "rb");
+  std::string path_storage;
   if (!f) {
-    *err_ = std::string("failed to open ") + path;
-    return NULL;
+    if (errno == ENOENT) {
+      // rc.exe only keeps searching if the file doesn't exist; if it exists
+      // but is e.g. not readable, it fails. Match that.
+      for (const std::string& dir : include_dirs_) {
+        path_storage = dir + "/" + path;
+        FILE* nf = fopen(path_storage.c_str(), "rb");
+        if (nf) {
+          f = nf;
+          path = path_storage.c_str();
+          break;
+        }
+      }
+    }
+
+    if (!f) {
+      *err_ = std::string("failed to open ") + path;
+      return NULL;
+    }
   }
   if (show_includes_) {
 #if !defined(_WIN32)
@@ -2909,6 +2930,7 @@ void SerializationVisitor::WriteStringtables() {
 
 bool WriteRes(const FileBlock& file,
               const std::string& out,
+              const std::vector<std::string>& include_dirs,
               bool show_includes,
               std::string* err) {
   FILE* f = fopen(out.c_str(), "wb");
@@ -2918,7 +2940,7 @@ bool WriteRes(const FileBlock& file,
   }
   FClose closer(f);
 
-  SerializationVisitor serializer(f, show_includes, err);
+  SerializationVisitor serializer(f, include_dirs, show_includes, err);
 
   // First write the "this is not the ancient 16-bit format" header.
   serializer.WriteResHeader(0, IntOrStringName::MakeInt(0),
@@ -2939,10 +2961,12 @@ bool WriteRes(const FileBlock& file,
 
 int main(int argc, char* argv[]) {
   std::string output = "out.res";
-  std::vector<std::string> defines;
+  std::vector<std::string> includes;
   bool show_includes = false;
-  while (argc > 1 && argv[1][0] == '/') {
-    if (strncmp(argv[1], "/fo", 3) == 0) {
+  while (argc > 1 && (argv[1][0] == '/' || argv[1][0] == '-')) {
+    if (strncmp(argv[1], "/I", 2) == 0 || strncmp(argv[1], "-I", 2) == 0) {
+      includes.push_back(argv[1] + 2);
+    } else if (strncmp(argv[1], "/fo", 3) == 0) {
       output = std::string(argv[1] + 3);
     } else if (strncmp(argv[1], "/cd", 3) == 0) {
 #if defined(_MSC_VER)
@@ -2978,7 +3002,7 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "%s\n", err.c_str());
     return 1;
   }
-  if (!WriteRes(*file.get(), output, show_includes, &err)) {
+  if (!WriteRes(*file.get(), output, includes, show_includes, &err)) {
     fprintf(stderr, "%s\n", err.c_str());
     return 1;
   }
