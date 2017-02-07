@@ -10,24 +10,27 @@ Doesn't do any preprocessing for now.
 Missing for chromium:
 - #pragma code_page() and unicode handling
 - case-insensitive keywords
-- inline block data for DIALOG controls
-- text resource names without quotes (`IDR_OEMPG_HU.HTML` etc).
-- real string and int literal parsers (L"\0", 0xff)
+- real string literal parser (L"\0")
 - preprocessor (but see pptest next to this; `pptest file | rc` kinda works)
-- (chrome uses DESIGNINFO but only behind `#ifdef APSTUDIO_INVOKED` which is
-  only set by MSVC not rc, and rc.exe doesn't understand DESIGNINFO)
 
 Also missing, but not yet for chromium:
 - FONT
 - MENUITEM SEPARATOR
 - MENUEX (including int expression parse/eval)
 - MESSAGETABLE
+- inline block data for DIALOG controls
 - rc.exe probably supports int exprs in more places (see all the IntValue calls)
 - mem attrs (PRELOAD LOADONCALL FIXED MOVEABLE DISCARDABLE PURE IMPURE SHARED
   NONSHARED) on all resources. all no-ops nowadays, but sometimes in rc files.
   https://msdn.microsoft.com/en-us/library/windows/desktop/aa380908(v=vs.85).aspx
 - CHARACTERISTICS LANGUAGE VERSION for ACCELERATORS, DIALOG(EX), MENU(EX),
   RCDATA, or STRINGTABLE (and custom elts?)
+
+Warning ideas:
+- duplicate IDs in a dialog
+- duplicate names for a given resource type
+- VERSIONINFO with ID != 1
+- non-numeric resource names
 */
 #if defined(__linux__)
 // Work around broken older libstdc++s, http://llvm.org/PR31562
@@ -922,7 +925,6 @@ class HtmlResource : public FileOrDataResource {
   bool Visit(Visitor* v) const override { return v->VisitHtmlResource(this); }
 };
 
-// FIXME: either file, or block with data
 class UserDefinedResource : public FileOrDataResource {
  public:
   UserDefinedResource(IntOrStringName type,
