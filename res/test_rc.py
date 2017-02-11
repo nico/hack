@@ -7,6 +7,7 @@ else:
   cmd = 'clang++ -std=c++14 -o rc rc.cc -Wall -Wno-c++11-narrowing'.split()
 subprocess.check_call(cmd)
 
+# General tests.
 tests = [
 'language',
 'cursor',
@@ -28,10 +29,40 @@ tests = [
 'literals_int',
 ]
 
+RC = 'rc.exe' if sys.platform == 'win32' else './rc'
 for test in tests:
   print(test)
-  subprocess.check_call('rc.exe' if sys.platform == 'win32' else './rc',
-                        stdin=open('test/%s.rc' % test))
+  subprocess.check_call(RC, stdin=open('test/%s.rc' % test))
   assert filecmp.cmp('out.res', 'test/%s.res' % test)
+
+# Directory search order tests.
+import os, tempfile
+RCDIR = os.path.abspath(os.path.dirname(__file__))
+TESTDIR = os.path.join(RCDIR, 'test')
+os.chdir(tempfile.gettempdir())
+with open('cwdfile.txt', 'wb') as f:
+  f.write('never read')
+flags = [
+  '/Idir1',
+  '/Idir2',
+  '/Idir1 /Idir2',
+  '/Idir2 /Idir1',
+  '/Idir2/dir1',
+]
+for flag in flags:
+  print('dirsearch ' + flag)
+  relflag = ' '.join(['/I' + os.path.join(os.path.relpath(TESTDIR, '.'), f[2:])
+                   for f in flag.split()])
+  cmd = '%s %s %s %s' % (
+      os.path.join(RCDIR, RC), relflag, '/cd' + TESTDIR,
+      '/fo%s/out.res' % RCDIR)
+  if sys.platform != 'win32':
+    cmd = cmd.split()
+  subprocess.check_call(cmd, stdin=open(os.path.join(TESTDIR, 'dirsearch.rc')))
+  suffix = flag.replace('/', '').replace(' ', '.')
+  # To rebase:
+  # rc /Idir1 /foc:\src\hack\res\test\dirsearchIdir1.res c:\src\hack\res\test\dirsearch.rc
+  assert filecmp.cmp(RCDIR + '/out.res', TESTDIR + '/dirsearch%s.res' % suffix)
+os.remove('cwdfile.txt')
 
 print('passed')

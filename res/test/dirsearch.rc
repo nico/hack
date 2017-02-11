@@ -1,0 +1,4 @@
+1 RCDATA "file.txt"
+1 RCDATA "file2.txt"
+1 RCDATA "cwdfile.txt"
+1 RCDATA "dir1/file.txt"

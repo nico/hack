@@ -2206,27 +2206,24 @@ void copy(FILE* to, FILE* from, size_t n) {
 }
 
 FILE* SerializationVisitor::OpenFile(const char* path) {
-  FILE* f = fopen(path, "rb");
+  FILE* f = NULL;
   std::string path_storage;
+  for (const std::string& dir : include_dirs_) {
+    path_storage = dir + "/" + path;
+    FILE* nf = fopen(path_storage.c_str(), "rb");
+    if (nf) {
+      f = nf;
+      path = path_storage.c_str();
+      break;
+    }
+    // rc.exe only keeps searching if the file doesn't exist; if it exists
+    // but is e.g. not readable, it fails. Match that.
+    if (errno != ENOENT)
+      break;
+  }
   if (!f) {
-    if (errno == ENOENT) {
-      // rc.exe only keeps searching if the file doesn't exist; if it exists
-      // but is e.g. not readable, it fails. Match that.
-      for (const std::string& dir : include_dirs_) {
-        path_storage = dir + "/" + path;
-        FILE* nf = fopen(path_storage.c_str(), "rb");
-        if (nf) {
-          f = nf;
-          path = path_storage.c_str();
-          break;
-        }
-      }
-    }
-
-    if (!f) {
-      *err_ = std::string("failed to open ") + path;
-      return NULL;
-    }
+    *err_ = std::string("failed to open ") + path;
+    return NULL;
   }
   if (show_includes_) {
 #if !defined(_WIN32)
@@ -2962,18 +2959,23 @@ bool WriteRes(const FileBlock& file,
 int main(int argc, char* argv[]) {
   std::string output = "out.res";
   std::vector<std::string> includes;
+  // MS rc.exe's search order for includes:
+  // 1. next to the input .rc
+  // 2. cwd
+  // 3. in all /I args, in order
+  // FIXME: does it look at %INCLUDE%, %PATH% too?
+  includes.push_back(".");
+  std::string cd = ".";
+
   bool show_includes = false;
   while (argc > 1 && (argv[1][0] == '/' || argv[1][0] == '-')) {
     if (strncmp(argv[1], "/I", 2) == 0 || strncmp(argv[1], "-I", 2) == 0) {
+      // /I flags are relative to original cwd, not to where input .rc is.
       includes.push_back(argv[1] + 2);
     } else if (strncmp(argv[1], "/fo", 3) == 0) {
       output = std::string(argv[1] + 3);
     } else if (strncmp(argv[1], "/cd", 3) == 0) {
-#if defined(_MSC_VER)
-      _chdir(argv[1] + 3);
-#else
-      chdir(argv[1] + 3);
-#endif
+      cd = std::string(argv[1] + 3);
     } else if (strncmp(argv[1], "/showIncludes", 13) == 0) {
       show_includes = true;
     } else if (strcmp(argv[1], "--") == 0) {
@@ -2987,6 +2989,9 @@ int main(int argc, char* argv[]) {
     --argc;
     ++argv;
   }
+
+  // Put directory input .rc is in at front of search path.
+  includes.insert(includes.begin(), cd);
 
   std::istreambuf_iterator<char> begin(std::cin), end;
   std::string s(begin, end);
