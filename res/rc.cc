@@ -2962,8 +2962,8 @@ int main(int argc, char* argv[]) {
   // MS rc.exe's search order for includes:
   // 1. next to the input .rc
   // 2. cwd
-  // 3. in all /I args, in order
-  // FIXME: does it look at %INCLUDE%, %PATH% too?
+  // 3. in all /I args (relative to cwd), in order
+  // 4. in directories in %INCLUDE% (FIXME: not implemented; also a bit silly)
   includes.push_back(".");
   std::string cd = ".";
 
