@@ -25,6 +25,7 @@ Also missing, but not yet for chromium:
   https://msdn.microsoft.com/en-us/library/windows/desktop/aa380908(v=vs.85).aspx
 - CHARACTERISTICS LANGUAGE VERSION for ACCELERATORS, DIALOG(EX), MENU(EX),
   RCDATA, or STRINGTABLE (and custom elts?)
+- MUI, https://msdn.microsoft.com/en-us/library/windows/desktop/ee264325(v=vs.85).aspx
 
 Warning ideas:
 - duplicate IDs in a dialog
@@ -2963,7 +2964,8 @@ int main(int argc, char* argv[]) {
   // 1. next to the input .rc
   // 2. cwd
   // 3. in all /I args (relative to cwd), in order
-  // 4. in directories in %INCLUDE% (FIXME: not implemented; also a bit silly)
+  // 4. in directories in %INCLUDE% (FIXME: not implemented; also a bit silly),
+  //    if /x isn't passed (/x makes MS rc not look in %INCLUDE%)
   includes.push_back(".");
   std::string cd = ".";
 
