@@ -2,7 +2,7 @@
 from __future__ import print_function
 import filecmp, subprocess, sys
 if sys.platform == 'win32':
-  cmd = 'cl rc.cc /EHsc /wd4838 /nologo'
+  cmd = 'cl rc.cc /EHsc /wd4838 /nologo shlwapi.lib'
 else:
   cmd = 'clang++ -std=c++14 -o rc rc.cc -Wall -Wno-c++11-narrowing'.split()
 subprocess.check_call(cmd)
@@ -63,6 +63,17 @@ for flag in flags:
   # To rebase:
   # rc /Idir1 /foc:\src\hack\res\test\dirsearchIdir1.res c:\src\hack\res\test\dirsearch.rc
   assert filecmp.cmp(RCDIR + '/out.res', TESTDIR + '/dirsearch%s.res' % suffix)
+# Test references to absolute paths in .rc files.
+print('abspath')
+with open('abs.rc', 'wb') as f:
+  f.write('1 RCDATA "%s"' %
+      os.path.join(os.path.abspath(os.getcwd()), 'cwdfile.txt'))
+cmd = '%s /cd. %s' % (os.path.join(RCDIR, RC), '/fo%s/out.res' % RCDIR)
+if sys.platform != 'win32':
+  cmd = cmd.split()
+# Just succeeding is enough for this test.
+subprocess.check_call(cmd, stdin=open('abs.rc'))
 os.remove('cwdfile.txt')
+os.remove('abs.rc')
 
 print('passed')

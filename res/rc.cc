@@ -1,7 +1,7 @@
 /*
   clang++ -std=c++14 -o rc rc.cc -Wall -Wno-c++11-narrowing
 or
-  cl rc.cc /EHsc /wd4838 /nologo
+  cl rc.cc /EHsc /wd4838 /nologo shlwapi.lib
 ./rc < foo.rc
 
 A sketch of a reimplemenation of rc.exe, for research purposes.
@@ -55,6 +55,7 @@ extern char *gets (char *__s) __attribute__ ((__deprecated__));
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>  // GetFullPathName
+#include <shlwapi.h>  // PathIsRelative
 #else
 #include <unistd.h>
 #endif
@@ -2207,11 +2208,27 @@ void copy(FILE* to, FILE* from, size_t n) {
   // XXX if (ferror(from) || ferror(to))...
 }
 
+std::string Join(const std::string dir, const char* path) {
+  if (dir.empty())
+    return path;
+
+  bool path_is_absolute;
+#if !defined(_WIN32)
+  path_is_absolute = path[0] == '/';
+#else
+  path_is_absolute = !PathIsRelative(path);
+#endif
+  if (path_is_absolute)
+    return path;
+
+  return dir + "/" + path;
+}
+
 FILE* SerializationVisitor::OpenFile(const char* path) {
   FILE* f = NULL;
   std::string path_storage;
   for (const std::string& dir : include_dirs_) {
-    path_storage = dir + "/" + path;
+    path_storage = Join(dir, path);
     FILE* nf = fopen(path_storage.c_str(), "rb");
     if (nf) {
       f = nf;
@@ -2967,8 +2984,8 @@ int main(int argc, char* argv[]) {
   // 3. in all /I args (relative to cwd), in order
   // 4. in directories in %INCLUDE% (FIXME: not implemented; also a bit silly),
   //    if /x isn't passed (/x makes MS rc not look in %INCLUDE%)
-  includes.push_back(".");
-  std::string cd = ".";
+  includes.push_back("");
+  std::string cd;
 
   bool show_includes = false;
   while (argc > 1 && (argv[1][0] == '/' || argv[1][0] == '-')) {
@@ -2994,7 +3011,8 @@ int main(int argc, char* argv[]) {
   }
 
   // Put directory input .rc is in at front of search path.
-  includes.insert(includes.begin(), cd);
+  if (!cd.empty())
+    includes.insert(includes.begin(), cd);
 
   std::istreambuf_iterator<char> begin(std::cin), end;
   std::string s(begin, end);
