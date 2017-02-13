@@ -40,6 +40,7 @@ extern char *gets (char *__s) __attribute__ ((__deprecated__));
 
 #include <algorithm>
 #include <iostream>
+#include <limits.h>
 #include <map>
 #include <memory>
 #include <stdint.h>
