@@ -3038,6 +3038,10 @@ int main(int argc, char* argv[]) {
   std::string s(begin, end);
 
   // Convert from UTF-16LE to UTF-8 if input is UTF-16LE.
+  // Checking for a 0 byte is a hack: valid .rc files can start with a
+  // character that needs both bytes of a UFT-16 unit.
+  // Microsoft cl.exe silently produces a .res file with nothing but the
+  // 32-bit header when handed UTF-16BE input (with or without BOM).
   if (s.size() >= 2 &&
       ((uint8_t(s[0]) == 0xff && uint8_t(s[1]) == 0xfe) || s[1] == '\0')) {
 #if _MSC_VER == 1900
@@ -3046,14 +3050,21 @@ int main(int argc, char* argv[]) {
 #else
     using Char16 = char16_t;
 #endif
+    // wstring_convert throws on error, or returns a fixed string handed to
+    // its ctor if present. Pass an invalid UTF-8 string as error string,
+    // then we can be sure if we get that back it must have been returned as
+    // error string.
     std::wstring_convert<
         std::codecvt_utf8_utf16<Char16, 0x10ffff, std::little_endian>,
         Char16>
-        convert;
+        convert("\x80");
     s = convert.to_bytes(reinterpret_cast<const Char16*>(s.data()));
-    // FIXME: error checking
+    if (s == "\x80") {
+      fprintf(stderr, "Tried to decode input as UTF-16LE and failed\n");
+      return 1;
+    }
+    // FIXME:
     // Tests for:
-    // - utf16-be with and without bom
     // - utf-16le with non-BMP
     // - utf-16 with invalid bytes in the middle
   }
