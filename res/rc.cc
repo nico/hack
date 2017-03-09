@@ -7,6 +7,10 @@ or
 A sketch of a reimplemenation of rc.exe, for research purposes.
 Doesn't do any preprocessing for now.
 
+For files that this successfully processes, the goal is that the output is
+bit-for-bit equal to what Microsoft rc.exe produces.  It's ok if this program
+rejects some inputs that Microsoft rc.exe accepts.
+
 Missing for chromium:
 - #pragma code_page() and unicode handling
 - case-insensitive keywords
@@ -27,6 +31,13 @@ Also missing, but not yet for chromium:
   RCDATA, or STRINGTABLE (and custom elts?)
 - MUI, https://msdn.microsoft.com/en-us/library/windows/desktop/ee264325(v=vs.85).aspx
 
+Unicode handling:
+MS rc.exe allows either UTF-16LE input (FIXME: test non-BMP files) or codepage'd
+inputs.  This program either accepts UTF-16 or UTF-8 input.  UTF-16 is converted
+to UTF-8 at the start.  If the input wasn't UTF-16, this program will error
+out on bytes > 127 in string literals so that real codepage'd inputs are
+rejected rather than miscompiled.
+
 Warning ideas:
 - duplicate IDs in a dialog
 - duplicate names for a given resource type
@@ -39,7 +50,9 @@ extern char *gets (char *__s) __attribute__ ((__deprecated__));
 #endif
 
 #include <algorithm>
+#include <codecvt>
 #include <iostream>
+#include <locale>
 #include <limits.h>
 #include <map>
 #include <memory>
@@ -234,13 +247,20 @@ std::vector<Token> Tokenizer::Tokenize(std::experimental::string_view source,
 }
 
 std::vector<Token> Tokenizer::Run(std::string* err) {
+  // Skip optional UTF-8 BOM.
+  if (input_.size() >= 3 && uint8_t(input_[0]) == 0xef &&
+      uint8_t(input_[1]) == 0xbb && uint8_t(input_[2]) == 0xbf) {
+    cur_ = 3;
+  }
+
   while (!done()) {
     AdvanceToNextToken();
     if (done())
       break;
     Token::Type type = ClassifyCurrent();
     if (type == Token::kInvalid) {
-      err_ = "invalid token around " + input_.substr(cur_, 20).to_string();
+      err_ = "invalid token around " + input_.substr(cur_, 20).to_string() +
+             ", utf-8 byte position " + std::to_string(cur_);
       break;
     }
     size_t token_begin = cur_;
@@ -3016,6 +3036,28 @@ int main(int argc, char* argv[]) {
 
   std::istreambuf_iterator<char> begin(std::cin), end;
   std::string s(begin, end);
+
+  // Convert from UTF-16LE to UTF-8 if input is UTF-16LE.
+  if (s.size() >= 2 &&
+      ((uint8_t(s[0]) == 0xff && uint8_t(s[1]) == 0xfe) || s[1] == '\0')) {
+#if _MSC_VER == 1900
+    // lol msvc: http://stackoverflow.com/questions/32055357/visual-studio-c-2015-stdcodecvt-with-char16-t-or-char32-t
+    using Char16 = int16_t;
+#else
+    using Char16 = char16_t;
+#endif
+    std::wstring_convert<
+        std::codecvt_utf8_utf16<Char16, 0x10ffff, std::little_endian>,
+        Char16>
+        convert;
+    s = convert.to_bytes(reinterpret_cast<const Char16*>(s.data()));
+    // FIXME: error checking
+    // Tests for:
+    // - utf16-le with and without bom
+    // - utf16-be with and without bom
+    // - utf-16le with non-BMP
+    // - utf-16 with invalid bytes in the middle
+  }
 
   std::string err;
   std::vector<Token> tokens = Tokenizer::Tokenize(s, &err);
