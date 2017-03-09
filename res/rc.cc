@@ -508,6 +508,7 @@ class IntOrStringName {
   // This takes an ASCII-string_view and expands it to UTF-16.
   static IntOrStringName MakeString(std::experimental::string_view val) {
     IntOrStringName r;
+    // FIXME: Real UTF16 support.
     for (int j = 0; j < val.size(); ++j)
       r.data_.push_back(val[j]);
     r.data_.push_back(0);  // \0-terminate.
@@ -517,6 +518,7 @@ class IntOrStringName {
   // Like MakeString but also converts to upper case.
   static IntOrStringName MakeUpperString(std::experimental::string_view val) {
     IntOrStringName r;
+    // FIXME: Real UTF16 support.
     for (int j = 0; j < val.size(); ++j)
       r.data_.push_back(ascii_toupper(val[j]));
     r.data_.push_back(0);  // \0-terminate.
