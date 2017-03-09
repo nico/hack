@@ -27,7 +27,7 @@ tests = [
 'stringnames',
 'eval',
 'literals_int',
-'unicode_simple_utf16le_bom',
+'unicode_simple_utf16le_bom', 'unicode_simple_utf16le_nobom',
 ]
 
 RC = 'rc.exe' if sys.platform == 'win32' else './rc'

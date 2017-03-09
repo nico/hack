@@ -3053,7 +3053,6 @@ int main(int argc, char* argv[]) {
     s = convert.to_bytes(reinterpret_cast<const Char16*>(s.data()));
     // FIXME: error checking
     // Tests for:
-    // - utf16-le with and without bom
     // - utf16-be with and without bom
     // - utf-16le with non-BMP
     // - utf-16 with invalid bytes in the middle
