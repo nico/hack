@@ -2208,9 +2208,9 @@ class SerializationVisitor : public Visitor {
   bool VisitHtmlResource(const HtmlResource* r) override;
   bool VisitUserDefinedResource(const UserDefinedResource* r) override;
 
-  void EmitOneStringtable(const std::experimental::string_view** bundle,
-                         uint16_t bundle_start);
-  void WriteStringtables();
+  bool EmitOneStringtable(const std::experimental::string_view** bundle,
+                          uint16_t bundle_start);
+  bool WriteStringtables();
 
  private:
   FILE* OpenFile(const char* path);
@@ -2914,7 +2914,7 @@ bool SerializationVisitor::VisitUserDefinedResource(
   return WriteFileOrDataResource(r->type(), r);
 }
 
-void SerializationVisitor::EmitOneStringtable(
+bool SerializationVisitor::EmitOneStringtable(
     const std::experimental::string_view** bundle,
     uint16_t bundle_start) {
   // Each string is written as uint16_t length, followed by string data without
@@ -2931,7 +2931,10 @@ void SerializationVisitor::EmitOneStringtable(
       utf16[i] = convert.from_bytes(bundle[i]->to_string());
     } else {
       for (int j = 0; j < bundle[i]->size(); ++j) {
-        // FIXME: range check, error
+        if ((*bundle[i])[j] & 0x80) {
+          *err_ = "only 7-bit characters supported in non-unicode files";
+          return false;
+        }
         utf16[i].push_back((*bundle[i])[j]);
       }
     }
@@ -2956,9 +2959,10 @@ void SerializationVisitor::EmitOneStringtable(
   fwrite("\0\0", 1, padding, out_);
 
   std::fill_n(bundle, 16, nullptr);
+  return true;
 }
 
-void SerializationVisitor::WriteStringtables() {
+bool SerializationVisitor::WriteStringtables() {
   // https://blogs.msdn.microsoft.com/oldnewthing/20040130-00/?p=40813
   // "The strings listed in the *.rc file are grouped together in bundles of
   //  sixteen. So the first bundle contains strings 0 through 15, the second
@@ -2977,7 +2981,8 @@ void SerializationVisitor::WriteStringtables() {
   for (const auto& it : stringtable_) {
     if (it.first - bundle_start >= 16) {
       if (n_bundle > 0) {
-        EmitOneStringtable(bundle, bundle_start);
+        if (!EmitOneStringtable(bundle, bundle_start))
+          return false;
         n_bundle = 0;
       }
       bundle_start = it.first & ~0xf;
@@ -2987,11 +2992,13 @@ void SerializationVisitor::WriteStringtables() {
     continue;
   }
   if (n_bundle > 0) {
-    EmitOneStringtable(bundle, bundle_start);
+    if (!EmitOneStringtable(bundle, bundle_start))
+      return false;
     n_bundle = 0;
   }
 
   stringtable_.clear();
+  return true;
 }
 
 bool WriteRes(const FileBlock& file,
@@ -3019,9 +3026,7 @@ bool WriteRes(const FileBlock& file,
     if (!res->Visit(&serializer))
       return false;
   }
-  serializer.WriteStringtables();
-
-  return true;
+  return serializer.WriteStringtables();
 }
 
 //////////////////////////////////////////////////////////////////////////////
