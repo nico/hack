@@ -3045,6 +3045,7 @@ int main(int argc, char* argv[]) {
   std::string cd;
 
   bool show_includes = false;
+  bool input_is_utf8 = false;
   while (argc > 1 && (argv[1][0] == '/' || argv[1][0] == '-')) {
     if (strncmp(argv[1], "/I", 2) == 0 || strncmp(argv[1], "-I", 2) == 0) {
       // /I flags are relative to original cwd, not to where input .rc is.
@@ -3053,8 +3054,11 @@ int main(int argc, char* argv[]) {
       output = std::string(argv[1] + 3);
     } else if (strncmp(argv[1], "/cd", 3) == 0) {
       cd = std::string(argv[1] + 3);
-    } else if (strncmp(argv[1], "/showIncludes", 13) == 0) {
+    } else if (strcmp(argv[1], "/showIncludes") == 0) {
       show_includes = true;
+    } else if (strcmp(argv[1], "/utf-8") == 0) {
+      // rc.exe doesn't support utf-8, so require an explicit flag for that.
+      input_is_utf8 = true;
     } else if (strcmp(argv[1], "--") == 0) {
       --argc;
       ++argv;
@@ -3076,12 +3080,23 @@ int main(int argc, char* argv[]) {
 
   InternalEncoding encoding = kEncodingUnknown;
 
+  if (input_is_utf8) {
+    // Validate that the input if valid utf-8.
+    if (std::codecvt_utf8<char32_t>().length(
+            std::mbstate_t(), s.data(), s.data() + s.size(),
+            std::numeric_limits<size_t>::max())
+        != s.size()) {
+      fprintf(stderr, "input is not valid utf-8\n");
+      return 1;
+    }
+    encoding = kEncodingUTF8;
+  }
   // Convert from UTF-16LE to UTF-8 if input is UTF-16LE.
   // Checking for a 0 byte is a hack: valid .rc files can start with a
   // character that needs both bytes of a UFT-16 unit.
   // Microsoft cl.exe silently produces a .res file with nothing but the
   // 32-bit header when handed UTF-16BE input (with or without BOM).
-  if (s.size() >= 2 &&
+  else if (s.size() >= 2 &&
       ((uint8_t(s[0]) == 0xff && uint8_t(s[1]) == 0xfe) || s[1] == '\0')) {
     // Make sure s.data() ends in two \0 bytes, i.e. one \0 Char16.
     s += std::string("\0", 1);
