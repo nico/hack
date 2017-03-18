@@ -541,7 +541,7 @@ void Tokenizer::AdvanceToEndOfToken(Token::Type type) {
 bool Tokenizer::IsCurrentWhitespace() const {
   char c = input_[cur_];
   // Note that tab (0x09), vertical tab (0x0B), and formfeed (0x0C) are illegal.
-  return c == '\n' || c == '\r' || c == ' ';
+  return c == '\t' || c == '\n' || c == '\r' || c == ' ';
 }
 
 //////////////////////////////////////////////////////////////////////////////
