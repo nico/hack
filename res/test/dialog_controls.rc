@@ -40,7 +40,7 @@ BEGIN
   //AUTO3STATE "a32", 43, 0, 0, 100, 80, 50, 60, 70  // Only valid in DIALOGEX
 END
 
-1 DIALOG 1,2,3,4
+2 DIALOG 1,2,3,4
 BEGIN
   CONTROL "", 44, "STATIC", 0, 1, 2, 100, 80 
   CONTROL "", 45, "STATIC", 0, 1, 2, 100, 80, 42
@@ -52,8 +52,14 @@ BEGIN
   CONTROL "", 51, "SysListView32", 0, 1, 2, 100, 80 
 END
 
-// Tests padding after CAPTION with controls present.
+// Test padding after control with odd class / name length.
 3 DIALOG 1,2,3,4
+BEGIN
+  CONTROL "a", 51, "ab", 0, 1, 2, 100, 80 
+END
+
+// Tests padding after CAPTION with controls present.
+4 DIALOG 1,2,3,4
 CAPTION "Hey"
 BEGIN
   LTEXT "lt", 51, 0, 1, 100, 80

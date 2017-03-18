@@ -2857,7 +2857,7 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
     write_little_short(out_, 0);
 
     // In DIALOGEX, the bigger id shifts everything by 2 bytes.
-    if (c.text.serialized_size() % 4 !=
+    if ((c.clazz.serialized_size() + c.text.serialized_size()) % 4 !=
         2*int(r->kind == DialogResource::kDialogEx))
       write_little_short(out_, 0);  // pad, but see FIXME above
   }

@@ -39,3 +39,9 @@ BEGIN
   AUTO3STATE "a32", 610000, 0, 0, 100, 80, 500000, 600000,
   AUTO3STATE "a32", 62, 0, 0, 100, 80, 50, 60, 700000
 END
+
+// Test padding after control with odd class / name length.
+3 DIALOGEX 1,2,3,4
+BEGIN
+  CONTROL "a", 51, "ab", 0, 1, 2, 100, 80 
+END
