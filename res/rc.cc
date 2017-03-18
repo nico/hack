@@ -2193,10 +2193,15 @@ std::unique_ptr<Resource> Parser::ParseResource() {
     // Not a known resource type, so it's a User-Defined Resource.
     if (type.type_ == Token::kIdentifier || type.type_ == Token::kInt ||
         type.type_ == Token::kString) {
+      C16string type_utf16;
+      // Do NOT strip quotes.
+      if (type.type() != Token::kInt &&
+          !ToUTF16(&type_utf16, type.value_, encoding_, &err_))
+        return std::unique_ptr<Resource>();
       IntOrStringName type_name =
           type.type() == Token::kInt
              ? IntOrStringName::MakeInt(type.IntValue())
-             : IntOrStringName::MakeUpperString(type.value_);  // Don't strip ""
+             : IntOrStringName::MakeUpperStringUTF16(type_utf16);
       return std::make_unique<UserDefinedResource>(type_name, name,
                                                    std::move(raw_data));
     }
