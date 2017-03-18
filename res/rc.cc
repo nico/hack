@@ -3082,8 +3082,9 @@ int main(int argc, char* argv[]) {
 
   if (input_is_utf8) {
     // Validate that the input if valid utf-8.
+    std::mbstate_t mbstate;
     if (std::codecvt_utf8<char32_t>().length(
-            std::mbstate_t(), s.data(), s.data() + s.size(),
+            mbstate, s.data(), s.data() + s.size(),
             std::numeric_limits<size_t>::max())
         != s.size()) {
       fprintf(stderr, "input is not valid utf-8\n");
