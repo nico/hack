@@ -142,6 +142,14 @@ int ascii_toupper(int c) {
   return c;
 }
 
+#if _MSC_VER == 1900
+    // lol msvc: http://stackoverflow.com/questions/32055357/visual-studio-c-2015-stdcodecvt-with-char16-t-or-char32-t
+    using Char16 = int16_t;
+#else
+    using Char16 = char16_t;
+#endif
+typedef std::basic_string<Char16> C16string;
+
 //////////////////////////////////////////////////////////////////////////////
 // Lexer
 
@@ -2154,6 +2162,13 @@ static uint32_t read_little_long(FILE* f) {
   return r;
 }
 
+// Stores the encoding of internal byte strings.  If this is kEncodingUTF8,
+// then byte strings are known-valid UTF8 in memory.  If it's
+// kEncodingUnknown, then it's in the encoding we got from the file, subject
+// to `#pragma code_page()` and crazy things like that -- in that case we just
+// give up on values >= 128.
+enum InternalEncoding { kEncodingUnknown, kEncodingUTF8 };
+
 // The format of .res files is documented at
 // https://msdn.microsoft.com/en-us/library/windows/desktop/ms648007(v=vs.85).aspx
 class SerializationVisitor : public Visitor {
@@ -2162,13 +2177,14 @@ class SerializationVisitor : public Visitor {
   // hardcodes US English. Neither seems like a great default.
   SerializationVisitor(
       FILE* f, const std::vector<std::string>& include_dirs,
-      bool show_includes, std::string* err)
+      bool show_includes, InternalEncoding encoding, std::string* err)
       : out_(f),
         include_dirs_(include_dirs),
         show_includes_(show_includes),
         err_(err),
         next_icon_id_(1),
-        cur_language_{9, 1} {}
+        cur_language_{9, 1},
+        encoding_(encoding) {}
 
   void WriteResHeader(
       uint32_t data_size,
@@ -2194,9 +2210,9 @@ class SerializationVisitor : public Visitor {
   bool VisitHtmlResource(const HtmlResource* r) override;
   bool VisitUserDefinedResource(const UserDefinedResource* r) override;
 
-  void EmitOneStringtable(const std::experimental::string_view** bundle,
-                         uint16_t bundle_start);
-  void WriteStringtables();
+  bool EmitOneStringtable(const std::experimental::string_view** bundle,
+                          uint16_t bundle_start);
+  bool WriteStringtables();
 
  private:
   FILE* OpenFile(const char* path);
@@ -2210,6 +2226,7 @@ class SerializationVisitor : public Visitor {
   std::string* err_;
   int next_icon_id_;
   LanguageResource::Language cur_language_;
+  InternalEncoding encoding_;
 
   std::map<uint16_t, std::experimental::string_view> stringtable_;
 };
@@ -2899,16 +2916,35 @@ bool SerializationVisitor::VisitUserDefinedResource(
   return WriteFileOrDataResource(r->type(), r);
 }
 
-void SerializationVisitor::EmitOneStringtable(
+bool SerializationVisitor::EmitOneStringtable(
     const std::experimental::string_view** bundle,
     uint16_t bundle_start) {
   // Each string is written as uint16_t length, followed by string data without
   // a trailing \0.
   // FIXME: rc.exe /n null-terminates strings in string table, have option
   // for that.
+
+  C16string utf16[16];
+  for (int i = 0; i < 16; ++i) {
+    if (!bundle[i])
+      continue;
+    if (encoding_ == kEncodingUTF8) {
+      std::wstring_convert<std::codecvt_utf8_utf16<Char16>, Char16> convert;
+      utf16[i] = convert.from_bytes(bundle[i]->to_string());
+    } else {
+      for (int j = 0; j < bundle[i]->size(); ++j) {
+        if ((*bundle[i])[j] & 0x80) {
+          *err_ = "only 7-bit characters supported in non-unicode files";
+          return false;
+        }
+        utf16[i].push_back((*bundle[i])[j]);
+      }
+    }
+  }
+
   size_t size = 0;
   for (int i = 0; i < 16; ++i)
-    size += 2 * (1 + (bundle[i] ? bundle[i]->size() : 0));
+    size += 2 * (1 + (bundle[i] ? utf16[i].size() : 0));
 
   WriteResHeader(size, IntOrStringName::MakeInt(kRT_STRING),
                  IntOrStringName::MakeInt((bundle_start / 16) + 1));
@@ -2917,20 +2953,18 @@ void SerializationVisitor::EmitOneStringtable(
       fwrite("\0", 1, 2, out_);
       continue;
     }
-    write_little_short(out_, bundle[i]->size());
-    for (int j = 0; j < bundle[i]->size(); ++j) {
-      // FIXME: Real UTF16 support.
-      fputc((*bundle[i])[j], out_);
-      fputc('\0', out_);
-    }
+    write_little_short(out_, utf16[i].size());
+    for (int j = 0; j < utf16[i].size(); ++j)
+      write_little_short(out_, utf16[i][j]);
   }
   uint8_t padding = ((4 - (size & 3)) & 3);  // DWORD-align.
   fwrite("\0\0", 1, padding, out_);
 
   std::fill_n(bundle, 16, nullptr);
+  return true;
 }
 
-void SerializationVisitor::WriteStringtables() {
+bool SerializationVisitor::WriteStringtables() {
   // https://blogs.msdn.microsoft.com/oldnewthing/20040130-00/?p=40813
   // "The strings listed in the *.rc file are grouped together in bundles of
   //  sixteen. So the first bundle contains strings 0 through 15, the second
@@ -2949,7 +2983,8 @@ void SerializationVisitor::WriteStringtables() {
   for (const auto& it : stringtable_) {
     if (it.first - bundle_start >= 16) {
       if (n_bundle > 0) {
-        EmitOneStringtable(bundle, bundle_start);
+        if (!EmitOneStringtable(bundle, bundle_start))
+          return false;
         n_bundle = 0;
       }
       bundle_start = it.first & ~0xf;
@@ -2959,17 +2994,20 @@ void SerializationVisitor::WriteStringtables() {
     continue;
   }
   if (n_bundle > 0) {
-    EmitOneStringtable(bundle, bundle_start);
+    if (!EmitOneStringtable(bundle, bundle_start))
+      return false;
     n_bundle = 0;
   }
 
   stringtable_.clear();
+  return true;
 }
 
 bool WriteRes(const FileBlock& file,
               const std::string& out,
               const std::vector<std::string>& include_dirs,
               bool show_includes,
+              InternalEncoding encoding,
               std::string* err) {
   FILE* f = fopen(out.c_str(), "wb");
   if (!f) {
@@ -2978,7 +3016,8 @@ bool WriteRes(const FileBlock& file,
   }
   FClose closer(f);
 
-  SerializationVisitor serializer(f, include_dirs, show_includes, err);
+  SerializationVisitor serializer(
+      f, include_dirs, show_includes, encoding, err);
 
   // First write the "this is not the ancient 16-bit format" header.
   serializer.WriteResHeader(0, IntOrStringName::MakeInt(0),
@@ -2989,9 +3028,7 @@ bool WriteRes(const FileBlock& file,
     if (!res->Visit(&serializer))
       return false;
   }
-  serializer.WriteStringtables();
-
-  return true;
+  return serializer.WriteStringtables();
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -3010,6 +3047,7 @@ int main(int argc, char* argv[]) {
   std::string cd;
 
   bool show_includes = false;
+  bool input_is_utf8 = false;
   while (argc > 1 && (argv[1][0] == '/' || argv[1][0] == '-')) {
     if (strncmp(argv[1], "/I", 2) == 0 || strncmp(argv[1], "-I", 2) == 0) {
       // /I flags are relative to original cwd, not to where input .rc is.
@@ -3018,8 +3056,11 @@ int main(int argc, char* argv[]) {
       output = std::string(argv[1] + 3);
     } else if (strncmp(argv[1], "/cd", 3) == 0) {
       cd = std::string(argv[1] + 3);
-    } else if (strncmp(argv[1], "/showIncludes", 13) == 0) {
+    } else if (strcmp(argv[1], "/showIncludes") == 0) {
       show_includes = true;
+    } else if (strcmp(argv[1], "/utf-8") == 0) {
+      // rc.exe doesn't support utf-8, so require an explicit flag for that.
+      input_is_utf8 = true;
     } else if (strcmp(argv[1], "--") == 0) {
       --argc;
       ++argv;
@@ -3039,19 +3080,29 @@ int main(int argc, char* argv[]) {
   std::istreambuf_iterator<char> begin(std::cin), end;
   std::string s(begin, end);
 
+  InternalEncoding encoding = kEncodingUnknown;
+
+  if (input_is_utf8) {
+    // Validate that the input if valid utf-8.
+    std::mbstate_t mbstate;
+    if (std::codecvt_utf8<char32_t>().length(
+            mbstate, s.data(), s.data() + s.size(),
+            std::numeric_limits<size_t>::max())
+        != s.size()) {
+      fprintf(stderr, "input is not valid utf-8\n");
+      return 1;
+    }
+    encoding = kEncodingUTF8;
+  }
   // Convert from UTF-16LE to UTF-8 if input is UTF-16LE.
   // Checking for a 0 byte is a hack: valid .rc files can start with a
   // character that needs both bytes of a UFT-16 unit.
   // Microsoft cl.exe silently produces a .res file with nothing but the
   // 32-bit header when handed UTF-16BE input (with or without BOM).
-  if (s.size() >= 2 &&
+  else if (s.size() >= 2 &&
       ((uint8_t(s[0]) == 0xff && uint8_t(s[1]) == 0xfe) || s[1] == '\0')) {
-#if _MSC_VER == 1900
-    // lol msvc: http://stackoverflow.com/questions/32055357/visual-studio-c-2015-stdcodecvt-with-char16-t-or-char32-t
-    using Char16 = int16_t;
-#else
-    using Char16 = char16_t;
-#endif
+    // Make sure s.data() ends in two \0 bytes, i.e. one \0 Char16.
+    s += std::string("\0", 1);
     // wstring_convert throws on error, or returns a fixed string handed to
     // its ctor if present. Pass an invalid UTF-8 string as error string,
     // then we can be sure if we get that back it must have been returned as
@@ -3065,6 +3116,7 @@ int main(int argc, char* argv[]) {
       fprintf(stderr, "Tried to decode input as UTF-16LE and failed\n");
       return 1;
     }
+    encoding = kEncodingUTF8;
     // FIXME:
     // Tests for:
     // - utf-16le with non-BMP
@@ -3082,7 +3134,7 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "%s\n", err.c_str());
     return 1;
   }
-  if (!WriteRes(*file.get(), output, includes, show_includes, &err)) {
+  if (!WriteRes(*file.get(), output, includes, show_includes, encoding, &err)) {
     fprintf(stderr, "%s\n", err.c_str());
     return 1;
   }
