@@ -65,6 +65,8 @@ extern char *gets (char *__s) __attribute__ ((__deprecated__));
 
 #if defined(_MSC_VER)
 #include <direct.h>
+#include <io.h>
+#include <fcntl.h>
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>  // GetFullPathName
@@ -3141,6 +3143,10 @@ bool WriteRes(const FileBlock& file,
 // Driver
 
 int main(int argc, char* argv[]) {
+#if defined(_MSC_VER)
+  _setmode(_fileno(stdin), _O_BINARY);
+#endif
+
   std::string output = "out.res";
   std::vector<std::string> includes;
   // MS rc.exe's search order for includes:
