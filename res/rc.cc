@@ -2704,11 +2704,16 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
   size_t fixed_size = r->kind == DialogResource::kDialogEx ? 0x1a : 0x12;
   fixed_size += r->clazz.serialized_size();
   fixed_size += (r->caption.size() + 1) * 2;
+
+  C16string fontname_utf16;
   if (r->font) {
     fixed_size += 2;  // 1 uint16_t font size.
     if (r->kind == DialogResource::kDialogEx)
       fixed_size += 4;  // uint16_t font weight, 2 uint8_t italic, charset
-    fixed_size += 2 * (r->font->name.size() + 1);
+
+    if (!ToUTF16(&fontname_utf16, r->font->name, encoding_, err_))
+      return false;
+    fixed_size += 2 * (fontname_utf16.size() + 1);
   }
   fixed_size += r->menu.serialized_size();
 
@@ -2818,11 +2823,8 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
       fputc(r->font->italic, out_);
       fputc(r->font->charset, out_);
     }
-    for (int j = 0; j < r->font->name.size(); ++j) {
-      // FIXME: Real UTF16 support.
-      fputc(r->font->name[j], out_);
-      fputc('\0', out_);
-    }
+    for (int j = 0; j < fontname_utf16.size(); ++j)
+      write_little_short(out_, fontname_utf16[j]);
     write_little_short(out_, 0);
   }
 
