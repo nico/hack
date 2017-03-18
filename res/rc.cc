@@ -1737,7 +1737,10 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
         // FIXME: give Token a StringValue() function that handles \-escapes,
         // "quoting""rules", L"asdf", etc.
         clazz_val = clazz_val.substr(1, clazz_val.size() - 2);
-        clazz = IntOrStringName::MakeString(clazz_val);
+        C16string clazz_val_utf16;
+        if (!ToUTF16(&clazz_val_utf16, clazz_val, encoding_, &err_))
+          return std::unique_ptr<DialogResource>();
+        clazz = IntOrStringName::MakeStringUTF16(clazz_val_utf16);
       } else {
         uint16_t clazz_val = clazz_tok.IntValue();
         clazz = IntOrStringName::MakeInt(clazz_val);
