@@ -604,17 +604,6 @@ class IntOrStringName {
   }
 
   // Like MakeStringUTF16 but also converts to upper case.
-  // FIXME: Should probably take a C16string too?
-  static IntOrStringName MakeUpperString(std::experimental::string_view val) {
-    IntOrStringName r;
-    // FIXME: Real UTF16 support.
-    for (int j = 0; j < val.size(); ++j)
-      r.data_.push_back(ascii_toupper(val[j]));
-    r.data_.push_back(0);  // \0-terminate.
-    return r;
-  }
-
-  // Like MakeStringUTF16 but also converts to upper case.
   static IntOrStringName MakeUpperStringUTF16(const C16string& val) {
     IntOrStringName r;
     for (int j = 0; j < val.size(); ++j)
