@@ -1648,8 +1648,12 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
       control->clazz = IntOrStringName::MakeInt(kScrollBar);
     else if (type_val == "COMBOBOX")
       control->clazz = IntOrStringName::MakeInt(kComboBox);
-    else
-      control->clazz = IntOrStringName::MakeString(type_val);
+    else {
+      C16string type_val_utf16;
+      if (!ToUTF16(&type_val_utf16, type_val, encoding_, &err_))
+        return false;
+      control->clazz = IntOrStringName::MakeStringUTF16(type_val_utf16);
+    }
   } else {
     ClassAndStyleForControl(type.value_, &control_class, &default_style);
     control->clazz = IntOrStringName::MakeInt(control_class);
