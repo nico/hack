@@ -2806,16 +2806,12 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
   write_little_short(out_, r->h);
   r->menu.write(out_);
   r->clazz.write(out_);
-  if (r->caption.empty())
-    write_little_short(out_, 0);
-  else {
-    for (int j = 0; j < r->caption.size(); ++j) {
-      // FIXME: Real UTF16 support.
-      fputc(r->caption[j], out_);
-      fputc('\0', out_);
-    }
-    write_little_short(out_, 0);
+  for (int j = 0; j < r->caption.size(); ++j) {
+    // FIXME: Real UTF16 support.
+    fputc(r->caption[j], out_);
+    fputc('\0', out_);
   }
+  write_little_short(out_, 0);
   if (r->font) {
     write_little_short(out_, r->font->size);
     if (r->kind == DialogResource::kDialogEx) {
