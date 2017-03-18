@@ -142,6 +142,85 @@ int ascii_toupper(int c) {
   return c;
 }
 
+typedef uint8_t UTF8;
+#if !defined(_MSC_VER)
+bool isLegalUTF8String(const UTF8 *source, const UTF8 *sourceEnd) {
+  // Validate that the input if valid utf-8.
+  std::mbstate_t mbstate;
+  return std::codecvt_utf8<char32_t>().length(
+      mbstate, (char*)source, (char*)sourceEnd,
+      std::numeric_limits<size_t>::max())
+      == sourceEnd - source;
+}
+#else
+// codecvt_utf8::length() is broken with MSVC. Use code from the Unicode
+// consortium there. License below applies to contents of this #else block only.
+/*
+ * Copyright 2001-2004 Unicode, Inc.
+ *
+ * Disclaimer
+ *
+ * This source code is provided as is by Unicode, Inc. No claims are
+ * made as to fitness for any particular purpose. No warranties of any
+ * kind are expressed or implied. The recipient agrees to determine
+ * applicability of information provided. If this file has been
+ * purchased on magnetic or optical media from Unicode, Inc., the
+ * sole remedy for any claim will be exchange of defective media
+ * within 90 days of receipt.
+ *
+ * Limitations on Rights to Redistribute This Code
+ *
+ * Unicode, Inc. hereby grants the right to freely use the information
+ * supplied in this file in the creation of products supporting the
+ * Unicode Standard, and to make copies of this file in any form
+ * for internal or external distribution as long as this notice
+ * remains attached.
+ */
+static const char trailingBytesForUTF8[256] = {
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+    2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, 3,3,3,3,3,3,3,3,4,4,4,4,5,5,5,5
+};
+static bool isLegalUTF8(const UTF8 *source, int length) {
+  UTF8 a;
+  const UTF8 *srcptr = source+length;
+  switch (length) {
+    default: return false;
+      /* Everything else falls through when "true"... */
+    case 4: if ((a = (*--srcptr)) < 0x80 || a > 0xBF) return false;
+    case 3: if ((a = (*--srcptr)) < 0x80 || a > 0xBF) return false;
+    case 2: if ((a = (*--srcptr)) < 0x80 || a > 0xBF) return false;
+
+      switch (*source) {
+        /* no fall-through in this inner switch */
+        case 0xE0: if (a < 0xA0) return false; break;
+        case 0xED: if (a > 0x9F) return false; break;
+        case 0xF0: if (a < 0x90) return false; break;
+        case 0xF4: if (a > 0x8F) return false; break;
+        default:   if (a < 0x80) return false;
+      }
+
+    case 1: if (*source >= 0x80 && *source < 0xC2) return false;
+  }
+  if (*source > 0xF4) return false;
+  return true;
+}
+bool isLegalUTF8String(const UTF8 *source, const UTF8 *sourceEnd) {
+  while (source != sourceEnd) {
+    int length = trailingBytesForUTF8[*source] + 1;
+    if (length > sourceEnd - source || !isLegalUTF8(source, length))
+      return false;
+    source += length;
+  }
+  return true;
+}
+#endif
+
 #if _MSC_VER == 1900
     // lol msvc: http://stackoverflow.com/questions/32055357/visual-studio-c-2015-stdcodecvt-with-char16-t-or-char32-t
     using Char16 = int16_t;
@@ -3084,11 +3163,7 @@ int main(int argc, char* argv[]) {
 
   if (input_is_utf8) {
     // Validate that the input if valid utf-8.
-    std::mbstate_t mbstate;
-    if (std::codecvt_utf8<char32_t>().length(
-            mbstate, s.data(), s.data() + s.size(),
-            std::numeric_limits<size_t>::max())
-        != s.size()) {
+    if (!isLegalUTF8String((UTF8*)s.data(), (UTF8*)s.data() + s.size())) {
       fprintf(stderr, "input is not valid utf-8\n");
       return 1;
     }
