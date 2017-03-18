@@ -2038,6 +2038,11 @@ std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(
 }
 
 std::unique_ptr<Resource> Parser::ParseResource() {
+  // FIXME: `"hi ho" {}` is parsed by Microsoft rc as a user-defined resource
+  // with id `"hi` and type `ho"` -- so their tokenizer is context-dependent.
+  // Maybe just check if `id` or `name` below contain namespace and if so,
+  // reject them.
+
   const Token& id = Consume();  // Either int or ident.
 
   if (at_end()) {
