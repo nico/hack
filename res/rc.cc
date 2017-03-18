@@ -614,6 +614,15 @@ class IntOrStringName {
     return r;
   }
 
+  // Like MakeStringUTF16 but also converts to upper case.
+  static IntOrStringName MakeUpperStringUTF16(const C16string& val) {
+    IntOrStringName r;
+    for (int j = 0; j < val.size(); ++j)
+      r.data_.push_back(ascii_toupper(val[j]));
+    r.data_.push_back(0);  // \0-terminate.
+    return r;
+  }
+
   static IntOrStringName MakeEmpty() {
     IntOrStringName r{0};  // Note: Picks std::initializer_list ctor with 1 elt
     return r;
@@ -2069,13 +2078,17 @@ std::unique_ptr<Resource> Parser::ParseResource() {
            cur_or_last_token().value_.to_string();
     return std::unique_ptr<Resource>();
   }
+  C16string id_utf16;
+  if (id.type() != Token::kInt &&
+      !ToUTF16(&id_utf16, id.value_, encoding_, &err_))  // Do NOT strip quotes
+    return std::unique_ptr<Resource>();
   // Fun fact: rc.exe silently truncates to 16 bit as well.
   // FIXME: consider warning on non-int IDs, that seems to be unintentional
   // quite often.
   IntOrStringName name =
       id.type() == Token::kInt
           ? IntOrStringName::MakeInt(id.IntValue())
-          : IntOrStringName::MakeUpperString(id.value_);  // Do NOT strip quotes
+          : IntOrStringName::MakeUpperStringUTF16(id_utf16);
 
   const Token& type = Consume();
   if (at_end()) {
