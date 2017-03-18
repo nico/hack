@@ -2224,6 +2224,12 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   if ((type.type_ == Token::kIdentifier || type.type_ == Token::kInt ||
        type.type_ == Token::kString) &&
       data.type_ == Token::kString) {
+    C16string type_utf16;
+    // Do NOT strip quotes.
+    if (type.type() != Token::kInt &&
+        !ToUTF16(&type_utf16, type.value_, encoding_, &err_))
+      return std::unique_ptr<Resource>();
+
     const Token& string = data;
     std::experimental::string_view str_val = string.value_;
     // The literal includes quotes, strip them.
@@ -2231,8 +2237,8 @@ std::unique_ptr<Resource> Parser::ParseResource() {
 
     IntOrStringName type_name = type.type() == Token::kInt
                                     ? IntOrStringName::MakeInt(type.IntValue())
-                                    : IntOrStringName::MakeUpperString(
-                                          type.value_);  // Do NOT strip quotes
+                                    : IntOrStringName::MakeUpperStringUTF16(
+                                          type_utf16);
     return std::make_unique<UserDefinedResource>(type_name, name, str_val);
   }
 
