@@ -592,17 +592,6 @@ class IntOrStringName {
     return r;
   }
 
-  // This takes an ASCII-string_view and expands it to UTF-16.
-  // FIXME: Convert all calles to use MakeStringUTF16 instead, remove this.
-  static IntOrStringName MakeString(std::experimental::string_view val) {
-    IntOrStringName r;
-    // FIXME: Real UTF16 support.
-    for (int j = 0; j < val.size(); ++j)
-      r.data_.push_back(val[j]);
-    r.data_.push_back(0);  // \0-terminate.
-    return r;
-  }
-
   // This takes an UTF16-encoded string.
   static IntOrStringName MakeStringUTF16(const C16string& val) {
     IntOrStringName r;
@@ -612,7 +601,7 @@ class IntOrStringName {
     return r;
   }
 
-  // Like MakeString but also converts to upper case.
+  // Like MakeStringUTF16 but also converts to upper case.
   // FIXME: Should probably take a C16string too?
   static IntOrStringName MakeUpperString(std::experimental::string_view val) {
     IntOrStringName r;
@@ -1791,7 +1780,10 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
       const Token& menu_tok = Consume();
       if (menu_tok.type() == Token::kString) {
         // Do NOT strip the quotes here, rc.exe includes them too.
-        menu = IntOrStringName::MakeString(menu_tok.value_);
+        C16string menu_utf16;
+        if (!ToUTF16(&menu_utf16, menu_tok.value_, encoding_, &err_))
+          return std::unique_ptr<DialogResource>();
+        menu = IntOrStringName::MakeStringUTF16(menu_utf16);
       } else {
         uint16_t menu_val = menu_tok.IntValue();
         menu = IntOrStringName::MakeInt(menu_val);
