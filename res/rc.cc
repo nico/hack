@@ -780,7 +780,7 @@ class DialogResource : public Resource {
           h(0),
           id(0),
           clazz(IntOrStringName::MakeEmpty()),
-          text(IntOrStringName::MakeString("")) {}
+          text(IntOrStringName::MakeStringUTF16(C16string())) {}
 
     uint32_t help_id;  // only set if kind == kDialogEx
 
