@@ -21,10 +21,16 @@ BEGIN END
 EXSTYLE 8  // WS_EX_TOPMOST; can have math here
 BEGIN END
 
-5 DIALOGEX 1,2,3,4
+51 DIALOGEX 1,2,3,4
 // Now with `weight, italic, charset` fields.
 FONT 12, "Inconsolata", 400, /*italic=*/1, 2
 BEGIN END
+
+52 DIALOGEX 1,2,3,4
+// Test default values for `weight, italic, charset` with DIALOGEX
+FONT 12, "Inconsolata"
+BEGIN END
+
 
 61 DIALOGEX 1,2,3,4
 MENU "MyMenu"

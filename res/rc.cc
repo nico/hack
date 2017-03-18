@@ -1762,7 +1762,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
 
       // DIALOGEX can have optional font weight, italic, encoding flags.
       if (dialog_kind == DialogResource::kDialogEx) {
-        uint16_t vals[3] = {};
+        uint16_t vals[3] = {0, 0, 1};
         for (int i = 0; i < 3 && Match(Token::kComma); ++i) {
           if (!Is(Token::kInt, "expected int"))
             return std::unique_ptr<DialogResource>();
