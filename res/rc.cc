@@ -593,6 +593,7 @@ class IntOrStringName {
   }
 
   // This takes an ASCII-string_view and expands it to UTF-16.
+  // FIXME: Convert all calles to use MakeStringUTF16 instead, remove this.
   static IntOrStringName MakeString(std::experimental::string_view val) {
     IntOrStringName r;
     // FIXME: Real UTF16 support.
@@ -602,7 +603,17 @@ class IntOrStringName {
     return r;
   }
 
+  // This takes an UTF16-encoded string.
+  static IntOrStringName MakeStringUTF16(const C16string& val) {
+    IntOrStringName r;
+    for (int j = 0; j < val.size(); ++j)
+      r.data_.push_back(val[j]);
+    r.data_.push_back(0);  // \0-terminate.
+    return r;
+  }
+
   // Like MakeString but also converts to upper case.
+  // FIXME: Should probably take a C16string too?
   static IntOrStringName MakeUpperString(std::experimental::string_view val) {
     IntOrStringName r;
     // FIXME: Real UTF16 support.
@@ -1065,15 +1076,45 @@ class FileBlock {
 };
 
 //////////////////////////////////////////////////////////////////////////////
+// Internal encoding management.
+
+// Stores the encoding of internal byte strings.  If this is kEncodingUTF8,
+// then byte strings are known-valid UTF8 in memory.  If it's
+// kEncodingUnknown, then it's in the encoding we got from the file, subject
+// to `#pragma code_page()` and crazy things like that -- in that case we just
+// give up on values >= 128.
+enum InternalEncoding { kEncodingUnknown, kEncodingUTF8 };
+
+bool ToUTF16(C16string* utf16, std::experimental::string_view in,
+             InternalEncoding encoding, std::string* err_) {
+  if (encoding == kEncodingUTF8) {
+    // InternalEncoding is only set to kEncodingUTF8 when we know that all data
+    // is valid UTF-8, so this conversion here should never fail.
+    std::wstring_convert<std::codecvt_utf8_utf16<Char16>, Char16> convert;
+    *utf16 = convert.from_bytes(in.to_string());
+  } else {
+    for (int j = 0; j < in.size(); ++j) {
+      if (in[j] & 0x80) {
+        *err_ = "only 7-bit characters supported in non-unicode files";
+        return false;
+      }
+      utf16->push_back(in[j]);
+    }
+  }
+  return true;
+}
+
+//////////////////////////////////////////////////////////////////////////////
 // Parser
 
 class Parser {
  public:
   static std::unique_ptr<FileBlock> Parse(std::vector<Token> tokens,
+                                          InternalEncoding encoding,
                                           std::string* err);
 
  private:
-  Parser(std::vector<Token> tokens);
+  Parser(std::vector<Token> tokens, InternalEncoding encoding);
 
   // Parses an expression matching
   //    expr ::= unary_expr {binary_op unary_expr}
@@ -1131,18 +1172,20 @@ class Parser {
 
   std::vector<Token> tokens_;
   std::string err_;
+  InternalEncoding encoding_;
   size_t cur_;
 };
 
 // static
 std::unique_ptr<FileBlock> Parser::Parse(std::vector<Token> tokens,
+                                         InternalEncoding encoding,
                                          std::string* err) {
-  Parser p(std::move(tokens));
+  Parser p(std::move(tokens), encoding);
   return p.ParseFile(err);
 }
 
-Parser::Parser(std::vector<Token> tokens)
-    : tokens_(std::move(tokens)), cur_(0) {}
+Parser::Parser(std::vector<Token> tokens, InternalEncoding encoding)
+    : tokens_(std::move(tokens)), encoding_(encoding), cur_(0) {}
 
 bool Parser::Is(Token::Type type, const char* error_message) {
   if (at_end())
@@ -1526,15 +1569,18 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
     }
     const Token& text = Consume();
     std::experimental::string_view text_val = text.value_;
+    C16string text_val_utf16;
     if (text.type() == Token::kString) {
       // The literal includes quotes, strip them.
       // FIXME: give Token a StringValue() function that handles \-escapes,
       // "quoting""rules", L"asdf", etc.
       text_val = text_val.substr(1, text_val.size() - 2);
+      if (!ToUTF16(&text_val_utf16, text_val, encoding_, &err_))
+        return false;
     }
     control->text = text.type() == Token::kInt
                         ? IntOrStringName::MakeInt(text.IntValue())
-                        : IntOrStringName::MakeString(text_val);
+                        : IntOrStringName::MakeStringUTF16(text_val_utf16);
     if (!Match(Token::kComma, "expected comma"))
       return false;
   }
@@ -2240,13 +2286,6 @@ static uint32_t read_little_long(FILE* f) {
   r |= fgetc(f) << 24;
   return r;
 }
-
-// Stores the encoding of internal byte strings.  If this is kEncodingUTF8,
-// then byte strings are known-valid UTF8 in memory.  If it's
-// kEncodingUnknown, then it's in the encoding we got from the file, subject
-// to `#pragma code_page()` and crazy things like that -- in that case we just
-// give up on values >= 128.
-enum InternalEncoding { kEncodingUnknown, kEncodingUTF8 };
 
 // The format of .res files is documented at
 // https://msdn.microsoft.com/en-us/library/windows/desktop/ms648007(v=vs.85).aspx
@@ -3007,18 +3046,8 @@ bool SerializationVisitor::EmitOneStringtable(
   for (int i = 0; i < 16; ++i) {
     if (!bundle[i])
       continue;
-    if (encoding_ == kEncodingUTF8) {
-      std::wstring_convert<std::codecvt_utf8_utf16<Char16>, Char16> convert;
-      utf16[i] = convert.from_bytes(bundle[i]->to_string());
-    } else {
-      for (int j = 0; j < bundle[i]->size(); ++j) {
-        if ((*bundle[i])[j] & 0x80) {
-          *err_ = "only 7-bit characters supported in non-unicode files";
-          return false;
-        }
-        utf16[i].push_back((*bundle[i])[j]);
-      }
-    }
+    if (!ToUTF16(&utf16[i], *bundle[i], encoding_, err_))
+      return false;
   }
 
   size_t size = 0;
@@ -3204,7 +3233,8 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "%s\n", err.c_str());
     return 1;
   }
-  std::unique_ptr<FileBlock> file = Parser::Parse(std::move(tokens), &err);
+  std::unique_ptr<FileBlock> file =
+      Parser::Parse(std::move(tokens), encoding, &err);
   if (!file) {
     fprintf(stderr, "%s\n", err.c_str());
     return 1;
