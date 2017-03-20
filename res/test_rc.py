@@ -30,6 +30,7 @@ tests = [
 'unicode_simple_utf16le_bom', 'unicode_simple_utf16le_nobom',
 'unicode_utf16le_bom_custom',
 'unicode_utf16le_bom_dialog',
+'unicode_utf16le_bom_menu',
 'unicode_utf16le_bom_stringtable',
 ]
 

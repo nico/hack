@@ -2649,23 +2649,32 @@ bool SerializationVisitor::VisitIconResource(const IconResource* r) {
   return WriteIconOrCursorGroup(r, kIcon);
 }
 
-void CountMenu(const MenuResource::SubmenuEntryData& submenu,
+bool CountMenu(const MenuResource::SubmenuEntryData& submenu,
+               InternalEncoding encoding,
+               std::string* err,
                size_t* num_submenus,
                size_t* num_items,
                size_t* total_string_length) {
   for (const auto& item : submenu.subentries) {
-    *total_string_length += item->name.size() + 1;
+    C16string name_utf16;
+    if (!ToUTF16(&name_utf16, item->name, encoding, err))
+      return false;
+    *total_string_length += name_utf16.size() + 1;
     if (item->style & kMenuPOPUP) {
       ++*num_submenus;
-      CountMenu(static_cast<MenuResource::SubmenuEntryData&>(*item->data),
-                num_submenus, num_items, total_string_length);
+      if (!CountMenu(static_cast<MenuResource::SubmenuEntryData&>(*item->data),
+                     encoding, err, num_submenus, num_items,
+                     total_string_length))
+        return false;
     } else {
       ++*num_items;
     }
   }
+  return true;
 }
 
-void WriteMenu(FILE* out, const MenuResource::SubmenuEntryData& submenu) {
+bool WriteMenu(FILE* out, InternalEncoding encoding, std::string* err,
+               const MenuResource::SubmenuEntryData& submenu) {
   for (const auto& item : submenu.subentries) {
     uint16_t style = item->style;
     if (&item == &submenu.subentries.back())
@@ -2675,21 +2684,26 @@ void WriteMenu(FILE* out, const MenuResource::SubmenuEntryData& submenu) {
       write_little_short(
           out, static_cast<MenuResource::ItemEntryData&>(*item->data).id);
     }
-    for (int j = 0; j < item->name.size(); ++j) {
-      // FIXME: Real UTF16 support.
-      fputc(item->name[j], out);
-      fputc('\0', out);
-    }
+    C16string name_utf16;
+    if (!ToUTF16(&name_utf16, item->name, encoding, err))
+      return false;
+    for (int j = 0; j < name_utf16.size(); ++j)
+      write_little_short(out, name_utf16[j]);
     write_little_short(out, 0);  // \0-terminate.
     if (item->style & kMenuPOPUP) {
-      WriteMenu(out, static_cast<MenuResource::SubmenuEntryData&>(*item->data));
+      if (!WriteMenu(out, encoding, err,
+                     static_cast<MenuResource::SubmenuEntryData&>(*item->data)))
+        return false;
     }
   }
+  return true;
 }
 
 bool SerializationVisitor::VisitMenuResource(const MenuResource* r) {
   size_t num_submenus = 0, num_items = 0, total_string_length = 0;
-  CountMenu(r->entries_, &num_submenus, &num_items, &total_string_length);
+  if (!CountMenu(r->entries_, encoding_, err_,
+                 &num_submenus, &num_items, &total_string_length))
+    return false;
 
   size_t size = 4 + (num_submenus + 2*num_items + total_string_length) * 2;
 
@@ -2714,7 +2728,8 @@ bool SerializationVisitor::VisitMenuResource(const MenuResource* r) {
   // - 0-terminated utf-16le string with label (including &)
   // (Turns out this representation is much easier to work with than what I
   // have chosen!)
-  WriteMenu(out_, r->entries_);
+  if (!WriteMenu(out_, encoding_, err_, r->entries_))
+    return false;
   if (size % 4) // Pad to dword.
     write_little_short(out_, 0);
   return true;
