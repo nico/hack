@@ -81,6 +81,7 @@ extern char *gets (char *__s) __attribute__ ((__deprecated__));
 #else
 namespace std {
 namespace experimental {
+inline namespace fundamentals_v1 {
 class string_view {
   const char* str_;
   size_t size_;
@@ -104,7 +105,6 @@ class string_view {
   const char* begin() const { return data(); }
   const char* end() const { return begin() + size(); }
 };
-namespace fundamentals_v1 {
 template<class T>
 class optional {
   bool has_val = false;
@@ -816,9 +816,9 @@ class DialogResource : public Resource {
                  std::experimental::string_view caption,
                  IntOrStringName clazz,
                  uint16_t exstyle,
-                 std::experimental::fundamentals_v1::optional<FontInfo> font,
+                 std::experimental::optional<FontInfo> font,
                  IntOrStringName menu,
-                 std::experimental::fundamentals_v1::optional<uint32_t> style,
+                 std::experimental::optional<uint32_t> style,
                  std::vector<Control> controls)
       : Resource(name),
         kind(kind),
@@ -850,14 +850,14 @@ class DialogResource : public Resource {
 
   uint16_t exstyle;
 
-  std::experimental::fundamentals_v1::optional<FontInfo> font;
+  std::experimental::optional<FontInfo> font;
 
   // This is only empty as default value: Weirdly, for string names, rc
   // includes the quotes, so `MENU ""` produces `""` (with quotes) in the
   // output.
   IntOrStringName menu;
 
-  std::experimental::fundamentals_v1::optional<uint32_t> style;
+  std::experimental::optional<uint32_t> style;
 
   std::vector<Control> controls;
 };
@@ -1711,9 +1711,9 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
   std::experimental::string_view caption_val;
   IntOrStringName clazz = IntOrStringName::MakeEmpty();
   uint32_t exstyle = 0;
-  std::experimental::fundamentals_v1::optional<DialogResource::FontInfo> font;
+  std::experimental::optional<DialogResource::FontInfo> font;
   IntOrStringName menu = IntOrStringName::MakeEmpty();
-  std::experimental::fundamentals_v1::optional<uint32_t> style;
+  std::experimental::optional<uint32_t> style;
   while (!at_end() && cur_token().type() != Token::kBeginBlock) {
     if (!Is(Token::kIdentifier, "expected identifier, BEGIN or {"))
       return std::unique_ptr<DialogResource>();
@@ -2349,8 +2349,8 @@ class SerializationVisitor : public Visitor {
       IntOrStringName type,
       IntOrStringName name,
       uint16_t memory_flags = 0x1030,
-      std::experimental::fundamentals_v1::optional<uint16_t> language =
-          std::experimental::fundamentals_v1::optional<uint16_t>());
+      std::experimental::optional<uint16_t> language =
+          std::experimental::optional<uint16_t>());
   bool WriteFileOrDataResource(
       IntOrStringName type, const FileOrDataResource* r);
 
@@ -2468,7 +2468,7 @@ void SerializationVisitor::WriteResHeader(
     IntOrStringName type,
     IntOrStringName name,
     uint16_t memory_flags,
-    std::experimental::fundamentals_v1::optional<uint16_t> language) {
+    std::experimental::optional<uint16_t> language) {
   uint32_t header_size = 0x18 + type.serialized_size() + name.serialized_size();
   bool pad = false;
   if (header_size % 4) {
