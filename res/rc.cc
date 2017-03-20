@@ -361,6 +361,7 @@ std::vector<Token> Tokenizer::Run(std::string* err) {
     std::experimental::string_view token_value(&input_.data()[token_begin],
                                                token_end - token_begin);
     if (type == Token::kIdentifier) {
+      // FIXME: case-insensitive?
       if (token_value == "BEGIN")
         type = Token::kBeginBlock;
       else if (token_value == "END")
@@ -1252,6 +1253,7 @@ bool Parser::EvalIntExpressionPrimary(uint32_t* out, bool* is_32) {
 }
 
 static bool EndsVersioninfoData(const Token& t) {
+  // FIXME: case-insensitive
   return t.type() == Token::kEndBlock ||
          (t.type() == Token::kIdentifier &&
           (t.value_ == "VALUE" || t.value_ == "BLOCK"));
@@ -1543,6 +1545,7 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
   if (!Is(Token::kIdentifier, "expected identifier"))
     return false;
   const Token& type = Consume();
+  // FIXME: case-insensitive
   if (std::unordered_set<std::experimental::string_view>{
           "AUTO3STATE", "AUTOCHECKBOX", "COMBOBOX", "CONTROL", "CTEXT",
           "DEFPUSHBUTTON", "EDITTEXT", "GROUPBOX", "HEDIT", "IEDIT", "ICON",
@@ -1553,6 +1556,7 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
     return false;
   }
 
+  // FIXME: case-insensitive
   bool wants_text =
       std::unordered_set<std::experimental::string_view>{
           "COMBOBOX", "EDITTEXT", "HEDIT", "IEDIT", "LISTBOX", "SCROLLBAR"}
@@ -1583,6 +1587,7 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
   }
 
   const Token* control_type = nullptr;
+  // FIXME: case-insensitive
   if (type.value_ == "CONTROL") {
     // Special: Has id, class, style, so id below will actually be style not id
     // for this type only.
@@ -1606,6 +1611,7 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
     if (!Match(Token::kComma, "expected comma") || !EvalIntExpression(&rect[i]))
       return false;
 
+  // FIXME: case-insensitive
   if (type.value_ == "CONTROL")
     control->style = id;
   else
@@ -1625,6 +1631,7 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
 
   uint16_t control_class = 0;
   uint32_t default_style = 0;
+  // FIXME: case-insensitive
   if (type.value_ == "CONTROL") {
     default_style = 0x50000000;
     std::experimental::string_view type_val = control_type->value_;
@@ -1711,7 +1718,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
     if (!Is(Token::kIdentifier, "expected identifier, BEGIN or {"))
       return std::unique_ptr<DialogResource>();
     const Token& tok = Consume();
-    if (tok.value_ == "CAPTION") {
+    if (tok.value_ == "CAPTION") {  // FIXME: case-insensitive
       if (!Is(Token::kString, "expected string"))
         return std::unique_ptr<DialogResource>();
       const Token& caption = Consume();
@@ -1721,7 +1728,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
       // "quoting""rules", L"asdf", etc.
       caption_val = caption_val.substr(1, caption_val.size() - 2);
     }
-    else if (tok.value_ == "CLASS") {
+    else if (tok.value_ == "CLASS") {  // FIXME: case-insensitive
       if (!Is(Token::kString) && !Is(Token::kInt)) {
         err_ = "expected string or int, got " +
                cur_or_last_token().value_.to_string();
@@ -1743,11 +1750,11 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
         clazz = IntOrStringName::MakeInt(clazz_val);
       }
     }
-    else if (tok.value_ == "EXSTYLE") {
+    else if (tok.value_ == "EXSTYLE") {  // FIXME: case-insensitive
       if (!EvalIntExpression(&exstyle))
         return std::unique_ptr<DialogResource>();
     }
-    else if (tok.value_ == "FONT") {
+    else if (tok.value_ == "FONT") {  // FIXME: case-insensitive
       DialogResource::FontInfo info;
       if (!Is(Token::kInt, "expected int"))
         return std::unique_ptr<DialogResource>();
@@ -1779,7 +1786,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
 
       font = info;
     }
-    else if (tok.value_ == "MENU") {
+    else if (tok.value_ == "MENU") {  // FIXME: case-insensitive
       if (!Is(Token::kString) && !Is(Token::kInt)) {
         err_ = "expected string or int, got " +
                cur_or_last_token().value_.to_string();
@@ -1797,7 +1804,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
         menu = IntOrStringName::MakeInt(menu_val);
       }
     }
-    else if (tok.value_ == "STYLE") {
+    else if (tok.value_ == "STYLE") {  // FIXME: case-insensitive
       uint32_t style_val;
       if (!EvalIntExpression(&style_val))
         return std::unique_ptr<DialogResource>();
@@ -1869,6 +1876,7 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
     if (!Is(Token::kIdentifier, "expected identifier"))
       return false;
     const Token& flag = Consume();
+    // FIXME: case-insensitive?
     if (flag.value_ == "ASCII")
       ;
     else if (flag.value_ == "VIRTKEY")
@@ -1998,6 +2006,7 @@ std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(
     IntOrStringName name) {
   // Parse fixed info.
   VersioninfoResource::FixedInfo fixed_info = {};
+  // FIXME: case-insensitive
   std::unordered_map<std::experimental::string_view, uint32_t*> fields = {
     {"FILEFLAGSMASK", &fixed_info.fileflags_mask},
     {"FILEFLAGS", &fixed_info.fileflags},
@@ -2012,6 +2021,7 @@ std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(
     uint32_t val_num;
     if (!EvalIntExpression(&val_num))
       return std::unique_ptr<VersioninfoResource>();
+    // FIXME: case-insensitive
     if (name.value_ == "FILEVERSION" || name.value_ == "PRODUCTVERSION") {
       uint32_t val_nums[4] = { val_num };
       for (int i = 0; i < 3 && Match(Token::kComma); ++i)
@@ -2061,6 +2071,7 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   // Exceptions:
   // - LANGUAGE
   // - STRINGTABLE
+  // FIXME: case-insensitive
   if (id.type() == Token::kIdentifier) {
     if (id.value_ == "LANGUAGE")
       return ParseLanguage();
@@ -2164,6 +2175,7 @@ std::unique_ptr<Resource> Parser::ParseResource() {
     // The literal includes quotes, strip them.
     str_val = str_val.substr(1, str_val.size() - 2);
 
+    // FIXME: case-insensitive
     if (type.value_ == "CURSOR")
       return std::make_unique<CursorResource>(name, str_val);
     if (type.value_ == "BITMAP")
@@ -2182,6 +2194,7 @@ std::unique_ptr<Resource> Parser::ParseResource() {
     if (!ParseRawData(&raw_data))
       return std::unique_ptr<Resource>();
 
+    // FIXME: case-insensitive
     if (type.value_ == "RCDATA")
       return std::make_unique<RcdataResource>(name, std::move(raw_data));
     if (type.value_ == "HTML")
