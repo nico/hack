@@ -15,3 +15,9 @@ BEGIN
         MENUITEM "&About",     556
     END
 END
+
+// Test padding after menu.
+43 MENU
+BEGIN
+    MENUITEM "&foo",  500
+END

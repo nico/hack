@@ -2693,7 +2693,6 @@ bool SerializationVisitor::VisitMenuResource(const MenuResource* r) {
 
   size_t size = 4 + (num_submenus + 2*num_items + total_string_length) * 2;
 
-  // XXX padding?
   WriteResHeader(size, IntOrStringName::MakeInt(kRT_MENU), r->name());
 
   // After header, 4 bytes, always 0 as far as I can tell.
@@ -2716,6 +2715,8 @@ bool SerializationVisitor::VisitMenuResource(const MenuResource* r) {
   // (Turns out this representation is much easier to work with than what I
   // have chosen!)
   WriteMenu(out_, r->entries_);
+  if (size % 4) // Pad to dword.
+    write_little_short(out_, 0);
   return true;
 }
 
