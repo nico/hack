@@ -1282,14 +1282,17 @@ bool Parser::ParseVersioninfoData(std::vector<uint8_t>* data,
         data->pop_back();
         data->pop_back();
       }
-      for (int j = 0; j < value_val.size(); ++j) {
-        // FIXME: Real UTF16 support.
-        data->push_back(value_val[j]);
-        data->push_back(0);
+      C16string value_val_utf16;
+      if (!ToUTF16(&value_val_utf16, value_val, encoding_, &err_))
+        return false;
+      for (int j = 0; j < value_val_utf16.size(); ++j) {
+        // FIXME: This is gross and assumes little-endian-ness.
+        data->push_back(value_val_utf16[j] & 0xFF);
+        data->push_back(value_val_utf16[j] >> 8);
       }
       data->push_back(0);  // \0-terminate.
       data->push_back(0);
-      *value_size += value_val.size();
+      *value_size += value_val_utf16.size();
       if (is_right_after_comma)
         *value_size += 1;
       is_prev_string = true;
