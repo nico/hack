@@ -40,7 +40,7 @@ rejected rather than miscompiled.
 
 Warning ideas:
 - duplicate IDs in a dialog
-- duplicate names for a given resource type
+- duplicate names for a given resource type with the same LANGUAGE
 - VERSIONINFO with ID != 1
 - non-numeric resource names
 */
@@ -646,6 +646,11 @@ class LanguageResource : public Resource {
   struct Language {
     uint8_t language;
     uint8_t sublanguage;
+    uint16_t as_uint16() const { return language | sublanguage << 10; }
+    bool operator<(const Language& rhs) const {
+      return std::tie(language, sublanguage) <
+             std::tie(rhs.language, rhs.sublanguage);
+    }
   };
 
   // LANGUAGE doesn't get emitted as its own entry to the .res file, instead
@@ -2351,7 +2356,8 @@ class SerializationVisitor : public Visitor {
   bool VisitUserDefinedResource(const UserDefinedResource* r) override;
 
   bool EmitOneStringtable(const std::experimental::string_view** bundle,
-                          uint16_t bundle_start);
+                          uint16_t bundle_start,
+                          LanguageResource::Language language);
   bool WriteStringtables();
 
  private:
@@ -2368,7 +2374,8 @@ class SerializationVisitor : public Visitor {
   LanguageResource::Language cur_language_;
   InternalEncoding encoding_;
 
-  std::map<uint16_t, std::experimental::string_view> stringtable_;
+  std::map<LanguageResource::Language,
+           std::map<uint16_t, std::experimental::string_view>> stringtables_;
 };
 
 struct FClose {
@@ -2456,7 +2463,7 @@ void SerializationVisitor::WriteResHeader(
     write_little_short(out_, 0);
   write_little_long(out_, 0);              // data version
   write_little_short(out_, memory_flags);  // memory flags XXX
-  uint16_t lang = cur_language_.language | cur_language_.sublanguage << 10;
+  uint16_t lang = cur_language_.as_uint16();
   if (language)
     lang = *language;
   write_little_short(out_, lang);
@@ -2906,8 +2913,10 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
 
 bool SerializationVisitor::VisitStringtableResource(
     const StringtableResource* r) {
+  std::map<uint16_t, std::experimental::string_view>& stringtable =
+      stringtables_[cur_language_];
   for (auto& str : *r) {
-    bool is_new = stringtable_.insert(std::make_pair(str.id, str.value)).second;
+    bool is_new = stringtable.insert(std::make_pair(str.id, str.value)).second;
     if (!is_new) {
       *err_ = "duplicate string table key " + std::to_string(str.id);
       return false;
@@ -3086,7 +3095,8 @@ bool SerializationVisitor::VisitUserDefinedResource(
 
 bool SerializationVisitor::EmitOneStringtable(
     const std::experimental::string_view** bundle,
-    uint16_t bundle_start) {
+    uint16_t bundle_start,
+    LanguageResource::Language language) {
   // Each string is written as uint16_t length, followed by string data without
   // a trailing \0.
   // FIXME: rc.exe /n null-terminates strings in string table, have option
@@ -3105,7 +3115,8 @@ bool SerializationVisitor::EmitOneStringtable(
     size += 2 * (1 + (bundle[i] ? utf16[i].size() : 0));
 
   WriteResHeader(size, IntOrStringName::MakeInt(kRT_STRING),
-                 IntOrStringName::MakeInt((bundle_start / 16) + 1));
+                 IntOrStringName::MakeInt((bundle_start / 16) + 1), 0x1030,
+                 language.as_uint16());
   for (int i = 0; i < 16; ++i) {
     if (!bundle[i]) {
       fwrite("\0", 1, 2, out_);
@@ -3134,30 +3145,32 @@ bool SerializationVisitor::WriteStringtables() {
   //  there would be one bundle (number 2), which consists of string 16,
   //  fourteen null strings, then string 31."
 
-  const std::experimental::string_view* bundle[16] = {};
-  size_t n_bundle = 0;
-  uint16_t bundle_start = 0;
+  for (const auto& table_by_lang : stringtables_) {
+    const std::experimental::string_view* bundle[16] = {};
+    size_t n_bundle = 0;
+    uint16_t bundle_start = 0;
 
-  for (const auto& it : stringtable_) {
-    if (it.first - bundle_start >= 16) {
-      if (n_bundle > 0) {
-        if (!EmitOneStringtable(bundle, bundle_start))
-          return false;
-        n_bundle = 0;
+    for (const auto& string_by_id : table_by_lang.second) {
+      if (string_by_id.first - bundle_start >= 16) {
+        if (n_bundle > 0) {
+          if (!EmitOneStringtable(bundle, bundle_start, table_by_lang.first))
+            return false;
+          n_bundle = 0;
+        }
+        bundle_start = string_by_id.first & ~0xf;
       }
-      bundle_start = it.first & ~0xf;
+      bundle[string_by_id.first - bundle_start] = &string_by_id.second;
+      ++n_bundle;
+      continue;
     }
-    bundle[it.first - bundle_start] = &it.second;
-    ++n_bundle;
-    continue;
+    if (n_bundle > 0) {
+      if (!EmitOneStringtable(bundle, bundle_start, table_by_lang.first))
+        return false;
+      n_bundle = 0;
+    }
   }
-  if (n_bundle > 0) {
-    if (!EmitOneStringtable(bundle, bundle_start))
-      return false;
-    n_bundle = 0;
-  }
+  stringtables_.clear();
 
-  stringtable_.clear();
   return true;
 }
 

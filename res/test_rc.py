@@ -18,6 +18,7 @@ tests = [
 'dialog_nocontrols', 'dialog_controls',
 'dialogex_nocontrols', 'dialogex_controls',
 'stringtable',
+'stringtable_by_language',
 'accelerators',
 'rcdata', 'rcdata_inline',
 'versioninfo_fixedonly', 'versioninfo', 'versioninfo_slurp',
