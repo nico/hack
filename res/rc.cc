@@ -143,6 +143,13 @@ int ascii_toupper(int c) {
     return c - 'a' + 'A';
   return c;
 }
+bool IsEqualAsciiUppercaseChar(char a, char b) {
+  return ascii_toupper(a) == ascii_toupper(b);
+}
+bool IsEqualAsciiUppercase(std::experimental::string_view a,
+                       std::experimental::string_view b) {
+  return std::equal(a.begin(), a.end(), b.begin(), IsEqualAsciiUppercaseChar);
+}
 
 typedef uint8_t UTF8;
 #if !defined(_MSC_VER)
@@ -1639,18 +1646,17 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
     // FIXME: give Token a StringValue() function that handles \-escapes,
     // "quoting""rules", L"asdf", etc.
     type_val = type_val.substr(1, type_val.size() - 2);
-    // FIXME: case-insensitive
-    if (type_val == "BUTTON")
+    if (IsEqualAsciiUppercase(type_val, "BUTTON"))
       control->clazz = IntOrStringName::MakeInt(kButton);
-    else if (type_val == "EDIT")
+    else if (IsEqualAsciiUppercase(type_val, "EDIT"))
       control->clazz = IntOrStringName::MakeInt(kEdit);
-    else if (type_val == "STATIC")
+    else if (IsEqualAsciiUppercase(type_val, "STATIC"))
       control->clazz = IntOrStringName::MakeInt(kStatic);
-    else if (type_val == "LISTBOX")
+    else if (IsEqualAsciiUppercase(type_val, "LISTBOX"))
       control->clazz = IntOrStringName::MakeInt(kListBox);
-    else if (type_val == "SCROLLBAR")
+    else if (IsEqualAsciiUppercase(type_val, "SCROLLBAR"))
       control->clazz = IntOrStringName::MakeInt(kScrollBar);
-    else if (type_val == "COMBOBOX")
+    else if (IsEqualAsciiUppercase(type_val, "COMBOBOX"))
       control->clazz = IntOrStringName::MakeInt(kComboBox);
     else {
       C16string type_val_utf16;
