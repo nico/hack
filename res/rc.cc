@@ -822,7 +822,7 @@ class DialogResource : public Resource {
                  uint32_t help_id,
                  std::experimental::string_view caption,
                  IntOrStringName clazz,
-                 uint16_t exstyle,
+                 uint32_t exstyle,
                  std::experimental::optional<FontInfo> font,
                  IntOrStringName menu,
                  std::experimental::optional<uint32_t> style,
@@ -855,7 +855,7 @@ class DialogResource : public Resource {
   // Empty if not set. rc.exe also writes a 0 class for `CLASS ""`.
   IntOrStringName clazz;
 
-  uint16_t exstyle;
+  uint32_t exstyle;
 
   std::experimental::optional<FontInfo> font;
 

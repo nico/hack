@@ -18,7 +18,7 @@ CLASS 42  // uint16_t; can have math here
 BEGIN END
 
 4 DIALOGEX 1,2,3,4
-EXSTYLE 8  // WS_EX_TOPMOST; can have math here
+EXSTYLE 0x10008
 BEGIN END
 
 51 DIALOGEX 1,2,3,4
