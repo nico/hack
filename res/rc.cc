@@ -2934,12 +2934,14 @@ bool SerializationVisitor::VisitRcdataResource(const RcdataResource* r) {
   return WriteFileOrDataResource(IntOrStringName::MakeInt(kRT_RCDATA), r);
 }
 
-uint16_t CountBlock(
+bool CountBlock(
     const VersioninfoResource::BlockData& block,
+    InternalEncoding encoding,
+    std::string* err,
+    uint16_t* total_size,
     std::unordered_map<VersioninfoResource::Entry*, uint16_t>* sizes) {
-  uint16_t total_size = 0;
   for (const auto& value : block.values) {
-    uint16_t size =
+    uint16_t size = 
         3 * sizeof(uint16_t) + sizeof(char16_t) * (value->key.size() + 1);
     if (size % 4)
       size += 2;  // Pad to 4 bytes after name.
@@ -2948,8 +2950,10 @@ uint16_t CountBlock(
                   .value.size();
     } else {
       // Children are already padded to 4 bytes.
-      size += CountBlock(
-          static_cast<VersioninfoResource::BlockData&>(*value->data), sizes);
+      if (!CountBlock(
+              static_cast<VersioninfoResource::BlockData&>(*value->data),
+              encoding, err, &size, sizes))
+        return false;
     }
     (*sizes)[value.get()] = size;
 
@@ -2957,9 +2961,9 @@ uint16_t CountBlock(
     // Padding after the last object isn't included in the block's size.
     if (size % 4 && &value != &block.values.back())
       size += 2;  // Pad to 4 bytes after value too.
-    total_size += size;
+    *total_size += size;
   }
-  return total_size;
+  return true;
 }
 
 void WriteBlock(
@@ -3012,7 +3016,9 @@ void WriteBlock(
 bool SerializationVisitor::VisitVersioninfoResource(
     const VersioninfoResource* r) {
   std::unordered_map<VersioninfoResource::Entry*, uint16_t> sizes;
-  uint16_t block_size = CountBlock(r->block_, &sizes);
+  uint16_t block_size = 0;
+  if (!CountBlock(r->block_, encoding_, err_, &block_size, &sizes))
+    return false;
 
   const size_t kFixedInfoSize = 0x5c;
   size_t size = kFixedInfoSize + block_size;
