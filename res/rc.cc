@@ -2941,8 +2941,11 @@ bool CountBlock(
     uint16_t* total_size,
     std::unordered_map<VersioninfoResource::Entry*, uint16_t>* sizes) {
   for (const auto& value : block.values) {
+    C16string key_utf16;
+    if (!ToUTF16(&key_utf16, value->key, encoding, err))
+      return false;
     uint16_t size = 
-        3 * sizeof(uint16_t) + sizeof(char16_t) * (value->key.size() + 1);
+        3 * sizeof(uint16_t) + sizeof(char16_t) * (key_utf16.size() + 1);
     if (size % 4)
       size += 2;  // Pad to 4 bytes after name.
     if (value->data->type_ == VersioninfoResource::InfoData::kValue) {
@@ -2966,8 +2969,10 @@ bool CountBlock(
   return true;
 }
 
-void WriteBlock(
+bool WriteBlock(
     FILE* out,
+    InternalEncoding encoding,
+    std::string* err,
     const VersioninfoResource::BlockData& block,
     const std::unordered_map<VersioninfoResource::Entry*, uint16_t> sizes) {
   for (const auto& value : block.values) {
@@ -2992,11 +2997,11 @@ void WriteBlock(
     write_little_short(out, value_size);
     write_little_short(out, is_text ? 1 : 0);
 
-    for (int j = 0; j < value->key.size(); ++j) {
-      // FIXME: Real UTF16 support.
-      fputc(value->key[j], out);
-      fputc('\0', out);
-    }
+    C16string key_utf16;
+    if (!ToUTF16(&key_utf16, value->key, encoding, err))
+      return false;
+    for (int j = 0; j < key_utf16.size(); ++j)
+      write_little_short(out, key_utf16[j]);
     write_little_short(out, 0);  // \0-terminate.
     if (value->key.size() % 2)
       write_little_short(out, 0);  // padding to dword after 3 uint16_t and key
@@ -3006,11 +3011,14 @@ void WriteBlock(
       if (data->size() % 4)
         write_little_short(out, 0);  // pad to dword after value
     } else {
-      WriteBlock(out,
-                 static_cast<VersioninfoResource::BlockData&>(*value->data),
-                 sizes);
+      if (!WriteBlock(
+               out, encoding, err,
+               static_cast<VersioninfoResource::BlockData&>(*value->data),
+               sizes))
+        return false;
     }
   }
+  return true;
 }
 
 bool SerializationVisitor::VisitVersioninfoResource(
@@ -3048,8 +3056,7 @@ bool SerializationVisitor::VisitVersioninfoResource(
   write_little_long(out_, 0);
 
   // Write variable block.
-  WriteBlock(out_, r->block_, sizes);
-  return true;
+  return WriteBlock(out_, encoding_, err_, r->block_, sizes);
 }
 
 bool SerializationVisitor::VisitDlgincludeResource(

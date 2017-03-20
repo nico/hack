@@ -32,6 +32,7 @@ tests = [
 'unicode_utf16le_bom_dialog',
 'unicode_utf16le_bom_menu',
 'unicode_utf16le_bom_stringtable',
+'unicode_utf16le_bom_versioninfo',
 ]
 
 RC = 'rc.exe' if sys.platform == 'win32' else './rc'
