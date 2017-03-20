@@ -5,14 +5,18 @@ BEGIN
 14, "two entries" 50 "one line"
 END
 
+// Also has an odd number of uint16_ts, needs padding after it.
+STRINGTABLE BEGIN 77 "no" END
+
+// Has smaller id than 77 but comes later in the .rc file
+// => its string block should be later in the output too.
+STRINGTABLE BEGIN 32 "lo" END
+
 // This is fine, but must have IDs distinct from prior string table.
 // The first 16-block has an odd number of uint16_ts, and needs uint32_t padding
 STRINGTABLE BEGIN 3 "anotherstringtable" END
 
-// Also has an odd number of uint16_ts, needs padding after it.
-STRINGTABLE BEGIN 77 "no" END
-
-// FIXME: test negative IDs, unicode strings, ...
+// FIXME: test negative IDs, ...
 // STRINGTABLEs go at the end of the .res file, no matter where they are in the
 // .rc file.
 

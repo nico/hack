@@ -2355,9 +2355,6 @@ class SerializationVisitor : public Visitor {
   bool VisitHtmlResource(const HtmlResource* r) override;
   bool VisitUserDefinedResource(const UserDefinedResource* r) override;
 
-  bool EmitOneStringtable(const std::experimental::string_view** bundle,
-                          uint16_t bundle_start,
-                          LanguageResource::Language language);
   bool WriteStringtables();
 
  private:
@@ -2374,8 +2371,18 @@ class SerializationVisitor : public Visitor {
   LanguageResource::Language cur_language_;
   InternalEncoding encoding_;
 
-  std::map<LanguageResource::Language,
-           std::map<uint16_t, std::experimental::string_view>> stringtables_;
+  // Id of first string in bundle, and language of bundle.
+  typedef std::pair<uint16_t, LanguageResource::Language> BundleKey;
+  struct StringBundle {
+    StringBundle(BundleKey key) : key(key) {
+      std::fill_n(strings, 16, nullptr);
+    }
+    BundleKey key;
+    const std::experimental::string_view* strings[16];
+  };
+  bool EmitOneStringBundle(const StringBundle& bundle);
+  std::list<StringBundle> string_bundles_;
+  std::map<BundleKey, std::list<StringBundle>::iterator> bundle_index;
 };
 
 struct FClose {
@@ -2913,14 +2920,24 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
 
 bool SerializationVisitor::VisitStringtableResource(
     const StringtableResource* r) {
-  std::map<uint16_t, std::experimental::string_view>& stringtable =
-      stringtables_[cur_language_];
+  // Microsoft rc seems to create blocks in the order they appear in the
+  // input file.
   for (auto& str : *r) {
-    bool is_new = stringtable.insert(std::make_pair(str.id, str.value)).second;
-    if (!is_new) {
+    BundleKey key{str.id & ~0xF, cur_language_};
+    auto it = bundle_index.find(key);
+    StringBundle* bundle;
+    if (it == bundle_index.end()) {
+      string_bundles_.push_back(StringBundle(key));
+      bundle_index[key] = std::prev(string_bundles_.end());
+      bundle = &string_bundles_.back();
+    } else {
+      bundle = &*it->second;
+    }
+    if (bundle->strings[str.id - key.first]) {
       *err_ = "duplicate string table key " + std::to_string(str.id);
       return false;
     }
+    bundle->strings[str.id - key.first] = &str.value;
   }
   return true;
 }
@@ -3093,10 +3110,7 @@ bool SerializationVisitor::VisitUserDefinedResource(
   return WriteFileOrDataResource(r->type(), r);
 }
 
-bool SerializationVisitor::EmitOneStringtable(
-    const std::experimental::string_view** bundle,
-    uint16_t bundle_start,
-    LanguageResource::Language language) {
+bool SerializationVisitor::EmitOneStringBundle(const StringBundle& bundle) {
   // Each string is written as uint16_t length, followed by string data without
   // a trailing \0.
   // FIXME: rc.exe /n null-terminates strings in string table, have option
@@ -3104,21 +3118,21 @@ bool SerializationVisitor::EmitOneStringtable(
 
   C16string utf16[16];
   for (int i = 0; i < 16; ++i) {
-    if (!bundle[i])
+    if (!bundle.strings[i])
       continue;
-    if (!ToUTF16(&utf16[i], *bundle[i], encoding_, err_))
+    if (!ToUTF16(&utf16[i], *bundle.strings[i], encoding_, err_))
       return false;
   }
 
   size_t size = 0;
   for (int i = 0; i < 16; ++i)
-    size += 2 * (1 + (bundle[i] ? utf16[i].size() : 0));
+    size += 2 * (1 + (bundle.strings[i] ? utf16[i].size() : 0));
 
   WriteResHeader(size, IntOrStringName::MakeInt(kRT_STRING),
-                 IntOrStringName::MakeInt((bundle_start / 16) + 1), 0x1030,
-                 language.as_uint16());
+                 IntOrStringName::MakeInt((bundle.key.first / 16) + 1), 0x1030,
+                 bundle.key.second.as_uint16());
   for (int i = 0; i < 16; ++i) {
-    if (!bundle[i]) {
+    if (!bundle.strings[i]) {
       fwrite("\0", 1, 2, out_);
       continue;
     }
@@ -3129,7 +3143,6 @@ bool SerializationVisitor::EmitOneStringtable(
   uint8_t padding = ((4 - (size & 3)) & 3);  // DWORD-align.
   fwrite("\0\0", 1, padding, out_);
 
-  std::fill_n(bundle, 16, nullptr);
   return true;
 }
 
@@ -3145,31 +3158,10 @@ bool SerializationVisitor::WriteStringtables() {
   //  there would be one bundle (number 2), which consists of string 16,
   //  fourteen null strings, then string 31."
 
-  for (const auto& table_by_lang : stringtables_) {
-    const std::experimental::string_view* bundle[16] = {};
-    size_t n_bundle = 0;
-    uint16_t bundle_start = 0;
-
-    for (const auto& string_by_id : table_by_lang.second) {
-      if (string_by_id.first - bundle_start >= 16) {
-        if (n_bundle > 0) {
-          if (!EmitOneStringtable(bundle, bundle_start, table_by_lang.first))
-            return false;
-          n_bundle = 0;
-        }
-        bundle_start = string_by_id.first & ~0xf;
-      }
-      bundle[string_by_id.first - bundle_start] = &string_by_id.second;
-      ++n_bundle;
-      continue;
-    }
-    if (n_bundle > 0) {
-      if (!EmitOneStringtable(bundle, bundle_start, table_by_lang.first))
-        return false;
-      n_bundle = 0;
-    }
-  }
-  stringtables_.clear();
+  for (const StringBundle& bundle : string_bundles_)
+    if (!EmitOneStringBundle(bundle))
+      return false;
+  string_bundles_.clear();
 
   return true;
 }
