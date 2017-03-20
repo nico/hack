@@ -319,7 +319,7 @@ class Tokenizer {
   Token::Type ClassifyCurrent() const;
   void AdvanceToEndOfToken(Token::Type type);
 
-  bool IsCurrentStringTerminator(char quote_char) const;
+  bool FindStringTerminator(char quote_char);
   bool IsCurrentNewline() const;
 
   bool done() const { return at_end() || has_error(); }
@@ -409,19 +409,21 @@ bool Tokenizer::IsIdentifierContinuingChar(char c) {
   return IsIdentifierFirstChar(c) || IsDigit(c) || c == '.';
 }
 
-bool Tokenizer::IsCurrentStringTerminator(char quote_char) const {
+bool Tokenizer::FindStringTerminator(char quote_char) {
   if (cur_char() != quote_char)
     return false;
 
-  // Check for escaping. \" is not a string terminator, but \\" is. Count
-  // the number of preceeding backslashes.
-  int num_backslashes = 0;
-  for (int i = static_cast<int>(cur_) - 1; i >= 0 && input_[i] == '\\'; i--)
-    num_backslashes++;
+  // Check for escaping. "" is not a string terminator, but """ is. Count
+  // the number of preceeding quotes. \" is a string terminator (but \"" isn't).
+  int num_inner_quotes = 0;
+  while (cur_ + 1 < input_.size() && input_[cur_ + 1] == quote_char) {
+    Advance();
+    num_inner_quotes++;
+  }
 
-  // Even backslashes mean that they were escaping each other and don't count
-  // as escaping this quote.
-  return (num_backslashes % 2) == 0;
+  // Even quotes mean that they were escaping each other and don't count
+  // as terminating this string.
+  return (num_inner_quotes % 2) == 0;
 }
 
 bool Tokenizer::IsCurrentNewline() const {
@@ -494,7 +496,7 @@ void Tokenizer::AdvanceToEndOfToken(Token::Type type) {
           err_ = "Unterminated string literal.";
           break;
         }
-        if (IsCurrentStringTerminator(initial)) {
+        if (FindStringTerminator(initial)) {
           Advance();  // Skip past last "
           break;
         } else if (IsCurrentNewline()) {
