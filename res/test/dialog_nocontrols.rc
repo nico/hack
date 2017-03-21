@@ -3,11 +3,11 @@ BEGIN END
 
 2 DIALOG 1,2,3,4
 // Also CHARACTERISTICS, LANGUAGE, VERSION, like other resources
-CAPTION "Hi"
+CaPTION "Hi"
 BEGIN END
 
 31 DIALOG 1,2,3,4
-CLASS "Hi"
+claSS "Hi"
 BEGIN END
 
 32 DIALOG 1,2,3,4
@@ -15,17 +15,17 @@ CLASS 42  // uint16_t; can have math here
 BEGIN END
 
 4 DIALOG 1,2,3,4
-EXSTYLE 8  // WS_EX_TOPMOST; can have math here
+EXStyLE 8  // WS_EX_TOPMOST; can have math here
 BEGIN END
 
 5 DIALOG 1,2,3,4
 // The docs also mention `weight, italic, charset` after these, but rc
 // accepts those only in DIALOGEX.
-FONT 12, "Inconsolata"
+FOnT 12, "Inconsolata"
 BEGIN END
 
 61 DIALOG 1,2,3,4
-MENU "MyMenu"
+mENU "MyMenu"
 BEGIN END
 
 62 DIALOG 1,2,3,4
@@ -33,5 +33,5 @@ MENU 42
 BEGIN END
 
 7 DIALOG 1,2,3,4
-STYLE 42  // Not a real WS_ or DS_ style; can have math here.
+StYLE 42  // Not a real WS_ or DS_ style; can have math here.
 BEGIN END

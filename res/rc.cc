@@ -1726,7 +1726,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
     if (!Is(Token::kIdentifier, "expected identifier, BEGIN or {"))
       return std::unique_ptr<DialogResource>();
     const Token& tok = Consume();
-    if (tok.value_ == "CAPTION") {  // FIXME: case-insensitive
+    if (IsEqualAsciiUppercase(tok.value_, "CAPTION")) {
       if (!Is(Token::kString, "expected string"))
         return std::unique_ptr<DialogResource>();
       const Token& caption = Consume();
@@ -1736,7 +1736,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
       // "quoting""rules", L"asdf", etc.
       caption_val = caption_val.substr(1, caption_val.size() - 2);
     }
-    else if (tok.value_ == "CLASS") {  // FIXME: case-insensitive
+    else if (IsEqualAsciiUppercase(tok.value_, "CLASS")) {
       if (!Is(Token::kString) && !Is(Token::kInt)) {
         err_ = "expected string or int, got " +
                cur_or_last_token().value_.to_string();
@@ -1758,11 +1758,11 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
         clazz = IntOrStringName::MakeInt(clazz_val);
       }
     }
-    else if (tok.value_ == "EXSTYLE") {  // FIXME: case-insensitive
+    else if (IsEqualAsciiUppercase(tok.value_, "EXSTYLE")) {
       if (!EvalIntExpression(&exstyle))
         return std::unique_ptr<DialogResource>();
     }
-    else if (tok.value_ == "FONT") {  // FIXME: case-insensitive
+    else if (IsEqualAsciiUppercase(tok.value_, "FONT")) {
       DialogResource::FontInfo info;
       if (!Is(Token::kInt, "expected int"))
         return std::unique_ptr<DialogResource>();
@@ -1794,7 +1794,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
 
       font = info;
     }
-    else if (tok.value_ == "MENU") {  // FIXME: case-insensitive
+    else if (IsEqualAsciiUppercase(tok.value_, "MENU")) {
       if (!Is(Token::kString) && !Is(Token::kInt)) {
         err_ = "expected string or int, got " +
                cur_or_last_token().value_.to_string();
@@ -1812,7 +1812,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
         menu = IntOrStringName::MakeInt(menu_val);
       }
     }
-    else if (tok.value_ == "STYLE") {  // FIXME: case-insensitive
+    else if (IsEqualAsciiUppercase(tok.value_, "STYLE")) {
       uint32_t style_val;
       if (!EvalIntExpression(&style_val))
         return std::unique_ptr<DialogResource>();
