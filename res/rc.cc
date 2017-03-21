@@ -12,12 +12,12 @@ bit-for-bit equal to what Microsoft rc.exe produces.  It's ok if this program
 rejects some inputs that Microsoft rc.exe accepts.
 
 Missing for chromium:
-- #pragma code_page() and unicode handling
 - case-insensitive keywords
 - real string literal parser (L"\0")
 - preprocessor (but see pptest next to this; `pptest file | rc` kinda works)
 
 Also missing, but not yet for chromium:
+- #pragma code_page()
 - FONT
 - MENUITEM SEPARATOR
 - MENUEX (including int expression parse/eval)
@@ -1262,10 +1262,10 @@ bool Parser::EvalIntExpressionPrimary(uint32_t* out, bool* is_32) {
 }
 
 static bool EndsVersioninfoData(const Token& t) {
-  // FIXME: case-insensitive
   return t.type() == Token::kEndBlock ||
          (t.type() == Token::kIdentifier &&
-          (t.value_ == "VALUE" || t.value_ == "BLOCK"));
+          (IsEqualAsciiUppercase(t.value_, "VALUE") ||
+           IsEqualAsciiUppercase(t.value_, "BLOCK")));
 }
 
 bool Parser::ParseVersioninfoData(std::vector<uint8_t>* data,
@@ -1968,15 +1968,14 @@ Parser::ParseVersioninfoBlock() {
   std::unique_ptr<VersioninfoResource::BlockData> block(
       new VersioninfoResource::BlockData);
   while (!at_end() && cur_token().type() != Token::kEndBlock) {
-    // FIXME: case-insensitive
     if (!Is(Token::kIdentifier) ||
-        (cur_token().value_ != "BLOCK" && cur_token().value_ != "VALUE")) {
+        (!IsEqualAsciiUppercase(cur_token().value_, "BLOCK") &&
+         !IsEqualAsciiUppercase(cur_token().value_, "VALUE"))) {
       err_ = "expected BLOCK or VALUE, got " +
              cur_or_last_token().value_.to_string();
       return std::unique_ptr<VersioninfoResource::BlockData>();
     }
-    // FIXME: case-insensitive
-    bool is_value = cur_token().value_ == "VALUE";
+    bool is_value = IsEqualAsciiUppercase(cur_token().value_, "VALUE");
     Consume();
     if (!Is(Token::kString, "expected string"))
       return std::unique_ptr<VersioninfoResource::BlockData>();
