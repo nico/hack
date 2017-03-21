@@ -151,6 +151,17 @@ bool IsEqualAsciiUppercase(std::experimental::string_view a,
   return a.size() == b.size() &&
          std::equal(a.begin(), a.end(), b.begin(), IsEqualAsciiUppercaseChar);
 }
+size_t CaseInsensitiveHash(std::experimental::string_view x) {
+  size_t hash = 5381;  // djb2
+  for (char c : x)
+    hash = 33 * hash + ascii_toupper(c);
+  return hash;
+}
+template <class T>
+using CaseInsensitiveStringMap = std::unordered_map<
+    std::experimental::string_view, T,
+    size_t(*)(std::experimental::string_view),
+    bool(*)(std::experimental::string_view, std::experimental::string_view)>;
 
 typedef uint8_t UTF8;
 #if !defined(_MSC_VER)
@@ -2014,14 +2025,13 @@ std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(
     IntOrStringName name) {
   // Parse fixed info.
   VersioninfoResource::FixedInfo fixed_info = {};
-  // FIXME: case-insensitive
-  std::unordered_map<std::experimental::string_view, uint32_t*> fields = {
+  CaseInsensitiveStringMap<uint32_t*> fields{{
     {"FILEFLAGSMASK", &fixed_info.fileflags_mask},
     {"FILEFLAGS", &fixed_info.fileflags},
     {"FILEOS", &fixed_info.fileos},
     {"FILETYPE", &fixed_info.filetype},
     {"FILESUBTYPE", &fixed_info.filesubtype},
-  };
+  }, 10, &CaseInsensitiveHash, IsEqualAsciiUppercase};
   while (!at_end() && cur_token().type() != Token::kBeginBlock) {
     if (!Is(Token::kIdentifier, "expected identifier, BEGIN or {"))
       return std::unique_ptr<VersioninfoResource>();
@@ -2029,13 +2039,13 @@ std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(
     uint32_t val_num;
     if (!EvalIntExpression(&val_num))
       return std::unique_ptr<VersioninfoResource>();
-    // FIXME: case-insensitive
-    if (name.value_ == "FILEVERSION" || name.value_ == "PRODUCTVERSION") {
+    if (IsEqualAsciiUppercase(name.value_, "FILEVERSION") ||
+        IsEqualAsciiUppercase(name.value_, "PRODUCTVERSION")) {
       uint32_t val_nums[4] = { val_num };
       for (int i = 0; i < 3 && Match(Token::kComma); ++i)
         if (!EvalIntExpression(&val_nums[i + 1]))
           return std::unique_ptr<VersioninfoResource>();
-      if (name.value_ == "FILEVERSION") {
+      if (IsEqualAsciiUppercase(name.value_, "FILEVERSION")) {
         fixed_info.fileversion_high = (val_nums[0] << 16) | val_nums[1];
         fixed_info.fileversion_low = (val_nums[2] << 16) | val_nums[3];
       } else {
