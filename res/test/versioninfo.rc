@@ -52,7 +52,7 @@ END
 
 
 // "versionID must be 1", but rc.exe accepts other numbers too.
-2 VERSIONINFO
+2 vERsiONinfo
 {
 }
 

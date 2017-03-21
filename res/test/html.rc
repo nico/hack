@@ -1,2 +1,2 @@
-1 HTML "test/foo.html"
-//1 HTML { "<html></html>" }
+1 htML "test/foo.html"
+1 HTml { "<html></html>" }

@@ -1,6 +1,6 @@
 42 RCDATA "test/rcdata.rc"
-43 RCDATA BEGIN "test/rcdata.rc" END
-44 RCDATA { "test/rcdata.rc" }
+43 RcdatA BEGIN "test/rcdata.rc" END
+44 rCDAta { "test/rcdata.rc" }
 FOO RCDATA { "asdf" }
 FOO.CSS RCDATA { "asdf" }
 //44 RCDATA {

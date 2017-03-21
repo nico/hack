@@ -6,7 +6,7 @@ BegIN ENd
 CaPTION "Hi"
 BEGIN END
 
-31 DIALOG 1,2,3,4
+31 dIAlog 1,2,3,4
 claSS "Hi"
 BEGIN END
 

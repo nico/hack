@@ -6,7 +6,7 @@ BEGIN
 END
 
 // Also has an odd number of uint16_ts, needs padding after it.
-STRINGTABLE BEGIN 77 "no" END
+STriNGTABLE BEGIN 77 "no" END
 
 // Has smaller id than 77 but comes later in the .rc file
 // => its string block should be later in the output too.

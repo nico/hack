@@ -5,7 +5,7 @@
 1 DIALOGEX 1,2,3,4, 33  // Now with helpID
 BEGIN END
 
-2 DIALOGEX 1,2,3,4
+2 dIaLoGEx 1,2,3,4
 CAPTION "Hi"
 BEGIN END
 

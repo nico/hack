@@ -3,4 +3,4 @@
 100	ICON "test/foo_old.ico"
 /* comment test */
 100 ICON "test/foo_new.ico"
-100 ICON "test/foo_png.ico"
+100 iCon "test/foo_png.ico"

@@ -148,7 +148,8 @@ bool IsEqualAsciiUppercaseChar(char a, char b) {
 }
 bool IsEqualAsciiUppercase(std::experimental::string_view a,
                        std::experimental::string_view b) {
-  return std::equal(a.begin(), a.end(), b.begin(), IsEqualAsciiUppercaseChar);
+  return a.size() == b.size() &&
+         std::equal(a.begin(), a.end(), b.begin(), IsEqualAsciiUppercaseChar);
 }
 
 typedef uint8_t UTF8;
@@ -2079,11 +2080,10 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   // Exceptions:
   // - LANGUAGE
   // - STRINGTABLE
-  // FIXME: case-insensitive
   if (id.type() == Token::kIdentifier) {
-    if (id.value_ == "LANGUAGE")
+    if (IsEqualAsciiUppercase(id.value_, "LANGUAGE"))
       return ParseLanguage();
-    if (id.value_ == "STRINGTABLE")
+    if (IsEqualAsciiUppercase(id.value_, "STRINGTABLE"))
       return ParseStringtable();
   }
 
@@ -2123,58 +2123,65 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   // slightly different from an ICON, it complains that the input .ico file
   // isn't quite right.
 
-  // FIXME: case-insensitive
-
   // Types with custom parsers.
-  if (type.type_ == Token::kIdentifier && type.value_ == "MENU")
+  if (type.type_ == Token::kIdentifier &&
+      IsEqualAsciiUppercase(type.value_, "MENU"))
     return ParseMenu(name);
-  if (type.type_ == Token::kIdentifier && type.value_ == "MENUEX") {
+  if (type.type_ == Token::kIdentifier &&
+      IsEqualAsciiUppercase(type.value_, "MENUEX")) {
     err_ = "MENUEX not implemented yet";  // FIXME
     return std::unique_ptr<Resource>();
   }
-  if (type.type_ == Token::kIdentifier && type.value_ == "DIALOG")
+  if (type.type_ == Token::kIdentifier &&
+      IsEqualAsciiUppercase(type.value_, "DIALOG"))
     return ParseDialog(name, DialogResource::kDialog);
-  if (type.type_ == Token::kIdentifier && type.value_ == "DIALOGEX")
+  if (type.type_ == Token::kIdentifier &&
+      IsEqualAsciiUppercase(type.value_, "DIALOGEX"))
     return ParseDialog(name, DialogResource::kDialogEx);
-  if (type.type_ == Token::kIdentifier && type.value_ == "ACCELERATORS")
+  if (type.type_ == Token::kIdentifier &&
+      IsEqualAsciiUppercase(type.value_, "ACCELERATORS"))
     return ParseAccelerators(name);
-  if (type.type_ == Token::kIdentifier && type.value_ == "MESSAGETABLE") {
+  if (type.type_ == Token::kIdentifier &&
+      IsEqualAsciiUppercase(type.value_, "MESSAGETABLE")) {
     err_ = "MESSAGETABLE not implemented yet";  // FIXME
     return std::unique_ptr<Resource>();
   }
-  if (type.type_ == Token::kIdentifier && type.value_ == "VERSIONINFO")
+  if (type.type_ == Token::kIdentifier &&
+      IsEqualAsciiUppercase(type.value_, "VERSIONINFO"))
     return ParseVersioninfo(name);
 
   // Unsupported types.
-  if (type.value_ == "FONTDIR") {
+  if (IsEqualAsciiUppercase(type.value_, "FONTDIR")) {
     err_ = "FONTDIR not implemented yet";  // FIXME
     return std::unique_ptr<Resource>();
   }
-  if (type.value_ == "FONT") {
+  if (IsEqualAsciiUppercase(type.value_, "FONT")) {
     err_ = "FONT not implemented yet";  // FIXME
     // If this gets implemented: rc requires numeric names for FONTs.
     return std::unique_ptr<Resource>();
   }
-  if (type.value_ == "PLUGPLAY") {
+  if (IsEqualAsciiUppercase(type.value_, "PLUGPLAY")) {
     err_ = "PLUGPLAY not implemented";
     return std::unique_ptr<Resource>();
   }
-  if (type.value_ == "VXD") {
+  if (IsEqualAsciiUppercase(type.value_, "VXD")) {
     err_ = "VXD not implemented";
     return std::unique_ptr<Resource>();
   }
-  if (type.value_ == "ANICURSOR") {
+  if (IsEqualAsciiUppercase(type.value_, "ANICURSOR")) {
     err_ = "ANICURSOR not implemented yet";  // FIXME
     return std::unique_ptr<Resource>();
   }
-  if (type.value_ == "ANIICON") {
+  if (IsEqualAsciiUppercase(type.value_, "ANIICON")) {
     err_ = "ANIICON not implemented yet";  // FIXME
     return std::unique_ptr<Resource>();
   }
 
   // Types always taking a string parameter.
-  bool needs_string = type.value_ == "CURSOR" || type.value_ == "BITMAP" ||
-                      type.value_ == "ICON" || type.value_ == "DLGINCLUDE";
+  bool needs_string = IsEqualAsciiUppercase(type.value_, "CURSOR") ||
+                      IsEqualAsciiUppercase(type.value_, "BITMAP") ||
+                      IsEqualAsciiUppercase(type.value_, "ICON") ||
+                      IsEqualAsciiUppercase(type.value_, "DLGINCLUDE");
   if (needs_string) {
     if (!Is(Token::kString, "expected string"))
       return std::unique_ptr<DialogResource>();
@@ -2183,14 +2190,13 @@ std::unique_ptr<Resource> Parser::ParseResource() {
     // The literal includes quotes, strip them.
     str_val = str_val.substr(1, str_val.size() - 2);
 
-    // FIXME: case-insensitive
-    if (type.value_ == "CURSOR")
+    if (IsEqualAsciiUppercase(type.value_, "CURSOR"))
       return std::make_unique<CursorResource>(name, str_val);
-    if (type.value_ == "BITMAP")
+    if (IsEqualAsciiUppercase(type.value_, "BITMAP"))
       return std::make_unique<BitmapResource>(name, str_val);
-    if (type.value_ == "ICON")
+    if (IsEqualAsciiUppercase(type.value_, "ICON"))
       return std::make_unique<IconResource>(name, str_val);
-    if (type.value_ == "DLGINCLUDE")
+    if (IsEqualAsciiUppercase(type.value_, "DLGINCLUDE"))
       return std::make_unique<DlgincludeResource>(name, str_val);
   }
 
@@ -2202,10 +2208,9 @@ std::unique_ptr<Resource> Parser::ParseResource() {
     if (!ParseRawData(&raw_data))
       return std::unique_ptr<Resource>();
 
-    // FIXME: case-insensitive
-    if (type.value_ == "RCDATA")
+    if (IsEqualAsciiUppercase(type.value_, "RCDATA"))
       return std::make_unique<RcdataResource>(name, std::move(raw_data));
-    if (type.value_ == "HTML")
+    if (IsEqualAsciiUppercase(type.value_, "HTML"))
       return std::make_unique<HtmlResource>(name, std::move(raw_data));
 
     // Not a known resource type, so it's a User-Defined Resource.
@@ -2231,10 +2236,9 @@ std::unique_ptr<Resource> Parser::ParseResource() {
     // The literal includes quotes, strip them.
     str_val = str_val.substr(1, str_val.size() - 2);
 
-    // FIXME: case-insensitive
-    if (type.value_ == "RCDATA")
+    if (IsEqualAsciiUppercase(type.value_, "RCDATA"))
       return std::make_unique<RcdataResource>(name, str_val);
-    if (type.value_ == "HTML")
+    if (IsEqualAsciiUppercase(type.value_, "HTML"))
       return std::make_unique<HtmlResource>(name, str_val);
   }
 
