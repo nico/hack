@@ -1,5 +1,5 @@
 1 DIALOG 1,2,3,4  // can have math in these
-BEGIN END
+BegIN ENd
 
 2 DIALOG 1,2,3,4
 // Also CHARACTERISTICS, LANGUAGE, VERSION, like other resources

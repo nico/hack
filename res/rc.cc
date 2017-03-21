@@ -368,10 +368,9 @@ std::vector<Token> Tokenizer::Run(std::string* err) {
     std::experimental::string_view token_value(&input_.data()[token_begin],
                                                token_end - token_begin);
     if (type == Token::kIdentifier) {
-      // FIXME: case-insensitive?
-      if (token_value == "BEGIN")
+      if (IsEqualAsciiUppercase(token_value, "BEGIN"))
         type = Token::kBeginBlock;
-      else if (token_value == "END")
+      else if (IsEqualAsciiUppercase(token_value, "END"))
         type = Token::kEndBlock;
     }
     if (type != Token::kLineComment && type != Token::kStarComment)
