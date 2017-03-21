@@ -4,8 +4,8 @@
   "C", 16
   "^D", 17
 
-  "b", 25, ASCII
-  "C", 26, ASCII, VIRTKEY, ASCII
+  "b", 25, AscII
+  "C", 26, ASCII, VIRTKey, ASCII
   "^D", 27, ASCII
   20, 28, ASCII
 
@@ -17,7 +17,7 @@
   // ^ "warning RC4204 : ASCII character not equivalent to virtual key code"
   20, 38, VIRTKEY
 
-  "b", 25, VIRTKEY, NOINVERT, ALT, SHIFT, CONTROL
+  "b", 25, VIRTKEY, NOinVERT, AlT, SHIft, coNTROL
   "b", 25, NOINVERT, ALT, VIRTKEY, SHIFT, CONTROL
   "b", 25, VIRTKEY, ALT, ALT, ALT
   "b", 25, VIRTKEY, NOINVERT

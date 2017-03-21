@@ -1883,18 +1883,17 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
     if (!Is(Token::kIdentifier, "expected identifier"))
       return false;
     const Token& flag = Consume();
-    // FIXME: case-insensitive?
-    if (flag.value_ == "ASCII")
+    if (IsEqualAsciiUppercase(flag.value_, "ASCII"))
       ;
-    else if (flag.value_ == "VIRTKEY")
+    else if (IsEqualAsciiUppercase(flag.value_, "VIRTKEY"))
       flags |= kAccelVIRTKEY;
-    else if (flag.value_ == "NOINVERT")
+    else if (IsEqualAsciiUppercase(flag.value_, "NOINVERT"))
       flags |= kAccelNOINVERT;
-    else if (flag.value_ == "SHIFT")
+    else if (IsEqualAsciiUppercase(flag.value_, "SHIFT"))
       flags |= kAccelSHIFT;
-    else if (flag.value_ == "CONTROL")
+    else if (IsEqualAsciiUppercase(flag.value_, "CONTROL"))
       flags |= kAccelCONTROL;
-    else if (flag.value_ == "ALT")
+    else if (IsEqualAsciiUppercase(flag.value_, "ALT"))
       flags |= kAccelALT;
     else {
       err_ = "unknown flag " + flag.value_.to_string();
@@ -1968,12 +1967,14 @@ Parser::ParseVersioninfoBlock() {
   std::unique_ptr<VersioninfoResource::BlockData> block(
       new VersioninfoResource::BlockData);
   while (!at_end() && cur_token().type() != Token::kEndBlock) {
+    // FIXME: case-insensitive
     if (!Is(Token::kIdentifier) ||
         (cur_token().value_ != "BLOCK" && cur_token().value_ != "VALUE")) {
       err_ = "expected BLOCK or VALUE, got " +
              cur_or_last_token().value_.to_string();
       return std::unique_ptr<VersioninfoResource::BlockData>();
     }
+    // FIXME: case-insensitive
     bool is_value = cur_token().value_ == "VALUE";
     Consume();
     if (!Is(Token::kString, "expected string"))
