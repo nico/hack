@@ -12,7 +12,6 @@ bit-for-bit equal to what Microsoft rc.exe produces.  It's ok if this program
 rejects some inputs that Microsoft rc.exe accepts.
 
 Missing for chromium:
-- case-insensitive keywords
 - real string literal parser (L"\0")
 - preprocessor (but see pptest next to this; `pptest file | rc` kinda works)
 
@@ -160,6 +159,10 @@ size_t CaseInsensitiveHash(std::experimental::string_view x) {
 template <class T>
 using CaseInsensitiveStringMap = std::unordered_map<
     std::experimental::string_view, T,
+    size_t(*)(std::experimental::string_view),
+    bool(*)(std::experimental::string_view, std::experimental::string_view)>;
+using CaseInsensitiveStringSet = std::unordered_set<
+    std::experimental::string_view,
     size_t(*)(std::experimental::string_view),
     bool(*)(std::experimental::string_view, std::experimental::string_view)>;
 
@@ -1501,59 +1504,58 @@ static void ClassAndStyleForControl(std::experimental::string_view type,
   const uint16_t kScrollBar = 0x84;
   const uint16_t kComboBox = 0x85;
 
-  // FIXME: case-insensitive
-  if (type == "AUTO3STATE") {
+  if (IsEqualAsciiUppercase(type, "AUTO3STATE")) {
     *default_style = 0x50010006;
     *control_class = kButton;
-  } else if (type == "AUTOCHECKBOX") {
+  } else if (IsEqualAsciiUppercase(type, "AUTOCHECKBOX")) {
     *default_style = 0x50010003;
     *control_class = kButton;
-  } else if (type == "COMBOBOX") {
+  } else if (IsEqualAsciiUppercase(type, "COMBOBOX")) {
     *default_style = 0x50000000;
     *control_class = kComboBox;
-  } else if (type == "CTEXT") {
+  } else if (IsEqualAsciiUppercase(type, "CTEXT")) {
     *default_style = 0x50020001;
     *control_class = kStatic;
-  } else if (type == "DEFPUSHBUTTON") {
+  } else if (IsEqualAsciiUppercase(type, "DEFPUSHBUTTON")) {
     *default_style = 0x50010001;
     *control_class = kButton;
-  } else if (type == "EDITTEXT") {
+  } else if (IsEqualAsciiUppercase(type, "EDITTEXT")) {
     *default_style = 0x50810000;
     *control_class = kEdit;
-  } else if (type == "GROUPBOX") {
+  } else if (IsEqualAsciiUppercase(type, "GROUPBOX")) {
     *default_style = 0x50000007;
     *control_class = kButton;
-  } else if (type == "HEDIT") {
+  } else if (IsEqualAsciiUppercase(type, "HEDIT")) {
     *default_style = 0x50810000;
     *control_class = kButton;
-  } else if (type == "IEDIT") {
+  } else if (IsEqualAsciiUppercase(type, "IEDIT")) {
     *default_style = 0x50810000;
     *control_class = kButton;
-  } else if (type == "ICON") {
+  } else if (IsEqualAsciiUppercase(type, "ICON")) {
     *default_style = 0x50000003;
     *control_class = kStatic;
-  } else if (type == "LISTBOX") {
+  } else if (IsEqualAsciiUppercase(type, "LISTBOX")) {
     *default_style = 0x50800001;
     *control_class = kListBox;
-  } else if (type == "LTEXT") {
+  } else if (IsEqualAsciiUppercase(type, "LTEXT")) {
     *default_style = 0x50020000;
     *control_class = kStatic;
-  } else if (type == "PUSHBOX") {
+  } else if (IsEqualAsciiUppercase(type, "PUSHBOX")) {
     *default_style = 0x5001000a;
     *control_class = kButton;
-  } else if (type == "PUSHBUTTON") {
+  } else if (IsEqualAsciiUppercase(type, "PUSHBUTTON")) {
     *default_style = 0x50010000;
     *control_class = kButton;
-  } else if (type == "RADIOBUTTON") {
+  } else if (IsEqualAsciiUppercase(type, "RADIOBUTTON")) {
     *default_style = 0x50000004;
     *control_class = kButton;
-  } else if (type == "RTEXT") {
+  } else if (IsEqualAsciiUppercase(type, "RTEXT")) {
     *default_style = 0x50020002;
     *control_class = kStatic;
-  } else if (type == "SCROLLBAR") {
+  } else if (IsEqualAsciiUppercase(type, "SCROLLBAR")) {
     *default_style = 0x50000000;
     *control_class = kScrollBar;
-  } else if (type == "STATE3") {
+  } else if (IsEqualAsciiUppercase(type, "STATE3")) {
     *default_style = 0x50010005;
     *control_class = kButton;
   }
@@ -1565,22 +1567,20 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
   if (!Is(Token::kIdentifier, "expected identifier"))
     return false;
   const Token& type = Consume();
-  // FIXME: case-insensitive
-  if (std::unordered_set<std::experimental::string_view>{
+  if (CaseInsensitiveStringSet{{
           "AUTO3STATE", "AUTOCHECKBOX", "COMBOBOX", "CONTROL", "CTEXT",
           "DEFPUSHBUTTON", "EDITTEXT", "GROUPBOX", "HEDIT", "IEDIT", "ICON",
           "LISTBOX", "LTEXT", "PUSHBOX", "PUSHBUTTON", "RADIOBUTTON", "RTEXT",
-          "SCROLLBAR", "STATE3"}
+          "SCROLLBAR", "STATE3"},
+          40, CaseInsensitiveHash, IsEqualAsciiUppercase}
           .count(type.value_) == 0) {
     err_ = "unknown control type " + type.value_.to_string();
     return false;
   }
 
-  // FIXME: case-insensitive
-  bool wants_text =
-      std::unordered_set<std::experimental::string_view>{
-          "COMBOBOX", "EDITTEXT", "HEDIT", "IEDIT", "LISTBOX", "SCROLLBAR"}
-          .count(type.value_) == 0;
+  bool wants_text = CaseInsensitiveStringSet{{
+      "COMBOBOX", "EDITTEXT", "HEDIT", "IEDIT", "LISTBOX", "SCROLLBAR"},
+      12, CaseInsensitiveHash, IsEqualAsciiUppercase}.count(type.value_) == 0;
   if (wants_text) {
     // FIXME: rc.exe also accepts identifiers (bare `adsf`, no quotes).
     if (!Is(Token::kString) && !Is(Token::kInt)) {
@@ -1607,8 +1607,7 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
   }
 
   const Token* control_type = nullptr;
-  // FIXME: case-insensitive
-  if (type.value_ == "CONTROL") {
+  if (IsEqualAsciiUppercase(type.value_, "CONTROL")) {
     // Special: Has id, class, style, so id below will actually be style not id
     // for this type only.
     if (!EvalIntExpression(&control->id))
@@ -1631,8 +1630,7 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
     if (!Match(Token::kComma, "expected comma") || !EvalIntExpression(&rect[i]))
       return false;
 
-  // FIXME: case-insensitive
-  if (type.value_ == "CONTROL")
+  if (IsEqualAsciiUppercase(type.value_, "CONTROL"))
     control->style = id;
   else
     control->id = id;
@@ -1651,8 +1649,7 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
 
   uint16_t control_class = 0;
   uint32_t default_style = 0;
-  // FIXME: case-insensitive
-  if (type.value_ == "CONTROL") {
+  if (IsEqualAsciiUppercase(type.value_, "CONTROL")) {
     default_style = 0x50000000;
     std::experimental::string_view type_val = control_type->value_;
     // The literal includes quotes, strip them.

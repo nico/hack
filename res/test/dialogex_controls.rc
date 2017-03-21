@@ -2,46 +2,46 @@
 BEGIN
   // rc.exe warns on dupe control ids:
   // " warning RC2182 : duplicate dialog control ID 54"
-  AUTO3STATE "a32", 41, 0, 0, 100, 80  // optional [, style [, extended-style]]
-  AUTO3STATE 135, 141, 0, 0, 100, 80  // optional [, style [, extended-style]]
-  AUTOCHECKBOX "ac", 42, 0, 0, 100, 80  // optional [, style [, extended-style]]
-  AUTOCHECKBOX 135, 142, 0, 0, 100, 80  // optional [, style [, extended-style]]
-  COMBOBOX 43, 0, 0, 100, 80  // optional [, style [, extended-style]]
-  CONTROL "c", 44, "STATIC", 0, 1, 2, 100, 80  // optional [, extended-style]
-  CONTROL 135, 144, "STATIC", 0, 1, 2, 100, 80  // optional [, extended-style]
-  CTEXT "ct", 45, 0, 1, 100, 80  // optional [, style [, extended-style]]
-  CTEXT 135, 145, 0, 1, 100, 80  // optional [, style [, extended-style]]
-  DEFPUSHBUTTON "b", 46, 0, 1, 100, 80  // optional [, style [, extended-style]]
-  DEFPUSHBUTTON 135, 146, 0, 1, 100, 80  // optional [, style [, extended-style]]
-  EDITTEXT 47, 0, 1, 100, 80  // optional [, style [, extended-style]]
-  GROUPBOX "gb", 48, 0, 1, 100, 80  // optional [, style [, extended-style]]
-  GROUPBOX 135, 148, 0, 1, 100, 80  // optional [, style [, extended-style]]
-  HEDIT 58, 0, 1, 100, 80
-  IEDIT 59, 0, 1, 100, 80
-  ICON "i", 49, 0, 1, 0, 0 // optional [, style [, extended-style]]
-  ICON 135, 149, 0, 1, 0, 0 // optional [, style [, extended-style]]
-  LISTBOX 50, 0, 1, 100, 80 // optional [, style [, extended-style]]
-  LTEXT "lt", 51, 0, 1, 100, 80 // optional [, style [, extended-style]]
-  LTEXT 135, 151, 0, 1, 100, 80 // optional [, style [, extended-style]]
-  PUSHBOX "pbx", 52, 0, 1, 100, 80 // optional [, style [, extended-style]]
-  PUSHBOX 135, 152, 0, 1, 100, 80 // optional [, style [, extended-style]]
-  PUSHBUTTON "pb", 53, 0, 1, 100, 80 // optional [, style [, extended-style]]
-  PUSHBUTTON 135, 153, 0, 1, 100, 80 // optional [, style [, extended-style]]
-  RADIOBUTTON "rb", 54, 0, 1, 100, 80 // optional [, style [, extended-style]]
-  RADIOBUTTON 135, 154, 0, 1, 100, 80 // optional [, style [, extended-style]]
-  RTEXT "rt", 55, 0, 1, 100, 80 // optional [, style [, extended-style]]
-  RTEXT 135, 155, 0, 1, 100, 80 // optional [, style [, extended-style]]
-  SCROLLBAR 56, 0, 1, 100, 80 // optional [, style [, extended-style]]
-  STATE3 "s3", 57, 0, 1, 100, 80 // optional [, style [, extended-style]]
-  STATE3 135, 157, 0, 1, 100, 80 // optional [, style [, extended-style]]
+  AuTO3STATE "a32", 41, 0, 0, 100, 80  // optional [, style [, extended-style]]
+  aUTO3STATE 135, 141, 0, 0, 100, 80  // optional [, style [, extended-style]]
+  AUtOCHECKBOX "ac", 42, 0, 0, 100, 80  // optional [, style [, extended-style]]
+  AUTOCHECKBOx 135, 142, 0, 0, 100, 80  // optional [, style [, extended-style]]
+  COMbOBOX 43, 0, 0, 100, 80  // optional [, style [, extended-style]]
+  CONTrOL "c", 44, "STATIC", 0, 1, 2, 100, 80  // optional [, extended-style]
+  cONTROL 135, 144, "STATIC", 0, 1, 2, 100, 80  // optional [, extended-style]
+  CTeXT "ct", 45, 0, 1, 100, 80  // optional [, style [, extended-style]]
+  cTEXT 135, 145, 0, 1, 100, 80  // optional [, style [, extended-style]]
+  DEFpUSHBUTTON "b", 46, 0, 1, 100, 80  // optional [, style [, extended-style]]
+  DEFPUShBUTTON 135, 146, 0, 1, 100, 80  // optional [, style [, extended-style]]
+  EDITTEXt 47, 0, 1, 100, 80  // optional [, style [, extended-style]]
+  GROUpBOX "gb", 48, 0, 1, 100, 80  // optional [, style [, extended-style]]
+  gROUPBOX 135, 148, 0, 1, 100, 80  // optional [, style [, extended-style]]
+  HEDIt 58, 0, 1, 100, 80
+  iEDIT 59, 0, 1, 100, 80
+  ICOn "i", 49, 0, 1, 0, 0 // optional [, style [, extended-style]]
+  IcON 135, 149, 0, 1, 0, 0 // optional [, style [, extended-style]]
+  LIsTBOX 50, 0, 1, 100, 80 // optional [, style [, extended-style]]
+  LTExT "lt", 51, 0, 1, 100, 80 // optional [, style [, extended-style]]
+  LTEXt 135, 151, 0, 1, 100, 80 // optional [, style [, extended-style]]
+  PUSHbOX "pbx", 52, 0, 1, 100, 80 // optional [, style [, extended-style]]
+  pUSHBOX 135, 152, 0, 1, 100, 80 // optional [, style [, extended-style]]
+  PUSHBuTTON "pb", 53, 0, 1, 100, 80 // optional [, style [, extended-style]]
+  PuSHBUTTON 135, 153, 0, 1, 100, 80 // optional [, style [, extended-style]]
+  RAdIOBUTTON "rb", 54, 0, 1, 100, 80 // optional [, style [, extended-style]]
+  RADiOBUTTON 135, 154, 0, 1, 100, 80 // optional [, style [, extended-style]]
+  RTEXt "rt", 55, 0, 1, 100, 80 // optional [, style [, extended-style]]
+  rTEXT 135, 155, 0, 1, 100, 80 // optional [, style [, extended-style]]
+  ScROLLBAR 56, 0, 1, 100, 80 // optional [, style [, extended-style]]
+  STaTE3 "s3", 57, 0, 1, 100, 80 // optional [, style [, extended-style]]
+  STAtE3 135, 157, 0, 1, 100, 80 // optional [, style [, extended-style]]
 
-  AUTO3STATE "a32", 60, 0, 0, 100, 80, 50,
-  AUTO3STATE "a32", 610000, 0, 0, 100, 80, 500000, 600000,
-  AUTO3STATE "a32", 62, 0, 0, 100, 80, 50, 60, 700000
+  aUTO3STATE "a32", 60, 0, 0, 100, 80, 50,
+  AuTO3STATE "a32", 610000, 0, 0, 100, 80, 500000, 600000,
+  AUtO3STATE "a32", 62, 0, 0, 100, 80, 50, 60, 700000
 END
 
 // Test padding after control with odd class / name length.
 3 DIALOGEX 1,2,3,4
 BEGIN
-  CONTROL "a", 51, "ab", 0, 1, 2, 100, 80 
+  CONTrOL "a", 51, "ab", 0, 1, 2, 100, 80 
 END
