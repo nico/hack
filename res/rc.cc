@@ -1697,9 +1697,6 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
   if (dialog_kind == DialogResource::kDialogEx && Match(Token::kComma) &&
       Is(Token::kInt))
     control->help_id = Consume().IntValue();
-
-  // FIXME: parse optional trailing style (for not-CONTROL) and optional
-  // trailing extended-style.
   return true;
 }
 
