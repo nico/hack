@@ -1157,12 +1157,27 @@ std::experimental::string_view StringStorage::StringContents(
   std::unique_ptr<std::string> stored(new std::string);
   stored->reserve(s.size());
   for (size_t i = 0; i < s.size(); ++i) {
-    stored->push_back(s[i]);
-    // FIXME: handles \-escapes, etc.
-    if (s[i] == '"') {  // "" -> "
-      assert(s[i + 1] == '"');
-      ++i;
+    char c = s[i];
+    if (c != '\\') {
+      stored->push_back(c);
+      if (c == '"') {  // "" -> "
+        assert(s[i + 1] == '"');
+        ++i;
+      }
+      continue;
     }
+    // Handles \-escapes.
+    c = s[++i];
+    switch (c) {
+      case 'a': c = '\b'; break;  // Yes, \a in .rc files maps to \b.
+      case 'n': c = '\n'; break;
+      case 'r': c = '\r'; break;
+      case 't': c = '\t'; break;
+      case '0': c = '\0'; break;
+      case '\\': c = '\\'; break;
+      default: stored->push_back('\\');
+    }
+    stored->push_back(c);
   }
   storage_.push_back(std::move(stored));
   return *storage_.back();
