@@ -51,6 +51,7 @@ extern char *gets (char *__s) __attribute__ ((__deprecated__));
 #include <algorithm>
 #include <codecvt>
 #include <iostream>
+#include <list>
 #include <locale>
 #include <limits.h>
 #include <map>
