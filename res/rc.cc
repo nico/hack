@@ -1487,12 +1487,13 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
       new MenuResource::SubmenuEntryData);
   while (!at_end() && cur_token().type() != Token::kEndBlock) {
     if (!Is(Token::kIdentifier) ||
-        (cur_token().value_ != "MENUITEM" && cur_token().value_ != "POPUP")) {
+        (!IsEqualAsciiUppercase(cur_token().value_, "MENUITEM") &&
+         !IsEqualAsciiUppercase(cur_token().value_, "POPUP"))) {
       err_ = "expected MENUITEM or POPUP, got " +
              cur_or_last_token().value_.to_string();
       return std::unique_ptr<MenuResource::SubmenuEntryData>();
     }
-    bool is_item = cur_token().value_ == "MENUITEM";
+    bool is_item = IsEqualAsciiUppercase(cur_token().value_ , "MENUITEM");
     Consume();  // Eat MENUITEM or POPUP.
     if (!Is(Token::kString, "expected string"))
       return std::unique_ptr<MenuResource::SubmenuEntryData>();

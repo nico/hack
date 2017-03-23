@@ -9,7 +9,7 @@ stringtable {
 1 rcdata { """" }
 
 1 menu {
-  MENUITEM """", 4
+  menuitem """", 4
 }
 
 1 dialog 1, 2, 3, 4
