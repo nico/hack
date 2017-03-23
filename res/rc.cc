@@ -105,6 +105,11 @@ class string_view {
   bool empty() const { return size_ == 0; }
   const char* begin() const { return data(); }
   const char* end() const { return begin() + size(); }
+  size_t find(char c) {
+    const char* found = (const char*)memchr(str_, c, size_);
+    return found ? found - str_ : -1;
+  }
+  static constexpr size_t npos = -1;
 };
 template<class T>
 class optional {
@@ -1124,6 +1129,45 @@ bool ToUTF16(C16string* utf16, std::experimental::string_view in,
   return true;
 }
 
+// String literals can contain escape characters ("foo\tbar"). Most strings
+// don't contain these, and in that case a string_view not including the
+// start and end quotes can represent the string contents efficiently.
+// If there _are_ escape characters, the string_view needs to refer to memory
+// containing an actual <tab> character instead of '\' 't'.  This class
+// stores those interpreted strings.
+class StringStorage {
+ public:
+  std::experimental::string_view StringContents(
+      std::experimental::string_view s);
+ private:
+  // FIXME: Just std::vector<std::string> might be fine too, but at least
+  // with MSVC, vector seems to copy instead of moving strings when it grows,
+  // which is bad since the string_views vended by this class refer to fixed
+  // memory locations.
+  std::vector<std::unique_ptr<std::string>> storage_;
+};
+
+std::experimental::string_view StringStorage::StringContents(
+      std::experimental::string_view s) {
+  // The literal includes quotes, strip them.
+  // FIXME: L"asf"
+  s = s.substr(1, s.size() - 2);
+  if (s.find('"') == s.npos && s.find('\\') == s.npos)
+    return s;
+  std::unique_ptr<std::string> stored(new std::string);
+  stored->reserve(s.size());
+  for (size_t i = 0; i < s.size(); ++i) {
+    stored->push_back(s[i]);
+    // FIXME: handles \-escapes, etc.
+    if (s[i] == '"') {  // "" -> "
+      assert(s[i + 1] == '"');
+      ++i;
+    }
+  }
+  storage_.push_back(std::move(stored));
+  return *storage_.back();
+}
+
 //////////////////////////////////////////////////////////////////////////////
 // Parser
 
@@ -1131,10 +1175,12 @@ class Parser {
  public:
   static std::unique_ptr<FileBlock> Parse(std::vector<Token> tokens,
                                           InternalEncoding encoding,
+                                          StringStorage* string_storage,
                                           std::string* err);
 
  private:
-  Parser(std::vector<Token> tokens, InternalEncoding encoding);
+  Parser(std::vector<Token> tokens, InternalEncoding encoding,
+         StringStorage* string_storage);
 
   // Parses an expression matching
   //    expr ::= unary_expr {binary_op unary_expr}
@@ -1197,19 +1243,23 @@ class Parser {
   std::vector<Token> tokens_;
   std::string err_;
   InternalEncoding encoding_;
+  StringStorage* string_storage_;
   size_t cur_;
 };
 
 // static
 std::unique_ptr<FileBlock> Parser::Parse(std::vector<Token> tokens,
                                          InternalEncoding encoding,
+                                         StringStorage* string_storage,
                                          std::string* err) {
-  Parser p(std::move(tokens), encoding);
+  Parser p(std::move(tokens), encoding, string_storage);
   return p.ParseFile(err);
 }
 
-Parser::Parser(std::vector<Token> tokens, InternalEncoding encoding)
-    : tokens_(std::move(tokens)), encoding_(encoding), cur_(0) {}
+Parser::Parser(std::vector<Token> tokens, InternalEncoding encoding,
+               StringStorage* string_storage)
+    : tokens_(std::move(tokens)), encoding_(encoding),
+      string_storage_(string_storage), cur_(0) {}
 
 bool Parser::Is(Token::Type type, const char* error_message) {
   if (at_end())
@@ -1283,10 +1333,7 @@ bool Parser::EvalIntExpressionPrimary(uint32_t* out, bool* is_32) {
 
 std::experimental::string_view Parser::StringContents(const Token& tok) {
   assert(tok.type() == Token::kString);
-  std::experimental::string_view value = tok.value_;
-  // The literal includes quotes, strip them.
-  // FIXME: handles \-escapes, "quoting""rules", L"asdf", etc.
-  return value.substr(1, value.size() - 2);
+  return string_storage_->StringContents(tok.value_);
 }
 
 static bool EndsVersioninfoData(const Token& t) {
@@ -3292,8 +3339,9 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "%s\n", err.c_str());
     return 1;
   }
+  StringStorage string_storage;
   std::unique_ptr<FileBlock> file =
-      Parser::Parse(std::move(tokens), encoding, &err);
+      Parser::Parse(std::move(tokens), encoding, &string_storage, &err);
   if (!file) {
     fprintf(stderr, "%s\n", err.c_str());
     return 1;

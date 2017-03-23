@@ -1,0 +1,22 @@
+stringtable {
+  1, """"
+}
+
+1 versioninfo {
+  value """", """"
+}
+
+1 rcdata { """" }
+
+1 menu {
+  MENUITEM """", 4
+}
+
+1 dialog 1, 2, 3, 4
+caption """"
+class """"
+font 12, """"
+{
+  ltext """", 51, 0, 1, 100, 80
+  control """", 52, """", 0, 1, 2, 100, 80
+}
