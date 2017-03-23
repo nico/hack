@@ -1749,8 +1749,8 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
   // Parse attributes of dialog itself.
   uint16_t rect[4];
   for (int i = 0; i < 4; ++i) {
-    if (i > 0 && !Match(Token::kComma, "expected comma"))
-      return std::unique_ptr<DialogResource>();
+    if (i > 0)
+      Match(Token::kComma);  // Eat optional commas.
     if (!Is(Token::kInt, "expected int"))
       return std::unique_ptr<DialogResource>();
     rect[i] = Consume().IntValue();

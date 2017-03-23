@@ -12,7 +12,7 @@ stringtable {
   menuitem """", 4
 }
 
-1 dialog 1, 2, 3, 4
+1 dialog 1 2 3 4
 caption """"
 class """"
 font 12, """"
