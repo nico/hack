@@ -330,6 +330,7 @@ class Tokenizer {
   static bool IsDigitContinuingChar(char c);
   static bool IsIdentifierFirstChar(char c);
   static bool IsIdentifierContinuingChar(char c);
+  static bool IsWhitespace(char c);
 
  private:
   Tokenizer(std::experimental::string_view input) : input_(input), cur_(0) {}
@@ -337,7 +338,6 @@ class Tokenizer {
 
   void Advance() { ++cur_; }  // Must only be called if not at_end().
   void AdvanceToNextToken();
-  bool IsCurrentWhitespace() const;  // Must only be called if not at_end().
   Token::Type ClassifyCurrent() const;
   void AdvanceToEndOfToken(Token::Type type);
 
@@ -430,6 +430,12 @@ bool Tokenizer::IsIdentifierContinuingChar(char c) {
   return IsIdentifierFirstChar(c) || IsDigit(c) || c == '.';
 }
 
+// static
+bool Tokenizer::IsWhitespace(char c) {
+  // Note that tab (0x09), vertical tab (0x0B), and formfeed (0x0C) are illegal.
+  return c == '\t' || c == '\n' || c == '\r' || c == ' ';
+}
+
 bool Tokenizer::FindStringTerminator(char quote_char) {
   if (cur_char() != quote_char)
     return false;
@@ -452,7 +458,7 @@ bool Tokenizer::IsCurrentNewline() const {
 }
 
 void Tokenizer::AdvanceToNextToken() {
-  while (!at_end() && IsCurrentWhitespace())
+  while (!at_end() && IsWhitespace(cur_char()))
     Advance();
 }
 
@@ -569,12 +575,6 @@ void Tokenizer::AdvanceToEndOfToken(Token::Type type) {
       err_ = "Everything is all messed up";
       return;
   }
-}
-
-bool Tokenizer::IsCurrentWhitespace() const {
-  char c = input_[cur_];
-  // Note that tab (0x09), vertical tab (0x0B), and formfeed (0x0C) are illegal.
-  return c == '\t' || c == '\n' || c == '\r' || c == ' ';
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1848,6 +1848,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
       const Token& menu_tok = Consume();
       if (menu_tok.type() == Token::kString) {
         // Do NOT strip the quotes here, rc.exe includes them too.
+        // FIXME: "", \a, L"" handling?
         C16string menu_utf16;
         if (!ToUTF16(&menu_utf16, menu_tok.value_, encoding_, &err_))
           return std::unique_ptr<DialogResource>();
@@ -2130,6 +2131,7 @@ std::unique_ptr<Resource> Parser::ParseResource() {
     return std::unique_ptr<Resource>();
   }
   C16string id_utf16;
+  // FIXME: "", \a, L"" handling?
   if (id.type() != Token::kInt &&
       !ToUTF16(&id_utf16, id.value_, encoding_, &err_))  // Do NOT strip quotes
     return std::unique_ptr<Resource>();
@@ -2253,6 +2255,7 @@ std::unique_ptr<Resource> Parser::ParseResource() {
         type.type_ == Token::kString) {
       C16string type_utf16;
       // Do NOT strip quotes.
+      // FIXME: "", \a, L"" handling?
       if (type.type() != Token::kInt &&
           !ToUTF16(&type_utf16, type.value_, encoding_, &err_))
         return std::unique_ptr<Resource>();
@@ -2283,6 +2286,7 @@ std::unique_ptr<Resource> Parser::ParseResource() {
       data.type_ == Token::kString) {
     C16string type_utf16;
     // Do NOT strip quotes.
+    // FIXME: "", \a, L"" handling?
     if (type.type() != Token::kInt &&
         !ToUTF16(&type_utf16, type.value_, encoding_, &err_))
       return std::unique_ptr<Resource>();
