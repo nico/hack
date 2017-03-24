@@ -2,6 +2,8 @@
 BEGIN
     POpUP "&File"
     BEGIN
+        // FIXME: rc accepts this: (!!)
+        //POP/* asdf */UP "&Sub"
         POPUP "&Sub"
         BEGIN
             meNUITEM "&Asdf",  500

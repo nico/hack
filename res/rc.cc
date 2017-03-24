@@ -412,7 +412,8 @@ bool Tokenizer::IsDigit(char c) {
 
 // static
 bool Tokenizer::IsDigitContinuingChar(char c) {
-  // FIXME: it feels like rc.exe just allows everything non-whitespace here...
+  // FIXME: it feels like rc.exe just allows most non-whitespace things here
+  // (but not + - ~).
   return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
          (c >= 'A' && c <= 'F') || c == 'l' || c == 'L' || c == 'x' ||
          c == 'X' || c == 'o' || c == 'O';
@@ -425,9 +426,8 @@ bool Tokenizer::IsIdentifierFirstChar(char c) {
 
 // static
 bool Tokenizer::IsIdentifierContinuingChar(char c) {
-  // Also allow digits after the first char.
-  // FIXME: it feels like rc.exe allows much more here
-  return IsIdentifierFirstChar(c) || IsDigit(c) || c == '.';
+  // FIXME: for '/', need to strip comments from middle of identifier
+  return !IsWhitespace(c) && c != ',';
 }
 
 // static
