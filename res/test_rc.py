@@ -28,6 +28,7 @@ tests = [
 'stringnames',
 'eval',
 'literals_int',
+'literals_string',
 'unicode_simple_utf16le_bom', 'unicode_simple_utf16le_nobom',
 'unicode_utf16le_bom_custom',
 'unicode_utf16le_bom_dialog',

@@ -1,10 +1,10 @@
 42 MEnu
 BEGIN
-    POPUP "&File"
+    POpUP "&File"
     BEGIN
         POPUP "&Sub"
         BEGIN
-            MENUITEM "&Asdf",  500
+            meNUITEM "&Asdf",  500
             MENUITEM "&Fkjl",  501
         END
         MENUITEM "E&xit",      502

@@ -5,15 +5,15 @@
 1 DIALOGEX 1,2,3,4, 33  // Now with helpID
 BEGIN END
 
-2 dIaLoGEx 1,2,3,4
+2 dIaLoGEx 1 2 3,4
 CAPTION "Hi"
 BEGIN END
 
-31 DIALOGEX 1,2,3,4
+31 DIALOGEX 1,2,3 4
 CLASS "Hi"
 BEGIN END
 
-32 DIALOGEX 1,2,3,4
+32 DIALOGEX 1 2 3 4
 CLASS 42  // uint16_t; can have math here
 BEGIN END
 

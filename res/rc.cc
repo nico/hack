@@ -49,8 +49,10 @@ extern char *gets (char *__s) __attribute__ ((__deprecated__));
 #endif
 
 #include <algorithm>
+#include <assert.h>
 #include <codecvt>
 #include <iostream>
+#include <list>
 #include <locale>
 #include <limits.h>
 #include <map>
@@ -103,6 +105,11 @@ class string_view {
   bool empty() const { return size_ == 0; }
   const char* begin() const { return data(); }
   const char* end() const { return begin() + size(); }
+  size_t find(char c) {
+    const char* found = (const char*)memchr(str_, c, size_);
+    return found ? found - str_ : -1;
+  }
+  static constexpr size_t npos = -1;
 };
 template<class T>
 class optional {
@@ -1122,6 +1129,60 @@ bool ToUTF16(C16string* utf16, std::experimental::string_view in,
   return true;
 }
 
+// String literals can contain escape characters ("foo\tbar"). Most strings
+// don't contain these, and in that case a string_view not including the
+// start and end quotes can represent the string contents efficiently.
+// If there _are_ escape characters, the string_view needs to refer to memory
+// containing an actual <tab> character instead of '\' 't'.  This class
+// stores those interpreted strings.
+class StringStorage {
+ public:
+  std::experimental::string_view StringContents(
+      std::experimental::string_view s);
+ private:
+  // FIXME: Just std::vector<std::string> might be fine too, but at least
+  // with MSVC, vector seems to copy instead of moving strings when it grows,
+  // which is bad since the string_views vended by this class refer to fixed
+  // memory locations.
+  std::vector<std::unique_ptr<std::string>> storage_;
+};
+
+std::experimental::string_view StringStorage::StringContents(
+      std::experimental::string_view s) {
+  // The literal includes quotes, strip them.
+  // FIXME: L"asf"
+  s = s.substr(1, s.size() - 2);
+  if (s.find('"') == s.npos && s.find('\\') == s.npos)
+    return s;
+  std::unique_ptr<std::string> stored(new std::string);
+  stored->reserve(s.size());
+  for (size_t i = 0; i < s.size(); ++i) {
+    char c = s[i];
+    if (c != '\\') {
+      stored->push_back(c);
+      if (c == '"') {  // "" -> "
+        assert(s[i + 1] == '"');
+        ++i;
+      }
+      continue;
+    }
+    // Handles \-escapes.
+    c = s[++i];
+    switch (c) {
+      case 'a': c = '\b'; break;  // Yes, \a in .rc files maps to \b.
+      case 'n': c = '\n'; break;
+      case 'r': c = '\r'; break;
+      case 't': c = '\t'; break;
+      case '0': c = '\0'; break;
+      case '\\': c = '\\'; break;
+      default: stored->push_back('\\');
+    }
+    stored->push_back(c);
+  }
+  storage_.push_back(std::move(stored));
+  return *storage_.back();
+}
+
 //////////////////////////////////////////////////////////////////////////////
 // Parser
 
@@ -1129,10 +1190,12 @@ class Parser {
  public:
   static std::unique_ptr<FileBlock> Parse(std::vector<Token> tokens,
                                           InternalEncoding encoding,
+                                          StringStorage* string_storage,
                                           std::string* err);
 
  private:
-  Parser(std::vector<Token> tokens, InternalEncoding encoding);
+  Parser(std::vector<Token> tokens, InternalEncoding encoding,
+         StringStorage* string_storage);
 
   // Parses an expression matching
   //    expr ::= unary_expr {binary_op unary_expr}
@@ -1148,6 +1211,10 @@ class Parser {
   bool EvalIntExpression(uint32_t* out, bool* is_32 = nullptr);
   bool EvalIntExpressionUnary(uint32_t* out, bool* is_32);
   bool EvalIntExpressionPrimary(uint32_t* out, bool* is_32);
+
+  // Takes a kString token and returns a string_view for the interpreted
+  // contents of the string ("a" -> a, "a""b" -> a"b, "\n" -> ASCII 0xA, etc).
+  std::experimental::string_view StringContents(const Token& tok);
 
   bool ParseVersioninfoData(std::vector<uint8_t>* data,
                             uint16_t* value_size,
@@ -1191,19 +1258,23 @@ class Parser {
   std::vector<Token> tokens_;
   std::string err_;
   InternalEncoding encoding_;
+  StringStorage* string_storage_;
   size_t cur_;
 };
 
 // static
 std::unique_ptr<FileBlock> Parser::Parse(std::vector<Token> tokens,
                                          InternalEncoding encoding,
+                                         StringStorage* string_storage,
                                          std::string* err) {
-  Parser p(std::move(tokens), encoding);
+  Parser p(std::move(tokens), encoding, string_storage);
   return p.ParseFile(err);
 }
 
-Parser::Parser(std::vector<Token> tokens, InternalEncoding encoding)
-    : tokens_(std::move(tokens)), encoding_(encoding), cur_(0) {}
+Parser::Parser(std::vector<Token> tokens, InternalEncoding encoding,
+               StringStorage* string_storage)
+    : tokens_(std::move(tokens)), encoding_(encoding),
+      string_storage_(string_storage), cur_(0) {}
 
 bool Parser::Is(Token::Type type, const char* error_message) {
   if (at_end())
@@ -1275,6 +1346,11 @@ bool Parser::EvalIntExpressionPrimary(uint32_t* out, bool* is_32) {
   return true;
 }
 
+std::experimental::string_view Parser::StringContents(const Token& tok) {
+  assert(tok.type() == Token::kString);
+  return string_storage_->StringContents(tok.value_);
+}
+
 static bool EndsVersioninfoData(const Token& t) {
   return t.type() == Token::kEndBlock ||
          (t.type() == Token::kIdentifier &&
@@ -1300,12 +1376,7 @@ bool Parser::ParseVersioninfoData(std::vector<uint8_t>* data,
     }
     bool is_text_token = Is(Token::kString);
     if (is_text_token) {
-      const Token& value = Consume();
-      std::experimental::string_view value_val = value.value_;
-      // The literal includes quotes, strip them.
-      // FIXME: give Token a StringValue() function that handles \-escapes,
-      // "quoting""rules", L"asdf", etc.
-      value_val = value_val.substr(1, value_val.size() - 2);
+      std::experimental::string_view value_val = StringContents(Consume());
 
       if (is_prev_string) {
         // Overwrite \0 from immediately preceding string.
@@ -1359,12 +1430,7 @@ bool Parser::ParseRawData(std::vector<uint8_t>* data) {
     }
     bool is_text_token = Is(Token::kString);
     if (is_text_token) {
-      const Token& value = Consume();
-      std::experimental::string_view value_val = value.value_;
-      // The literal includes quotes, strip them.
-      // FIXME: give Token a StringValue() function that handles \-escapes,
-      // "quoting""rules", L"asdf", etc.
-      value_val = value_val.substr(1, value_val.size() - 2);
+      std::experimental::string_view value_val = StringContents(Consume());
 
       // FIXME: 1-byte strings for "asdf", 2-byte for L"asdf".
       for (int j = 0; j < value_val.size(); ++j) {
@@ -1436,23 +1502,19 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
       new MenuResource::SubmenuEntryData);
   while (!at_end() && cur_token().type() != Token::kEndBlock) {
     if (!Is(Token::kIdentifier) ||
-        (cur_token().value_ != "MENUITEM" && cur_token().value_ != "POPUP")) {
+        (!IsEqualAsciiUppercase(cur_token().value_, "MENUITEM") &&
+         !IsEqualAsciiUppercase(cur_token().value_, "POPUP"))) {
       err_ = "expected MENUITEM or POPUP, got " +
              cur_or_last_token().value_.to_string();
       return std::unique_ptr<MenuResource::SubmenuEntryData>();
     }
-    bool is_item = cur_token().value_ == "MENUITEM";
+    bool is_item = IsEqualAsciiUppercase(cur_token().value_ , "MENUITEM");
     Consume();  // Eat MENUITEM or POPUP.
     if (!Is(Token::kString, "expected string"))
       return std::unique_ptr<MenuResource::SubmenuEntryData>();
-    const Token& name = Consume();
-    std::experimental::string_view name_val = name.value_;
-    // The literal includes quotes, strip them.
-    // FIXME: give Token a StringValue() function that handles \-escapes,
-    // "quoting""rules", L"asdf", etc.
-    name_val = name_val.substr(1, name_val.size() - 2);
-    std::unique_ptr<MenuResource::EntryData> entry_data;
+    std::experimental::string_view name_val = StringContents(Consume());
 
+    std::unique_ptr<MenuResource::EntryData> entry_data;
     uint16_t style = 0;
     if (is_item) {
       if (!Match(Token::kComma, "expected comma"))
@@ -1473,6 +1535,7 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
         return std::unique_ptr<MenuResource::SubmenuEntryData>();
       entry_data = std::move(subentries);
     }
+
     entries->subentries.push_back(std::unique_ptr<MenuResource::Entry>(
         new MenuResource::Entry(style, name_val, std::move(entry_data))));
   }
@@ -1589,13 +1652,9 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
       return false;
     }
     const Token& text = Consume();
-    std::experimental::string_view text_val = text.value_;
     C16string text_val_utf16;
     if (text.type() == Token::kString) {
-      // The literal includes quotes, strip them.
-      // FIXME: give Token a StringValue() function that handles \-escapes,
-      // "quoting""rules", L"asdf", etc.
-      text_val = text_val.substr(1, text_val.size() - 2);
+      std::experimental::string_view text_val = StringContents(text);
       if (!ToUTF16(&text_val_utf16, text_val, encoding_, &err_))
         return false;
     }
@@ -1651,11 +1710,7 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
   uint32_t default_style = 0;
   if (IsEqualAsciiUppercase(type.value_, "CONTROL")) {
     default_style = 0x50000000;
-    std::experimental::string_view type_val = control_type->value_;
-    // The literal includes quotes, strip them.
-    // FIXME: give Token a StringValue() function that handles \-escapes,
-    // "quoting""rules", L"asdf", etc.
-    type_val = type_val.substr(1, type_val.size() - 2);
+    std::experimental::string_view type_val = StringContents(*control_type);
     if (IsEqualAsciiUppercase(type_val, "BUTTON"))
       control->clazz = IntOrStringName::MakeInt(kButton);
     else if (IsEqualAsciiUppercase(type_val, "EDIT"))
@@ -1706,8 +1761,8 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
   // Parse attributes of dialog itself.
   uint16_t rect[4];
   for (int i = 0; i < 4; ++i) {
-    if (i > 0 && !Match(Token::kComma, "expected comma"))
-      return std::unique_ptr<DialogResource>();
+    if (i > 0)
+      Match(Token::kComma);  // Eat optional commas.
     if (!Is(Token::kInt, "expected int"))
       return std::unique_ptr<DialogResource>();
     rect[i] = Consume().IntValue();
@@ -1734,12 +1789,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
     if (IsEqualAsciiUppercase(tok.value_, "CAPTION")) {
       if (!Is(Token::kString, "expected string"))
         return std::unique_ptr<DialogResource>();
-      const Token& caption = Consume();
-      caption_val = caption.value_;
-      // The literal includes quotes, strip them.
-      // FIXME: give Token a StringValue() function that handles \-escapes,
-      // "quoting""rules", L"asdf", etc.
-      caption_val = caption_val.substr(1, caption_val.size() - 2);
+      caption_val = StringContents(Consume());
     }
     else if (IsEqualAsciiUppercase(tok.value_, "CLASS")) {
       if (!Is(Token::kString) && !Is(Token::kInt)) {
@@ -1749,11 +1799,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
       }
       const Token& clazz_tok = Consume();
       if (clazz_tok.type() == Token::kString) {
-        std::experimental::string_view clazz_val = clazz_tok.value_;
-        // The literal includes quotes, strip them.
-        // FIXME: give Token a StringValue() function that handles \-escapes,
-        // "quoting""rules", L"asdf", etc.
-        clazz_val = clazz_val.substr(1, clazz_val.size() - 2);
+        std::experimental::string_view clazz_val = StringContents(clazz_tok);
         C16string clazz_val_utf16;
         if (!ToUTF16(&clazz_val_utf16, clazz_val, encoding_, &err_))
           return std::unique_ptr<DialogResource>();
@@ -1776,13 +1822,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
         return std::unique_ptr<DialogResource>();
       if (!Is(Token::kString, "expected string"))
         return std::unique_ptr<DialogResource>();
-      const Token& fontname = Consume();
-      std::experimental::string_view fontname_val = fontname.value_;
-      // The literal includes quotes, strip them.
-      // FIXME: give Token a StringValue() function that handles \-escapes,
-      // "quoting""rules", L"asdf", etc.
-      fontname_val = fontname_val.substr(1, fontname_val.size() - 2);
-      info.name = fontname_val;
+      info.name = StringContents(Consume());
 
       // DIALOGEX can have optional font weight, italic, encoding flags.
       if (dialog_kind == DialogResource::kDialogEx) {
@@ -1859,11 +1899,7 @@ std::unique_ptr<StringtableResource> Parser::ParseStringtable() {
 
     if (!Is(Token::kString, "expected string"))
       return std::unique_ptr<StringtableResource>();
-    std::experimental::string_view str_val = Consume().value_;
-    // The literal includes quotes, strip them.
-    // FIXME: give Token a StringValue() function that handles \-escapes,
-    // "quoting""rules", L"asdf", etc.
-    str_val = str_val.substr(1, str_val.size() - 2);
+    std::experimental::string_view str_val = StringContents(Consume());
     entries.push_back(StringtableResource::Entry{key_num, str_val});
   }
   if (!Match(Token::kEndBlock, "expected END or }"))
@@ -1984,14 +2020,9 @@ Parser::ParseVersioninfoBlock() {
     Consume();
     if (!Is(Token::kString, "expected string"))
       return std::unique_ptr<VersioninfoResource::BlockData>();
-    const Token& name = Consume();
-    std::experimental::string_view name_val = name.value_;
-    // The literal includes quotes, strip them.
-    // FIXME: give Token a StringValue() function that handles \-escapes,
-    // "quoting""rules", L"asdf", etc.
-    name_val = name_val.substr(1, name_val.size() - 2);
-    std::unique_ptr<VersioninfoResource::InfoData> info_data;
+    std::experimental::string_view name_val = StringContents(Consume());
 
+    std::unique_ptr<VersioninfoResource::InfoData> info_data;
     if (is_value) {
       std::vector<uint8_t> val;
       uint16_t value_size = 0;
@@ -2007,6 +2038,7 @@ Parser::ParseVersioninfoBlock() {
         return std::unique_ptr<VersioninfoResource::BlockData>();
       info_data = std::move(block);
     }
+
     block->values.push_back(std::unique_ptr<VersioninfoResource::Entry>(
         new VersioninfoResource::Entry(name_val, std::move(info_data))));
   }
@@ -3320,8 +3352,9 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "%s\n", err.c_str());
     return 1;
   }
+  StringStorage string_storage;
   std::unique_ptr<FileBlock> file =
-      Parser::Parse(std::move(tokens), encoding, &err);
+      Parser::Parse(std::move(tokens), encoding, &string_storage, &err);
   if (!file) {
     fprintf(stderr, "%s\n", err.c_str());
     return 1;
