@@ -1,23 +1,37 @@
-// FIXME: \x, \0, \ooo, \xFF, "\"
+// FIXME: \x, \0, \ooo, \xFF, "\", "\""", escaping in L"" strings
 stringtable {
   1, """\a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\y\z\\"
+  2, L"asdf"
 }
 
 1 versioninfo {
   value """\a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\y\z\\", """\a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\y\z\\"
+  value L"asdf", l"jklm"
 }
 
 1 rcdata { """\a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\y\z\\" }
 
 1 menu {
   menuitem """\a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\y\z\\", 4
+  menuitem l"adsf", 5
 }
 
 1 dialog 1 2 3 4
 caption """\a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\y\z\\"
 class """\a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\y\z\\"
 font 12, """\a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\y\z\\"
+menu """\a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\y\z\\"
 {
   ltext """\a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\y\z\\", 51, 0, 1, 100, 80
   control """\a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\y\z\\", 52, """\a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\y\z\\", 0, 1, 2, 100, 80
+}
+
+2 dialog 1 2 3 4
+caption L"asdf"
+class L"asdf"
+font 12, L"asdf"
+menu l"asdf"
+{
+  ltext L"asdf", 51, 0, 1, 100, 80
+  control L"asdf", 52, L"jklm", 0, 1, 2, 100, 80
 }
