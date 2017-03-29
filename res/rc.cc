@@ -460,7 +460,8 @@ Token::Type Tokenizer::ClassifyCurrent() const {
   char next_char = cur_char();
   if (IsDigit(next_char))
     return Token::kInt;
-  if (next_char == '"')
+  if (next_char == '"' ||
+      (next_char == 'L' && cur_ + 1 < input_.size() && input_[cur_ + 1] == '"'))
     return Token::kString;
 
   if (IsIdentifierFirstChar(next_char))
@@ -511,6 +512,10 @@ void Tokenizer::AdvanceToEndOfToken(Token::Type type) {
 
     case Token::kString: {
       char initial = cur_char();
+      if (initial == 'L') {
+        Advance();
+        initial = cur_char();
+      }
       Advance();  // Advance past initial "
       for (;;) {
         if (at_end()) {
@@ -1150,8 +1155,8 @@ class StringStorage {
 std::experimental::string_view StringStorage::StringContents(
       std::experimental::string_view s) {
   // The literal includes quotes, strip them.
-  // FIXME: L"asf"
-  s = s.substr(1, s.size() - 2);
+  size_t start_skip_count = s[0] == 'L' ? 2 : 1;
+  s = s.substr(start_skip_count, s.size() - (start_skip_count + 1));
   if (s.find('"') == s.npos && s.find('\\') == s.npos)
     return s;
   std::unique_ptr<std::string> stored(new std::string);
