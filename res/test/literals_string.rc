@@ -10,6 +10,11 @@ stringtable {
   8, "c\x61"
   9, "c\x610"
   10, "c\x6101"
+  11, "c\xg1"
+  12, "c\x0"
+  13, "c\x01"
+  14, "c\x00"
+  15, "c\x000"
 }
 
 1 versioninfo {

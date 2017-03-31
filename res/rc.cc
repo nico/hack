@@ -173,14 +173,20 @@ using CaseInsensitiveStringSet = std::unordered_set<
     size_t(*)(std::experimental::string_view),
     bool(*)(std::experimental::string_view, std::experimental::string_view)>;
 
-int hexchar(int c) {
-  if (c >= '0' && c <= '9')
-    return c - '0';
-  if (c >= 'a' && c <= 'f')
-    return c - 'a' + 10;
-  if (c >= 'A' && c <= 'F')
-    return c - 'A' + 10;
-  return c;
+bool hexchar(int c, int* nibble) {
+  if (c >= '0' && c <= '9') {
+    *nibble = c - '0';
+    return true;
+  }
+  if (c >= 'a' && c <= 'f') {
+    *nibble = c - 'a' + 10;
+    return true;
+  }
+  if (c >= 'A' && c <= 'F') {
+    *nibble = c - 'A' + 10;
+    return true;
+  }
+  return false;
 }
 
 typedef uint8_t UTF8;
@@ -1190,12 +1196,17 @@ std::experimental::string_view StringStorage::StringContents(
     c = s[++i];
     if (c == 'x') {
       c = 0;
-      if (i + 1 < s.size())
-        c = hexchar(s[++i]);
-      if (i + 1 < s.size())
-        c = (c << 4) | hexchar(s[++i]);
+      int nibble;
+      if (i + 1 < s.size() && hexchar(s[i + 1], &nibble)) {
+        c = nibble;
+        ++i;
+      }
+      if (i + 1 < s.size() && hexchar(s[i + 1], &nibble)) {
+        c = (c << 4) | nibble;
+        ++i;
+      }
       // FIXME: In L"" strings, \x takes four nibbles instead of two.
-      if (c)
+      if (i + 1 < s.size() || c)  // \0 is only added if not at end of string.
         stored->push_back(c);
       continue;
     }
