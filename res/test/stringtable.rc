@@ -2,6 +2,7 @@ STRINGTABLE
 BEGIN
 1 "no commas"
   2, "one comma"
+  4, ""
 14, "two entries" 50 "one line"
 END
 
