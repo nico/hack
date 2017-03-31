@@ -1210,6 +1210,18 @@ std::experimental::string_view StringStorage::StringContents(
         stored->push_back(c);
       continue;
     }
+    if (c >= '0' && c <= '7') {
+      c = c - '0';
+      for (int j = 0;
+           j < 2 && i + 1 < s.size() && s[i + 1] >= '0' && s[i + 1] <= '7';
+           ++j, ++i) {
+          c = (c << 3) | (s[i + 1] - '0');
+      }
+      // FIXME: L"" strings?
+      if (i + 1 < s.size() || c)  // \0 is only added if not at end of string.
+        stored->push_back(c);
+      continue;
+    }
     switch (c) {
       case 'a': c = '\b'; break;  // Yes, \a in .rc files maps to \b.
       case 'n': c = '\n'; break;

@@ -1,4 +1,6 @@
-// FIXME: \x, \0, \ooo, \xFF, escaping in L"" strings (including \")
+// FIXME: escaping in L"" strings (including \", \0, \ooo\, \xABCD)
+// FIXME: exhaustive tests for nul bytes in string literals in all possible
+//        places -- rc cuts off strings in some places, embeds them in others.
 stringtable {
   1, """\a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\y\z\\"
   2, L"asdf"
@@ -15,6 +17,12 @@ stringtable {
   13, "c\x01"
   14, "c\x00"
   15, "c\x000"
+  16, "c\0"
+  17, "c\00"
+  18, "c\000"
+  19, "c\0000"
+  20, "c\8"
+  21, "\0c"
 }
 
 1 versioninfo {
