@@ -4,6 +4,12 @@ stringtable {
   2, L"asdf"
   3, "\"
   4, "\"""
+  5, "\x"
+  6, "c\x"
+  7, "c\x6"
+  8, "c\x61"
+  9, "c\x610"
+  10, "c\x6101"
 }
 
 1 versioninfo {

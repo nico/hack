@@ -173,6 +173,16 @@ using CaseInsensitiveStringSet = std::unordered_set<
     size_t(*)(std::experimental::string_view),
     bool(*)(std::experimental::string_view, std::experimental::string_view)>;
 
+int hexchar(int c) {
+  if (c >= '0' && c <= '9')
+    return c - '0';
+  if (c >= 'a' && c <= 'f')
+    return c - 'a' + 10;
+  if (c >= 'A' && c <= 'F')
+    return c - 'A' + 10;
+  return c;
+}
+
 typedef uint8_t UTF8;
 #if !defined(_MSC_VER)
 bool isLegalUTF8String(const UTF8 *source, const UTF8 *sourceEnd) {
@@ -1178,6 +1188,17 @@ std::experimental::string_view StringStorage::StringContents(
     }
     // Handles \-escapes.
     c = s[++i];
+    if (c == 'x') {
+      c = 0;
+      if (i + 1 < s.size())
+        c = hexchar(s[++i]);
+      if (i + 1 < s.size())
+        c = (c << 4) | hexchar(s[++i]);
+      // FIXME: In L"" strings, \x takes four nibbles instead of two.
+      if (c)
+        stored->push_back(c);
+      continue;
+    }
     switch (c) {
       case 'a': c = '\b'; break;  // Yes, \a in .rc files maps to \b.
       case 'n': c = '\n'; break;
