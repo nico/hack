@@ -1854,7 +1854,6 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
       const Token& menu_tok = Consume();
       if (menu_tok.type() == Token::kString) {
         // Do NOT strip the quotes here, rc.exe includes them too.
-        // FIXME: "", \a, L"" handling?
         C16string menu_utf16;
         if (!ToUTF16(&menu_utf16, menu_tok.value_, encoding_, &err_))
           return std::unique_ptr<DialogResource>();
@@ -1957,6 +1956,7 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
   } else {
     std::experimental::string_view name_val = name.value_;
     // The literal includes quotes, strip them.
+    // FIXME: either reject L"a" or skip 2 for L"a". Also L"\a".
     name_val = name_val.substr(1, name_val.size() - 2);
 
     if (name_val.size() == 0 || name_val.size() > 2) {
