@@ -1162,9 +1162,13 @@ std::experimental::string_view StringStorage::StringContents(
     return s;
   std::unique_ptr<std::string> stored(new std::string);
   stored->reserve(s.size());
+  // There are two phases:
+  // 1. Collapse "" to "
+  // 2. Process \ escapes
+  // Do both in one pass.
   for (size_t i = 0; i < s.size(); ++i) {
     char c = s[i];
-    if (c != '\\') {
+    if (c != '\\' || i + 1 == s.size()) {
       stored->push_back(c);
       if (c == '"') {  // "" -> "
         assert(s[i + 1] == '"');
@@ -1181,6 +1185,7 @@ std::experimental::string_view StringStorage::StringContents(
       case 't': c = '\t'; break;
       case '0': c = '\0'; break;
       case '\\': c = '\\'; break;
+      case '"': c = '"'; assert(s[i + 1] == '"'); ++i; break;
       default: stored->push_back('\\');
     }
     stored->push_back(c);

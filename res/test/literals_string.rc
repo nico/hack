@@ -1,7 +1,9 @@
-// FIXME: \x, \0, \ooo, \xFF, "\", "\""", escaping in L"" strings
+// FIXME: \x, \0, \ooo, \xFF, escaping in L"" strings (including \")
 stringtable {
   1, """\a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\y\z\\"
   2, L"asdf"
+  3, "\"
+  4, "\"""
 }
 
 1 versioninfo {
