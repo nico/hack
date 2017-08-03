@@ -135,7 +135,10 @@ template<> struct hash<experimental::string_view> {
     return hash;
   }
 };
-#if defined(__linux__)
+#define GCC_VERSION (__GNUC__ * 10000 \
+                     + __GNUC_MINOR__ * 100 \
+                     + __GNUC_PATCHLEVEL__)
+#if defined(__linux__) && GCC_VERSION <= 40800
 template<typename T, typename... Args>
 std::unique_ptr<T> make_unique(Args&&... args) {
     return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
@@ -650,7 +653,7 @@ class IntOrStringName {
   // This takes an UTF16-encoded string.
   static IntOrStringName MakeStringUTF16(const C16string& val) {
     IntOrStringName r;
-    for (int j = 0; j < val.size(); ++j)
+    for (size_t j = 0; j < val.size(); ++j)
       r.data_.push_back(val[j]);
     r.data_.push_back(0);  // \0-terminate.
     return r;
@@ -659,7 +662,7 @@ class IntOrStringName {
   // Like MakeStringUTF16 but also converts to upper case.
   static IntOrStringName MakeUpperStringUTF16(const C16string& val) {
     IntOrStringName r;
-    for (int j = 0; j < val.size(); ++j)
+    for (size_t j = 0; j < val.size(); ++j)
       r.data_.push_back(ascii_toupper(val[j]));
     r.data_.push_back(0);  // \0-terminate.
     return r;
@@ -1140,7 +1143,7 @@ bool ToUTF16(C16string* utf16, std::experimental::string_view in,
     std::wstring_convert<std::codecvt_utf8_utf16<Char16>, Char16> convert;
     *utf16 = convert.from_bytes(in.to_string());
   } else {
-    for (int j = 0; j < in.size(); ++j) {
+    for (size_t j = 0; j < in.size(); ++j) {
       if (in[j] & 0x80) {
         *err_ = "only 7-bit characters supported in non-unicode files";
         return false;
@@ -1441,7 +1444,7 @@ bool Parser::ParseVersioninfoData(std::vector<uint8_t>* data,
       C16string value_val_utf16;
       if (!ToUTF16(&value_val_utf16, value_val, encoding_, &err_))
         return false;
-      for (int j = 0; j < value_val_utf16.size(); ++j) {
+      for (size_t j = 0; j < value_val_utf16.size(); ++j) {
         // FIXME: This is gross and assumes little-endian-ness.
         data->push_back(value_val_utf16[j] & 0xFF);
         data->push_back(value_val_utf16[j] >> 8);
@@ -1488,7 +1491,7 @@ bool Parser::ParseRawData(std::vector<uint8_t>* data) {
       std::experimental::string_view value_val = StringContents(Consume());
 
       // FIXME: 1-byte strings for "asdf", 2-byte for L"asdf".
-      for (int j = 0; j < value_val.size(); ++j) {
+      for (size_t j = 0; j < value_val.size(); ++j) {
         // FIXME: Real UTF16 support.
         data->push_back(value_val[j]);
       }
@@ -2823,7 +2826,7 @@ bool WriteMenu(FILE* out, InternalEncoding encoding, std::string* err,
     C16string name_utf16;
     if (!ToUTF16(&name_utf16, item->name, encoding, err))
       return false;
-    for (int j = 0; j < name_utf16.size(); ++j)
+    for (size_t j = 0; j < name_utf16.size(); ++j)
       write_little_short(out, name_utf16[j]);
     write_little_short(out, 0);  // \0-terminate.
     if (item->style & kMenuPOPUP) {
@@ -2981,7 +2984,7 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
   write_little_short(out_, r->h);
   r->menu.write(out_);
   r->clazz.write(out_);
-  for (int j = 0; j < caption_utf16.size(); ++j)
+  for (size_t j = 0; j < caption_utf16.size(); ++j)
     write_little_short(out_, caption_utf16[j]);
   write_little_short(out_, 0);  // \0-terminate caption.
   if (r->font) {
@@ -2991,7 +2994,7 @@ bool SerializationVisitor::VisitDialogResource(const DialogResource* r) {
       fputc(r->font->italic, out_);
       fputc(r->font->charset, out_);
     }
-    for (int j = 0; j < fontname_utf16.size(); ++j)
+    for (size_t j = 0; j < fontname_utf16.size(); ++j)
       write_little_short(out_, fontname_utf16[j]);
     write_little_short(out_, 0);
   }
@@ -3148,7 +3151,7 @@ bool WriteBlock(
     C16string key_utf16;
     if (!ToUTF16(&key_utf16, value->key, encoding, err))
       return false;
-    for (int j = 0; j < key_utf16.size(); ++j)
+    for (size_t j = 0; j < key_utf16.size(); ++j)
       write_little_short(out, key_utf16[j]);
     write_little_short(out, 0);  // \0-terminate.
     if (value->key.size() % 2)
@@ -3256,7 +3259,7 @@ bool SerializationVisitor::EmitOneStringBundle(const StringBundle& bundle) {
       continue;
     }
     write_little_short(out_, utf16[i].size());
-    for (int j = 0; j < utf16[i].size(); ++j)
+    for (size_t j = 0; j < utf16[i].size(); ++j)
       write_little_short(out_, utf16[i][j]);
   }
   uint8_t padding = ((4 - (size & 3)) & 3);  // DWORD-align.
@@ -3305,7 +3308,7 @@ bool WriteRes(const FileBlock& file,
   serializer.WriteResHeader(0, IntOrStringName::MakeInt(0),
                             IntOrStringName::MakeInt(0), 0, 0);
 
-  for (int i = 0; i < file.res_.size(); ++i) {
+  for (size_t i = 0; i < file.res_.size(); ++i) {
     const Resource* res = file.res_[i].get();
     if (!res->Visit(&serializer))
       return false;
