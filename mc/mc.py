@@ -1,5 +1,6 @@
 import codecs
 import os
+import re
 import sys
 try:
   from ply import lex
@@ -11,12 +12,8 @@ except ImportError:
 
 # https://msdn.microsoft.com/en-us/library/windows/desktop/dd996906(v=vs.85).aspx
 tokens = (
-  'COLON',
   'COMMENT',
   'DOT',
-  'EQUAL',
-  'LPAREN',
-  'RPAREN',
   'identifier',
   'number',
   # Header section keywords:
@@ -34,24 +31,28 @@ tokens = (
   'kwSymbolicName',
   )
 
-t_COLON = ':'
+literals = ':=()'
 t_COMMENT = ';[^\n]*'
-t_DOT = '^.$'
-t_EQUAL = '='
-t_LPAREN = r'\('
-t_RPAREN = r'\)'
 t_identifier = '[a-zA-Z_][a-zA-Z_0-9]*'
 t_number = '0[xX][0-9a-fA-F]+|[0-9]+'
+t_ignore = r'[ \t]*'
+
 # Make token rules for all the tokens starting with 'kw':
 for t in tokens:
   if t.startswith('kw'):
     globals()['t_' + t] = t[len('kw'):]
 
-def t_whitespace(t):
-  r'(?:(?:\r?\n)|[ \t])+'
-  return None  # Ignore newlines.
+def t_DOT(t):
+  # Must be a function because functions get matched first, and t_newline
+  # is a function and must be matched after this.
+  r'\r?\n\.\r?\n'
+  return t
 
-lexer = lex.lex()
+def t_newline(t):
+  r'(?:\r?\n)+'
+  t.lexer.lineno += len(t.value)
+
+lexer = lex.lex(reflags=re.UNICODE)
 in_data = sys.stdin.read()
 if in_data.startswith(codecs.BOM_UTF16_LE):
   in_data = in_data[len(codecs.BOM_UTF16_LE):]
