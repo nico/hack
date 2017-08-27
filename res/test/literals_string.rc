@@ -1,4 +1,4 @@
-// FIXME: escaping in L"" strings (including \", \0, \ooo\, \xABCD)
+// FIXME: escaping in L"" strings (including \", \0, \ooo, \xABCD)
 // FIXME: exhaustive tests for nul bytes in string literals in all possible
 //        places -- rc cuts off strings in some places, embeds them in others.
 stringtable {
