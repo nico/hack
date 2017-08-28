@@ -39,6 +39,7 @@ tokens = (
   'message',  # Must be last.
   )
 
+# FIXME: "Case is ignored when comparing against keyword names."
 t_COMMENT = ';[^\n]*'
 name = r'\s*=\s*[a-zA-Z_][a-zA-Z_0-9]+'
 t_MESSAGEIDTYPEDEF = 'MessageIdTypedef' + name
@@ -48,7 +49,8 @@ t_FACILITYNAMES = 'FacilityNames' + parenlist
 t_LANGUAGENAMES = 'LanguageNames' + parenlist
 t_OUTPUTBASE = r'OutputBase\s*=\s*(?:10|16)'
 
-t_MESSAGEID = 'MessageId\s*=\s*\+?(?:0[xX][0-9a-fA-F]+|[0-9]+)'
+# The value for MessageId is optional.
+t_MESSAGEID = 'MessageId\s*=(?:\s*\+?(?:0[xX][0-9a-fA-F]+|[0-9]+))?'
 t_SEVERITY = 'Severity' + name
 t_FACILITY = 'Facility' + name
 t_SYMBOLICNAME = 'SymbolicName' + name
@@ -70,3 +72,14 @@ lexer.input(in_data)
 
 for tok in iter(lex.token, None):
   print repr(tok.type), repr(tok.value)
+
+# Output .bin format seems to have this format:
+# * uint32_t num_ranges
+# * num_ranges many triples of uint32_t, looking like starts and stops of
+#   MessageId ranges followed by either offset of that range's data in the file
+# * data packets, each consisting of an uint16_t containing the size of this
+#   packet, another uint16_t that seems to be always just "1", followed by
+#   an utf16-le zero-terminated string with the message text.  Data packets
+#   can be followed by an additional uint16_t that's 0 to pad the packet size
+#   to an uint32_t boundary.  The size of the packing is included in the
+#   packet's size.
