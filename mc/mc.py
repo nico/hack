@@ -27,6 +27,7 @@ tokens = (
   # mc.exe errors out.
   # FIXME: In particular, putting e.g. SymbolicName= after the Language= line
   # includes the SymbolicName= line literally in the generated .bin file.
+  # Also, comments betwen Language= and . get included in theo output.
   # Use a conditional lexer (4.19) (or don't use ply) to get that right.
   'MESSAGEID',
   'SEVERITY',
