@@ -13,40 +13,48 @@ except ImportError:
 # https://msdn.microsoft.com/en-us/library/windows/desktop/dd996906(v=vs.85).aspx
 tokens = (
   'COMMENT',
-  'DOT',
-  'identifier',
-  'number',
   # Header section keywords:
-  'kwFacilityNames',
-  'kwLanguageNames',
-  'kwMessageIdTypedef',
-  'kwOutputBase',
-  'kwSeverityNames',
+  'MESSAGEIDTYPEDEF',
+  'SEVERITYNAMES',
+  'FACILITYNAMES',
+  'LANGUAGENAMES',
+  'OUTPUTBASE',
   # Message section keywords:
-  'kwFacility',
-  'kwLanguage',
-  'kwMessageId',
-  #'kwOutputBase' # Already present in header section.
-  'kwSeverity',
-  'kwSymbolicName',
+  # "The MessageId statement marks the beginning of the message definition"
+  # The docs claim that Language is optional, but in practice mc.exe seems to
+  # treat it at the end of the header section of a message and treats everything
+  # after it as message text (up to the "." line). If Language isn't present,
+  # mc.exe errors out.
+  # FIXME: In particular, putting e.g. SymbolicName= after the Language= line
+  # includes the SymbolicName= line literally in the generated .bin file.
+  # Use a conditional lexer (4.19) (or don't use ply) to get that right.
+  'MESSAGEID',
+  'SEVERITY',
+  'FACILITY',
+  'SYMBOLICNAME',
+  'LANGUAGE',
+  #'OUTPUTBASE' # Already present in header section.
+
+  'message',  # Must be last.
   )
 
-literals = ':=()'
 t_COMMENT = ';[^\n]*'
-t_identifier = '[a-zA-Z_][a-zA-Z_0-9]*'
-t_number = '0[xX][0-9a-fA-F]+|[0-9]+'
-t_ignore = r'[ \t]*'
+name = r'\s*=\s*[a-zA-Z_][a-zA-Z_0-9]+'
+t_MESSAGEIDTYPEDEF = 'MessageIdTypedef' + name
+parenlist = r'\s*=\s*\([^)]*\)'
+t_SEVERITYNAMES = 'SeverityNames' + parenlist
+t_FACILITYNAMES = 'FacilityNames' + parenlist
+t_LANGUAGENAMES = 'LanguageNames' + parenlist
+t_OUTPUTBASE = r'OutputBase\s*=\s*(?:10|16)'
 
-# Make token rules for all the tokens starting with 'kw':
-for t in tokens:
-  if t.startswith('kw'):
-    globals()['t_' + t] = t[len('kw'):]
+t_MESSAGEID = 'MessageId\s*=\s*\+?(?:0[xX][0-9a-fA-F]+|[0-9]+)'
+t_SEVERITY = 'Severity' + name
+t_FACILITY = 'Facility' + name
+t_SYMBOLICNAME = 'SymbolicName' + name
+t_LANGUAGE = 'Language' + name
 
-def t_DOT(t):
-  # Must be a function because functions get matched first, and t_newline
-  # is a function and must be matched after this.
-  r'\r?\n\.\r?\n'
-  return t
+t_message = r'.*\r?\n\.\r?\n'
+t_ignore = '[ \t]*'
 
 def t_newline(t):
   r'(?:\r?\n)+'
