@@ -70,8 +70,114 @@ if in_data.startswith(codecs.BOM_UTF16_LE):
   in_data = in_data.decode('utf-16le')
 lexer.input(in_data)
 
+def parse_list(s):
+  s = s[s.index('(')+1:s.rindex(')')]
+  return [(name, int(num, 0), symbol) for name, num, symbol in
+                re.findall(r'\s*([^=\s]+)\s*=\s*([^:\s]+)\s*(?::\s*(\S*))?', s)]
+
+# outputs:
+out_header = ''  # generated .h file
+out_rc = ''      # generated .rc file
+out_bins = {}    # .bin files referenced by .rc file
+HEADER, MESSAGE = range(2)
+state = HEADER
+symbolic_name = None
+message_id = 0  # FIXME: Make this per-facility
+message_id_typedef = ''
+language = 'English'
+severity = 0
+facility = 0
 for tok in iter(lex.token, None):
-  print repr(tok.type), repr(tok.value)
+  if tok.type == 'COMMENT':
+    # FIXME: These aren't output as they're encountered, instead all comments
+    # in the header block and before each message block are collected and then
+    # output all together in front of the next output chunk.
+    out_header += tok.value[1:].replace('\r', '') + '\n'  # Strip leading ';'
+    continue
+
+  if state == HEADER:
+    # FIXME: FACILITYNAMES, SEVERITYNAMES aren't printed in the order in the
+    # .mc file, instead they're first collected and then printed once the header
+    # block is done.
+    if tok.type == 'MESSAGEIDTYPEDEF':
+      message_id_typedef = '(%s)' % tok.value.split('=', 1)[1].strip()
+      continue
+    if tok.type == 'SEVERITYNAMES':
+      severity_names = parse_list(tok.value)
+      for _, num, symbol in severity_names:
+        if symbol:
+          out_header += '#define %s 0x%x\n' % (symbol, num)
+      # FIXME: amend existing severity_names instead, warn on collisions
+      continue
+    if tok.type == 'FACILITYNAMES':
+      facility_names = parse_list(tok.value)
+      for _, num, symbol in facility_names:
+        if symbol:
+          out_header += '#define %s 0x%x\n' % (symbol, num)
+      # FIXME: amend existing facility_names instead, warn on collisions
+      continue
+    if tok.type == 'LANGUAGENAMES':
+      language_names = parse_list(tok.value)
+      for _, _, sym in language_names:
+        assert sym
+      # FIXME: amend existing language_names instead, warn on collisions
+      continue
+    if tok.type == 'OUTPUTBASE':
+      continue # XXX
+    if tok.type == 'MESSAGEID':  # This starts a message definition.
+      state = MESSAGE
+      symbolic_name = None
+      value = tok.value.split('=', 1)[1].strip()
+      if value.startswith('+'):
+        value = value[1:].strip()
+        pass # XXX
+      elif value:
+        message_id = int(value, 0)
+      else:
+        pass # XXX
+      continue # XXX
+    assert False
+  elif state == MESSAGE:
+    if tok.type == 'SEVERITY':
+      sev = tok.value.split('=', 1)[1].strip()
+      for name, num, _ in severity_names:
+        if name == sev:
+          severity = num
+          break
+      else:
+        assert False, 'unknown severity %s' % sev
+      continue
+    if tok.type == 'FACILITY':
+      fac = tok.value.split('=', 1)[1].strip()
+      for name, num, _ in facility_names:
+        if name == fac:
+          facility = num
+          break
+      else:
+        assert False, 'unknown facility %s' % fac
+      continue
+    if tok.type == 'SYMBOLICNAME':
+      symbolic_name = tok.value.split('=', 1)[1].strip()
+      continue
+    if tok.type == 'OUTPUTBASE':
+      continue # XXX
+    if tok.type == 'LANGUAGE':
+      language = tok.value.split('=', 1)[1].strip()
+      continue
+    if tok.type == 'message':  # This ends a message definition.
+                               # XXX actually no, cf message with several texts
+      if symbolic_name:
+        mid = (severity << 30) | (facility << 16) | message_id
+        out_header += '#define %s (%s0x%xL)\n' % (
+                          symbolic_name, message_id_typedef, mid)
+      state = HEADER
+      continue # XXX
+
+
+out_rc = ''
+for _, num, symbol in language_names:
+  out_rc += 'LANGUAGE 0x%x,0x%x\r\n' % (num & 0xff, num >> 10)
+  out_rc += '1 11 %s.bin\r\n' % symbol
 
 # Output .bin format seems to have this format:
 # * uint32_t num_ranges
@@ -83,3 +189,6 @@ for tok in iter(lex.token, None):
 #   can be followed by an additional uint16_t that's 0 to pad the packet size
 #   to an uint32_t boundary.  The size of the packing is included in the
 #   packet's size.
+
+print out_header
+print out_rc
