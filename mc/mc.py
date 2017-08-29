@@ -138,6 +138,9 @@ for tok in iter(lex.token, None):
       continue # XXX
     assert False
   elif state == MESSAGE:
+    if tok.type == 'MESSAGEIDTYPEDEF':
+      message_id_typedef = '(%s)' % tok.value.split('=', 1)[1].strip()
+      continue
     if tok.type == 'SEVERITY':
       sev = tok.value.split('=', 1)[1].strip()
       for name, num, _ in severity_names:
@@ -166,11 +169,11 @@ for tok in iter(lex.token, None):
       continue
     if tok.type == 'message':  # This ends a message definition.
                                # XXX actually no, cf message with several texts
+      mid = (severity << 30) | (facility << 16) | message_id
       if symbolic_name:
-        mid = (severity << 30) | (facility << 16) | message_id
         out_header += '#define %s (%s0x%xL)\n' % (
                           symbolic_name, message_id_typedef, mid)
-      state = HEADER
+        symbolic_name = None
       continue # XXX
 
 
