@@ -87,6 +87,7 @@ message_id_typedef = ''
 language = 'English'
 severity = 0
 facility = 0
+messages = {}
 for tok in iter(lex.token, None):
   if tok.type == 'COMMENT':
     # FIXME: These aren't output as they're encountered, instead all comments
@@ -124,8 +125,14 @@ for tok in iter(lex.token, None):
       continue
     if tok.type == 'OUTPUTBASE':
       continue # XXX
-    if tok.type == 'MESSAGEID':  # This starts a message definition.
-      state = MESSAGE
+    assert tok.type == 'MESSAGEID'  # This starts a message definition.
+    state = MESSAGE
+    # Fall through.
+  if state == MESSAGE:
+    if tok.type == 'MESSAGEIDTYPEDEF':
+      message_id_typedef = '(%s)' % tok.value.split('=', 1)[1].strip()
+      continue
+    if tok.type == 'MESSAGEID':
       symbolic_name = None
       value = tok.value.split('=', 1)[1].strip()
       if value.startswith('+'):
@@ -135,11 +142,6 @@ for tok in iter(lex.token, None):
         message_id = int(value, 0)
       else:
         pass # XXX
-      continue # XXX
-    assert False
-  elif state == MESSAGE:
-    if tok.type == 'MESSAGEIDTYPEDEF':
-      message_id_typedef = '(%s)' % tok.value.split('=', 1)[1].strip()
       continue
     if tok.type == 'SEVERITY':
       sev = tok.value.split('=', 1)[1].strip()
@@ -167,20 +169,20 @@ for tok in iter(lex.token, None):
     if tok.type == 'LANGUAGE':
       language = tok.value.split('=', 1)[1].strip()
       continue
-    if tok.type == 'message':  # This ends a message definition.
-                               # XXX actually no, cf message with several texts
+    if tok.type == 'message':
       mid = (severity << 30) | (facility << 16) | message_id
+      messages.setdefault(language, {})[mid] = tok.value[:tok.value.rfind('.')]
       if symbolic_name:
         out_header += '#define %s (%s0x%xL)\n' % (
                           symbolic_name, message_id_typedef, mid)
         symbolic_name = None
-      continue # XXX
+      continue
 
 
 out_rc = ''
 for _, num, symbol in language_names:
   out_rc += 'LANGUAGE 0x%x,0x%x\r\n' % (num & 0xff, num >> 10)
-  out_rc += '1 11 %s.bin\r\n' % symbol
+  out_rc += '1 11 "%s.bin"\r\n' % symbol
 
 # Output .bin format seems to have this format:
 # * uint32_t num_ranges
@@ -192,6 +194,48 @@ for _, num, symbol in language_names:
 #   can be followed by an additional uint16_t that's 0 to pad the packet size
 #   to an uint32_t boundary.  The size of the packing is included in the
 #   packet's size.
+for lang, lang_messages in messages.iteritems():
+  for name, _, symbol in language_names:
+    if name == lang:
+      outname = symbol + '.bin'
+      break
+  else:
+    assert False
+  ids = sorted(lang_messages.keys())
+  ranges = [(ids[0],ids[0])]
+  for i in ids[1:]:
+    if i == ranges[-1][1] + 1:
+      ranges[-1][1] = i
+    else:
+      ranges.append((i,i))
+  with open(outname, 'wb') as binout:
+    import struct
+    binout.write(struct.pack('<I', len(ranges)))
+    data_offset = 4 + len(ranges) * 3 * 4
+    lengths = {}
+    # Write headers.
+    for range_start, range_end in ranges:
+      binout.write(struct.pack('<III', range_start, range_end, data_offset))
+      length = 0
+      for message in range(range_start, range_end + 1):
+        length += 2 + 2 + 2 * (len(lang_messages[message]) + 1)
+        if length % 4 == 2:
+          length += 2
+      lengths[range_start] = length
+      data_offset += length
+    # Write message data.
+    for message_id in ids:
+      message = lang_messages[message_id]
+      message_len = 2 + 2 + 2 * (len(message) + 1)
+      need_pad = message_len % 4 == 2
+      if need_pad:
+        message_len += 2
+      binout.write(struct.pack('<HH', message_len, 1))
+      for c in message:
+        binout.write(struct.pack('<H', ord(c)))
+      binout.write(struct.pack('<H', 0))
+      if need_pad:
+        binout.write(struct.pack('<H', 0))
 
 print out_header
 print out_rc
