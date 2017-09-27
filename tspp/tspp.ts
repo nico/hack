@@ -1,4 +1,27 @@
-function pp(input : string) : string {
+function phase1(input: string): string {
+    // Only trigraphs are interesting to us here.
+    // FIXME: Show in UI if anything happens in this phase.
+    return input
+        .replace(/\?\?</g, '{')
+        .replace(/\?\?>/g, '}')
+        .replace(/\?\?\(/g, '[')
+        .replace(/\?\?\)/g, ']')
+        .replace(/\?\?=/g, '#')
+        .replace(/\?\?\//g, '\\')
+        .replace(/\?\?'/g, '^')
+        .replace(/\?\?!/g, '|')
+        .replace(/\?\?-/g, '~')
+        ;
+
+}
+
+function phase2(input: string): string {
+    return input.replace(/\\\n/g, '');
+}
+
+function pp(input: string): string {
+    input = phase1(input);
+    input = phase2(input);
     return input;
 }
 
