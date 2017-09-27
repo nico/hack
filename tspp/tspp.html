@@ -1,0 +1,18 @@
+<!doctype html>
+<style>
+textarea {
+    width: 400px;
+    height: 300px;
+    font-family: Consolas, ‘Andale Mono’, ‘Lucida Console’, ‘DejaVu Sans Mono’, ‘Bitstream Vera Sans Mono’, Monaco, ‘Courier New’, Courier, monospace;
+}
+</style>
+<h1>tspp</h1>
+<div>
+    <textarea>
+#define FOO(x) x
+FOO(4)</textarea>
+    <input type="button" onclick="run_pp()" value="pp">
+    <script src="tspp.js"></script>
+</div>
+<div id="output">
+</div>
