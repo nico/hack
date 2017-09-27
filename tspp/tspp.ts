@@ -1,9 +1,9 @@
-function pp(input : String) : String {
+function pp(input : string) : string {
     return input;
 }
 
 function run_pp() {
     let input = document.getElementsByTagName('textarea')[0].value;
     let output = pp(input);
-    alert(output);
+    document.getElementById('output').innerText = output;
 }

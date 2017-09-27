@@ -1,6 +1,6 @@
 <!doctype html>
 <style>
-textarea {
+textarea, #output {
     width: 400px;
     height: 300px;
     font-family: Consolas, ‘Andale Mono’, ‘Lucida Console’, ‘DejaVu Sans Mono’, ‘Bitstream Vera Sans Mono’, Monaco, ‘Courier New’, Courier, monospace;
@@ -11,7 +11,7 @@ textarea {
     <textarea>
 #define FOO(x) x
 FOO(4)</textarea>
-    <input type="button" onclick="run_pp()" value="pp">
+    <input type="button" onclick="run_pp()" value="pp" autofocus>
     <script src="tspp.js"></script>
 </div>
 <div id="output">
