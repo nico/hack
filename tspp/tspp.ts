@@ -28,7 +28,7 @@ function phase3(input: string): [string] {
     function remove_comments(input: string): string {
         let spanstart = 0, searchstart = 0;
         let output = '';
-        for (;;) {
+        for (; ;) {
             let newpos = input.indexOf('/', searchstart);
             if (newpos == -1 || newpos == input.length - 1) {
                 output += input.slice(spanstart);
@@ -61,6 +61,74 @@ function phase3(input: string): [string] {
         return output;
     }
     // [lex.pptoken]
+    // preprocessing-token:
+    //   header-name
+    //   identifier
+    //   pp-number
+    //   character-literal
+    //   user-defined-character-literal
+    //   string-literal
+    //   user-defined-string-literal
+    //   preprocessing-op-or-punc
+    //   each non-white-space character that cannot be one of the above
+    // Hmm pptokens are context-dependent ("Example: see the handling of <
+    // within a #include preprocessing directive."), so probably have to mix phases
+    // 4 and 3 here.
+
+    // [cpp]
+    // preprocessing-file:
+    //   group_opt
+    // group:
+    //   group-part
+    //   group group-part
+    // group-part:
+    //   if-section
+    //   control-line
+    //   text-line
+    //   # non-directive
+    // if-section:
+    //   if-group elif-groups_opt else-group_opt endif-line
+    // if-group:
+    //   # if constant-expression new-line group_opt
+    //   # ifdef identifier new-line group_opt
+    //   # ifndef identifier new-line group_opt
+    // elif-groups:
+    //   elif-group
+    //   elif-groups elif-group
+    // elif-group:
+    //   # elif constant-expression new-line group_opt
+    // else-group:
+    //   # else new-line group_opt
+    // endif-line:
+    //   # endif new-line
+    // control-line:
+    //   # include pp-tokens new-line
+    //   # define identifier replacement-list new-line
+    //   # define identifier lparen identifier-list_opt ) replacement-list new-line
+    //   # define identifier lparen ... ) replacement-list new-line
+    //   # define identifier lparen identifier-list, ... ) replacement-list new-line
+    //   # undef identifier new-line
+    //   # line pp-tokens new-line
+    //   # error pp-tokens_opt new-line
+    //   # pragma pp-tokens_opt new-line
+    //   # new-line
+    // text-line:
+    //   pp-tokens_opt new-line
+    // non-directive:
+    //   pp-tokens new-line
+    // lparen:
+    //   a ( character not immediately preceded by white-space
+    // identifier-list:
+    //   identifier
+    //   identifier-list , identifier
+    // replacement-list:
+    //   pp-tokens_opt
+    // pp-tokens:
+    //   preprocessing-token
+    //   pp-tokens preprocessing-token
+    // new-line:
+    //   the new-line character
+
     return [remove_comments(input)] as [string];
 }
 
