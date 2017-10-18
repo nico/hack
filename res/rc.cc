@@ -50,6 +50,7 @@ extern char *gets (char *__s) __attribute__ ((__deprecated__));
 
 #include <algorithm>
 #include <assert.h>
+#include <codecvt>
 #include <iostream>
 #include <list>
 #include <locale>
@@ -506,7 +507,7 @@ ConversionResult ConvertUTF8toUTF16 (
 #else
 #endif
 
-#if _MSC_VER == 1900
+#if _MSC_VER == 1900 || _MSC_VER == 1911
     // lol msvc: http://stackoverflow.com/questions/32055357/visual-studio-c-2015-stdcodecvt-with-char16-t-or-char32-t
     using Char16 = int16_t;
 #else
