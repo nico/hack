@@ -50,7 +50,6 @@ extern char *gets (char *__s) __attribute__ ((__deprecated__));
 
 #include <algorithm>
 #include <assert.h>
-#include <codecvt>
 #include <iostream>
 #include <list>
 #include <locale>
@@ -63,6 +62,14 @@ extern char *gets (char *__s) __attribute__ ((__deprecated__));
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+
+#define GCC_VERSION (__GNUC__ * 10000 \
+                     + __GNUC_MINOR__ * 100 \
+                     + __GNUC_PATCHLEVEL__)
+#if !(defined(__linux__) && GCC_VERSION < 50100)
+// No codecvt before libstdc++5.1, need to roll our own utf8<->utf16 routines.
+#include <codecvt>
+#endif
 
 #if defined(_MSC_VER)
 #include <direct.h>
@@ -135,9 +142,6 @@ template<> struct hash<experimental::string_view> {
     return hash;
   }
 };
-#define GCC_VERSION (__GNUC__ * 10000 \
-                     + __GNUC_MINOR__ * 100 \
-                     + __GNUC_PATCHLEVEL__)
 #if defined(__linux__) && GCC_VERSION <= 40800
 template<typename T, typename... Args>
 std::unique_ptr<T> make_unique(Args&&... args) {
