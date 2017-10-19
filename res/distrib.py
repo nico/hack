@@ -22,10 +22,24 @@ clangxx = crsrc + '/third_party/llvm-build/Release+Asserts/bin/clang++'
 common = [
     clangxx, '-std=c++14', '-O2', 'rc.cc', '-Wall', '-Wno-c++11-narrowing',]
 
+# Linux.
 linux_sysroot = crsrc + '/build/linux/debian_jessie_amd64-sysroot'
+subprocess.check_call(
+    common + ['-o', 'rc-linux64', '-fuse-ld=lld',
+     '-target', 'x86_64-unknown-linux-gnu',
+     '--sysroot', linux_sysroot,
+    ])
 
+# Mac.
 mac_sysroot = subprocess.check_output(['xcrun', '-show-sdk-path']).strip()
+subprocess.check_call(
+    common + ['-o', 'rc-mac',
+     '-mmacosx-version-min=10.9',
+     '-target', 'x86_64-apple-darwin',
+     '-isysroot', mac_sysroot,
+    ])
 
+# Win.
 win_sysroot = glob.glob(
     crsrc + '/third_party/depot_tools/win_toolchain/vs_files/*')[0]
 win_bindir = win_sysroot + '/win_sdk/bin'
@@ -36,21 +50,9 @@ for k in ['INCLUDE', 'LIB']:
 # FIXME: why does this work? I thought I added -imsvc 'cause this didn't work.
 win_include = ['-isystem' + i for i in winenv['INCLUDE']]
 win_lib = ['-Wl,/libpath:' + i for i in winenv['LIB']]
-
 subprocess.check_call(
     common + ['-o', 'rc-win', '-fuse-ld=lld',
      '-target', 'x86_64-windows-msvc',
      '-D_CRT_SECURE_NO_WARNINGS', '-Wno-msvc-not-found',
      '-lShlwapi.lib',
     ] + win_include + win_lib)
-subprocess.check_call(
-    common + ['-o', 'rc-mac',
-     '-mmacosx-version-min=10.9',
-     '-target', 'x86_64-apple-darwin',
-     '-isysroot', mac_sysroot,
-    ])
-subprocess.check_call(
-    common + ['-o', 'rc-linux64', '-fuse-ld=lld',
-     '-target', 'x86_64-unknown-linux-gnu',
-     '--sysroot', linux_sysroot,
-    ])
