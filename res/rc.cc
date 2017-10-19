@@ -2786,6 +2786,10 @@ FILE* SerializationVisitor::OpenFile(const char* path) {
   std::string path_storage;
   for (const std::string& dir : include_dirs_) {
     path_storage = Join(dir, path);
+#if !defined(_WIN32)
+    // .rc files often use \ as path separator, so fix that up on non-Windows.
+    std::replace(path_storage.begin(), path_storage.end(), '\\', '/');
+#endif
     FILE* nf = fopen(path_storage.c_str(), "rb");
     if (nf) {
       f = nf;
