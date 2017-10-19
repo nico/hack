@@ -928,6 +928,8 @@ class IntOrStringName {
 // Root of AST class hierarchy.
 class Resource {
  public:
+  virtual ~Resource() {}
+
   Resource(IntOrStringName name) : name_(name) {}
   virtual bool Visit(Visitor* v) const = 0;
 
