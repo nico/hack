@@ -654,7 +654,13 @@ std::vector<Token> Tokenizer::Run(std::string* err) {
       else if (IsEqualAsciiUppercase(token_value, "END"))
         type = Token::kEndBlock;
     }
-    if (type != Token::kLineComment && type != Token::kStarComment)
+    // For now, skip all preprocessor directives.  Note that rc expects to be
+    // fed preprocessed input (e.g. via `clang-cl /P`, so only pragma lines
+    // and linemarkers should remain in the input.
+    // FIXME: Support linemarker directives for better diagnostics?
+    // FIXME: Also, probably do something with #pragma code_page(n).
+    if (type != Token::kLineComment && type != Token::kStarComment &&
+        type != Token::kDirective)
       tokens_.push_back(Token(type, token_value));
   }
   if (has_error()) {
