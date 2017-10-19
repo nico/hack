@@ -2261,11 +2261,8 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
   if (name.type() == Token::kInt) {
     accelerator->key = name.IntValue();
   } else {
-    std::experimental::string_view name_val = name.value_;
-    // The literal includes quotes, strip them.
-    // FIXME: either reject L"a" or skip 2 for L"a". Also L"\a".
-    name_val = name_val.substr(1, name_val.size() - 2);
-
+    // name was checked to be kInt or kString above, so it's a kString here.
+    std::experimental::string_view name_val = StringContents(name);
     if (name_val.size() == 0 || name_val.size() > 2) {
       err_ = "invalid key \"" + name_val.to_string() + "\"";
       return false;

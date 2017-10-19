@@ -11,14 +11,14 @@
 
   // "When VIRTKEY is specified and event contains a string, event must be
   // uppercase." -- but rc.exe doesn't care, it accepts this:
-  "b", 35, VIRTKEY
+  "\x62", 35, VIRTKEY
   "C", 36, VIRTKEY
   //"^D", 37, VIRTKEY
   // ^ "warning RC4204 : ASCII character not equivalent to virtual key code"
   20, 38, VIRTKEY
 
   "b", 25, VIRTKEY, NOinVERT, AlT, SHIft, coNTROL
-  "b", 25, NOINVERT, ALT, VIRTKEY, SHIFT, CONTROL
+  L"b", 25, NOINVERT, ALT, VIRTKEY, SHIFT, CONTROL
   "b", 25, VIRTKEY, ALT, ALT, ALT
   "b", 25, VIRTKEY, NOINVERT
   "b", 25, VIRTKEY, SHIFT
