@@ -43,8 +43,7 @@ subprocess.check_call(
 win_sysroot = glob.glob(
     crsrc + '/third_party/depot_tools/win_toolchain/vs_files/*')[0]
 win_bindir = win_sysroot + '/win_sdk/bin'
-win_json = win_bindir + '/SetEnv.x64.json'
-winenv = json.load(open(win_json))['env']
+winenv = json.load(open(win_bindir + '/SetEnv.x64.json'))['env']
 for k in ['INCLUDE', 'LIB']:
   winenv[k] = [os.path.join(*([win_bindir] + e)) for e in winenv[k]]
 # FIXME: why does this work? I thought I added -imsvc 'cause this didn't work.
