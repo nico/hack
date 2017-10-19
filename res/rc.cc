@@ -1390,7 +1390,7 @@ bool ToUTF16(C16string* utf16, std::experimental::string_view in,
         &src_start, (UTF8*)in.data() + in.size(),
         &dst_start, (UTF16*)buffer.data() + buffer.size(),
         strictConversion);
-    assert(r == conversionOK);
+    assert(r == conversionOK); (void)r;
     *utf16 = C16string(buffer.data(), dst_start - (UTF16*)buffer.data());
 #else
     std::wstring_convert<std::codecvt_utf8_utf16<Char16>, Char16> convert;

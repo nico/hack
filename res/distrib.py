@@ -20,7 +20,8 @@ if len(sys.argv) > 1:
   crsrc = os.path.abspath(sys.argv[1])
 clangxx = crsrc + '/third_party/llvm-build/Release+Asserts/bin/clang++'
 common = [
-    clangxx, '-std=c++14', '-O2', 'rc.cc', '-Wall', '-Wno-c++11-narrowing',]
+    clangxx, '-std=c++14', 'rc.cc', '-Wall', '-Wno-c++11-narrowing',
+    '-O2', '-fno-rtti', '-fno-exceptions', '-DNDEBUG', ]
 
 # Linux.
 linux_sysroot = crsrc + '/build/linux/debian_jessie_amd64-sysroot'
