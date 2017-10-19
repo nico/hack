@@ -5,6 +5,6 @@
 4 foo "test/foo.html"
 5 1234 "test/foo.html"
 "bar" 1234 "test/foo.html"
-"bar" baz "test/foo.html"
+"bar" baz L"t\x65st/foo.html"
 L"bar" l"baz" "test/foo.html"
 bar baz "test/foo.html"

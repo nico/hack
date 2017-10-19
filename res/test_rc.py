@@ -74,14 +74,14 @@ for flag in flags:
 # Test references to absolute paths in .rc files.
 print('abspath')
 with open('abs.rc', 'wb') as f:
-  f.write('1 RCDATA "%s"' %
-      os.path.join(os.path.abspath(os.getcwd()), 'cwdfile.txt'))
+  cwdfile_path = os.path.join(os.path.abspath(os.getcwd()), 'cwdfile.txt')
+  f.write('1 RCDATA "%s"' % cwdfile_path.replace('\\', '\\\\'))
 cmd = '%s /cd. %s' % (os.path.join(RCDIR, RC), '/fo%s/out.res' % RCDIR)
 if sys.platform != 'win32':
   cmd = cmd.split()
 # Just succeeding is enough for this test.
 subprocess.check_call(cmd, stdin=open('abs.rc'))
-os.remove('cwdfile.txt')
-os.remove('abs.rc')
+#os.remove('cwdfile.txt')
+#os.remove('abs.rc')
 
 print('passed')

@@ -2536,9 +2536,7 @@ std::unique_ptr<Resource> Parser::ParseResource() {
     if (!Is(Token::kString, "expected string"))
       return std::unique_ptr<DialogResource>();
     const Token& data = Consume();
-    std::experimental::string_view str_val = data.value_;
-    // The literal includes quotes, strip them.
-    str_val = str_val.substr(1, str_val.size() - 2);
+    std::experimental::string_view str_val = StringContents(data);
 
     if (IsEqualAsciiUppercase(type.value_, "CURSOR"))
       return std::make_unique<CursorResource>(name, str_val);
@@ -2582,18 +2580,14 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   }
 
   if (type.type_ == Token::kIdentifier && data.type_ == Token::kString) {
-    const Token& string = data;
-    std::experimental::string_view str_val = string.value_;
-    // The literal includes quotes, strip them.
-    str_val = str_val.substr(1, str_val.size() - 2);
-
+    std::experimental::string_view str_val = StringContents(data);
     if (IsEqualAsciiUppercase(type.value_, "RCDATA"))
       return std::make_unique<RcdataResource>(name, str_val);
     if (IsEqualAsciiUppercase(type.value_, "HTML"))
       return std::make_unique<HtmlResource>(name, str_val);
   }
 
-  // Not a known resource type, so it's a User-Defined Resource.
+  // Not a known resource type, so it's a custom User-Defined Resource.
   if ((type.type_ == Token::kIdentifier || type.type_ == Token::kInt ||
        type.type_ == Token::kString) &&
       data.type_ == Token::kString) {
@@ -2604,11 +2598,7 @@ std::unique_ptr<Resource> Parser::ParseResource() {
         !ToUTF16(&type_utf16, type.value_, encoding_, &err_))
       return std::unique_ptr<Resource>();
 
-    const Token& string = data;
-    std::experimental::string_view str_val = string.value_;
-    // The literal includes quotes, strip them.
-    str_val = str_val.substr(1, str_val.size() - 2);
-
+    std::experimental::string_view str_val = StringContents(data);
     IntOrStringName type_name = type.type() == Token::kInt
                                     ? IntOrStringName::MakeInt(type.IntValue())
                                     : IntOrStringName::MakeUpperStringUTF16(
