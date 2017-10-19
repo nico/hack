@@ -3629,7 +3629,7 @@ int main(int argc, char* argv[]) {
   if (input_is_utf8) {
     // Validate that the input if valid utf-8.
     if (!isLegalUTF8String((UTF8*)s.data(), (UTF8*)s.data() + s.size())) {
-      fprintf(stderr, "input is not valid utf-8\n");
+      fprintf(stderr, "rc: input is not valid utf-8\n");
       return 1;
     }
     encoding = kEncodingUTF8;
@@ -3653,7 +3653,7 @@ int main(int argc, char* argv[]) {
         &dst_start, (UTF8*)buffer.data() + buffer.size(),
         strictConversion);
     if (r != conversionOK) {
-      fprintf(stderr, "Tried to decode input as UTF-16LE and failed\n");
+      fprintf(stderr, "rc: tried to decode input as UTF-16LE and failed\n");
       return 1;
     }
     s = std::string((char*)buffer.data(), dst_start - (UTF8*)buffer.data());
@@ -3668,7 +3668,7 @@ int main(int argc, char* argv[]) {
         convert("\x80");
     s = convert.to_bytes(reinterpret_cast<const Char16*>(s.data()));
     if (s == "\x80") {
-      fprintf(stderr, "Tried to decode input as UTF-16LE and failed\n");
+      fprintf(stderr, "rc: tried to decode input as UTF-16LE and failed\n");
       return 1;
     }
 #endif
@@ -3682,18 +3682,18 @@ int main(int argc, char* argv[]) {
   std::string err;
   std::vector<Token> tokens = Tokenizer::Tokenize(s, &err);
   if (tokens.empty() && !err.empty()) {
-    fprintf(stderr, "%s\n", err.c_str());
+    fprintf(stderr, "rc: %s\n", err.c_str());
     return 1;
   }
   StringStorage string_storage;
   std::unique_ptr<FileBlock> file =
       Parser::Parse(std::move(tokens), encoding, &string_storage, &err);
   if (!file) {
-    fprintf(stderr, "%s\n", err.c_str());
+    fprintf(stderr, "rc: %s\n", err.c_str());
     return 1;
   }
   if (!WriteRes(*file.get(), output, includes, show_includes, encoding, &err)) {
-    fprintf(stderr, "%s\n", err.c_str());
+    fprintf(stderr, "rc: %s\n", err.c_str());
     return 1;
   }
 }
