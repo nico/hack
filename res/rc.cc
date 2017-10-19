@@ -1623,6 +1623,7 @@ bool Parser::EvalIntExpression(uint32_t* out, bool* is_32) {
       case Token::kMinus: *out = *out - rhs; break;
       case Token::kPipe:  *out = *out | rhs; break;
       case Token::kAmp:   *out = *out & rhs; break;
+      default: abort();  // Unreachable.
     }
   }
 
