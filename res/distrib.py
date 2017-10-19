@@ -1,0 +1,56 @@
+#!/usr/bin/env python
+
+# Builds rc for Mac, Linux, Windows.  Must run on a Mac.
+# Needs a chromium checkout that was synced with target_os=['win'] to get
+# the Windows toolchain. You must run
+# `build/linux/sysroot_scripts/install-sysroot.py --arch amd64` once to
+# get the linux toolchain.
+
+# Doesn't run tests, so make sure to run `./test_rc.py` on all 3 platforms
+# before running this script.
+
+import json
+import glob
+import os
+import subprocess
+import sys
+
+crsrc = '/Users/thakis/src/chrome/src'
+if len(sys.argv) > 1:
+  crsrc = os.path.abspath(sys.argv[1])
+clangxx = crsrc + '/third_party/llvm-build/Release+Asserts/bin/clang++'
+common = [
+    clangxx, '-std=c++14', '-O2', 'rc.cc', '-Wall', '-Wno-c++11-narrowing',]
+
+linux_sysroot = crsrc + '/build/linux/debian_jessie_amd64-sysroot'
+
+mac_sysroot = subprocess.check_output(['xcrun', '-show-sdk-path']).strip()
+
+win_sysroot = glob.glob(
+    crsrc + '/third_party/depot_tools/win_toolchain/vs_files/*')[0]
+win_bindir = win_sysroot + '/win_sdk/bin'
+win_json = win_bindir + '/SetEnv.x64.json'
+winenv = json.load(open(win_json))['env']
+for k in ['INCLUDE', 'LIB']:
+  winenv[k] = [os.path.join(*([win_bindir] + e)) for e in winenv[k]]
+# FIXME: why does this work? I thought I added -imsvc 'cause this didn't work.
+win_include = ['-isystem' + i for i in winenv['INCLUDE']]
+win_lib = ['-Wl,/libpath:' + i for i in winenv['LIB']]
+
+subprocess.check_call(
+    common + ['-o', 'rc-win', '-fuse-ld=lld',
+     '-target', 'x86_64-windows-msvc',
+     '-D_CRT_SECURE_NO_WARNINGS', '-Wno-msvc-not-found',
+     '-lShlwapi.lib',
+    ] + win_include + win_lib)
+subprocess.check_call(
+    common + ['-o', 'rc-mac',
+     '-mmacosx-version-min=10.9',
+     '-target', 'x86_64-apple-darwin',
+     '-isysroot', mac_sysroot,
+    ])
+subprocess.check_call(
+    common + ['-o', 'rc-linux64', '-fuse-ld=lld',
+     '-target', 'x86_64-unknown-linux-gnu',
+     '--sysroot', linux_sysroot,
+    ])
