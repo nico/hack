@@ -44,6 +44,7 @@ subprocess.check_call(
 win_sysroot = glob.glob(
     crsrc + '/third_party/depot_tools/win_toolchain/vs_files/*')[0]
 win_bindir = win_sysroot + '/win_sdk/bin'
+# This json file looks like http://codepad.org/kmfgf0UL
 winenv = json.load(open(win_bindir + '/SetEnv.x64.json'))['env']
 for k in ['INCLUDE', 'LIB']:
   winenv[k] = [os.path.join(*([win_bindir] + e)) for e in winenv[k]]
