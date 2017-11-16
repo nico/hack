@@ -43,6 +43,7 @@ off = struct.calcsize(header_types)
 
 print header
 
+folders = []
 CFFOLDER = [
   ('I', 'coffCabStart'),  # Offset of first CFDATA block in this folder.
   ('H', 'cCFData'),       # Number of CFDATA blocks in this folder.
@@ -54,11 +55,12 @@ for i in range(header['cFolders']):
   folder_types = ''.join(e[0] for e in CFFOLDER)
   folder = collections.OrderedDict(
       zip([e[1] for e in CFFOLDER], struct.unpack_from(folder_types, cab, off)))
-  print folder
+  folders.append(folder)
   off += struct.calcsize(folder_types)
 
 
 assert off == header['coffFiles']
+files = []
 CFFILE = [
   ('I', 'cbFile'),  # Uncompressed size of this file in bytes.
   ('I', 'uoffFolderStart'),  # Uncompressed offset of this file in folder.
@@ -81,7 +83,14 @@ for i in range(header['cFiles']):
   file_types = ''.join(e[0] for e in CFFILE)
   file_entry = collections.OrderedDict(
       zip([e[1] for e in CFFILE], struct.unpack_from(file_types, cab, off)))
-  print file_entry
   off += struct.calcsize(file_types)
-  # FIXME: file name, both for printing, and more imporantly, offset.
-  break
+  # Read zero-terminated file name folowing CFFILE record.
+  assert file_entry['attribs'] & 0x80 == 0, 'unicode filenames not supported'
+  nul = cab.index('\0', off)
+  assert nul != -1
+  name = cab[off:nul]
+  off = nul + 1
+  files.append((name, file_entry))
+
+print folders
+print files
