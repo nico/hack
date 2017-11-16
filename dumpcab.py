@@ -17,8 +17,8 @@ CFHEADER = [
   ('I', 'reserved2'),
   ('I', 'coffFiles'),  # Offset of first CFFILE.
   ('I', 'reserved3'),
-  ('b', 'versionMinor'),
-  ('b', 'versionMajor'),
+  ('B', 'versionMinor'),
+  ('B', 'versionMajor'),
   ('H', 'cFolders'),  # Number of CFFOLDER entries.
   ('H', 'cFiles'),    # Number of CFFILE entries.
   ('H', 'flags'),
@@ -56,3 +56,32 @@ for i in range(header['cFolders']):
       zip([e[1] for e in CFFOLDER], struct.unpack_from(folder_types, cab, off)))
   print folder
   off += struct.calcsize(folder_types)
+
+
+assert off == header['coffFiles']
+CFFILE = [
+  ('I', 'cbFile'),  # Uncompressed size of this file in bytes.
+  ('I', 'uoffFolderStart'),  # Uncompressed offset of this file in folder.
+  ('H', 'iFolder'),  # Index into CFFOLDER area; 0xFFFD, 0xFFFE, 0xFFFF special
+  ('H', 'date'),     # In the format ((year-1980) << 9)+(month << 5)+(day),
+                     # where month={1..12} and day={1..31}.
+  ('H', 'time'),     # In the format (hour << 11)+(minute << 5)+(seconds/2),
+                     # where hour={0..23}.
+  ('H', 'attribs'),  # 1: read-only
+                     # 2: hidden
+                     # 4: system file
+                     # 0x20: file modified since last backup
+                     # 0x40: run after extraction
+                     # 0x80: name contains UTF
+]
+# Followed by szFile, the file's name. Can contain directory separators, and
+# if 0x80 is set, is UTF-encoded. (FIXME: details)
+
+for i in range(header['cFiles']):
+  file_types = ''.join(e[0] for e in CFFILE)
+  file_entry = collections.OrderedDict(
+      zip([e[1] for e in CFFILE], struct.unpack_from(file_types, cab, off)))
+  print file_entry
+  off += struct.calcsize(file_types)
+  # FIXME: file name, both for printing, and more imporantly, offset.
+  break
