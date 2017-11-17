@@ -41,8 +41,6 @@ assert header['signature'] == "MSCF"
 assert header['flags'] == 0, 'only no-flag .cab files supported'
 off = struct.calcsize(header_types)
 
-print header
-
 folders = []
 CFFOLDER = [
   ('I', 'coffCabStart'),  # Offset of first CFDATA block in this folder.
@@ -86,11 +84,30 @@ for i in range(header['cFiles']):
   off += struct.calcsize(file_types)
   # Read zero-terminated file name folowing CFFILE record.
   assert file_entry['attribs'] & 0x80 == 0, 'unicode filenames not supported'
+  assert file_entry['iFolder'] not in [0xfffd, 0xfffe, 0xffff], \
+         'unsupported iFolder special case'
   nul = cab.index('\0', off)
   assert nul != -1
   name = cab[off:nul]
   off = nul + 1
   files.append((name, file_entry))
 
-print folders
-print files
+# Print list of included files.
+for name, file_entry in files:
+  folder = folders[file_entry['iFolder']]
+  year = (file_entry['date'] >> 9) + 1980
+  month = (file_entry['date'] >> 5) & 0xf
+  day = file_entry['date'] & 0x1f
+  hour = (file_entry['time'] >> 11)
+  minute = (file_entry['time'] >> 5) & 0x3f
+  second = (file_entry['time'] & 0x1f) * 2
+  typeCompress = folder['typeCompress'] & 0xf
+  compression = { 0: 'uncompressed', 1: 'MS-zipped', 2: 'quantum-compressed',
+                  3: 'LZX-compressed' }[typeCompress]
+  if typeCompress == 3:
+    window_size = (folder['typeCompress'] & 0x1f00) >> 8
+    compression += ' with window size %d' % window_size
+
+  print '%-20s %d-%02d-%02d %02d:%02d:%02d, %d bytes, %s, in %d blocks' % (
+      name, year, month, day, hour, minute, second, file_entry['cbFile'],
+      compression, folder['cCFData'])
