@@ -119,12 +119,81 @@ for name, file_entry in files:
       name, year, month, day, hour, minute, second, file_entry['cbFile'],
       compression, folder['cCFData'])
 
+  if typeCompress != 3:
+    continue
+
+  MIN_MATCH = 2
+  MAX_MATCH = 257
+  NUM_CHARS = 256
+  WINDOW_SIZE = window_size
+  NUM_POSITION_SLOTS = 2 * window_size
+  MAIN_TREE_ELEMENTS = NUM_CHARS + NUM_POSITION_SLOTS * 8
+  NUM_SECONDARY_LENGTHS = 249
+  # LZX documentation:
+  # https://msdn.microsoft.com/en-us/library/bb417343.aspx#lzxdatacompressionformat
+  # https://msdn.microsoft.com/en-us/library/cc483133.aspx is newer and has
+  # most mistakes fixed.
+  # Also:
+  # https://github.com/vivisect/dissect/blob/master/dissect/algos/lzx.py
+  # https://github.com/kyz/libmspack/blob/master/libmspack/mspack/lzxd.c
+  # The latter has an explicit list of mistakes in the official docs.
   off = folder['coffCabStart']
   data_types = ''.join(e[0] for e in CFDATA)
+  data_frames = []
   for i in xrange(folder['cCFData']):
     data = collections.OrderedDict(
         zip([e[1] for e in CFDATA], struct.unpack_from(data_types, cab, off)))
     off += struct.calcsize(data_types)
+    data_frames.append(cab[off:off+data['cbData']])
     off += data['cbData']
     print 'block %3d: checksum %8x, %d bytes uncompressed, %d compressed' % (
         i, data['checksum'], data['cbUncomp'], data['cbData'])
+
+  r0, r1, r2 = 1, 1, 1
+  curbit = 15
+  curword = 0
+  curblock = 0
+  def getbit():
+    global curbit, curword, curblock
+    bit = (struct.unpack_from('H',data_frames[curblock],curword)[0]>>curbit) & 1
+    curbit -= 1
+    if curbit < 0:
+      curbit = 15
+      curword += 2  # in bytes
+    if curword >= data_frames[curblock]:
+      curword = 0
+      curblock += 1
+    return bit
+  def getbits(n):
+    bits = 0
+    for i in range(n):
+      bits = (bits << 1) | getbit()
+    return bits
+  #print struct.unpack_from('<HIII', data_frames[0])
+  has_x86_jump_transform =  getbit()
+  if has_x86_jump_transform == 1:
+    x86_trans_size = getbits(32)  # XXX use? also, bitness right?
+    #print '%08x' % x86_trans_size
+  kind, size = getbits(3), getbits(24)
+  print kind, size
+  # makecab.exe uses an uncompressed block for 'f' followed by 149 'o', but
+  # a kind 1 block for 'f' followed by 150 'o'.
+  if kind == 1:  # verbatim
+    assert False, 'unimplemented verbatim'
+  elif kind == 2:  # aligned offset
+    assert False, 'unimplemented aligned offset'
+  elif kind == 3:  # uncompressed
+    # 0-15 padding bits, then 12 bytes III r0, r1, r2, then size raw bytes,
+    # then 0-1 padding bytes
+    if curbit + 1 != 16:
+      getbits(curbit + 1)
+    # XXX: this gets uncompressed packets split across CFDATA blocks wrong.
+    # '<' is important to set padding to 0
+    r0, r1, r2 = struct.unpack_from('<III', data_frames[curblock], curword)
+    curword += 12
+    print struct.unpack_from('%ds' % size, data_frames[curblock], curword)[0]
+    curword += size
+    if curword % 2 != 0:
+      curword += 1
+  else:
+    assert False, 'undefined block kind'
