@@ -56,6 +56,13 @@ for i in range(header['cFolders']):
   folders.append(folder)
   off += struct.calcsize(folder_types)
 
+CFDATA = [
+  ('I', 'checksum'),
+  ('H', 'cbData'),       # Number of compressed bytes in this block.
+  ('H', 'cbUncomp'),     # Size after decompressing.
+]
+# If CFHEADER.flags & 4 followed by CFHEADER.cbCFData per-data reserved data.
+# Then cbData many bytes payload.
 
 assert off == header['coffFiles']
 files = []
@@ -111,3 +118,13 @@ for name, file_entry in files:
   print '%-20s %d-%02d-%02d %02d:%02d:%02d, %d bytes, %s, in %d blocks' % (
       name, year, month, day, hour, minute, second, file_entry['cbFile'],
       compression, folder['cCFData'])
+
+  off = folder['coffCabStart']
+  data_types = ''.join(e[0] for e in CFDATA)
+  for i in xrange(folder['cCFData']):
+    data = collections.OrderedDict(
+        zip([e[1] for e in CFDATA], struct.unpack_from(data_types, cab, off)))
+    off += struct.calcsize(data_types)
+    off += data['cbData']
+    print 'block %3d: checksum %8x, %d bytes uncompressed, %d compressed' % (
+        i, data['checksum'], data['cbUncomp'], data['cbData'])
