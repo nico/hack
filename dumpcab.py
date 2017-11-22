@@ -186,7 +186,7 @@ for name, file_entry in files:
     # to encode the "main" huffmann tree. There are 3 trees, each preceded by
     # its pretree.
     # The canonical huffman trees match rfc1951.
-    def canon_tree(lengths):
+    def canon_tree(lengths, do_print=False):
       # print canonical huffman codes of pretree elements.
       maxlen = max(lengths)
       bl_count = [0] * (maxlen + 1)
@@ -201,7 +201,8 @@ for name, file_entry in files:
       codes = {}
       for i, len_i in enumerate(lengths):
         if len_i != 0:
-          print '%3d: %4s' % (i, bin(next_code[len_i])[2:].rjust(len_i, '0'))
+          if do_print:
+            print '%3d: %4s' % (i, bin(next_code[len_i])[2:].rjust(len_i, '0'))
           # Using a dict for this is very inefficient.
           codes[(len_i, next_code[len_i])] = i
           next_code[len_i] += 1
@@ -226,17 +227,17 @@ for name, file_entry in files:
         # 18: for next (20 + getbits(5)) elements, Len[X] = 0
         # 19: for next (4 + getbits(1)) elements, Len[X] = readcode()
         if code <= 16:
-          print 'reg', (17 - code) % 17
+          #print 'reg', (17 - code) % 17
           tree[i] = (17 - code) % 17 # FIXME: rel to old
           i += 1
         elif code == 17:
           n = 4 + getbits(4)
-          print '17', n
+          #print '17', n
           tree[i:i+n] = [0] * n
           i += n
         elif code == 18:
           n = 20 + getbits(5)
-          print '18', n
+          #print '18', n
           tree[i:i+n] = [0] * n
           i += n
         else:
@@ -249,7 +250,7 @@ for name, file_entry in files:
             code = codes.get((curlen, curbits))
           curlen, curbits = 0, 0
           code = (17 - code) % 17 # FIXME: rel to old (?)
-          print '19', n, code
+          #print '19', n, code
           tree[i:i+n] = [code] * n
           i += n
     readtree(codes, maintree, NUM_CHARS)
@@ -261,9 +262,9 @@ for name, file_entry in files:
     codes = canon_tree(pretree)
     # Read slots of main tree.
     readtree(codes, maintree, MAIN_TREE_ELEMENTS, starti=NUM_CHARS)
-    print maintree
+    #print maintree
     print [i for i in range(MAIN_TREE_ELEMENTS) if maintree[i] != 0]
-    canon_tree(maintree)
+    maincodes = canon_tree(maintree, do_print=True)
     # Read pretree of lengths tree.
     pretree = [getbits(4) for i in range(20)]
     print pretree
@@ -271,10 +272,22 @@ for name, file_entry in files:
     # Read lengths tree.
     lengthstree = [-1] * NUM_SECONDARY_LENGTHS
     readtree(codes, lengthstree, NUM_SECONDARY_LENGTHS)
-    print lengthstree
+    #print lengthstree
     print [i for i in range(NUM_SECONDARY_LENGTHS) if lengthstree[i] != 0]
-    canon_tree(lengthstree)
-    print [getbit() for i in range(10)]
+    canon_tree(lengthstree, do_print=True)
+
+    # Huffman trees have been read, now read the actual data.
+    num_decompressed = 0
+    curlen, curbits = 0, 0
+    while num_decompressed < size:
+      curbits = (curbits << 1) | getbit()
+      curlen += 1
+      code = maincodes.get((curlen, curbits))
+      if code is None: continue
+      curlen, curbits = 0, 0
+      assert code < 256, code
+      print chr(code)
+    #print [getbit() for i in range(10)]
   elif kind == 2:  # aligned offset
     assert False, 'unimplemented aligned offset'
   elif kind == 3:  # uncompressed
