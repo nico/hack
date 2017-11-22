@@ -179,7 +179,28 @@ for name, file_entry in files:
   # makecab.exe uses an uncompressed block for 'f' followed by 149 'o', but
   # a kind 1 block for 'f' followed by 150 'o'.
   if kind == 1:  # verbatim
-    assert False, 'unimplemented verbatim'
+    # A pretree is a huffman tree for the 20 tree codes, which are then used
+    # to encode the "main" huffmann tree. There are 3 trees, each preceded by
+    # its pretree.
+    # The canonical huffman trees match rfc1951.
+    pretree = [getbits(4) for i in range(20)]
+    print pretree
+    # print canonical huffman codes of pretree elements.
+    maxlen = max(pretree)
+    bl_count = [0] * (maxlen + 1)
+    for e in pretree:
+      bl_count[e] += 1
+    code = 0
+    bl_count[0] = 0
+    next_code = [0] * (maxlen + 1)
+    for i in xrange(1, maxlen + 1):
+      code = (code + bl_count[i - 1]) << 1
+      next_code[i] = code
+    for i in range(20):
+      len_i = pretree[i]
+      if len_i != 0:
+        print '%2d: %4s' % (i, bin(next_code[len_i])[2:].rjust(len_i, '0'))
+        next_code[len_i] += 1
   elif kind == 2:  # aligned offset
     assert False, 'unimplemented aligned offset'
   elif kind == 3:  # uncompressed
