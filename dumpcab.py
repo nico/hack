@@ -188,25 +188,28 @@ for name, file_entry in files:
     # The canonical huffman trees match rfc1951.
     pretree = [getbits(4) for i in range(20)]
     print pretree
-    # print canonical huffman codes of pretree elements.
-    maxlen = max(pretree)
-    bl_count = [0] * (maxlen + 1)
-    for e in pretree:
-      bl_count[e] += 1
-    code = 0
-    bl_count[0] = 0
-    next_code = [0] * (maxlen + 1)
-    for i in xrange(1, maxlen + 1):
-      code = (code + bl_count[i - 1]) << 1
-      next_code[i] = code
-    codes = {}
-    for i in range(20):
-      len_i = pretree[i]
-      if len_i != 0:
-        print '%2d: %4s' % (i, bin(next_code[len_i])[2:].rjust(len_i, '0'))
-        # Using a dict for this is very inefficient.
-        codes[(len_i, next_code[len_i])] = i
-        next_code[len_i] += 1
+    def canon_tree(lengths):
+      # print canonical huffman codes of pretree elements.
+      maxlen = max(lengths)
+      bl_count = [0] * (maxlen + 1)
+      for e in lengths:
+        bl_count[e] += 1
+      code = 0
+      bl_count[0] = 0
+      next_code = [0] * (maxlen + 1)
+      for i in xrange(1, maxlen + 1):
+        code = (code + bl_count[i - 1]) << 1
+        next_code[i] = code
+      codes = {}
+      for i, len_i in enumerate(lengths):
+        len_i = lengths[i]
+        if len_i != 0:
+          print '%3d: %4s' % (i, bin(next_code[len_i])[2:].rjust(len_i, '0'))
+          # Using a dict for this is very inefficient.
+          codes[(len_i, next_code[len_i])] = i
+          next_code[len_i] += 1
+      return codes
+    codes = canon_tree(pretree)
     # Read main tree for the 256 elts.
     curlen, curbits = 0, 0
     i = 0
@@ -251,6 +254,7 @@ for name, file_entry in files:
     print [i for i in range(256) if maintree[i] != 0]
     print [chr(i) for i in range(256) if maintree[i] != 0]
     assert len(maintree) == 256
+    canon_tree(maintree)
   elif kind == 2:  # aligned offset
     assert False, 'unimplemented aligned offset'
   elif kind == 3:  # uncompressed
