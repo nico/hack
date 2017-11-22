@@ -173,6 +173,8 @@ for name, file_entry in files:
   #print struct.unpack_from('<HIII', data_frames[0])
   has_x86_jump_transform =  getbit()
   if has_x86_jump_transform == 1:
+    # makecab.exe seems to always include this if the input size is at least
+    # 6 bytes.
     x86_trans_size = getbits(32)  # XXX use? also, bitness right?
     #print '%08x' % x86_trans_size
   kind, size = getbits(3), getbits(24)
@@ -206,17 +208,15 @@ for name, file_entry in files:
         codes[(len_i, next_code[len_i])] = i
         next_code[len_i] += 1
     # Read main tree for the 256 elts.
-    done = False
-    curlen = 0
-    curbits = 0
+    curlen, curbits = 0, 0
     i = 0
     maintree = [-1] * 256
-    while not done:
+    while i < 256:
       curbits = (curbits << 1) | getbit()
       curlen += 1
       code = codes.get((curlen, curbits))
       if code is None: continue
-      curbits, curlen = 0, 0
+      curlen, curbits = 0, 0
       # code 0-16: Len[x] = (prev_len[x] + code) mod 17
       # 17: for next (4 + getbits(4)) elements, Len[X] = 0
       # 18: for next (20 + getbits(5)) elements, Len[X] = 0
@@ -243,12 +243,10 @@ for name, file_entry in files:
           curbits = (curbits << 1) | getbit()
           curlen += 1
           code = codes.get((curlen, curbits))
-        curbits, curlen = 0, 0
+        curlen, curbits = 0, 0
         print '19', n, code
         maintree[i:i+n] = [code] * n
         i += n
-      if i >= 256:
-        done = True
     print maintree
     print [i for i in range(256) if maintree[i] != 0]
     print [chr(i) for i in range(256) if maintree[i] != 0]
