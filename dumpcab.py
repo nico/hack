@@ -126,7 +126,7 @@ for name, file_entry in files:
   MAX_MATCH = 257
   NUM_CHARS = 256
   WINDOW_SIZE = window_size
-  NUM_POSITION_SLOTS = 2 * window_size
+  NUM_POSITION_SLOTS = 2 * window_size # FIXME: wrong for larger windows
   MAIN_TREE_ELEMENTS = NUM_CHARS + NUM_POSITION_SLOTS * 8
   NUM_SECONDARY_LENGTHS = 249
   # LZX documentation:
@@ -186,8 +186,6 @@ for name, file_entry in files:
     # to encode the "main" huffmann tree. There are 3 trees, each preceded by
     # its pretree.
     # The canonical huffman trees match rfc1951.
-    pretree = [getbits(4) for i in range(20)]
-    print pretree
     def canon_tree(lengths):
       # print canonical huffman codes of pretree elements.
       maxlen = max(lengths)
@@ -209,52 +207,69 @@ for name, file_entry in files:
           codes[(len_i, next_code[len_i])] = i
           next_code[len_i] += 1
       return codes
+    # Read pretree of 256 elt main tree.
+    pretree = [getbits(4) for i in range(20)]
+    print pretree
     codes = canon_tree(pretree)
     # Read main tree for the 256 elts.
-    curlen, curbits = 0, 0
-    i = 0
-    maintree = [-1] * 256
-    while i < 256:
-      curbits = (curbits << 1) | getbit()
-      curlen += 1
-      code = codes.get((curlen, curbits))
-      if code is None: continue
+    maintree = [-1] * MAIN_TREE_ELEMENTS
+    def readtree(codes, tree, maxi, starti=0):
       curlen, curbits = 0, 0
-      # code 0-16: Len[x] = (prev_len[x] + code) mod 17
-      # 17: for next (4 + getbits(4)) elements, Len[X] = 0
-      # 18: for next (20 + getbits(5)) elements, Len[X] = 0
-      # 19: for next (4 + getbits(1)) elements, Len[X] = readcode()
-      if code <= 16:
-        print 'reg', code
-        maintree[i] = code
-        i += 1
-      elif code == 17:
-        n = 4 + getbits(4)
-        print '17', n
-        maintree[i:i+n] = [0] * n
-        i += n
-      elif code == 18:
-        n = 20 + getbits(5)
-        print '18', n
-        maintree[i:i+n] = [0] * n
-        i += n
-      else:
-        assert code == 19, code
-        n = 4 + getbit()
-        code = None
-        while code is None:
-          curbits = (curbits << 1) | getbit()
-          curlen += 1
-          code = codes.get((curlen, curbits))
+      i = starti
+      while i < maxi:
+        curbits = (curbits << 1) | getbit()
+        curlen += 1
+        code = codes.get((curlen, curbits))
+        if code is None: continue
         curlen, curbits = 0, 0
-        print '19', n, code
-        maintree[i:i+n] = [code] * n
-        i += n
+        # code 0-16: Len[x] = (prev_len[x] + code) mod 17
+        # 17: for next (4 + getbits(4)) elements, Len[X] = 0
+        # 18: for next (20 + getbits(5)) elements, Len[X] = 0
+        # 19: for next (4 + getbits(1)) elements, Len[X] = readcode()
+        if code <= 16:
+          print 'reg', code
+          tree[i] = code  # FIXME: rel to old, mod 17
+          i += 1
+        elif code == 17:
+          n = 4 + getbits(4)
+          print '17', n
+          tree[i:i+n] = [0] * n
+          i += n
+        elif code == 18:
+          n = 20 + getbits(5)
+          print '18', n
+          tree[i:i+n] = [0] * n
+          i += n
+        else:
+          assert code == 19, code
+          n = 4 + getbit()
+          code = None
+          while code is None:
+            curbits = (curbits << 1) | getbit()
+            curlen += 1
+            code = codes.get((curlen, curbits))
+          curlen, curbits = 0, 0
+          # FIXME: rel to old (?), mod 17
+          print '19', n, code
+          tree[i:i+n] = [code] * n
+          i += n
+    readtree(codes, maintree, NUM_CHARS)
     print maintree
-    print [i for i in range(256) if maintree[i] != 0]
     print [chr(i) for i in range(256) if maintree[i] != 0]
-    assert len(maintree) == 256
+    assert len(maintree) == MAIN_TREE_ELEMENTS
+    # Read pretree of slot elts of main tree.
+    pretree = [getbits(4) for i in range(20)]
+    print pretree
+    codes = canon_tree(pretree)
+    # Read slots of main tree.
+    readtree(codes, maintree, MAIN_TREE_ELEMENTS, starti=NUM_CHARS)
+    print maintree
+    print [i for i in range(MAIN_TREE_ELEMENTS) if maintree[i] != 0]
     canon_tree(maintree)
+    # Read pretree of lengths tree.
+    pretree = [getbits(4) for i in range(20)]
+    print pretree
+    codes = canon_tree(pretree)
   elif kind == 2:  # aligned offset
     assert False, 'unimplemented aligned offset'
   elif kind == 3:  # uncompressed
