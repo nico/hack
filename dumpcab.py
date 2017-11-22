@@ -270,6 +270,12 @@ for name, file_entry in files:
     pretree = [getbits(4) for i in range(20)]
     print pretree
     codes = canon_tree(pretree)
+    # Read lengths tree.
+    lengthstree = [-1] * NUM_SECONDARY_LENGTHS
+    readtree(codes, lengthstree, NUM_SECONDARY_LENGTHS)
+    print lengthstree
+    print [i for i in range(NUM_SECONDARY_LENGTHS) if lengthstree[i] != 0]
+    canon_tree(lengthstree)
   elif kind == 2:  # aligned offset
     assert False, 'unimplemented aligned offset'
   elif kind == 3:  # uncompressed
