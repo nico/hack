@@ -126,7 +126,7 @@ for name, file_entry in files:
   MAX_MATCH = 257
   NUM_CHARS = 256
   WINDOW_SIZE = window_size
-  NUM_POSITION_SLOTS = 2 * window_size # FIXME: wrong for larger windows
+  NUM_POSITION_SLOTS = 2 * window_size # FIXME: wrong for larger windows >= 20
   MAIN_TREE_ELEMENTS = NUM_CHARS + NUM_POSITION_SLOTS * 8
   NUM_SECONDARY_LENGTHS = 249
   # LZX documentation:
@@ -200,7 +200,6 @@ for name, file_entry in files:
         next_code[i] = code
       codes = {}
       for i, len_i in enumerate(lengths):
-        len_i = lengths[i]
         if len_i != 0:
           print '%3d: %4s' % (i, bin(next_code[len_i])[2:].rjust(len_i, '0'))
           # Using a dict for this is very inefficient.
@@ -222,13 +221,13 @@ for name, file_entry in files:
         code = codes.get((curlen, curbits))
         if code is None: continue
         curlen, curbits = 0, 0
-        # code 0-16: Len[x] = (prev_len[x] + code) mod 17
+        # code 0-16: Len[x] = (prev_len[x] - code + 17) mod 17
         # 17: for next (4 + getbits(4)) elements, Len[X] = 0
         # 18: for next (20 + getbits(5)) elements, Len[X] = 0
         # 19: for next (4 + getbits(1)) elements, Len[X] = readcode()
         if code <= 16:
-          print 'reg', code
-          tree[i] = code  # FIXME: rel to old, mod 17
+          print 'reg', (17 - code) % 17
+          tree[i] = (17 - code) % 17 # FIXME: rel to old
           i += 1
         elif code == 17:
           n = 4 + getbits(4)
@@ -249,12 +248,11 @@ for name, file_entry in files:
             curlen += 1
             code = codes.get((curlen, curbits))
           curlen, curbits = 0, 0
-          # FIXME: rel to old (?), mod 17
+          code = (17 - code) % 17 # FIXME: rel to old (?)
           print '19', n, code
           tree[i:i+n] = [code] * n
           i += n
     readtree(codes, maintree, NUM_CHARS)
-    print maintree
     print [chr(i) for i in range(256) if maintree[i] != 0]
     assert len(maintree) == MAIN_TREE_ELEMENTS
     # Read pretree of slot elts of main tree.
@@ -276,6 +274,7 @@ for name, file_entry in files:
     print lengthstree
     print [i for i in range(NUM_SECONDARY_LENGTHS) if lengthstree[i] != 0]
     canon_tree(lengthstree)
+    print [getbit() for i in range(10)]
   elif kind == 2:  # aligned offset
     assert False, 'unimplemented aligned offset'
   elif kind == 3:  # uncompressed
