@@ -165,6 +165,7 @@ for name, file_entry in files:
       curblock += 1
     return bit
   def getbits(n):
+    # Doing this bit-by-bit is inefficient; this should try to bunch things up.
     bits = 0
     for i in range(n):
       bits = (bits << 1) | getbit()
@@ -196,11 +197,62 @@ for name, file_entry in files:
     for i in xrange(1, maxlen + 1):
       code = (code + bl_count[i - 1]) << 1
       next_code[i] = code
+    codes = {}
     for i in range(20):
       len_i = pretree[i]
       if len_i != 0:
         print '%2d: %4s' % (i, bin(next_code[len_i])[2:].rjust(len_i, '0'))
+        # Using a dict for this is very inefficient.
+        codes[(len_i, next_code[len_i])] = i
         next_code[len_i] += 1
+    # Read main tree for the 256 elts.
+    done = False
+    curlen = 0
+    curbits = 0
+    i = 0
+    maintree = [-1] * 256
+    while not done:
+      curbits = (curbits << 1) | getbit()
+      curlen += 1
+      code = codes.get((curlen, curbits))
+      if code is None: continue
+      curbits, curlen = 0, 0
+      # code 0-16: Len[x] = (prev_len[x] + code) mod 17
+      # 17: for next (4 + getbits(4)) elements, Len[X] = 0
+      # 18: for next (20 + getbits(5)) elements, Len[X] = 0
+      # 19: for next (4 + getbits(1)) elements, Len[X] = readcode()
+      if code <= 16:
+        print 'reg', code
+        maintree[i] = code
+        i += 1
+      elif code == 17:
+        n = 4 + getbits(4)
+        print '17', n
+        maintree[i:i+n] = [0] * n
+        i += n
+      elif code == 18:
+        n = 20 + getbits(5)
+        print '18', n
+        maintree[i:i+n] = [0] * n
+        i += n
+      else:
+        assert code == 19, code
+        n = 4 + getbit()
+        code = None
+        while code is None:
+          curbits = (curbits << 1) | getbit()
+          curlen += 1
+          code = codes.get((curlen, curbits))
+        curbits, curlen = 0, 0
+        print '19', n, code
+        maintree[i:i+n] = [code] * n
+        i += n
+      if i >= 256:
+        done = True
+    print maintree
+    print [i for i in range(256) if maintree[i] != 0]
+    print [chr(i) for i in range(256) if maintree[i] != 0]
+    assert len(maintree) == 256
   elif kind == 2:  # aligned offset
     assert False, 'unimplemented aligned offset'
   elif kind == 3:  # uncompressed
