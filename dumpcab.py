@@ -274,7 +274,7 @@ for name, file_entry in files:
     readtree(codes, lengthstree, NUM_SECONDARY_LENGTHS)
     #print lengthstree
     print [i for i in range(NUM_SECONDARY_LENGTHS) if lengthstree[i] != 0]
-    canon_tree(lengthstree, do_print=True)
+    lengthcodes = canon_tree(lengthstree, do_print=True)
 
     # Huffman trees have been read, now read the actual data.
     num_decompressed = 0
@@ -285,8 +285,38 @@ for name, file_entry in files:
       code = maincodes.get((curlen, curbits))
       if code is None: continue
       curlen, curbits = 0, 0
-      assert code < 256, code
-      print chr(code)
+      if code < 256:
+        print chr(code)
+        num_decompressed += 1
+        continue
+      length_header = (code - 256) & 7
+      if length_header == 7:
+        lencode = None
+        while lencode is None:
+          curbits = (curbits << 1) | getbit()
+          curlen += 1
+          lencode = lengthcodes.get((curlen, curbits))
+        curlen, curbits = 0, 0
+        match_length = lencode + 7 + 2
+      else:
+        match_length = length_header + 2
+      position_slot = (code - 256) >> 3
+      # Check for repeated offsets in positions 0, 1, 2
+      if position_slot == 0:
+        match_offset = r0
+      elif position_slot == 1:
+        match_offset = r1
+        r0, r1 = r1, r0
+      elif position_slot == 2:
+        match_offset = r2
+        r0, r2 = r2, r0
+      else:
+        assert False, 'TODO'  # offset_bits = footer_bits[position_slot]...
+
+      if match_length == 257:
+        assert False, 'TODO'
+      print match_offset, match_length
+      num_decompressed += match_length
     #print [getbit() for i in range(10)]
   elif kind == 2:  # aligned offset
     assert False, 'unimplemented aligned offset'
