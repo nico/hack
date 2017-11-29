@@ -277,6 +277,26 @@ for name, file_entry in files:
     lengthcodes = canon_tree(lengthstree, do_print=True)
 
     # Huffman trees have been read, now read the actual data.
+    win_write, win_count, win_size = 0, 0, 1 << window_size
+    window = [0] * win_size
+    def output(s):
+      global win_write, win_count, win_size
+      sys.stdout.write(''.join(chr(c) for c in s))
+      if len(s) >= win_size:
+        window[:] = s[len(s) - win_size:]
+        win_write, win_count = 0, win_size
+      else:
+        right_space = win_size - win_write - 1
+        if right_space >= len(s):
+          window[win_write:win_write+len(s)] = s
+          win_write += len(s)
+        else:
+          # We know len(s) < win_write, so the reminder will fit on the left.
+          window[win_write:win_size] = s[0:right_space+1]
+          window[0:len(s) - right_space] = s[right_space+1:]
+          win_write = len(s) - right_space
+        win_count = min(win_size, win_count + len(s))
+
     num_decompressed = 0
     curlen, curbits = 0, 0
     while num_decompressed < size:
@@ -286,7 +306,8 @@ for name, file_entry in files:
       if code is None: continue
       curlen, curbits = 0, 0
       if code < 256:
-        print chr(code)
+        #print chr(code)
+        output([code])
         num_decompressed += 1
         continue
       length_header = (code - 256) & 7
@@ -315,7 +336,12 @@ for name, file_entry in files:
 
       if match_length == 257:
         assert False, 'TODO'
-      print match_offset, match_length
+      for i in xrange(match_length):
+        output([window[match_offset]])  # FIXME: chunkier?
+        match_offset += 1
+        if match_offset >= win_size:
+          match_offset -= win_size
+      #print match_offset, match_length, chr(window[match_offset])
       num_decompressed += match_length
     #print [getbit() for i in range(10)]
   elif kind == 2:  # aligned offset
