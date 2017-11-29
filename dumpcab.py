@@ -6,6 +6,11 @@ import collections
 import struct
 import sys
 
+# Interesting inputs, compress with "makecab /D CompressionType=LZX in.txt"
+# foo.txt containing "foo\r\n", simple type 3 (uncompressed) block.
+# foooooo.txt containing "f", 150 "o"s, \r\n" easy type 1 (verbatim) block.
+# mac.txt from http://www.folgerdigitaltexts.org/download/txt/Mac.txt.
+#   4 blocks.
 
 cab = open(sys.argv[1], 'rb').read()
 
