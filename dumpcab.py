@@ -130,6 +130,10 @@ for name, file_entry in files:
   if typeCompress != 3:
     continue
 
+  if sys.platform == "win32":
+    import os, msvcrt
+    msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
+
   MIN_MATCH = 2
   MAX_MATCH = 257
   NUM_CHARS = 256
@@ -168,7 +172,7 @@ for name, file_entry in files:
     if curbit < 0:
       curbit = 15
       curword += 2  # in bytes
-    if curword >= data_frames[curblock]:
+    if curword >= len(data_frames[curblock]):
       curword = 0
       curblock += 1
     return bit
@@ -312,11 +316,15 @@ for name, file_entry in files:
       curlen += 1
       code = maincodes.get((curlen, curbits))
       if code is None: continue
+      #print num_decompressed, size
       curlen, curbits = 0, 0
       if code < 256:
         #print chr(code)
         output([code])
         num_decompressed += 1
+        if num_decompressed % 32768 == 0 and curbit + 1 != 16:
+          # Align to 16-bit boundary after every cfdata block.
+          getbits(curbit + 1)
         continue
       length_header = (code - 256) & 7
       if length_header == 7:
@@ -364,6 +372,9 @@ for name, file_entry in files:
           match_offset -= win_size
       #sys.stdout.write('</match>')
       num_decompressed += match_length
+      if num_decompressed % 32768 == 0 and curbit + 1 != 16:
+        # Align to 16-bit boundary after every cfdata block.
+        getbits(curbit + 1)
     #print [getbit() for i in range(10)]
   elif kind == 2:  # aligned offset
     assert False, 'unimplemented aligned offset'
