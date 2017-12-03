@@ -322,56 +322,54 @@ for name, file_entry in files:
         #print chr(code)
         output([code])
         num_decompressed += 1
-        if num_decompressed % 32768 == 0 and curbit + 1 != 16:
-          # Align to 16-bit boundary after every cfdata block.
-          getbits(curbit + 1)
-        continue
-      length_header = (code - 256) & 7
-      if length_header == 7:
-        lencode = None
-        while lencode is None:
-          curbits = (curbits << 1) | getbit()
-          curlen += 1
-          lencode = lengthcodes.get((curlen, curbits))
-        curlen, curbits = 0, 0
-        match_length = lencode + 7 + 2
       else:
-        match_length = length_header + 2
-      position_slot = (code - 256) >> 3
-      # Check for repeated offsets in positions 0, 1, 2
-      if position_slot == 0:
-        match_offset = r0
-      elif position_slot == 1:
-        match_offset = r1
-        r0, r1 = r1, r0
-      elif position_slot == 2:
-        match_offset = r2
-        r0, r2 = r2, r0
-      else:
-        # XXX why is 17 the max?
-        extra_bits = min((position_slot - 2) / 2, 17)
-        verbatim_bits = getbits(extra_bits)
-        # XXX explain. (farther offsets need more bits; slots). also, precompute
-        base_position = 0
-        for i in xrange(position_slot - 2):
-          base_position += (1 << min(i / 2, 17))
-        match_offset = base_position + verbatim_bits
-        r0, r1, r2 = match_offset, r0, r1
+        length_header = (code - 256) & 7
+        if length_header == 7:
+          lencode = None
+          while lencode is None:
+            curbits = (curbits << 1) | getbit()
+            curlen += 1
+            lencode = lengthcodes.get((curlen, curbits))
+          curlen, curbits = 0, 0
+          match_length = lencode + 7 + 2
+        else:
+          match_length = length_header + 2
+        position_slot = (code - 256) >> 3
+        # Check for repeated offsets in positions 0, 1, 2
+        if position_slot == 0:
+          match_offset = r0
+        elif position_slot == 1:
+          match_offset = r1
+          r0, r1 = r1, r0
+        elif position_slot == 2:
+          match_offset = r2
+          r0, r2 = r2, r0
+        else:
+          # XXX why is 17 the max?
+          extra_bits = min((position_slot - 2) / 2, 17)
+          verbatim_bits = getbits(extra_bits)
+          # XXX explain. (farther offsets need more bits; slots).
+          # also, precompute
+          base_position = 0
+          for i in xrange(position_slot - 2):
+            base_position += (1 << min(i / 2, 17))
+          match_offset = base_position + verbatim_bits
+          r0, r1, r2 = match_offset, r0, r1
 
-      if match_length == 257:
-        assert False, 'TODO'
-      #sys.stdout.write('<match off=%d len=%d>' % (match_offset, match_length))
-      # match_offset is relative to the end of the window.
-      match_offset = win_write - match_offset
-      if match_offset < 0:
-        match_offset += win_size
-      for i in xrange(match_length):
-        output([window[match_offset]])  # FIXME: chunkier?
-        match_offset += 1
-        if match_offset >= win_size:
-          match_offset -= win_size
-      #sys.stdout.write('</match>')
-      num_decompressed += match_length
+        if match_length == 257:
+          assert False, 'TODO'
+        #sys.stdout.write('<match off=%d len=%d>' % (match_offset,match_length))
+        # match_offset is relative to the end of the window.
+        match_offset = win_write - match_offset
+        if match_offset < 0:
+          match_offset += win_size
+        for i in xrange(match_length):
+          output([window[match_offset]])  # FIXME: chunkier?
+          match_offset += 1
+          if match_offset >= win_size:
+            match_offset -= win_size
+        #sys.stdout.write('</match>')
+        num_decompressed += match_length
       if num_decompressed % 32768 == 0 and curbit + 1 != 16:
         # Align to 16-bit boundary after every cfdata block.
         getbits(curbit + 1)
