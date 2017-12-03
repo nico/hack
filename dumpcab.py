@@ -6,11 +6,14 @@ import collections
 import struct
 import sys
 
-# Interesting inputs, compress with "makecab /D CompressionType=LZX in.txt"
+# Interesting inputs, compress with "makecab /D CompressionType=LZX in.txt":
 # foo.txt containing "foo\r\n", simple type 3 (uncompressed) block.
 # foooooo.txt containing "f", 150 "o"s, \r\n" easy type 1 (verbatim) block.
 # mac.txt from http://www.folgerdigitaltexts.org/download/txt/Mac.txt.
 #   4 blocks.
+#
+# Interesting parameters:
+# * /D CompressionMemory=15 sets LZX compression window size.
 
 cab = open(sys.argv[1], 'rb').read()
 
@@ -131,7 +134,7 @@ for name, file_entry in files:
   MAX_MATCH = 257
   NUM_CHARS = 256
   WINDOW_SIZE = window_size
-  NUM_POSITION_SLOTS = 2 * window_size # FIXME: wrong for larger windows >= 20
+  NUM_POSITION_SLOTS = {15:30,16:32,17:34,18:36,19:38,20:42,21:50}[window_size]
   MAIN_TREE_ELEMENTS = NUM_CHARS + NUM_POSITION_SLOTS * 8
   NUM_SECONDARY_LENGTHS = 249
   # LZX documentation:
@@ -337,16 +340,29 @@ for name, file_entry in files:
         match_offset = r2
         r0, r2 = r2, r0
       else:
-        assert False, 'TODO'  # offset_bits = footer_bits[position_slot]...
+        # XXX why is 17 the max?
+        extra_bits = min((position_slot - 2) / 2, 17)
+        verbatim_bits = getbits(extra_bits)
+        # XXX explain. (farther offsets need more bits; slots). also, precompute
+        base_position = 0
+        for i in xrange(position_slot - 2):
+          base_position += (1 << min(i / 2, 17))
+        match_offset = base_position + verbatim_bits
+        r0, r1, r2 = match_offset, r0, r1
 
       if match_length == 257:
         assert False, 'TODO'
+      #sys.stdout.write('<match off=%d len=%d>' % (match_offset, match_length))
+      # match_offset is relative to the end of the window.
+      match_offset = win_write - match_offset
+      if match_offset < 0:
+        match_offset += win_size
       for i in xrange(match_length):
         output([window[match_offset]])  # FIXME: chunkier?
         match_offset += 1
         if match_offset >= win_size:
           match_offset -= win_size
-      #print match_offset, match_length, chr(window[match_offset])
+      #sys.stdout.write('</match>')
       num_decompressed += match_length
     #print [getbit() for i in range(10)]
   elif kind == 2:  # aligned offset
