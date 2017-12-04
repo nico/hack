@@ -3,6 +3,7 @@
 """Dumps some information about files produced by Windows's makecab.exe"""
 
 import collections
+import os
 import struct
 import sys
 
@@ -16,6 +17,9 @@ import sys
 # * /D CompressionMemory=15 sets LZX compression window size.
 
 cab = open(sys.argv[1], 'rb').read()
+outfile = sys.argv[2] if len(sys.argv) > 2 \
+                      else os.path.basename(sys.argv[1]) + '.out'
+
 
 # https://msdn.microsoft.com/en-us/library/bb417343.aspx#cabinet_format
 CFHEADER = [
@@ -190,10 +194,10 @@ for name, file_entry in files:
     x86_trans_size = getbits(32)  # XXX use? also, bitness right?
     #print '%08x' % x86_trans_size
   kind, size = getbits(3), getbits(24)
-  print kind, size
+  #print kind, size
   # makecab.exe uses an uncompressed block for 'f' followed by 149 'o', but
   # a kind 1 block for 'f' followed by 150 'o'.
-  if kind == 1:  # verbatim
+  if kind in [1, 2]:  # 1: verbatim, 2: aligned
     # A pretree is a huffman tree for the 20 tree codes, which are then used
     # to encode the "main" huffmann tree. There are 3 trees, each preceded by
     # its pretree.
@@ -219,6 +223,9 @@ for name, file_entry in files:
           codes[(len_i, next_code[len_i])] = i
           next_code[len_i] += 1
       return codes
+    if kind == 2:
+      alignedoffsettree = [getbits(3) for i in range(8)]
+      alignedoffsetcodes = canon_tree(alignedoffsettree)
     # Read pretree of 256 elt main tree.
     pretree = [getbits(4) for i in range(20)]
     print pretree
@@ -266,34 +273,36 @@ for name, file_entry in files:
           tree[i:i+n] = [code] * n
           i += n
     readtree(codes, maintree, NUM_CHARS)
-    print [chr(i) for i in range(256) if maintree[i] != 0]
+    #print [chr(i) for i in range(256) if maintree[i] != 0]
     assert len(maintree) == MAIN_TREE_ELEMENTS
     # Read pretree of slot elts of main tree.
     pretree = [getbits(4) for i in range(20)]
-    print pretree
+    #print pretree
     codes = canon_tree(pretree)
     # Read slots of main tree.
     readtree(codes, maintree, MAIN_TREE_ELEMENTS, starti=NUM_CHARS)
     #print maintree
-    print [i for i in range(MAIN_TREE_ELEMENTS) if maintree[i] != 0]
+    #print [i for i in range(MAIN_TREE_ELEMENTS) if maintree[i] != 0]
     maincodes = canon_tree(maintree, do_print=True)
     # Read pretree of lengths tree.
     pretree = [getbits(4) for i in range(20)]
-    print pretree
+    #print pretree
     codes = canon_tree(pretree)
     # Read lengths tree.
     lengthstree = [-1] * NUM_SECONDARY_LENGTHS
     readtree(codes, lengthstree, NUM_SECONDARY_LENGTHS)
     #print lengthstree
-    print [i for i in range(NUM_SECONDARY_LENGTHS) if lengthstree[i] != 0]
+    #print [i for i in range(NUM_SECONDARY_LENGTHS) if lengthstree[i] != 0]
     lengthcodes = canon_tree(lengthstree, do_print=True)
 
     # Huffman trees have been read, now read the actual data.
     win_write, win_count, win_size = 0, 0, 1 << window_size
     window = [0] * win_size
+    outfile = open(outfile, 'wb')
     def output(s):
-      global win_write, win_count, win_size
-      sys.stdout.write(''.join(chr(c) for c in s))
+      global win_write, win_count, win_size, outfile
+      outfile.write(''.join(chr(c) for c in s))
+      #print map(hex, s),
       if len(s) >= win_size:
         window[:] = s[len(s) - win_size:]
         win_write, win_count = 0, win_size
@@ -311,6 +320,7 @@ for name, file_entry in files:
 
     num_decompressed = 0
     curlen, curbits = 0, 0
+    #print 'size %d %x' % (size, size)
     while num_decompressed < size:
       curbits = (curbits << 1) | getbit()
       curlen += 1
@@ -347,17 +357,32 @@ for name, file_entry in files:
         else:
           # XXX why is 17 the max?
           extra_bits = min((position_slot - 2) / 2, 17)
-          verbatim_bits = getbits(extra_bits)
+
           # XXX explain. (farther offsets need more bits; slots).
           # also, precompute
           base_position = 0
           for i in xrange(position_slot - 2):
             base_position += (1 << min(i / 2, 17))
-          match_offset = base_position + verbatim_bits
+
+          if kind == 2:
+            if extra_bits >= 3:
+              verbatim_bits = getbits(extra_bits - 3) << 3
+              aligned_bits = None
+              while aligned_bits is None:
+                curbits = (curbits << 1) | getbit()
+                curlen += 1
+                aligned_bits = alignedoffsetcodes.get((curlen, curbits))
+              curlen, curbits = 0, 0
+            else:
+              verbatim_bits = getbits(extra_bits)
+              aligned_bits = 0
+            #print 'align', base_position, verbatim_bits, aligned_bits
+            match_offset = base_position + verbatim_bits + aligned_bits
+          else:
+            verbatim_bits = getbits(extra_bits)
+            match_offset = base_position + verbatim_bits
           r0, r1, r2 = match_offset, r0, r1
 
-        if match_length == 257:
-          assert False, 'TODO'
         #sys.stdout.write('<match off=%d len=%d>' % (match_offset,match_length))
         # match_offset is relative to the end of the window.
         match_offset = win_write - match_offset
@@ -373,9 +398,8 @@ for name, file_entry in files:
       if num_decompressed % 32768 == 0 and curbit + 1 != 16:
         # Align to 16-bit boundary after every cfdata block.
         getbits(curbit + 1)
+      #if num_decompressed >= 0xd0: sys.exit(0)
     #print [getbit() for i in range(10)]
-  elif kind == 2:  # aligned offset
-    assert False, 'unimplemented aligned offset'
   elif kind == 3:  # uncompressed
     # 0-15 padding bits, then 12 bytes III r0, r1, r2, then size raw bytes,
     # then 0-1 padding bytes
@@ -385,7 +409,8 @@ for name, file_entry in files:
     # '<' is important to set padding to 0
     r0, r1, r2 = struct.unpack_from('<III', data_frames[curblock], curword)
     curword += 12
-    print struct.unpack_from('%ds' % size, data_frames[curblock], curword)[0]
+    sys.stdout.write(
+        struct.unpack_from('%ds' % size, data_frames[curblock], curword)[0])
     curword += size
     if curword % 2 != 0:
       curword += 1
