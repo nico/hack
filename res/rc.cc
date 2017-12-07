@@ -18,7 +18,6 @@ Missing for chromium:
 Also missing, but not yet for chromium:
 - #pragma code_page()
 - FONT
-- MENUITEM SEPARATOR
 - MENUEX (including int expression parse/eval)
 - MESSAGETABLE
 - inline block data for DIALOG controls
@@ -1829,13 +1828,26 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
     }
     bool is_item = IsEqualAsciiUppercase(cur_token().value_ , "MENUITEM");
     Consume();  // Eat MENUITEM or POPUP.
-    if (!Is(Token::kString, "expected string"))
-      return std::unique_ptr<MenuResource::SubmenuEntryData>();
-    std::experimental::string_view name_val = StringContents(Consume());
 
+    // Handle MENUITEM SEPARATOR special case.  FIXME: If this gets used for
+    // MENUEX in the future, make sure to not accept MENUITEM SEPARATOR in
+    // MENUEX blocks.
+    std::experimental::string_view name_val;
     std::unique_ptr<MenuResource::EntryData> entry_data;
+    bool is_separator = false;
+    if (is_item && Is(Token::kIdentifier) &&
+        IsEqualAsciiUppercase(cur_token().value_, "SEPARATOR")) {
+      Consume();
+      is_separator = true;
+      entry_data.reset(new MenuResource::ItemEntryData(0));
+    } else if (Is(Token::kString, "expected string")) {
+      name_val = StringContents(Consume());
+    } else {
+      return std::unique_ptr<MenuResource::SubmenuEntryData>();
+    }
+
     uint16_t style = 0;
-    if (is_item) {
+    if (is_item && !is_separator) {
       if (!Match(Token::kComma, "expected comma"))
         return std::unique_ptr<MenuResource::SubmenuEntryData>();
       if (!Is(Token::kInt, "expected int"))
@@ -1844,7 +1856,8 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
 
       MaybeParseMenuOptions(&style);
       entry_data.reset(new MenuResource::ItemEntryData(id_num));
-    } else {
+    }
+    if (!is_item) {
       MaybeParseMenuOptions(&style);
       style |= kMenuPOPUP;
 

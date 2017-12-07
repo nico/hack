@@ -12,7 +12,7 @@ BEGIN
   MENUITEM "&Item", 108, CHECKED, GRAYED
   MENUITEM "&Item", 109, CHECKED GRAYED
   MENUITEM "&Item", 110, INACTIVE,,,,, GRAYED,,,
-  //MENUITEM SEPARATOR  FIXME implement
+  MENUITEM SEPaRaTOR
   //Amusingly, rc.exe also accepts POPUP SEPARATOR { MENUITEM "", 0 }
   POPUP "&Popu" { MENUITEM "&Item", 101 }
   POPUP "&Popu", CHECKED { MENUITEM "&Item", 102 }
