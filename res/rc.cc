@@ -2986,14 +2986,36 @@ bool SerializationVisitor::WriteIconOrCursorGroup(const FileResource* r,
   write_little_short(out_, dir.type);
   write_little_short(out_, dir.count);
   for (IconEntry& entry : entries) {
+    // For cursors, entry.num_planes and entry.bpp store the hotspot
+    // coordinates.  For icons, these two fields do exist, but it seems rc.exe
+    // ignores their contents and grabs the values from the BITMAPINFOHEADER
+    // (if present) there too.  So always do this.
+    uint16_t num_planes;
+    uint16_t bpp;
+    fseek(f, entry.data_offset, SEEK_SET);
+    uint32_t bitmapinfoheader_size = read_little_long(f);
+    if (bitmapinfoheader_size == 0x28) {
+      // foo_new.ico just contains raw png data at the data offset, without
+      // BITMAPINFOHEADER.  The 0x28 check prevents reading that.
+      (void)read_little_long(f);  // width
+      (void)read_little_long(f);  // height
+      num_planes = read_little_short(f);
+      bpp = read_little_short(f);
+    } else {
+      // A PNG .ico file.
+      // https://blogs.msdn.microsoft.com/oldnewthing/20101022-00/?p=12473
+      // "The image must be in 32bpp"
+      num_planes = 1;
+      bpp = 32;
+    }
+
     if (type == kIcon) {
       fputc(entry.width, out_);
       fputc(entry.height, out_);
       fputc(entry.num_colors, out_);
       fputc(entry.reserved, out_);
-      // Some files have num_planes set to 0, but rc.exe still writes 1 here.
-      write_little_short(out_, 1);
-      write_little_short(out_, entry.bpp);
+      write_little_short(out_, num_planes);
+      write_little_short(out_, bpp);
     } else {
       // .cur files are weird, they store width and height as shorts instead
       // of bytes here, multiply height by 2 apparently, and then store
@@ -3002,10 +3024,6 @@ bool SerializationVisitor::WriteIconOrCursorGroup(const FileResource* r,
       // used here).
       write_little_short(out_, entry.width);
       write_little_short(out_, 2*entry.height);
-      // Grab actual non-hotspot num_planes, bpp from BITMAPINFOHEADER.
-      fseek(f, entry.data_offset + 12, SEEK_SET);
-      uint16_t num_planes = read_little_short(f);
-      uint16_t bpp = read_little_short(f);
       write_little_short(out_, num_planes);
       write_little_short(out_, bpp);
     }
