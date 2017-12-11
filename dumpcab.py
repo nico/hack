@@ -412,11 +412,29 @@ for name, file_entry in files:
         # multiple of that, and since matches must not cross 32768 boundaries,
         # checking the window write pointer should achieve the same thing.
         if (win_write % 32768) % curframesize == 0:
-          outfile.write(
-              ''.join(map(chr, window[win_write-curframesize:win_write])))
+          # Align to 16-bit boundary after every cfdata block.
+          # This has to happen before the x86 jump translation below, so that
+          # curblock consistently is the next block.
           if curbit + 1 != 16:
-            # Align to 16-bit boundary after every cfdata block.
             getbits(curbit + 1)
+
+          outdata = window[win_write-curframesize:win_write]
+          if curblock <= 32768 and curframesize > 10 and has_x86_jump_transform:
+            i = 0
+            while i < len(outdata) - 10:
+              if outdata[i] != 0xe8:
+                i += 1
+                continue
+              current_pointer = (curblock - 1) * 32768 + i
+              d = struct.unpack('<i', ''.join(map(chr, outdata[i+1:i+5])))[0]
+              if d >= -current_pointer and d < x86_trans_size:
+                d = d - current_pointer if d >= 0 else d + x86_trans_size
+                outdata[i + 1] = d & 0xff
+                outdata[i + 2] = (d >> 8) & 0xff
+                outdata[i + 3] = (d >> 16) & 0xff
+                outdata[i + 4] = (d >> 24) & 0xff
+              i += 5
+          outfile.write(''.join(map(chr, outdata)))
         #if num_decompressed >= 0xd0: sys.exit(0)
       #print [getbit() for i in range(10)]
     elif kind == 3:  # uncompressed
