@@ -305,7 +305,6 @@ for name, file_entry in files:
       # Huffman trees have been read, now read the actual data.
       def output(s):
         global win_write, win_count, win_size, outfile
-        outfile.write(''.join(chr(c) for c in s))
         #print map(hex, s),
         # Max match length is 257, min win size is 32768, match will always fit.
         assert len(s) < win_size
@@ -412,9 +411,12 @@ for name, file_entry in files:
         # contains 32768 bytes uncompressed, since the window size is always a
         # multiple of that, and since matches must not cross 32768 boundaries,
         # checking the window write pointer should achieve the same thing.
-        if (win_write % 32768) % curframesize == 0 and curbit + 1 != 16:
-          # Align to 16-bit boundary after every cfdata block.
-          getbits(curbit + 1)
+        if (win_write % 32768) % curframesize == 0:
+          outfile.write(
+              ''.join(map(chr, window[win_write-curframesize:win_write])))
+          if curbit + 1 != 16:
+            # Align to 16-bit boundary after every cfdata block.
+            getbits(curbit + 1)
         #if num_decompressed >= 0xd0: sys.exit(0)
       #print [getbit() for i in range(10)]
     elif kind == 3:  # uncompressed
