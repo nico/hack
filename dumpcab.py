@@ -164,8 +164,8 @@ for name, file_entry in files:
     data_frames.append(cab[off:off+data['cbData']])
     data_frame_uncomp_sizes.append(data['cbUncomp'])
     off += data['cbData']
-    print 'block %3d: checksum %8x, %d bytes uncompressed, %d compressed' % (
-        i, data['checksum'], data['cbUncomp'], data['cbData'])
+    #print 'block %3d: checksum %8x, %d bytes uncompressed, %d compressed' % (
+        #i, data['checksum'], data['cbUncomp'], data['cbData'])
 
   r0, r1, r2 = 1, 1, 1
   curbit = 15
@@ -188,13 +188,11 @@ for name, file_entry in files:
     for i in range(n):
       bits = (bits << 1) | getbit()
     return bits
-  #print struct.unpack_from('<HIII', data_frames[0])
   has_x86_jump_transform =  getbit()
   if has_x86_jump_transform == 1:
     # makecab.exe seems to always include this if the input size is at least
     # 6 bytes.
     x86_trans_size = getbits(32)  # XXX use? also, bitness right?
-    #print '%08x' % x86_trans_size
 
   outfile = open(outfile, 'wb')
   maintree = [0] * MAIN_TREE_ELEMENTS
@@ -211,8 +209,9 @@ for name, file_entry in files:
       # to encode the "main" huffmann tree. There are 3 trees, each preceded by
       # its pretree.
       # The canonical huffman trees match rfc1951.
-      def canon_tree(lengths, do_print=False):
-        # print canonical huffman codes of pretree elements.
+      def canon_tree(lengths):
+        # Given the lengths of the nodes in a canonical huffman tree,
+        # returns a (len, code) -> value map for each node.
         maxlen = max(lengths)
         bl_count = [0] * (maxlen + 1)
         for e in lengths:
@@ -226,8 +225,6 @@ for name, file_entry in files:
         codes = {}
         for i, len_i in enumerate(lengths):
           if len_i != 0:
-            #if do_print:
-              #print '%3d: %4s' % (i, bin(next_code[len_i])[2:].rjust(len_i, '0'))
             # Using a dict for this is very inefficient.
             codes[(len_i, next_code[len_i])] = i
             next_code[len_i] += 1
@@ -237,7 +234,6 @@ for name, file_entry in files:
         alignedoffsetcodes = canon_tree(alignedoffsettree)
       # Read pretree of 256 elt main tree.
       pretree = [getbits(4) for i in range(20)]
-      #print pretree
       codes = canon_tree(pretree)
       # Read main tree for the 256 elts.
       def readtree(codes, tree, maxi, starti=0):
@@ -254,17 +250,14 @@ for name, file_entry in files:
           # 18: for next (20 + getbits(5)) elements, Len[X] = 0
           # 19: for next (4 + getbits(1)) elements, Len[X] += readcode()
           if code <= 16:
-            #print 'reg', (17 - code) % 17
             tree[i] = (tree[i] + 17 - code) % 17
             i += 1
           elif code == 17:
             n = 4 + getbits(4)
-            #print '17', n
             tree[i:i+n] = [0] * n
             i += n
           elif code == 18:
             n = 20 + getbits(5)
-            #print '18', n
             tree[i:i+n] = [0] * n
             i += n
           else:
@@ -277,35 +270,26 @@ for name, file_entry in files:
               code = codes.get((curlen, curbits))
             curlen, curbits = 0, 0
             code = (tree[i] + 17 - code) % 17
-            #print '19', n, code
             tree[i:i+n] = [code] * n
             i += n
       readtree(codes, maintree, NUM_CHARS)
-      #print [chr(i) for i in range(256) if maintree[i] != 0]
       assert len(maintree) == MAIN_TREE_ELEMENTS
       # Read pretree of slot elts of main tree.
       pretree = [getbits(4) for i in range(20)]
-      #print pretree
       codes = canon_tree(pretree)
       # Read slots of main tree.
       readtree(codes, maintree, MAIN_TREE_ELEMENTS, starti=NUM_CHARS)
-      #print maintree
-      #print [i for i in range(MAIN_TREE_ELEMENTS) if maintree[i] != 0]
-      maincodes = canon_tree(maintree, do_print=True)
+      maincodes = canon_tree(maintree)
       # Read pretree of lengths tree.
       pretree = [getbits(4) for i in range(20)]
-      #print pretree
       codes = canon_tree(pretree)
       # Read lengths tree.
       readtree(codes, lengthstree, NUM_SECONDARY_LENGTHS)
-      #print lengthstree
-      #print [i for i in range(NUM_SECONDARY_LENGTHS) if lengthstree[i] != 0]
-      lengthcodes = canon_tree(lengthstree, do_print=True)
+      lengthcodes = canon_tree(lengthstree)
 
       # Huffman trees have been read, now read the actual data.
       def output(s):
         global win_write, win_count, win_size, outfile
-        #print map(hex, s),
         # Max match length is 257, min win size is 32768, match will always fit.
         assert len(s) < win_size
         right_space = win_size - win_write
@@ -324,17 +308,14 @@ for name, file_entry in files:
 
       num_decompressed = 0
       curlen, curbits = 0, 0
-      #print 'size %d %x' % (size, size)
       while num_decompressed < size:
         curframesize = data_frame_uncomp_sizes[curblock]
         curbits = (curbits << 1) | getbit()
         curlen += 1
         code = maincodes.get((curlen, curbits))
         if code is None: continue
-        #print num_decompressed, size
         curlen, curbits = 0, 0
         if code < 256:
-          #print chr(code)
           output([code])
           num_decompressed += 1
         else:
@@ -381,14 +362,12 @@ for name, file_entry in files:
               else:
                 verbatim_bits = getbits(extra_bits)
                 aligned_bits = 0
-              #print 'align', base_position, verbatim_bits, aligned_bits
               match_offset = base_position + verbatim_bits + aligned_bits
             else:
               verbatim_bits = getbits(extra_bits)
               match_offset = base_position + verbatim_bits
             r0, r1, r2 = match_offset, r0, r1
 
-          #sys.stdout.write('<match off=%d len=%d>' % (match_offset,match_length))
           # match_offset is relative to the end of the window.
           match_offset = win_write - match_offset
           if match_offset < 0:
@@ -398,7 +377,6 @@ for name, file_entry in files:
             match_offset += 1
             if match_offset >= win_size:
               match_offset -= win_size
-          #sys.stdout.write('</match>')
           num_decompressed += match_length
         # Consider that the 2nd lzx block (with new huffman trees at the start)
         # occurs in the middle of a CFDATA block.  To make sure the CFDATA block
@@ -435,8 +413,6 @@ for name, file_entry in files:
                 outdata[i + 4] = (d >> 24) & 0xff
               i += 5
           outfile.write(''.join(map(chr, outdata)))
-        #if num_decompressed >= 0xd0: sys.exit(0)
-      #print [getbit() for i in range(10)]
     elif kind == 3:  # uncompressed
       # 0-15 padding bits, then 12 bytes III r0, r1, r2, then size raw bytes,
       # then 0-1 padding bytes
