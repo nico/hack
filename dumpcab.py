@@ -307,24 +307,21 @@ for name, file_entry in files:
         global win_write, win_count, win_size, outfile
         outfile.write(''.join(chr(c) for c in s))
         #print map(hex, s),
-        if len(s) >= win_size:
-          window[:] = s[len(s) - win_size:]
+        # Max match length is 257, min win size is 32768, match will always fit.
+        assert len(s) < win_size
+        right_space = win_size - win_write
+        if right_space >= len(s):
+          window[win_write:win_write+len(s)] = s
           assert len(window) == win_size
-          win_write, win_count = 0, win_size
+          win_write += len(s)
         else:
-          right_space = win_size - win_write
-          if right_space >= len(s):
-            window[win_write:win_write+len(s)] = s
-            assert len(window) == win_size
-            win_write += len(s)
-          else:
-            # We know len(s) < win_write, so the reminder will fit on the left.
-            window[win_write:win_size] = s[0:right_space]
-            assert len(window) == win_size
-            window[0:len(s) - right_space] = s[right_space:]
-            assert len(window) == win_size
-            win_write = len(s) - right_space
-          win_count = min(win_size, win_count + len(s))
+          # We know len(s) < win_write, so the reminder will fit on the left.
+          window[win_write:win_size] = s[0:right_space]
+          assert len(window) == win_size
+          window[0:len(s) - right_space] = s[right_space:]
+          assert len(window) == win_size
+          win_write = len(s) - right_space
+        win_count = min(win_size, win_count + len(s))
 
       num_decompressed = 0
       curlen, curbits = 0, 0
