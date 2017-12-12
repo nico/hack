@@ -16,6 +16,12 @@ import sys
 # Interesting parameters:
 # * /D CompressionMemory=15 sets LZX compression window size.
 
+# things to try and measure:
+# * how much space do all the tweaks (double-huffman, aligned blocks,
+#   e8 transform, length tree, repeated offsets, etc) really save?
+# * speedup from good lookup-based dehuff
+# * speedup from copying less data
+
 cab = open(sys.argv[1], 'rb').read()
 outfile = sys.argv[2] if len(sys.argv) > 2 \
                       else os.path.basename(sys.argv[1]) + '.out'
@@ -133,10 +139,6 @@ for name, file_entry in files:
 
   if typeCompress != 3:
     continue
-
-  if sys.platform == "win32":
-    import os, msvcrt
-    msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
 
   MIN_MATCH = 2
   MAX_MATCH = 257
