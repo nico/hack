@@ -1,3 +1,4 @@
 43 BITMAP "test/bitmap_4.bmp"
 44 bitMAp "test/bitmap_8.bmp"
-44 BITMAP "test/bitmap_24.bmp"
+45 BITMAP "test/bitmap_24.bmp"
+46 BITMAP "test/bitmap_trailing_garbage.bmp"

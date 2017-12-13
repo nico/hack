@@ -3058,11 +3058,13 @@ bool SerializationVisitor::VisitBitmapResource(const BitmapResource* r) {
   const int kBitmapFileHeaderSize = 14;
   size -= kBitmapFileHeaderSize;
 
-  // XXX padding?
   WriteResHeader(size, IntOrStringName::MakeInt(kRT_BITMAP), r->name(), 0x30);
 
   fseek(f, kBitmapFileHeaderSize, SEEK_SET);
   copy(out_, f, size);
+
+  uint8_t padding = ((4 - (size & 3)) & 3);  // DWORD-align.
+  fwrite("\0\0", 1, padding, out_);
 
   return true;
 }
