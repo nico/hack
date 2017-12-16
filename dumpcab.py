@@ -180,9 +180,6 @@ for name, file_entry in files:
     if curbit < 0:
       curbit = 15
       curword += 2  # in bytes
-    if curword >= len(data_frames[curblock]):
-      curword = 0
-      curblock += 1
     return bit
   def getbits(n):
     # Doing this bit-by-bit is inefficient; this should try to bunch things up.
@@ -200,6 +197,8 @@ for name, file_entry in files:
   maintree = [0] * MAIN_TREE_ELEMENTS
   lengthstree = [0] * NUM_SECONDARY_LENGTHS
   win_write, win_count, win_size = 0, 0, 1 << window_size
+  # Using bytearray(win_size) here reduces mem use from 10.6MB to 8.4MB
+  # but increases runtime from 13.6s to 16.4s for some reason.
   window = [0] * win_size
   while curblock < len(data_frames):
     kind, size = getbits(3), getbits(24)
@@ -392,12 +391,13 @@ for name, file_entry in files:
         # multiple of that, and since matches must not cross 32768 boundaries,
         # checking the window write pointer should achieve the same thing.
         if (win_write % 32768) % curframesize == 0:
-          # Align to 16-bit boundary after every cfdata block.
-          # This has to happen before the x86 jump translation below, so that
-          # curblock consistently is the next block.
-          if curbit + 1 != 16:
-            getbits(curbit + 1)
+          # Move bit input pointer to next block.
+          # Also aligns to 16-bit boundary after every cfdata block.
+          curbit = 15
+          curword = 0
+          curblock += 1
 
+          # Do x86 jump transform if necessary.
           outdata = window[win_write-curframesize:win_write]
           if curblock <= 32768 and curframesize > 10 and has_x86_jump_transform:
             i = 0
