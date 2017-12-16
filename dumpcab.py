@@ -171,15 +171,17 @@ for name, file_entry in files:
 
   r0, r1, r2 = 1, 1, 1
   curbit = 15
-  curword = 0
+  curword, curword_val = 0, struct.unpack_from('H',data_frames[0], 0)[0]
   curblock = 0
   def getbit():
-    global curbit, curword, curblock
-    bit = (struct.unpack_from('H',data_frames[curblock],curword)[0]>>curbit) & 1
+    global curbit, curword, curword_val, curblock
+    bit = (curword_val >> curbit) & 1
     curbit -= 1
     if curbit < 0:
       curbit = 15
       curword += 2  # in bytes
+      if curword < len(data_frames[curblock]):
+        curword_val = struct.unpack_from('H',data_frames[curblock],curword)[0]
     return bit
   def getbits(n):
     # Doing this bit-by-bit is inefficient; this should try to bunch things up.
@@ -396,6 +398,8 @@ for name, file_entry in files:
           curbit = 15
           curword = 0
           curblock += 1
+          if curblock < len(data_frames):
+            curword_val = struct.unpack_from('H',data_frames[curblock], 0)[0]
 
           # Do x86 jump transform if necessary.
           outdata = window[win_write-curframesize:win_write]
