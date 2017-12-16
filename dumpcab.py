@@ -184,6 +184,17 @@ for name, file_entry in files:
         curword_val = struct.unpack_from('H',data_frames[curblock],curword)[0]
     return bit
   def getbits(n):
+    # Naive chunking doesn't seem to help:
+    #global curbit, curword, curword_val
+    #if n <= curbit + 1:
+      #bits = (curword_val >> (curbit - n + 1)) & ((1 << n) - 1)
+      #curbit -= n
+      #if curbit < 0:
+        #curbit = 15
+        #curword += 2  # in bytes
+        #if curword < len(data_frames[curblock]):
+          #curword_val= struct.unpack_from('H',data_frames[curblock],curword)[0]
+      #return bits
     # Doing this bit-by-bit is inefficient; this should try to bunch things up.
     bits = 0
     for i in range(n):
