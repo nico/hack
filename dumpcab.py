@@ -153,6 +153,43 @@ class Bitstream(object):
     return bits
 
 
+class HuffTree(object):
+  def __init__(self, nodelengths):
+    self.codes = HuffTree._canon_tree(nodelengths)
+
+  def readsym(self, bitstream):
+    curbits, curlen = 0, 0
+    code = None
+    while code is None:
+      curbits = (curbits << 1) | bitstream.getbit()
+      curlen += 1
+      code = self.codes.get((curlen, curbits))
+    return code
+
+  # The canonical huffman trees match rfc1951.
+  @staticmethod
+  def _canon_tree(lengths):
+    # Given the lengths of the nodes in a canonical huffman tree,
+    # returns a (len, code) -> value map for each node.
+    maxlen = max(lengths)
+    bl_count = [0] * (maxlen + 1)
+    for e in lengths:
+      bl_count[e] += 1
+    code = 0
+    bl_count[0] = 0
+    next_code = [0] * (maxlen + 1)
+    for i in xrange(1, maxlen + 1):
+      code = (code + bl_count[i - 1]) << 1
+      next_code[i] = code
+    codes = {}
+    for i, len_i in enumerate(lengths):
+      if len_i != 0:
+        # Using a dict for this is very inefficient.
+        codes[(len_i, next_code[len_i])] = i
+        next_code[len_i] += 1
+    return codes
+
+
 # Print list of included files.
 for name, file_entry in files:
   folder = folders[file_entry['iFolder']]
@@ -215,8 +252,8 @@ for name, file_entry in files:
     x86_trans_size = bitstream.getbits(32)
 
   outfile = open(outfile, 'wb')
-  maintree = [0] * MAIN_TREE_ELEMENTS
-  lengthstree = [0] * NUM_SECONDARY_LENGTHS
+  maintree_lengths = [0] * MAIN_TREE_ELEMENTS
+  lengthstree_lengths = [0] * NUM_SECONDARY_LENGTHS
   win_write, win_count, win_size = 0, 0, 1 << window_size
   # Using bytearray(win_size) here reduces mem use from 10.6MB to 8.4MB
   # but increases runtime from 13.6s to 16.4s for some reason.
@@ -230,43 +267,15 @@ for name, file_entry in files:
       # A pretree is a huffman tree for the 20 tree codes, which are then used
       # to encode the "main" huffmann tree. There are 3 trees, each preceded by
       # its pretree.
-      # The canonical huffman trees match rfc1951.
-      def canon_tree(lengths):
-        # Given the lengths of the nodes in a canonical huffman tree,
-        # returns a (len, code) -> value map for each node.
-        maxlen = max(lengths)
-        bl_count = [0] * (maxlen + 1)
-        for e in lengths:
-          bl_count[e] += 1
-        code = 0
-        bl_count[0] = 0
-        next_code = [0] * (maxlen + 1)
-        for i in xrange(1, maxlen + 1):
-          code = (code + bl_count[i - 1]) << 1
-          next_code[i] = code
-        codes = {}
-        for i, len_i in enumerate(lengths):
-          if len_i != 0:
-            # Using a dict for this is very inefficient.
-            codes[(len_i, next_code[len_i])] = i
-            next_code[len_i] += 1
-        return codes
       if kind == 2:
-        alignedoffsettree = [bitstream.getbits(3) for i in range(8)]
-        alignedoffsetcodes = canon_tree(alignedoffsettree)
+        alignedoffsettree = HuffTree([bitstream.getbits(3) for i in range(8)])
       # Read pretree of 256 elt main tree.
-      pretree = [bitstream.getbits(4) for i in range(20)]
-      codes = canon_tree(pretree)
+      pretree = HuffTree([bitstream.getbits(4) for i in range(20)])
       # Read main tree for the 256 elts.
-      def readtree(codes, tree, maxi, starti=0):
-        curlen, curbits = 0, 0
+      def readtree(pretree, tree, maxi, starti=0):
         i = starti
         while i < maxi:
-          curbits = (curbits << 1) | bitstream.getbit()
-          curlen += 1
-          code = codes.get((curlen, curbits))
-          if code is None: continue
-          curlen, curbits = 0, 0
+          code = pretree.readsym(bitstream)
           # code 0-16: Len[x] = (prev_len[x] - code + 17) mod 17
           # 17: for next (4 + getbits(4)) elements, Len[X] = 0
           # 18: for next (20 + getbits(5)) elements, Len[X] = 0
@@ -285,29 +294,22 @@ for name, file_entry in files:
           else:
             assert code == 19, code
             n = 4 + bitstream.getbit()
-            code = None
-            while code is None:
-              curbits = (curbits << 1) | bitstream.getbit()
-              curlen += 1
-              code = codes.get((curlen, curbits))
-            curlen, curbits = 0, 0
+            code = pretree.readsym(bitstream)
             code = (tree[i] + 17 - code) % 17
             tree[i:i+n] = [code] * n
             i += n
-      readtree(codes, maintree, NUM_CHARS)
-      assert len(maintree) == MAIN_TREE_ELEMENTS
+      readtree(pretree, maintree_lengths, NUM_CHARS)
+      assert len(maintree_lengths) == MAIN_TREE_ELEMENTS
       # Read pretree of slot elts of main tree.
-      pretree = [bitstream.getbits(4) for i in range(20)]
-      codes = canon_tree(pretree)
+      pretree = HuffTree([bitstream.getbits(4) for i in range(20)])
       # Read slots of main tree.
-      readtree(codes, maintree, MAIN_TREE_ELEMENTS, starti=NUM_CHARS)
-      maincodes = canon_tree(maintree)
+      readtree(pretree, maintree_lengths, MAIN_TREE_ELEMENTS, starti=NUM_CHARS)
+      maintree = HuffTree(maintree_lengths)
       # Read pretree of lengths tree.
-      pretree = [bitstream.getbits(4) for i in range(20)]
-      codes = canon_tree(pretree)
+      pretree = HuffTree([bitstream.getbits(4) for i in range(20)])
       # Read lengths tree.
-      readtree(codes, lengthstree, NUM_SECONDARY_LENGTHS)
-      lengthcodes = canon_tree(lengthstree)
+      readtree(pretree, lengthstree_lengths, NUM_SECONDARY_LENGTHS)
+      lengthstree = HuffTree(lengthstree_lengths)
 
       # Huffman trees have been read, now read the actual data.
       def output(s):
@@ -329,26 +331,16 @@ for name, file_entry in files:
         win_count = min(win_size, win_count + len(s))
 
       num_decompressed = 0
-      curlen, curbits = 0, 0
       while num_decompressed < size:
         curframesize = data_frame_uncomp_sizes[curblock]
-        curbits = (curbits << 1) | bitstream.getbit()
-        curlen += 1
-        code = maincodes.get((curlen, curbits))
-        if code is None: continue
-        curlen, curbits = 0, 0
+        code = maintree.readsym(bitstream)
         if code < 256:
           output([code])
           num_decompressed += 1
         else:
           length_header = (code - 256) & 7
           if length_header == 7:
-            lencode = None
-            while lencode is None:
-              curbits = (curbits << 1) | bitstream.getbit()
-              curlen += 1
-              lencode = lengthcodes.get((curlen, curbits))
-            curlen, curbits = 0, 0
+            lencode = lengthstree.readsym(bitstream)
             match_length = lencode + 7 + 2
           else:
             match_length = length_header + 2
@@ -375,12 +367,7 @@ for name, file_entry in files:
             if kind == 2:
               if extra_bits >= 3:
                 verbatim_bits = bitstream.getbits(extra_bits - 3) << 3
-                aligned_bits = None
-                while aligned_bits is None:
-                  curbits = (curbits << 1) | bitstream.getbit()
-                  curlen += 1
-                  aligned_bits = alignedoffsetcodes.get((curlen, curbits))
-                curlen, curbits = 0, 0
+                aligned_bits = alignedoffsettree.readsym(bitstream)
               else:
                 verbatim_bits = bitstream.getbits(extra_bits)
                 aligned_bits = 0
