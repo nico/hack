@@ -437,6 +437,7 @@ for name, file_entry in files:
               i += 5
           outfile.write(''.join(map(chr, outdata)))
     elif kind == 3:  # uncompressed
+      assert False, 'this needs to be reimplemented'
       # 0-15 padding bits, then 12 bytes III r0, r1, r2, then size raw bytes,
       # then 0-1 padding bytes
       if bitstream.curbit + 1 != 16:
