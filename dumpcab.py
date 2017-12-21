@@ -117,6 +117,42 @@ for i in range(header['cFiles']):
   off = nul + 1
   files.append((name, file_entry))
 
+
+class Bitstream(object):
+  def __init__(self, source):
+    self.curbit = 15
+    self.curword, self.curword_val = 0, struct.unpack_from('H', source, 0)[0]
+    self.source = source
+
+  def getbit(self):
+    bit = (self.curword_val >> self.curbit) & 1
+    self.curbit -= 1
+    if self.curbit < 0:
+      self.curbit = 15
+      self.curword += 2  # in bytes
+      if self.curword < len(self.source):
+        self.curword_val = struct.unpack_from('H', self.source, self.curword)[0]
+    return bit
+
+  def getbits(self, n):
+    # Naive chunking doesn't seem to help:
+    #global curbit, curword, curword_val
+    #if n <= curbit + 1:
+      #bits = (curword_val >> (curbit - n + 1)) & ((1 << n) - 1)
+      #curbit -= n
+      #if curbit < 0:
+        #curbit = 15
+        #curword += 2  # in bytes
+        #if curword < len(data_frames[curblock]):
+          #curword_val= struct.unpack_from('H',data_frames[curblock],curword)[0]
+      #return bits
+    # Doing this bit-by-bit is inefficient; this should try to bunch things up.
+    bits = 0
+    for i in range(n):
+      bits = (bits << 1) | self.getbit()
+    return bits
+
+
 # Print list of included files.
 for name, file_entry in files:
   folder = folders[file_entry['iFolder']]
@@ -170,41 +206,13 @@ for name, file_entry in files:
         #i, data['checksum'], data['cbUncomp'], data['cbData'])
 
   r0, r1, r2 = 1, 1, 1
-  curbit = 15
-  curword, curword_val = 0, struct.unpack_from('H',data_frames[0], 0)[0]
   curblock = 0
-  def getbit():
-    global curbit, curword, curword_val, curblock
-    bit = (curword_val >> curbit) & 1
-    curbit -= 1
-    if curbit < 0:
-      curbit = 15
-      curword += 2  # in bytes
-      if curword < len(data_frames[curblock]):
-        curword_val = struct.unpack_from('H',data_frames[curblock],curword)[0]
-    return bit
-  def getbits(n):
-    # Naive chunking doesn't seem to help:
-    #global curbit, curword, curword_val
-    #if n <= curbit + 1:
-      #bits = (curword_val >> (curbit - n + 1)) & ((1 << n) - 1)
-      #curbit -= n
-      #if curbit < 0:
-        #curbit = 15
-        #curword += 2  # in bytes
-        #if curword < len(data_frames[curblock]):
-          #curword_val= struct.unpack_from('H',data_frames[curblock],curword)[0]
-      #return bits
-    # Doing this bit-by-bit is inefficient; this should try to bunch things up.
-    bits = 0
-    for i in range(n):
-      bits = (bits << 1) | getbit()
-    return bits
-  has_x86_jump_transform =  getbit()
+  bitstream = Bitstream(data_frames[curblock])
+  has_x86_jump_transform =  bitstream.getbit()
   if has_x86_jump_transform == 1:
     # makecab.exe seems to always include this if the input size is at least
     # 6 bytes.
-    x86_trans_size = getbits(32)  # XXX use? also, bitness right?
+    x86_trans_size = bitstream.getbits(32)  # XXX use? also, bitness right?
 
   outfile = open(outfile, 'wb')
   maintree = [0] * MAIN_TREE_ELEMENTS
@@ -214,7 +222,7 @@ for name, file_entry in files:
   # but increases runtime from 13.6s to 16.4s for some reason.
   window = [0] * win_size
   while curblock < len(data_frames):
-    kind, size = getbits(3), getbits(24)
+    kind, size = bitstream.getbits(3), bitstream.getbits(24)
     print kind, size
     # makecab.exe uses an uncompressed block for 'f' followed by 149 'o', but
     # a kind 1 block for 'f' followed by 150 'o'.
@@ -244,17 +252,17 @@ for name, file_entry in files:
             next_code[len_i] += 1
         return codes
       if kind == 2:
-        alignedoffsettree = [getbits(3) for i in range(8)]
+        alignedoffsettree = [bitstream.getbits(3) for i in range(8)]
         alignedoffsetcodes = canon_tree(alignedoffsettree)
       # Read pretree of 256 elt main tree.
-      pretree = [getbits(4) for i in range(20)]
+      pretree = [bitstream.getbits(4) for i in range(20)]
       codes = canon_tree(pretree)
       # Read main tree for the 256 elts.
       def readtree(codes, tree, maxi, starti=0):
         curlen, curbits = 0, 0
         i = starti
         while i < maxi:
-          curbits = (curbits << 1) | getbit()
+          curbits = (curbits << 1) | bitstream.getbit()
           curlen += 1
           code = codes.get((curlen, curbits))
           if code is None: continue
@@ -267,19 +275,19 @@ for name, file_entry in files:
             tree[i] = (tree[i] + 17 - code) % 17
             i += 1
           elif code == 17:
-            n = 4 + getbits(4)
+            n = 4 + bitstream.getbits(4)
             tree[i:i+n] = [0] * n
             i += n
           elif code == 18:
-            n = 20 + getbits(5)
+            n = 20 + bitstream.getbits(5)
             tree[i:i+n] = [0] * n
             i += n
           else:
             assert code == 19, code
-            n = 4 + getbit()
+            n = 4 + bitstream.getbit()
             code = None
             while code is None:
-              curbits = (curbits << 1) | getbit()
+              curbits = (curbits << 1) | bitstream.getbit()
               curlen += 1
               code = codes.get((curlen, curbits))
             curlen, curbits = 0, 0
@@ -289,13 +297,13 @@ for name, file_entry in files:
       readtree(codes, maintree, NUM_CHARS)
       assert len(maintree) == MAIN_TREE_ELEMENTS
       # Read pretree of slot elts of main tree.
-      pretree = [getbits(4) for i in range(20)]
+      pretree = [bitstream.getbits(4) for i in range(20)]
       codes = canon_tree(pretree)
       # Read slots of main tree.
       readtree(codes, maintree, MAIN_TREE_ELEMENTS, starti=NUM_CHARS)
       maincodes = canon_tree(maintree)
       # Read pretree of lengths tree.
-      pretree = [getbits(4) for i in range(20)]
+      pretree = [bitstream.getbits(4) for i in range(20)]
       codes = canon_tree(pretree)
       # Read lengths tree.
       readtree(codes, lengthstree, NUM_SECONDARY_LENGTHS)
@@ -324,7 +332,7 @@ for name, file_entry in files:
       curlen, curbits = 0, 0
       while num_decompressed < size:
         curframesize = data_frame_uncomp_sizes[curblock]
-        curbits = (curbits << 1) | getbit()
+        curbits = (curbits << 1) | bitstream.getbit()
         curlen += 1
         code = maincodes.get((curlen, curbits))
         if code is None: continue
@@ -337,7 +345,7 @@ for name, file_entry in files:
           if length_header == 7:
             lencode = None
             while lencode is None:
-              curbits = (curbits << 1) | getbit()
+              curbits = (curbits << 1) | bitstream.getbit()
               curlen += 1
               lencode = lengthcodes.get((curlen, curbits))
             curlen, curbits = 0, 0
@@ -366,19 +374,19 @@ for name, file_entry in files:
 
             if kind == 2:
               if extra_bits >= 3:
-                verbatim_bits = getbits(extra_bits - 3) << 3
+                verbatim_bits = bitstream.getbits(extra_bits - 3) << 3
                 aligned_bits = None
                 while aligned_bits is None:
-                  curbits = (curbits << 1) | getbit()
+                  curbits = (curbits << 1) | bitstream.getbit()
                   curlen += 1
                   aligned_bits = alignedoffsetcodes.get((curlen, curbits))
                 curlen, curbits = 0, 0
               else:
-                verbatim_bits = getbits(extra_bits)
+                verbatim_bits = bitstream.getbits(extra_bits)
                 aligned_bits = 0
               match_offset = base_position + verbatim_bits + aligned_bits
             else:
-              verbatim_bits = getbits(extra_bits)
+              verbatim_bits = bitstream.getbits(extra_bits)
               match_offset = base_position + verbatim_bits
             r0, r1, r2 = match_offset, r0, r1
 
@@ -406,11 +414,9 @@ for name, file_entry in files:
         if (win_write % 32768) % curframesize == 0:
           # Move bit input pointer to next block.
           # Also aligns to 16-bit boundary after every cfdata block.
-          curbit = 15
-          curword = 0
           curblock += 1
           if curblock < len(data_frames):
-            curword_val = struct.unpack_from('H',data_frames[curblock], 0)[0]
+            bitstream = Bitstream(data_frames[curblock])
 
           # Do x86 jump transform if necessary.
           outdata = window[win_write-curframesize:win_write]
@@ -433,8 +439,8 @@ for name, file_entry in files:
     elif kind == 3:  # uncompressed
       # 0-15 padding bits, then 12 bytes III r0, r1, r2, then size raw bytes,
       # then 0-1 padding bytes
-      if curbit + 1 != 16:
-        getbits(curbit + 1)
+      if bitstream.curbit + 1 != 16:
+        bitstream.getbits(curbit + 1)
       # XXX: this gets uncompressed packets split across CFDATA blocks wrong.
       # '<' is important to set padding to 0
       r0, r1, r2 = struct.unpack_from('<III', data_frames[curblock], curword)
