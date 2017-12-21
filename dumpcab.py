@@ -269,9 +269,10 @@ for name, file_entry in files:
       # its pretree.
       if kind == 2:
         alignedoffsettree = HuffTree([bitstream.getbits(3) for i in range(8)])
-      def readtree(pretree, tree, maxi, starti=0):
-        """Reads bits encoded using pretree and interprets the read values
-        to fill in the node lenghts of the main tree."""
+      def decode_pretree(lengths, maxi, starti=0):
+        """Reads a pretree description and bits encoded using it and interprets
+        those bits to fill in the node lengths of a main tree."""
+        pretree = HuffTree([bitstream.getbits(4) for i in range(20)])
         i = starti
         while i < maxi:
           code = pretree.readsym(bitstream)
@@ -280,35 +281,32 @@ for name, file_entry in files:
           # 18: for next (20 + getbits(5)) elements, Len[X] = 0
           # 19: for next (4 + getbits(1)) elements, Len[X] += readcode()
           if code <= 16:
-            tree[i] = (tree[i] + 17 - code) % 17
+            lengths[i] = (lengths[i] + 17 - code) % 17
             i += 1
           elif code == 17:
             n = 4 + bitstream.getbits(4)
-            tree[i:i+n] = [0] * n
+            lengths[i:i+n] = [0] * n
             i += n
           elif code == 18:
             n = 20 + bitstream.getbits(5)
-            tree[i:i+n] = [0] * n
+            lengths[i:i+n] = [0] * n
             i += n
           else:
             assert code == 19, code
             n = 4 + bitstream.getbit()
             code = pretree.readsym(bitstream)
-            code = (tree[i] + 17 - code) % 17
-            tree[i:i+n] = [code] * n
+            code = (lengths[i] + 17 - code) % 17
+            lengths[i:i+n] = [code] * n
             i += n
       # Read pretree of 256 elt main tree and interpret it.
-      pretree = HuffTree([bitstream.getbits(4) for i in range(20)])
-      readtree(pretree, maintree_lengths, NUM_CHARS)
+      decode_pretree(maintree_lengths, NUM_CHARS)
       assert len(maintree_lengths) == MAIN_TREE_ELEMENTS
       # Read pretree of slot elts of main tree, interpret it.
-      pretree = HuffTree([bitstream.getbits(4) for i in range(20)])
-      readtree(pretree, maintree_lengths, MAIN_TREE_ELEMENTS, starti=NUM_CHARS)
+      decode_pretree(maintree_lengths, MAIN_TREE_ELEMENTS, starti=NUM_CHARS)
       # Build main tree.
       maintree = HuffTree(maintree_lengths)
       # Read pretree of lengths tree, interpret it, and build lenghts tree.
-      pretree = HuffTree([bitstream.getbits(4) for i in range(20)])
-      readtree(pretree, lengthstree_lengths, NUM_SECONDARY_LENGTHS)
+      decode_pretree(lengthstree_lengths, NUM_SECONDARY_LENGTHS)
       lengthstree = HuffTree(lengthstree_lengths)
 
       # Huffman trees have been read, now read the actual data.
