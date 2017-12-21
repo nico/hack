@@ -190,6 +190,37 @@ class HuffTree(object):
     return codes
 
 
+def lzx_decode_pretree(bitstream, lengths, maxi, starti=0):
+  """Reads a pretree description and bits encoded using it and interprets
+  those bits to fill in the node lengths of a main tree."""
+  pretree = HuffTree([bitstream.getbits(4) for i in range(20)])
+  i = starti
+  while i < maxi:
+    code = pretree.readsym(bitstream)
+    # code 0-16: Len[x] = (prev_len[x] - code + 17) mod 17
+    # 17: for next (4 + getbits(4)) elements, Len[X] = 0
+    # 18: for next (20 + getbits(5)) elements, Len[X] = 0
+    # 19: for next (4 + getbits(1)) elements, Len[X] += readcode()
+    if code <= 16:
+      lengths[i] = (lengths[i] + 17 - code) % 17
+      i += 1
+    elif code == 17:
+      n = 4 + bitstream.getbits(4)
+      lengths[i:i+n] = [0] * n
+      i += n
+    elif code == 18:
+      n = 20 + bitstream.getbits(5)
+      lengths[i:i+n] = [0] * n
+      i += n
+    else:
+      assert code == 19, code
+      n = 4 + bitstream.getbit()
+      code = pretree.readsym(bitstream)
+      code = (lengths[i] + 17 - code) % 17
+      lengths[i:i+n] = [code] * n
+      i += n
+
+
 # Print list of included files.
 for name, file_entry in files:
   folder = folders[file_entry['iFolder']]
@@ -269,44 +300,16 @@ for name, file_entry in files:
       # A pretree is a huffman tree for the 20 tree codes, which are then used
       # to encode the "main" huffmann tree. There are 3 trees, each preceded by
       # its pretree.
-      def decode_pretree(lengths, maxi, starti=0):
-        """Reads a pretree description and bits encoded using it and interprets
-        those bits to fill in the node lengths of a main tree."""
-        pretree = HuffTree([bitstream.getbits(4) for i in range(20)])
-        i = starti
-        while i < maxi:
-          code = pretree.readsym(bitstream)
-          # code 0-16: Len[x] = (prev_len[x] - code + 17) mod 17
-          # 17: for next (4 + getbits(4)) elements, Len[X] = 0
-          # 18: for next (20 + getbits(5)) elements, Len[X] = 0
-          # 19: for next (4 + getbits(1)) elements, Len[X] += readcode()
-          if code <= 16:
-            lengths[i] = (lengths[i] + 17 - code) % 17
-            i += 1
-          elif code == 17:
-            n = 4 + bitstream.getbits(4)
-            lengths[i:i+n] = [0] * n
-            i += n
-          elif code == 18:
-            n = 20 + bitstream.getbits(5)
-            lengths[i:i+n] = [0] * n
-            i += n
-          else:
-            assert code == 19, code
-            n = 4 + bitstream.getbit()
-            code = pretree.readsym(bitstream)
-            code = (lengths[i] + 17 - code) % 17
-            lengths[i:i+n] = [code] * n
-            i += n
       # Read pretree of 256 elt main tree and interpret it.
-      decode_pretree(maintree_lengths, NUM_CHARS)
+      lzx_decode_pretree(bitstream, maintree_lengths, NUM_CHARS)
       assert len(maintree_lengths) == MAIN_TREE_ELEMENTS
       # Read pretree of slot elts of main tree, interpret it.
-      decode_pretree(maintree_lengths, MAIN_TREE_ELEMENTS, starti=NUM_CHARS)
+      lzx_decode_pretree(bitstream, maintree_lengths, MAIN_TREE_ELEMENTS,
+                         starti=NUM_CHARS)
       # Build main tree.
       maintree = HuffTree(maintree_lengths)
       # Read pretree of lengths tree, interpret it, and build lenghts tree.
-      decode_pretree(lengthstree_lengths, NUM_SECONDARY_LENGTHS)
+      lzx_decode_pretree(bitstream, lengthstree_lengths, NUM_SECONDARY_LENGTHS)
       lengthstree = HuffTree(lengthstree_lengths)
 
       # Huffman trees have been read, now read the actual data.
