@@ -264,11 +264,11 @@ for name, file_entry in files:
     # makecab.exe uses an uncompressed block for 'f' followed by 149 'o', but
     # a kind 1 block for 'f' followed by 150 'o'.
     if kind in [1, 2]:  # 1: verbatim, 2: aligned
+      if kind == 2:
+        alignedoffsettree = HuffTree([bitstream.getbits(3) for i in range(8)])
       # A pretree is a huffman tree for the 20 tree codes, which are then used
       # to encode the "main" huffmann tree. There are 3 trees, each preceded by
       # its pretree.
-      if kind == 2:
-        alignedoffsettree = HuffTree([bitstream.getbits(3) for i in range(8)])
       def decode_pretree(lengths, maxi, starti=0):
         """Reads a pretree description and bits encoded using it and interprets
         those bits to fill in the node lengths of a main tree."""
