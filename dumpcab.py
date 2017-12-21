@@ -211,8 +211,8 @@ for name, file_entry in files:
   has_x86_jump_transform =  bitstream.getbit()
   if has_x86_jump_transform == 1:
     # makecab.exe seems to always include this if the input size is at least
-    # 6 bytes.
-    x86_trans_size = bitstream.getbits(32)  # XXX use? also, bitness right?
+    # 6 bytes, even for text files.
+    x86_trans_size = bitstream.getbits(32)
 
   outfile = open(outfile, 'wb')
   maintree = [0] * MAIN_TREE_ELEMENTS
