@@ -342,7 +342,6 @@ for name, file_entry in files:
       # Huffman trees have been read, now read the actual data.
       num_decompressed = 0
       while num_decompressed < size:
-        curframesize = data_frame_uncomp_sizes[curblock]
         code = maintree.readsym(bitstream)
         if code < 256:
           window.output_literal(code)
@@ -400,6 +399,7 @@ for name, file_entry in files:
         # contains 32768 bytes uncompressed, since the window size is always a
         # multiple of that, and since matches must not cross 32768 boundaries,
         # checking the window write pointer should achieve the same thing.
+        curframesize = data_frame_uncomp_sizes[curblock]
         if (window.win_write % 32768) % curframesize == 0:
           # Move bit input pointer to next block.
           # Also aligns to 16-bit boundary after every cfdata block.
