@@ -193,36 +193,25 @@ class HuffTree(object):
 class Window(object):
   def __init__(self, window_size):
     self.win_write = 0
-    self.win_count = 0
     self.win_size = 1 << window_size
     # Using bytearray(win_size) here reduces mem use from 10.6MB to 8.4MB
     # but increases runtime from 13.6s to 16.4s for some reason.
     self.window = [0] * self.win_size
 
-  def output(self, s):
-    # Max match length is 257, min win size is 32768, match will always fit.
-    assert len(s) < self.win_size
-    right_space = self.win_size - self.win_write
-    if right_space >= len(s):
-      self.window[self.win_write:self.win_write+len(s)] = s
-      assert len(self.window) == self.win_size
-      self.win_write += len(s)
-    else:
-      # We know len(s) < win_write, so the reminder will fit on the left.
-      self.window[self.win_write:self.win_size] = s[0:right_space]
-      assert len(self.window) == self.win_size
-      self.window[0:len(s) - right_space] = s[right_space:]
-      assert len(self.window) == self.win_size
-      self.win_write = len(s) - right_space
-    self.win_count = min(self.win_size, self.win_count + len(s))
+  def output_literal(self, c):
+    if self.win_write >= self.win_size:
+      self.win_write = 0
+    self.window[self.win_write] = c
+    self.win_write += 1
 
   def copy_match(self, match_offset, match_length):
     # match_offset is relative to the end of the window.
     match_offset = self.win_write - match_offset
     if match_offset < 0:
       match_offset += self.win_size
+    # Max match length is 257, min win size is 32768, match will always fit.
     for i in xrange(match_length):
-      self.output([self.window[match_offset]])  # FIXME: chunkier?
+      self.output_literal(self.window[match_offset])  # FIXME: chunkier?
       match_offset += 1
       if match_offset >= self.win_size:
         match_offset -= self.win_size
@@ -356,7 +345,7 @@ for name, file_entry in files:
         curframesize = data_frame_uncomp_sizes[curblock]
         code = maintree.readsym(bitstream)
         if code < 256:
-          window.output([code])
+          window.output_literal(code)
           num_decompressed += 1
         else:
           length_header = (code - 256) & 7
