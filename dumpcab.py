@@ -190,6 +190,47 @@ class HuffTree(object):
     return codes
 
 
+class Window(object):
+  def __init__(self, window_size):
+    self.win_write = 0
+    self.win_count = 0
+    self.win_size = 1 << window_size
+    # Using bytearray(win_size) here reduces mem use from 10.6MB to 8.4MB
+    # but increases runtime from 13.6s to 16.4s for some reason.
+    self.window = [0] * self.win_size
+
+  def output(self, s):
+    # Max match length is 257, min win size is 32768, match will always fit.
+    assert len(s) < self.win_size
+    right_space = self.win_size - self.win_write
+    if right_space >= len(s):
+      self.window[self.win_write:self.win_write+len(s)] = s
+      assert len(self.window) == self.win_size
+      self.win_write += len(s)
+    else:
+      # We know len(s) < win_write, so the reminder will fit on the left.
+      self.window[self.win_write:self.win_size] = s[0:right_space]
+      assert len(self.window) == self.win_size
+      self.window[0:len(s) - right_space] = s[right_space:]
+      assert len(self.window) == self.win_size
+      self.win_write = len(s) - right_space
+    self.win_count = min(self.win_size, self.win_count + len(s))
+
+  def copy_match(self, match_offset, match_length):
+    # match_offset is relative to the end of the window.
+    match_offset = self.win_write - match_offset
+    if match_offset < 0:
+      match_offset += self.win_size
+    for i in xrange(match_length):
+      self.output([self.window[match_offset]])  # FIXME: chunkier?
+      match_offset += 1
+      if match_offset >= self.win_size:
+        match_offset -= self.win_size
+
+  def get_last_n(self, n):
+    return self.window[self.win_write - n:self.win_write]
+
+
 def lzx_decode_pretree(bitstream, lengths, maxi, starti=0):
   """Reads a pretree description and bits encoded using it and interprets
   those bits to fill in the node lengths of a main tree."""
@@ -285,10 +326,7 @@ for name, file_entry in files:
   outfile = open(outfile, 'wb')
   maintree_lengths = [0] * MAIN_TREE_ELEMENTS
   lengthstree_lengths = [0] * NUM_SECONDARY_LENGTHS
-  win_write, win_count, win_size = 0, 0, 1 << window_size
-  # Using bytearray(win_size) here reduces mem use from 10.6MB to 8.4MB
-  # but increases runtime from 13.6s to 16.4s for some reason.
-  window = [0] * win_size
+  window = Window(window_size)
   while curblock < len(data_frames):
     kind, size = bitstream.getbits(3), bitstream.getbits(24)
     print kind, size
@@ -313,30 +351,12 @@ for name, file_entry in files:
       lengthstree = HuffTree(lengthstree_lengths)
 
       # Huffman trees have been read, now read the actual data.
-      def output(s):
-        global win_write, win_count, win_size, outfile
-        # Max match length is 257, min win size is 32768, match will always fit.
-        assert len(s) < win_size
-        right_space = win_size - win_write
-        if right_space >= len(s):
-          window[win_write:win_write+len(s)] = s
-          assert len(window) == win_size
-          win_write += len(s)
-        else:
-          # We know len(s) < win_write, so the reminder will fit on the left.
-          window[win_write:win_size] = s[0:right_space]
-          assert len(window) == win_size
-          window[0:len(s) - right_space] = s[right_space:]
-          assert len(window) == win_size
-          win_write = len(s) - right_space
-        win_count = min(win_size, win_count + len(s))
-
       num_decompressed = 0
       while num_decompressed < size:
         curframesize = data_frame_uncomp_sizes[curblock]
         code = maintree.readsym(bitstream)
         if code < 256:
-          output([code])
+          window.output([code])
           num_decompressed += 1
         else:
           length_header = (code - 256) & 7
@@ -378,15 +398,7 @@ for name, file_entry in files:
               match_offset = base_position + verbatim_bits
             r0, r1, r2 = match_offset, r0, r1
 
-          # match_offset is relative to the end of the window.
-          match_offset = win_write - match_offset
-          if match_offset < 0:
-            match_offset += win_size
-          for i in xrange(match_length):
-            output([window[match_offset]])  # FIXME: chunkier?
-            match_offset += 1
-            if match_offset >= win_size:
-              match_offset -= win_size
+          window.copy_match(match_offset, match_length)
           num_decompressed += match_length
         # Consider that the 2nd lzx block (with new huffman trees at the start)
         # occurs in the middle of a CFDATA block.  To make sure the CFDATA block
@@ -399,7 +411,7 @@ for name, file_entry in files:
         # contains 32768 bytes uncompressed, since the window size is always a
         # multiple of that, and since matches must not cross 32768 boundaries,
         # checking the window write pointer should achieve the same thing.
-        if (win_write % 32768) % curframesize == 0:
+        if (window.win_write % 32768) % curframesize == 0:
           # Move bit input pointer to next block.
           # Also aligns to 16-bit boundary after every cfdata block.
           curblock += 1
@@ -407,7 +419,7 @@ for name, file_entry in files:
             bitstream = Bitstream(data_frames[curblock])
 
           # Do x86 jump transform if necessary.
-          outdata = window[win_write-curframesize:win_write]
+          outdata = window.get_last_n(curframesize)
           if curblock <= 32768 and curframesize > 10 and has_x86_jump_transform:
             i = 0
             while i < len(outdata) - 10:
