@@ -251,6 +251,23 @@ def lzx_decode_pretree(bitstream, lengths, maxi, starti=0):
       i += n
 
 
+def lzx_undo_x86_jump_transform(outdata, start_out_offset, x86_trans_size):
+  i = 0
+  while i < len(outdata) - 10:
+    if outdata[i] != 0xe8:
+      i += 1
+      continue
+    current_pointer = start_out_offset + i
+    d = struct.unpack('<i', ''.join(map(chr, outdata[i+1:i+5])))[0]
+    if d >= -current_pointer and d < x86_trans_size:
+      d = d - current_pointer if d >= 0 else d + x86_trans_size
+      outdata[i + 1] = d & 0xff
+      outdata[i + 2] = (d >> 8) & 0xff
+      outdata[i + 3] = (d >> 16) & 0xff
+      outdata[i + 4] = (d >> 24) & 0xff
+    i += 5
+
+
 # Print list of included files.
 for name, file_entry in files:
   folder = folders[file_entry['iFolder']]
@@ -407,23 +424,11 @@ for name, file_entry in files:
           if curblock < len(data_frames):
             bitstream = Bitstream(data_frames[curblock])
 
-          # Do x86 jump transform if necessary.
+          # Undo x86 jump transform if necessary.
           outdata = window.get_last_n(curframesize)
           if curblock <= 32768 and curframesize > 10 and has_x86_jump_transform:
-            i = 0
-            while i < len(outdata) - 10:
-              if outdata[i] != 0xe8:
-                i += 1
-                continue
-              current_pointer = (curblock - 1) * 32768 + i
-              d = struct.unpack('<i', ''.join(map(chr, outdata[i+1:i+5])))[0]
-              if d >= -current_pointer and d < x86_trans_size:
-                d = d - current_pointer if d >= 0 else d + x86_trans_size
-                outdata[i + 1] = d & 0xff
-                outdata[i + 2] = (d >> 8) & 0xff
-                outdata[i + 3] = (d >> 16) & 0xff
-                outdata[i + 4] = (d >> 24) & 0xff
-              i += 5
+            lzx_undo_x86_jump_transform(
+                outdata, (curblock - 1) * 32768, x86_trans_size)
           outfile.write(''.join(map(chr, outdata)))
     elif kind == 3:  # uncompressed
       assert False, 'this needs to be reimplemented'
