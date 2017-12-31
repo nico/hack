@@ -320,6 +320,17 @@ for name, file_entry in files:
     #print 'block %3d: checksum %8x, %d bytes uncompressed, %d compressed' % (
         #i, data['checksum'], data['cbUncomp'], data['cbData'])
 
+
+  # XXX why is 17 the max?
+  num_extra_bits = [min(pos_slot / 2, 17) for pos_slot in range(1, 50)]
+
+  # XXX explain. (farther offsets need more bits; slots).
+  base_position = 1
+  base_positions = []
+  for extra in num_extra_bits:
+    base_positions.append(base_position)
+    base_position += (1 << extra)
+
   r0, r1, r2 = 1, 1, 1
   curblock = 0
   bitstream = Bitstream(data_frames[curblock])
@@ -381,15 +392,8 @@ for name, file_entry in files:
             match_offset = r2
             r0, r2 = r2, r0
           else:
-            # XXX why is 17 the max?
-            extra_bits = min((position_slot - 2) / 2, 17)
-
-            # XXX explain. (farther offsets need more bits; slots).
-            # also, precompute
-            base_position = 0
-            for i in xrange(position_slot - 2):
-              base_position += (1 << min(i / 2, 17))
-
+            extra_bits = num_extra_bits[position_slot-3]
+            base_position = base_positions[position_slot-3]
             if kind == 2:
               if extra_bits >= 3:
                 verbatim_bits = bitstream.getbits(extra_bits - 3) << 3
