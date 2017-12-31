@@ -204,7 +204,15 @@ class Window(object):
 
   def copy_match(self, match_offset, match_length):
     # match_offset is relative to the end of the window.
+    no_overlap = self.win_write >= match_offset >= match_length and \
+                 self.win_write + match_length < self.win_size
     match_offset = self.win_write - match_offset
+    if no_overlap:
+      # Can use faster slice copy.
+      self.window[self.win_write:self.win_write+match_length] = \
+          self.window[match_offset:match_offset+match_length]
+      self.win_write += match_length
+      return
     if match_offset < 0:
       match_offset += self.win_size
     # Max match length is 257, min win size is 32768, match will always fit.
