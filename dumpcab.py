@@ -155,39 +155,37 @@ class Bitstream(object):
 
 class HuffTree(object):
   def __init__(self, nodelengths):
-    self.codes = HuffTree._canon_tree(nodelengths)
+    self.last_code, self.codes = HuffTree._canon_tree(nodelengths)
 
   def readsym(self, bitstream):
-    curbits, curlen = 0, 0
-    code = None
-    while code is None:
+    curbits, curlen = bitstream.getbit(), 1
+    last_code = self.last_code
+    while curbits > last_code[curlen]:
       curbits = (curbits << 1) | bitstream.getbit()
       curlen += 1
-      code = self.codes.get((curlen, curbits))
-    return code
+    # Note: 2nd index is negative to index from end of list
+    return self.codes[curlen][curbits - last_code[curlen] - 1]
 
   # The canonical huffman trees match rfc1951.
   @staticmethod
   def _canon_tree(lengths):
     # Given the lengths of the nodes in a canonical huffman tree,
-    # returns a (len, code) -> value map for each node.
+    # returns a (last_code, codes) tuple, where last_code[n] returns the
+    # last prefix of length n, and codes[n] contains a list of all values of
+    # prefixes with length n.
     maxlen = max(lengths)
     bl_count = [0] * (maxlen + 1)
-    for e in lengths:
-      bl_count[e] += 1
-    code = 0
-    bl_count[0] = 0
-    next_code = [0] * (maxlen + 1)
-    for i in xrange(1, maxlen + 1):
-      code = (code + bl_count[i - 1]) << 1
-      next_code[i] = code
-    codes = {}
+    codes = [[] for _ in xrange(maxlen + 1)]
     for i, len_i in enumerate(lengths):
       if len_i != 0:
-        # Using a dict for this is very inefficient.
-        codes[(len_i, next_code[len_i])] = i
-        next_code[len_i] += 1
-    return codes
+        bl_count[len_i] += 1
+        codes[len_i].append(i)
+    code = 0
+    last_code = [0] * (maxlen + 1)
+    for i in xrange(1, maxlen + 1):
+      code = (code + bl_count[i - 1]) << 1
+      last_code[i] = code + bl_count[i] - 1
+    return last_code, codes
 
 
 class Window(object):
