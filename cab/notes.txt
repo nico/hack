@@ -1,0 +1,8 @@
+lz77 encoding:
+- for vanilla lz77, greedy is optimal (but slow)
+- "lazy" (delay committing match until checking if longer match exists at
+  next pos) is a bit slower but better
+- in practice, hash chains are fast and ok (and is what e.g. gzip default uses)
+- lzss paper has "optimal parse" but that's no longer optimal when state like
+  e.g. lzx's "reuse last match" is used
+- http:// cbloomrants.blogspot.com/2015/01/01-23-15-lza-new-optimal-parse.html
