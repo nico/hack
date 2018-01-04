@@ -1,0 +1,1070 @@
+;/*`.......................... assembly language .............................
+        include inrloops.h
+................................. C language ...............................*/
+#include "inrloops.h"
+;/*`.......................... assembly language .............................
+
+IL_HuffItem     struct
+value           dword   ?
+count           dword   ?
+IL_HuffItem     ends
+
+IL_HuffEncode   struct
+wid             dd      ?
+bits            dd      ?
+IL_HuffEncode   ends
+
+_IL_TEXT segment
+
+;void IL_HuffmanByteCensus_A(IL_HuffItem *array, unsigned char *source,
+;                                                                  long count)
+;
+;Counts the instances of each byte in a string.  Does not initialize the
+;array.
+;
+IL_HuffmanByteCensus_A proc near C public uses esi edi ebx, 
+                                        array:dword, source:dword, count:dword
+        push    ebp                                     ;  ;preserve ebp
+        mov     edi,array                               ;  ;point to dest
+        mov     esi,source                              ;  ;point to source
+        mov     ebp,count                               ;  ;get byte count
+        add     esi,ebp                                 ;  ;point past end
+        neg     ebp                                     ;  ;ebp goes negative
+        mov     eax,0                                   ;  ;init byte regs
+        mov     ebx,0                                   ;  ;
+        .if ebp & 1                                     ;  ;if odd...
+          mov   al,[esi+ebp+0]                          ;  ;make it even
+          inc   ebp                                     ;  ;
+          inc   [edi+eax*8].IL_HuffItem.count           ;  ;and count one
+        .endif                                          ;  ;
+        .if ebp                                         ;  ;do other pairs
+          mov   al,[esi+ebp+0]                          ;  ;get first byte
+          jmp   lpstrt                                  ;  ;and join loop
+          .repeat                                       ;  ;
+            mov ecx,[edi+eax*8].IL_HuffItem.count       ; 1;get counts
+            mov edx,[edi+ebx*8].IL_HuffItem.count       ; 0;
+            .if al == bl                                ; 1;check for conflict
+              add edx,2                                 ; 1;
+              mov al,[esi+ebp+0]                        ; 0;get byte 2
+              mov [edi+ebx*8].IL_HuffItem.count,edx     ; 1;update counts
+              mov bl,[esi+ebp+1]                        ; 0;get byte 2
+            .else                                       ;  ;
+              inc ecx                                   ; 1;inc counts
+              inc edx                                   ; 0;
+              mov [edi+eax*8].IL_HuffItem.count,ecx     ; 1;update counts
+              mov al,[esi+ebp+0]                        ; 0;get byte 1
+              mov [edi+ebx*8].IL_HuffItem.count,edx     ; 1;
+lpstrt:       mov bl,[esi+ebp+1]                        ; 0;get byte 2
+            .endif                                      ;  ;
+            add ebp,2                                   ; 1;advance ebp
+          .until ZERO?                                  ; 0;until end hit
+                                                        ;;;;6 cycle loop
+                                                        ;;;;3 cycles/byte
+          inc   [edi+eax*8].IL_HuffItem.count           ;  ;inc the last two
+          inc   [edi+ebx*8].IL_HuffItem.count           ;  ;
+        .endif                                          ;  ;restore ebp
+        pop     ebp                                     ;  ;and exit
+        ret
+
+IL_HuffmanByteCensus_A endp                             ;;;;
+
+_IL_TEXT ends
+
+ comment `....................... C language ...............................*/
+
+void (*IL_HuffmanByteCensus)(IL_HuffItem *array, unsigned char *source,
+                                         long count);
+void 
+IL_HuffmanByteCensus_C(IL_HuffItem *array, unsigned char *source, long count)
+{
+    if (count) {
+        do {
+            array[*source++].count++;
+        } while (--count);
+    }
+}
+
+IL_HuffItem *
+IL_MakeHuffmanByteCensusArray(long count)
+{
+    IL_HuffItem *ret;
+
+    ret = IL_calloc(count, sizeof(IL_HuffItem));
+    while (count--)
+        ret[count].value = count;
+    return ret;
+}
+
+int
+IL_HuffItemsSortSub(const void *cmp1, const void *cmp2)
+{
+    if (((IL_HuffItem *)cmp1)->count > ((IL_HuffItem *)cmp2)->count)
+        return  1;
+    if (((IL_HuffItem *)cmp1)->count < ((IL_HuffItem *)cmp2)->count)
+        return -1;
+    return 0;
+}
+
+void
+IL_HuffItemsSort(IL_HuffItem *array, long count)
+{
+    qsort(array, count, sizeof(IL_HuffItem), IL_HuffItemsSortSub);
+}
+
+;/*`.......................... assembly language .............................
+
+_IL_TEXT segment
+
+IL_HuffNode     struct
+                union
+zero              dword         ?
+value             dword         ?
+                ends
+                union
+one               dword         ?
+link              dword         ?
+                ends
+parent          dword           ?
+                union
+bits              dword         ?
+                  struct
+flag                byte        ?
+curdepth            byte        ?
+maxdepth            byte        ?
+unused              byte        ?
+                  ends
+                ends
+IL_HuffNode     ends
+
+;void IL_MakeHuffTreeFromHuffItems_A(IL_HuffNode *base, IL_HuffItem *source,
+;                                                                  long count)
+;
+        align 4
+IL_MakeHuffTreeFromHuffItems_A proc near C public uses esi edi ebx es,
+                                         base:dword, source:dword, count:dword
+        local   movdest:dword                ;  ;
+                                             ; 5;
+        pushfd                               ; 3;                      
+        cld                                  ; 2;autoincrement string move
+        mov     edi,base                     ; 1;edi points to base of array
+        mov     ecx,count                    ; 0;
+        .if !ecx                             ; 1;no count means no depth
+          popfd                              ; 4;
+          ret                                ; 7;
+        .endif                               ;  ;
+        shl     ecx,4                        ; 1;
+        lea     eax,[edi+sizeof IL_HuffNode] ; 0;calculate first move dest
+        add     edi,ecx                      ; 1;edi points to start loc
+        mov     movdest,eax                  ; 0;movdest holds down-move dest
+        shr     ecx,2                        ; 1;ecx counts longwords  
+        mov     edx,count                    ; 0;
+        mov     ebx,edi                      ; 1;ebx backs edi up
+        mov     eax,0                        ; 0;  
+        rep stosd                            ;;;;zero all active HuffNodes
+        mov     edi,ebx                      ; 1;restore edi
+        mov     ecx,count                    ; 0;prepare to count all items
+        mov     esi,source                   ; 1;point to item list
+        .repeat                              ;  ;store the lengths
+          mov   eax,[esi].IL_HuffItem.count  ; 1;put count in bits field
+          add   esi,sizeof IL_HuffItem       ; 0;
+          mov   [ebx].IL_HuffNode.bits,eax   ; 1;
+          add   ebx,sizeof IL_HuffNode       ; 0;
+          dec   ecx                          ; 1;
+        .until ZERO?                         ; 0;
+        dec     edx                          ; 1;edx one less than remaining
+        .while edx                           ; 1;while more than one element
+          mov   esi,[edi].IL_HuffNode.bits   ; 1;pick up one value to combine
+          mov   eax,[edi+sizeof IL_HuffNode].IL_HuffNode.bits ; 0;has new sum
+          add   eax,esi                      ; 1;
+          mov   esi,[edi].IL_HuffNode.zero   ; 0;see if it's a parent
+          .if   esi                          ; 3;if it IS a prnt,adjust chldrn
+            mov ebx,[edi].IL_HuffNode.one    ; 1;get other pointer, too
+            mov ecx,movdest                  ; 0;point to dest
+            mov [esi].IL_HuffNode.parent,ecx ; 1;adjust 1st child
+            mov [ebx].IL_HuffNode.parent,ecx ; 1;adjust 2nd child
+          .endif                             ;  ;
+          mov   esi,[edi+sizeof IL_HuffNode].IL_HuffNode.zero ; 1;parent?
+          .if   esi                          ; 3;if it IS a prnt,adjust chldrn
+            mov ebx,[edi+sizeof IL_HuffNode].IL_HuffNode.one ; 1;get other ptr
+            mov ecx,movdest                  ; 0;point to dest
+            add ecx,sizeof IL_HuffNode       ; 1;ready new dest for child #2
+            mov [esi].IL_HuffNode.parent,ecx ; 1;adjust 1st child
+            mov [ebx].IL_HuffNode.parent,ecx ; 0;adjust 2nd child
+          .endif                             ;  ;
+          push  edi                          ; 1;save reg 
+          mov   esi,edi                      ; 0;source ready
+          mov   edi,movdest                  ; 1;dest ready
+          mov   ecx,8                        ; 0;count ready
+          rep movsd                          ;;;;move two nodes
+          pop   edi                          ; 1;restore regs
+          add   edi,sizeof IL_HuffNode       ; 1;bump up one to make the node
+          mov   esi,edx                      ; 0;esi has non-inclusive upr lim
+          mov   ecx,1                        ; 1;ecx has non-inclusive lwr lim
+          .while ecx != esi                  ; 1;
+            lea ebx,[esi+ecx]                ; 1;
+            and ebx,not 1                    ; 1;find the halfway index
+            .if eax >= [edi+ebx*8].IL_HuffNode.bits ; 3;if it's at least ...
+                                             ;  ;this far out...
+              lea ecx,[ebx+2]                ; 1;lower lim is at lst 1 higher
+              shr ecx,1                      ; 1;
+            .else                            ; 0;
+              lea esi,[ebx]                  ; 1;else it's a new upper lim
+              shr esi,1                      ; 1;
+            .endif                           ;  ;
+          .endw                              ; 1;
+          lea   esi,[edi+sizeof IL_HuffNode] ; 1;esi pts to start of move area
+          mov   ebx,edi                      ; 0;
+          lea   ecx,[ecx*4-4]                ; 1;ecx ready for IL_HuffNode
+          rep movsd                          ;;;;
+          mov   [edi].IL_HuffNode.bits,eax   ; 1;
+          mov   eax,movdest                  ; 0;
+          mov   [edi].IL_HuffNode.zero,eax   ; 1;
+          add   eax,2 * (sizeof IL_HuffNode) ; 0;
+          mov   movdest,eax                  ; 1;advance the move dest
+          sub   eax,sizeof IL_HuffNode       ; 0;
+          mov   [edi].IL_HuffNode.one,eax    ; 1;
+          mov   edi,ebx                      ; 0;
+          dec   edx                          ; 1;
+        .endw                                ; 1;
+        mov     ecx,4                        ; 1;
+        mov     esi,edi                      ; 0;
+        mov     edi,base                     ; 1;
+        rep movsd                            ;;;;
+        mov     esi,base                     ; 1;
+        mov     eax,[esi].IL_HuffNode.zero   ; 2;install final parent ptrs
+        .if eax                              ;  ;
+          mov   ebx,[esi].IL_HuffNode.one    ; 1;
+          mov   [eax].IL_HuffNode.parent,esi ; 0;
+          mov   [ebx].IL_HuffNode.parent,esi ; 1;
+        .endif                               ;  ;
+        popfd                                ; 4;
+        ret                                  ; 7;
+                                             ;  ;
+IL_MakeHuffTreeFromHuffItems_A endp          ;  ;
+
+_IL_TEXT ends
+
+ comment `....................... C language ...............................*/
+
+void (*IL_MakeHuffTreeFromHuffItems)(IL_HuffNode *base, IL_HuffItem *source,
+                                 long count);
+
+void
+IL_MakeHuffTreeFromHuffItems_C(IL_HuffNode *base, IL_HuffItem *source,
+                                                                   long count)
+{
+    IL_HuffNode *movdest, *temp;
+    long n, upperlim, lowerlim, index;
+    unsigned long sum;
+
+    if (!count)
+        return;
+    movdest = base + 1;
+    temp    = base + count;
+    memset(temp, 0, count * sizeof(IL_HuffNode));
+    for (n = 0; n < count; n++)
+        temp[n].bits = source[n].count;
+    while (upperlim = --count) {
+        if (temp[0].zero)
+            temp[0].zero->parent = temp[0].one->parent = movdest;
+        if (temp[1].zero)
+            temp[1].zero->parent = temp[1].one->parent = movdest + 1;
+        movdest[0]   = *temp++;
+        movdest[1]   = *temp;
+        sum = movdest[0].bits + movdest[1].bits;
+        lowerlim = 1;
+        while (lowerlim != upperlim) {
+            index = (lowerlim + upperlim) >> 1;
+            if (sum >= temp[index].bits) {
+                lowerlim = index + 1;
+            } else {
+                upperlim = index;
+            }
+        }
+        index            = lowerlim - 1;
+        memmove(temp, temp + 1, index * sizeof(IL_HuffNode));
+        temp[index].bits = sum;
+        temp[index].zero = movdest;
+        temp[index].one  = movdest + 1;
+        movdest         += 2;
+    }
+    base[0] = temp[0];
+    if (base[0].zero)
+        base[0].zero->parent = base[0].one->parent = base;
+}
+
+
+;/*`.......................... assembly language .............................
+
+_IL_TEXT segment
+
+;IL_MakeCodeLengthsFromHuffTree(long *dest, IL_HuffNode *source, 
+;                                                               long maxdepth)
+;
+IL_MakeCodeLengthsFromHuffTree_A proc near C public uses ebx esi edi es,
+                                         dest:dword, src:dword, maxdepth:dword
+                                                ;  ;
+                                                ; 3;
+        cld                                     ; 2;always go up
+        mov     edi,dest                        ; 1;point to output array
+        mov     ecx,maxdepth                    ; 0;
+        inc     ecx                             ; 1;
+        mov     eax,0                           ; 0;
+        rep stosd                               ;;;;clear out array
+        mov     edx,0                           ; 1;depth is 0
+        mov     ecx,maxdepth                    ; 0;
+        mov     edi,dest                        ; 1;edi is output array
+        mov     esi,src                         ; 0;ebx is current node ptr
+        .while  1                               ; 1;
+          .while  [esi].IL_HuffNode.one         ; 1;while it's a real node
+            mov esi,[esi].IL_HuffNode.one       ; 1;go down the one branch
+            inc edx                             ; 1;increment the level
+          .endw                                 ; 0;
+          .if edx > ecx                         ; 1;if it's too deep
+            inc dword ptr [edi+ecx*4]           ; 3;increment the deepst legal
+          .else                                 ;  ;
+            inc dword ptr [edi+edx*4]           ; 3;else increment actual
+          .endif                                ;  ;
+          .repeat                               ;  ;
+            mov ebx,esi                         ; 1;keep backup copy
+            mov esi,[esi].IL_HuffNode.parent    ; 0;back to parent
+            dec edx                             ; 1;decrease depth
+            .if SIGN?                           ; 0;if parent doesn't exist
+              ret                               ; 4;exit
+            .endif                              ;  ;
+          .until ebx != [esi].IL_HuffNode.zero  ; 2;until need to go into zero
+          mov   esi,[esi].IL_HuffNode.zero      ; 1;
+          inc   edx                             ; 1;
+        .endw                                   ; 1;
+                                                ;;;;
+IL_MakeCodeLengthsFromHuffTree_A endp
+
+_IL_TEXT ends
+
+ comment `....................... C language ...............................*/
+#define DEPTH 11
+;/*`.......................... assembly language .............................
+DEPTH   textequ <11>
+ comment `....................... C language ...............................*/
+
+void (*IL_MakeCodeLengthsFromHuffTree)(long *dest, IL_HuffNode *source,
+                            long maxdepth);
+
+void
+IL_MakeCodeLengthsFromHuffTree_C(long *dest, IL_HuffNode *source,
+                                                                long maxdepth)
+{
+    int n, depth;
+    IL_HuffNode *back;
+
+    for (n = 0; n < maxdepth + 1; n++)
+        dest[n] = 0;
+    depth = 0;
+    while (1) {
+        while (source->one) {
+            source = source->one;
+            depth++;
+        }
+        if (depth > maxdepth)
+            dest[maxdepth]++;
+        else
+            dest[depth]++;
+        do {
+            back   = source;
+            source = source->parent;
+            if (!depth--)
+                return;
+        } while (back == source->zero);
+        source = source->zero;
+        depth++;
+    }
+    return; // never taken, makes compiler happy
+}
+
+long
+IL_HuffDepthsAdjust(long *depth, long maxdepth)
+{
+    unsigned long n, m, items, sum, goal, gain, busts;
+    unsigned long promotions, excess, hi;
+
+    goal = 1 << maxdepth;
+    for (n = 0, sum = 0, items = 0; n <= maxdepth; n++) {
+        items += depth[n];
+        sum   += (goal >> n) * depth[n];
+    }
+    if (items > goal)
+        return -1;                              // failure
+    for (n = maxdepth - 1; sum > goal; n--) {
+        if (depth[n]) {
+            gain             = (1 << (maxdepth - n)) - 1;
+            busts            = (sum - goal + gain - 1) / gain;
+            busts            = depth[n] < busts ? depth[n] : busts;
+            depth[n]        -= busts;
+            depth[maxdepth] += busts;
+            sum             -= busts * gain;
+        }
+    }
+    excess = goal - sum;
+    for (n = 0; excess; n++) {
+        hi = 1 << (maxdepth - n);
+        for (m = n + 1; m <= maxdepth; m++) {
+            gain = hi - (1 << (maxdepth - m));
+            if (excess < gain)
+                break;
+            if (depth[m]) {
+                promotions  = excess / gain;
+                promotions  = depth[m] > promotions ? promotions : depth[m];
+                depth[n]   += promotions;
+                depth[m]   -= promotions;
+                excess     -= promotions * gain;
+            }
+        }
+    }
+    return 0;                           // success
+}
+
+void
+IL_MakeHuffmanEncodeTable(IL_HuffEncode *encodetable, IL_HuffItem *item,
+                                                  long *depths, long maxdepth)
+{
+    unsigned long d, bitwidth, depthbit, bt, cur;
+    long *dep;
+
+    dep      = depths + 1;              // skip depth zero
+    bitwidth = 0;                       // start from small bitwidths
+    cur      = 0;                       // current bit pattern
+    do {
+        do {
+            bitwidth++;                         // go deeper
+            depthbit = 1 << (bitwidth - 1);     // keep depth marker
+            d = *dep++;                         // get count here
+        } while (!d);                           // until count non-zero
+        while (d--) {                           // for all on this level
+            encodetable[item->value].wid  = bitwidth; // record width
+            encodetable[item->value].bits = cur;      // record bits
+            item--;                             // count backwards an item
+            bt = depthbit;                      // bt is a temp value
+            while (1) {
+                cur  ^= bt;                     // do an add modulo 1
+                if ((cur & bt) || !bt)          // break if now a 1
+                    break;                      // or out of bits
+                bt  >>=  1;                     // do next bit position
+            }
+        }
+    } while (cur);                              // until cur exhausted
+}
+
+long (*IL_HuffEncodeBytes)(long *dest, unsigned char *source, long count,
+                                 IL_HuffEncode *table);
+
+long 
+IL_HuffEncodeBytes_C(long *dest, unsigned char *source, long count,
+                                                         IL_HuffEncode *table)
+{
+    long          *start, wid, val, available, n;
+    unsigned long  accum, bits;
+    unsigned char *sourcelim, *sourceend;
+
+    if (!count)
+        return 0;
+    start = dest;
+    sourcelim = sourceend = source + count;
+    available = 32;
+    if (sourcelim - 32 < sourcelim)
+        sourcelim -= 32;
+    else
+        sourcelim = source;
+    if (source < sourcelim) {
+        do {
+            goto lpstart;
+            do {
+                accum = (accum >> wid) | (bits << (32 - wid));
+lpstart:        val  = *source++;
+                wid  = table[val].wid;
+                bits = table[val].bits;
+            } while ((available -= wid) >= 0);
+            wid       += available;
+            if (wid)
+                accum  = (accum >> wid) | (bits << (32 - wid));
+            *dest++    = accum;
+            wid       -= available;
+            accum      = bits << (32 - wid);
+            available += 32;
+        } while (source < sourcelim);
+    }
+    while (1) {
+        if (source < sourceend)
+            val = *source++;
+        else if (source == sourceend) {
+            val = 0x100;                        // terminator
+            source++;
+        } else
+            break;                              // done
+        wid  = table[val].wid;
+        bits = table[val].bits;
+
+        if ((available -= wid) < 0) {
+            wid       += available;
+            if (wid)
+                accum  = (accum >> wid) | (bits << (32 - wid));
+            *dest++    = accum;
+            wid       -= available;
+            accum      = bits << (32 - wid);
+            available += 32;
+        } else
+            accum = (accum >> wid) | (bits << (32 - wid));
+    }    
+    *dest++ = accum >> available;
+    return (dest - start) * 4;
+}
+
+
+void (*IL_MakeHuffmanDecodeTable)(long *outtbl, long *depth, long depthmax, 
+                                    char *list);
+
+void
+IL_MakeHuffmanDecodeTable_C(long *outtbl, long *depth, long depthmax, 
+                                                                   char *list)
+{
+    // depth[d] stores how many nodes are at depth d.
+    // list[i] stores the value of the i'th node, in depth order. (XXX: rev'd?)
+    long thisdepth, depthbit, repcount, repspace, lenbits, temp, *outp, count;
+    long o = 0;
+    unsigned char *p;
+
+    lenbits   = 0;
+    repcount  = 1 << depthmax;
+    repspace  = 1;
+    thisdepth = 0;
+    depthbit  = 4;
+    p         = (unsigned char *)list + 255;
+    while (1) {
+        do {
+            lenbits++;
+            depthbit <<= 1;
+            repspace <<= 1;
+            repcount >>= 1;
+        } while (!(thisdepth = *depth++));
+        do {
+            if (p < list)
+                temp = 0xff;
+            else 
+                temp = lenbits | (*p-- << 8);
+            outp  = outtbl + (o >> 2);
+            count = repcount;
+            do {
+                *outp  = temp;
+                outp  += repspace;
+            } while (--count);
+            temp = depthbit;
+            do {
+                temp >>= 1;
+                if (temp & 3)
+                    return;
+                o ^= temp;
+            } while (!(o & temp));
+        } while (--thisdepth);
+    }
+    return;     // never taken, make compiler happy
+}
+
+
+#define EDXMASK ((((1 << (DEPTH + 1)) - 1) ^ 1) ^ -1)
+
+long (*IL_DecompressHuffman)(char *dest, long *source, long *table);
+
+long 
+IL_DecompressHuffman_C(char *dest, long *source, long *table)
+{
+    char                   *start;
+    long                    available, reserve, fill, wid;
+    unsigned long           bits, resbits;
+    unsigned char          *p;
+
+    start     = dest;
+    available = 0;
+    reserve   = 0;
+    wid       = 0;    
+    do {
+        available     += wid;
+        bits         <<= fill = 31 - available;
+        if (fill > reserve) {
+            fill      -= reserve;
+            available += reserve;
+            if (reserve)
+                bits   = (bits >> reserve) | (resbits << (32 - reserve));
+            resbits    = *source++;
+            reserve    = 32;
+        }
+        bits           = (bits >> fill) | (resbits << (32 - fill));
+        resbits      >>= fill;
+        reserve       -= fill;
+        available      = 31;
+        goto lpent;
+        do {
+printf("%08x %d %d\n", bits, p[1], wid);
+            bits      >>= wid;
+            *dest++   = p[1];
+lpent:      p         = (unsigned char *)(((short *)table)+(bits & ~EDXMASK));
+        } while ((available  -= (wid = *p)) >= 0);
+
+    } while (available > -32);
+    return dest - start;
+}
+
+
+;/*`.......................... assembly language .............................
+
+_IL_TEXT segment
+
+;long IL_HuffEncodeBytes(long *ptrout, char *ptrin, long count,
+;                                                        IL_HuffEncode *table)
+;
+;Turns a byte stream into a bit stream plus terminator code.
+;
+IL_HuffEncodeBytes_A proc near C public uses ebx esi edi, ptrout:dword, 
+                                         ptrin:dword, count:dword, table:dword
+
+outptr          textequ <[esp+00]>
+encodetbl       textequ <[esp+04]>
+esilim          textequ <[esp+08]>
+esiend          textequ <[esp+12]>
+
+        .if !count                                      ;  ;if no bytes
+          mov   eax,0                                   ;  ;exit with zero
+          ret                                           ;  ;
+        .endif                                          ;  ;
+        push    ebp                                     ;  ;save ebp
+        sub     esp,16                                  ;  ;make room for vars
+        mov     esi,ptrin                               ;  ;pick up parms
+        mov     ecx,count                               ;  ;
+        mov     ebx,table                               ;  ;
+        mov     eax,ptrout                              ;  ;
+        add     ecx,esi                                 ;  ;calculate end
+        mov     encodetbl,ebx                           ;  ;stack table ptr
+        mov     outptr,eax                              ;  ;stack out ptr
+        mov     esiend,ecx                              ;  ;stack end ptr
+        sub     ecx,32                                  ;  ;
+        .if CARRY?                                      ;  ;
+          mov   ecx,0                                   ;  ;
+        .endif                                          ;  ;
+        mov     esilim,ecx                              ;  ;stack limit ptr
+        mov     edi,32                                  ;  ;32 bits available
+        mov     ecx,0                                   ;  ;start shift zero
+        mov     eax,0                                   ;  ;hi eax is zero
+        mov     al,[esi]                                ;  ;get byte to code
+        inc     esi                                     ;  ;advance ptr
+        .if esi < esilim                                ;  ;maybe do big loop
+          .repeat                                       ;  ;
+            .repeat                                     ;  ;
+              shrd ebp,edx,cl                           ; 4;7-shift bits in
+              mov ecx,[ebx+eax*8].IL_HuffEncode.wid     ; 1;3-get bit width
+              mov edx,[ebx+eax*8].IL_HuffEncode.bits    ; 0;4-get code bits
+              mov al,[esi]                              ; 1;1-get encode val
+              inc esi                                   ; 0;2-advance byte ptr
+              sub edi,ecx                               ; 1;5-enough room?
+            .until CARRY?                               ; 0;6-yes -> branch
+                                                        ;;;;7 cycles
+                                                        ; 4;    
+            add ecx,edi                                 ; 1;cl gets max shift
+            mov ebx,outptr                              ; 0;ready to output
+            shrd ebp,edx,cl                             ; 4;fill ebp
+            mov [ebx],ebp                               ; 1;store output
+            sub ecx,edi                                 ; 0;ecx now original
+            add edi,32                                  ; 1;new remaining
+            add ebx,4                                   ; 0;advance output ptr
+            mov outptr,ebx                              ; 1;store output ptr
+            mov ebx,esilim                              ; 0;get lim to check
+            cmp esi,ebx                                 ; 1;past lim? 
+            mov ebx,encodetbl                           ; 0;restore ebx
+          .until CARRY?                                 ; 1;and loop if lim OK
+        .endif                                          ;;;;14 cycle refill
+                                                        ;;;;general formula:
+                                                        ;;;; 7   * inbytes +
+                                                        ;;;; 3.5 * outbytes
+        shrd ebp,edx,cl                                 ; 4;7-shift bits in
+        .repeat                                         ;  ;
+          mov   ecx,[ebx+eax*8].IL_HuffEncode.wid       ; 1;3-get bit width
+          mov   edx,[ebx+eax*8].IL_HuffEncode.bits      ; 0;4-get code bits
+          sub   edi,ecx                                 ; 1;5-enough room?
+          .if CARRY?                                    ; 1;no -> skip
+                                                        ; 4;
+            add ecx,edi                                 ; 1;cl gets max shift
+            mov ebx,outptr                              ; 0;ready to output
+            shrd ebp,edx,cl                             ; 4;fill ebp
+            mov [ebx],ebp                               ; 1;store output
+            sub ecx,edi                                 ; 0;ecx now original
+            add edi,32                                  ; 1;new remaining
+            add ebx,4                                   ; 0;advance output ptr
+            mov outptr,ebx                              ; 1;store output ptr
+            mov ebx,encodetbl                           ; 0;restore ebx
+          .endif                                        ;  ;
+          shrd ebp,edx,cl                               ; 4;7-shift bits in
+          .if esi < esiend                              ; 2;
+            mov al,[esi]                                ; 1;1-get encode val
+          .elseif esi == esiend                         ; 1;
+            mov eax,100H                                ; 1;do terminator
+          .else                                         ;  ;
+            .break                                      ; 1;
+          .endif                                        ;  ;
+          inc   esi                                     ; 1;2-advance byte ptr
+        .until 0                                        ; 0;
+        mov     ebx,outptr                              ; 1;get output ptr
+        mov     ecx,edi                                 ; 0;ecx has last shift
+        shr     ebp,cl                                  ; 4;last shift down
+        mov     [ebx],ebp                               ; 1;save last
+        lea     eax,[ebx+4]                             ; 0;calculate end ptr
+        add     esp,16                                  ; 1;pop stack
+        pop     ebp                                     ; 2;restore ebp
+        sub     eax,ptrout                              ; 1;eax is bytes out
+        ret                                             ; 4;and return
+IL_HuffEncodeBytes_A endp                               ;  ;
+
+ comment `....................... C language ...............................*/
+
+typedef struct {
+    long          compresseddatasize;
+    long          uncompresseddatasize;
+    long          codelengthcount[DEPTH];
+    unsigned char byteassignment[256];
+} IL_HuffmanPackage;
+
+;/*`.......................... assembly language .............................
+
+;void
+;IL_MakeHuffmanDecodeTable(long *outtbl, long *depth, long depthmax, 
+;                                                                  char *list)
+;
+IL_MakeHuffmanDecodeTable_A proc near C public uses esi edi ebx, outtbl:ptr,
+                                depth:ptr dword, depthmax:dword, list:ptr byte
+        local   thisdepth:dword, depthbit:dword, repcount:dword
+        local   repspace:dword, lenbits:dword
+
+        mov     lenbits,0                       ;  ;
+        mov     ecx,depthmax                    ;  ;
+        mov     esi,1                           ;  ;
+        shl     esi,cl                          ;  ;
+        mov     repcount,esi                    ;  ;init repcount
+        mov     repspace,4                      ;  ;
+        mov     thisdepth,0                     ;  ;this depth is zero
+        mov     depthbit,4                      ;  ;depth bit in 0+1 position
+        mov     esi,list                        ;  ;point to item list
+        add     esi,255                         ;  ;list end pointer
+        mov     edx,outtbl                      ;  ;point to dest table
+        mov     edi,0                           ;  ;
+                                                ;  ;
+        .while 1                                ;  ;loop until internally done
+          mov   eax,depth                       ;  ;
+          .repeat                               ;  ;find a new depth with cnt
+            add lenbits,1                       ;  ;make all 4 vars
+            shl depthbit,1                      ;  ;one level deeper
+            shl repspace,1                      ;  ;
+            shr repcount,1                      ;  ;
+            mov ecx,[eax]                       ;  ;anything at this depth?
+            add eax,4                           ;  ;
+          .until ecx                            ;  ;no -> loop
+          mov   depth,eax                       ;  ;update depth ptr
+          mov   thisdepth,ecx                   ;  ;count for thisdepth
+          .repeat                               ;  ;
+            mov eax,lenbits                     ; 1;get length bits
+            mov ecx,repcount                    ; 0;get repetition count
+            .if esi < list                      ; 2;
+              mov eax,0000000ffH                        ;  ;terminator
+            .else                               ;  ;
+              mov ah,[esi]                      ; 1;pick up list item
+              dec esi                           ; 0;advance list ptr
+            .endif                              ;  ;
+            mov ebx,repspace                    ; 1;get spacer
+            push edi                            ; 0;preserve edi
+            .repeat                             ;  ;
+              mov [edi+edx],eax                 ; 1;store a copy of decode
+              add edi,ebx                       ; 0;advance via spacer
+              dec ecx                           ; 1;done?
+            .until ZERO?                        ; 0;no -> loop
+            pop edi                             ; 1;restore edi
+            mov eax,depthbit                    ; 0;get depthbit
+            .repeat                             ;  ;do reverse-order addition
+              shr eax,1                         ; 1;addition position moves
+              .if eax & 3                       ; 1;if wrapped, done, so exit
+                ret                             ;  ;
+              .endif                            ;  ;
+              xor edi,eax                       ; 1;advance the code
+              test edi,eax                      ; 1;was carry generated?
+            .until !ZERO?                       ; 0;yes -> loop up one bit
+            dec thisdepth                       ; 3;count another
+          .until ZERO?                          ; 0;until this depth exhausted
+        .endw                                   ; 1;for all depths
+
+IL_MakeHuffmanDecodeTable_A endp
+
+EDXMASK textequ <((((1 shl (DEPTH + 1)) - 1) xor 1) xor -1)>
+
+;long IL_DecompressHuffman(char *dest, long *src, long *table)
+;
+IL_DecompressHuffman_A proc near C public uses esi edi ebx, dest:ptr byte,
+                                                src:ptr dword, table:ptr dword
+        mov     esi,src                         ;  ;
+        mov     edi,dest                        ;  ;
+        mov     edx,table                       ;  ;
+        push    ebp                             ;  ;save ebp for exit
+        push    0                               ;  ;
+        push    0                               ;  ;0 ebx bits remaining
+        mov     eax,0ffH                        ;  ;as if ebp empty
+        add     al,cl                           ;  ;prepare for undo
+        .repeat                                 ;  ;
+          sub   al,cl                           ; 1;undo add
+          mov   ebx,[esp+4]                     ; 0;
+          mov   cl,al                           ; 1;so you can get hi byte
+          dec   edi                             ; 0;
+          add   cl,32                           ; 1;find left shift amnt
+          mov   ch,[esp]                        ; 0;get ebp bits remaining
+          shl   ebp,cl                          ; 4;left-justify
+          sub   ch,cl                           ; 1;enough?
+          .if CARRY?                            ; 0;yes -> skip
+            add cl,ch                           ; 1;find how many can shift 
+            sub ah,ch                           ; 0;ah gets neg ch
+            shrd ebp,ebx,cl                     ; 4;shift what's left
+            mov cl,ah                           ; 1;
+            add ch,32                           ; 0;ch has new remaining bits
+            mov ebx,[esi]                       ; 1;pick up 32 new bits
+            add esi,4                           ; 0;
+          .endif                                ;  ;
+          shrd  ebp,ebx,cl                      ; 4;shift in
+          shr   ebx,cl                          ; 4;shift both regs
+          mov   [esp],ch                        ; 1;save new ebx count
+          mov   [esp+4],ebx                     ; 0;
+          mov   eax,(-32) and 0ffH              ; 1;
+          jmp   start                           ; 0;
+                                                ;;;;37-cycle first outer loop
+                                                ;;;;includes inner loop
+                                                ;;;;restart penalty and cache
+                                                ;;;;misses
+
+;eax - holds negative bits remaining in ebp
+;ebx - holds backup bitstream bits
+;ecx - holds current byte decode and its bit length
+;edx - holds decode table pointer
+;esi - input pointer
+;edi - output pointer
+;ebp - holds next bitstream bits
+;
+;In-order loop instructions:
+;
+;         mov   ebx,ebp                         ; 1;1-start to put bits in
+;         and   ebx,not EDXMASK                 ; 1;2-mask region
+;         mov   ecx,[edx+ebx*2]                 ; 2;3-pick up cl,ch decode
+;         add   al,cl                           ; 1;4-get data
+;         .until CARRY?                         ; 0;5-loop if OK
+;         shr   ebp,cl                          ; 4;6-adjust ebp
+;         mov   [edi],ch                        ; 1;7-save the byte
+;         inc   edi                             ; 0;8-advance the pointer
+                                                ;  ;
+          .repeat                               ;  ;
+            shr ebp,cl                          ; 4;6-adjust ebp
+            mov [edi],ch                        ; 1;7-save the byte
+start:      mov ebx,ebp                         ; 0;1-start to put bits in
+            and ebx,not EDXMASK                 ; 1;2-mask region
+            inc edi                             ; 0;8-advance the pointer
+            mov ecx,[edx+ebx*2]                 ; 2;3-pick up cl,ch decode
+            add al,cl                           ; 1;4-get data
+          .until CARRY?                         ; 0;5-loop if OK
+                                                ;;;;9-cycle loop
+                                                ; 4;
+        .until SIGN?                            ; 1;
+        add     esp,8                           ;  ;
+        pop     ebp                             ;  ;
+        mov     eax,edi                         ;  ;
+        mov     edi,dest                        ;  ;
+        sub     eax,edi                         ;  ;return bytes out
+        ret                                     ;  ;
+
+IL_DecompressHuffman_A endp
+
+
+_IL_TEXT ends       
+
+ comment `....................... C language ...............................*/
+;/*`.......................... assembly language .............................
+ comment `....................... C language ...............................*/
+;/*`.......................... assembly language .............................
+        end
+ comment `....................... C language ...............................*/
+
+main(int argc, char **argv)
+{
+
+    IL_MemFile        *mf, out;
+    IL_HuffItem       *items;
+    IL_HuffNode       *nodes;
+    IL_HuffEncode     *encode;
+    IL_HuffmanPackage *outpackage, *inpackage;
+    long               depths[DEPTH + 1];
+    long              *decode;
+    long               cps, t, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, ta;
+    int                n, m, s;
+    FILE              *f;
+
+    if (argc < 4) {
+        printf(
+"                                                                          \n"
+"                               CHHUFMN                                    \n"
+"                                                                          \n"
+"This is the Huffman compression chapter demonstration program written to  \n"
+"accompany the book Inner Loops.                                           \n"
+"                                                                          \n"
+"This program performs Huffman compression and decompression on files,     \n"
+"encoding each byte of an input file as a separate Huffman code.  It       \n"
+"reports in detail the speed with which it performs compression and        \n"
+"decompression.                                                            \n"
+"                                                                          \n"
+"By default, it uses optimized assembly language routines, but equivalent  \n"
+"C routines can optionally be used.                                        \n"
+"                                                                          \n"
+"This command compresses:            chhufmn compress infile outfile       \n"
+"This command compresses with C:     chhufmn compress infile outfile C     \n"
+"                                                                          \n"
+"This command decompresses:          chhufmn decompress infile outfile     \n"
+"This command decompresses with C:   chhufmn decompress infile outfile C   \n"
+"                                                                          \n"
+"The decompression only works on files that have been previously compressed\n"
+"using this program.                                                       "
+);
+        IL_Init(0, 1);
+        exit(0);
+    }
+
+    IL_Init(1, 1);
+    cps = IL_cps;
+    //if (argc < 5) {
+        //IL_HuffmanByteCensus            = IL_HuffmanByteCensus_A;
+        //IL_MakeHuffTreeFromHuffItems    = IL_MakeHuffTreeFromHuffItems_A;
+        //IL_MakeCodeLengthsFromHuffTree  = IL_MakeCodeLengthsFromHuffTree_A;
+        //IL_HuffEncodeBytes              = IL_HuffEncodeBytes_A;
+        //IL_MakeHuffmanDecodeTable       = IL_MakeHuffmanDecodeTable_A;
+        //IL_DecompressHuffman            = IL_DecompressHuffman_A;
+    //} else {
+        IL_HuffmanByteCensus            = IL_HuffmanByteCensus_C;
+        IL_MakeHuffTreeFromHuffItems    = IL_MakeHuffTreeFromHuffItems_C;
+        IL_MakeCodeLengthsFromHuffTree  = IL_MakeCodeLengthsFromHuffTree_C;
+        IL_HuffEncodeBytes              = IL_HuffEncodeBytes_C;
+        IL_MakeHuffmanDecodeTable       = IL_MakeHuffmanDecodeTable_C;
+        IL_DecompressHuffman            = IL_DecompressHuffman_C;
+    //}
+
+    if (!strcmpi(argv[1], "compress")) {
+        printf("\nCompressing file \'%s\' into file \'%s\'\n\n", argv[2],
+                                                                     argv[3]);
+        mf = IL_ReadFileIntoMemory(argv[2]);
+
+        t0 = __rdtsc();
+        items = IL_MakeHuffmanByteCensusArray(256 + 1);
+
+        t1 = __rdtsc();
+        IL_HuffmanByteCensus(items, mf->memfile, mf->size);
+
+        t2 = __rdtsc();
+        items[256] = items[0];
+        IL_HuffItemsSort(items + 1, 256);
+
+        t3 = __rdtsc();
+        items[0].value = 0x100;                 // special terminator value
+        items[0].count = 0;                     // make terminator rare
+        nodes = IL_malloc(2 * sizeof(IL_HuffNode) * (256 + 1));
+        IL_MakeHuffTreeFromHuffItems(nodes, items, (256 + 1));
+
+        t4 = __rdtsc();
+        IL_MakeCodeLengthsFromHuffTree(depths, nodes, DEPTH);
+
+        t5 = __rdtsc();
+        IL_HuffDepthsAdjust(depths, DEPTH);
+
+        t6 = __rdtsc();
+        encode = IL_malloc((256 + 1) * sizeof(IL_HuffEncode));
+
+        t7 = __rdtsc();
+        IL_MakeHuffmanEncodeTable(encode, items + 256, depths, DEPTH);
+
+        ta = __rdtsc();
+        outpackage = IL_malloc(mf->size + sizeof(IL_HuffmanPackage) + 1000);
+
+        t8 = __rdtsc();
+        s = IL_HuffEncodeBytes((long *)(outpackage + 1), mf->memfile, 
+                                                            mf->size, encode);
+        
+        t9 = __rdtsc();
+
+        printf(
+          "Compressed %d bytes down to %d bytes (%3.1f%% of original size)\n",
+           mf->size, s, (((float)s)/mf->size) * 100.0);
+        printf("\n");
+        printf("%1.9f  initializing census array\n", (t1 - t0) / (float)cps);
+        printf("%1.9f  performing census   \n", (t2 - t1) / (float)cps);
+        printf("%1.9f  sorting 256 census items\n", (t3 - t2) / (float)cps);
+        printf("%1.9f  building Huffman tree   \n", (t4 - t3) / (float)cps);
+        printf("%1.9f  deriving code lengths   \n", (t5 - t4) / (float)cps);
+        printf("%1.9f  capping  code lengths   \n", (t6 - t5) / (float)cps);
+        printf("%1.9f  malloc encode table    \n", (t7 - t6) / (float)cps);
+        printf("%1.9f  making encode table   \n", (ta - t7) / (float)cps);
+        printf("%1.9f  malloc for output buffer\n", (t8 - ta) / (float)cps);
+        printf("%1.9f  encoding entire file   \n", (t9 - t8) / (float)cps);
+        printf("------------                      \n");
+        printf("%1.9f  TOTAL seconds to compress\n", (t9 - t0) / (float)cps);
+
+        printf("\nspeed: %1.5f million bytes per second\n", 
+                          mf->size / (1000000.0 * ((t9 - t0) / (float)cps)));
+
+        outpackage->compresseddatasize = s;
+        outpackage->uncompresseddatasize = mf->size;
+        for (n = 0; n < DEPTH; n++)  
+            outpackage->codelengthcount[n] = depths[n + 1];
+        for (n = 0; n < 256; n++)
+            outpackage->byteassignment[n]  = items[n + 1].value;
+        out.memfile = (unsigned char *)outpackage;
+        out.size    = sizeof(IL_HuffmanPackage) + 
+                                               outpackage->compresseddatasize;
+        IL_WriteFileFromMemory(argv[3], &out);
+    
+        //IL_free(mf->memfile);
+        //IL_free(mf);
+        //IL_free(out.memfile);
+                
+    } else if (!strcmpi(argv[1], "decompress")) {
+        printf("\nDecompressing file \'%s\' into file \'%s\'\n\n", argv[2],
+                                                                     argv[3]);
+        mf          = IL_ReadFileIntoMemory(argv[2]);
+
+        t0          = __rdtsc();
+        inpackage   = (IL_HuffmanPackage *)mf->memfile;
+        decode      = (long *)IL_malloc(4 * (1 << DEPTH));
+        IL_MakeHuffmanDecodeTable(decode, &inpackage->codelengthcount[0], 
+                                        DEPTH, &inpackage->byteassignment[0]);
+        out.size    = inpackage->uncompresseddatasize;
+
+        t1          = __rdtsc();
+        out.memfile = IL_malloc(out.size);
+
+        t2          = __rdtsc();
+        n = IL_DecompressHuffman(out.memfile, 
+                   (long *)(mf->memfile + sizeof(IL_HuffmanPackage)), decode);
+        t3          = __rdtsc();
+
+        s = mf->size - sizeof(IL_HuffmanPackage);
+        printf(
+          "Decompressed %d bytes up to %d bytes (grew by %3.1f%%)\n",
+           s, out.size, (((float)out.size)/s) * 100.0 - 100);
+        printf("\n");
+        printf("%1.9f  building decode table    \n", (t1 - t0) / (float)cps);
+        printf("%1.9f  malloc for output buffer\n", (t2 - t1) / (float)cps);
+        printf("%1.9f  decompression           \n", (t3 - t2) / (float)cps);
+        printf("------------                      \n");
+        printf("%1.9f  TOTAL seconds to decompress\n", (t3 - t0) /(float)cps);
+
+        printf("\nspeed: %1.5f million bytes per second\n", 
+                         (out.size) / (1000000.0 * ((t3 - t0) / (float)cps)));
+        IL_WriteFileFromMemory(argv[3], &out);
+    } else {
+        printf("command line error: must be either compress or decompress\n");
+        exit(1);
+    }
+    exit(0);
+}
