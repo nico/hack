@@ -7,7 +7,14 @@ import struct
 import sys
 
 
-gz = open(sys.argv[1], 'rb').read()
+if len(sys.argv) > 1:
+  source = open(sys.argv[1], 'rb')
+else:
+  if sys.platform == 'win32':
+    import os, msvcrt
+    msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
+  source = sys.stdin
+gz = source.read()
 
 # rfc1952 describes the gzip header and footer.
 assert gz[0:2] == '\x1f\x8b'
@@ -147,7 +154,7 @@ is_last_block = False
 while not is_last_block:
   is_last_block = bitstream.getbit()
   block_type = bitstream.getbits(2)
-  #print is_last_block, block_type
+  print is_last_block, block_type
   assert block_type != 3, 'invalid block'
   assert block_type != 0, 'unsupported uncompressed block'
   if block_type == 2:
