@@ -208,24 +208,22 @@ while not is_last_block:
   assert block_type != 3, 'invalid block'
   assert block_type != 0, 'unsupported uncompressed block'
   if block_type == 2:
-    assert False, 'not yet implemented'
     # dynamic huffman code, read huffman tree description
     num_literals_lengths = bitstream.getbits(5) + 257
     num_distances = bitstream.getbits(5) + 1
     num_pretree = bitstream.getbits(4) + 4
-    print num_literals_lengths, num_distances, num_pretree
+    print 'dynamix', num_literals_lengths, num_distances, num_pretree
     pretree_order = [16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15]  # per rfc
     pretree_lengths = [0]*19
     for i in xrange(num_pretree):
-      v = bitstream.getbits(3); print 'v', v
+      v = bitstream.getbits(3)
       pretree_lengths[pretree_order[i]] = v
-    print pretree_lengths
+    #print pretree_lengths
     pretree = HuffTree(pretree_lengths)
     # "The code length repeat codes can cross from HLIT + 257 to the HDIST + 1
     # code lengths", so we have to use a single list for the huflengths here.
     lengths = deflate_decode_pretree(pretree, bitstream,
                                      num_literals_lengths + num_distances)
-    print lengths
     litlengths = lengths[:num_literals_lengths]
     distlengths = lengths[num_literals_lengths:]
   else:
