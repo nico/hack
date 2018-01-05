@@ -125,6 +125,7 @@ class Bitstream(object):
     self.source = source
 
   def getbit(self):
+    # lzx orders bits left-to-right.
     bit = (self.curword_val >> self.curbit) & 1
     self.curbit -= 1
     if self.curbit < 0:
