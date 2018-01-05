@@ -120,6 +120,41 @@ class HuffTree(object):
     return last_code, codes
 
 
+class Window(object):
+  def __init__(self, window_size):
+    self.win_write = 0
+    self.win_size = 1 << window_size
+    self.window = [0] * self.win_size
+
+  def output_literal(self, c):
+    if self.win_write >= self.win_size:
+      self.win_write = 0
+    self.window[self.win_write] = c
+    self.win_write += 1
+
+  def copy_match(self, match_offset, match_length):
+    # match_offset is relative to the end of the window.
+    no_overlap = self.win_write >= match_offset >= match_length and \
+                 self.win_write + match_length < self.win_size
+    match_offset = self.win_write - match_offset
+    if no_overlap:
+      # Can use faster slice copy.
+      self.window[self.win_write:self.win_write+match_length] = \
+          self.window[match_offset:match_offset+match_length]
+      self.win_write += match_length
+      return
+    if match_offset < 0:
+      match_offset += self.win_size
+    # Max match length is 257, min win size is 32768, match will always fit.
+    for i in xrange(match_length):
+      self.output_literal(self.window[match_offset])  # FIXME: chunkier?
+      match_offset += 1
+      if match_offset >= self.win_size:
+        match_offset -= self.win_size
+
+  def get_last_n(self, n):
+    return self.window[self.win_write - n:self.win_write]
+
 
 def deflate_decode_pretree(pretree, bitstream, num_lengths):
   i = 0
@@ -148,8 +183,23 @@ def deflate_decode_pretree(pretree, bitstream, num_lengths):
       i += n
   return lengths
 
+# XXX explain.
+extra_len_bits = [0]*4 + [i/4 for i in range(6*4)] + [0]
+base_position = 3
+base_positions = []
+for extra in extra_len_bits:
+  base_positions.append(base_position)
+  base_position += (1 << extra)
+extra_dist_bits = [0, 0] + [i/2 for i in range(28)]
+base_dist = 1
+base_dists = []
+for extra in extra_dist_bits:
+  base_dists.append(base_dist)
+  base_dist += (1 << extra)
 
 bitstream = Bitstream(gz[off:-8])
+window = Window(window_size=15)  # deflate always uses 32k windows,
+                                 # and the window is shared over blocks
 is_last_block = False
 while not is_last_block:
   is_last_block = bitstream.getbit()
@@ -188,11 +238,22 @@ while not is_last_block:
   disttree = HuffTree(distlengths)
 
   code = littree.readsym(bitstream)
+  win_start = window.win_write
   while code != 256:
     if code < 256:
       # literal
-      sys.stdout.write(chr(code))
+      window.output_literal(code)
+      #print 'lit', code, chr(code)
     else:
-      # match
-      assert False, 'not yet implemented'
+      # match. codes 257..285 represent lengths 3..258 (hence some bits might
+      # have to follow the mapped code).
+      code -= 257
+      match_len = base_positions[code] + bitstream.getbits(extra_len_bits[code])
+      dist = disttree.readsym(bitstream)
+      match_offset = base_dists[dist] + bitstream.getbits(extra_dist_bits[dist])
+      #print 'match', match_offset, match_len
+      window.copy_match(match_offset, match_len)
     code = littree.readsym(bitstream)
+  # FIXME: this is wrong for output larger than 32k
+  sys.stdout.write(
+      ''.join(map(chr, window.get_last_n(window.win_write - win_start))))
