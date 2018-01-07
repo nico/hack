@@ -213,7 +213,7 @@ is_last_block = False
 while not is_last_block:
   is_last_block = bitstream.getbit()
   block_type = bitstream.getbits(2)
-  print is_last_block, block_type
+  #print is_last_block, block_type
   assert block_type != 3, 'invalid block'
   assert block_type != 0, 'unsupported uncompressed block'
   if block_type == 2:
@@ -221,13 +221,11 @@ while not is_last_block:
     num_literals_lengths = bitstream.getbits(5) + 257
     num_distances = bitstream.getbits(5) + 1
     num_pretree = bitstream.getbits(4) + 4
-    print 'dynamic', num_literals_lengths, num_distances, num_pretree
     pretree_order = [16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15]  # per rfc
     pretree_lengths = [0]*19
     for i in xrange(num_pretree):
       v = bitstream.getbits(3)
       pretree_lengths[pretree_order[i]] = v
-    #print pretree_lengths
     pretree = HuffTree(pretree_lengths)
     # "The code length repeat codes can cross from HLIT + 257 to the HDIST + 1
     # code lengths", so we have to use a single list for the huflengths here.
@@ -250,7 +248,6 @@ while not is_last_block:
     if code < 256:
       # literal
       window.output_literal(code)
-      #print 'lit', code, chr(code)
     else:
       # match. codes 257..285 represent lengths 3..258 (hence some bits might
       # have to follow the mapped code).
@@ -258,7 +255,6 @@ while not is_last_block:
       match_len = base_lengths[code] + bitstream.getbits(extra_len_bits[code])
       dist = disttree.readsym(bitstream)
       match_offset = base_dists[dist] + bitstream.getbits(extra_dist_bits[dist])
-      #print 'match', match_offset, match_len
       window.copy_match(match_offset, match_len)
     # We could write to disk right after each literal and match, but instead
     # just write every 16kB. Since the max match is 258 bytes, we won't miss
