@@ -61,18 +61,18 @@ if flags & 2:  # crc16 of gzip header
 class Bitstream(object):
   def __init__(self, source):
     self.curbit = 0
-    self.curword, self.curword_val = 0, struct.unpack_from('B', source, 0)[0]
+    self.curword, self.curword_val = 0, struct.unpack_from('<H', source, 0)[0]
     self.source = source
 
   def getbit(self):
     # deflate orders bits right-to-left.
     bit = (self.curword_val >> self.curbit) & 1
     self.curbit += 1
-    if self.curbit > 7:
+    if self.curbit > 15:
       self.curbit = 0
-      self.curword += 1  # in bytes
+      self.curword += 2  # in bytes
       if self.curword < len(self.source):
-        self.curword_val = struct.unpack_from('B', self.source, self.curword)[0]
+       self.curword_val = struct.unpack_from('<H', self.source, self.curword)[0]
     return bit
 
   def getbits(self, n):
@@ -206,7 +206,7 @@ for extra in extra_dist_bits:
   base_dist += (1 << extra)
 
 outfile = open('gunzip.out', 'wb')
-bitstream = Bitstream(gz[off:-8])
+bitstream = Bitstream(gz[off:-7])  # Normally -8, but include a padding byte.
 window = Window(window_size=15)  # deflate always uses 32k windows,
                                  # and the window is shared over blocks
 is_last_block = False
