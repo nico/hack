@@ -60,16 +60,16 @@ if flags & 2:  # crc16 of gzip header
 
 class Bitstream(object):
   def __init__(self, source):
-    self.curbit = 7
+    self.curbit = 0
     self.curword, self.curword_val = 0, struct.unpack_from('B', source, 0)[0]
     self.source = source
 
   def getbit(self):
     # deflate orders bits right-to-left.
-    bit = (self.curword_val >> (7 - self.curbit)) & 1
-    self.curbit -= 1
-    if self.curbit < 0:
-      self.curbit = 7
+    bit = (self.curword_val >> self.curbit) & 1
+    self.curbit += 1
+    if self.curbit > 7:
+      self.curbit = 0
       self.curword += 1  # in bytes
       if self.curword < len(self.source):
         self.curword_val = struct.unpack_from('B', self.source, self.curword)[0]
