@@ -145,15 +145,18 @@ class Window(object):
       return
     if match_offset < 0:
       match_offset += self.win_size
-    # Max match length is 257, min win size is 32768, match will always fit.
+    # Max match length is 258, win size is 32768, match will always fit.
     for i in xrange(match_length):
       self.output_literal(self.window[match_offset])  # FIXME: chunkier?
       match_offset += 1
       if match_offset >= self.win_size:
         match_offset -= self.win_size
 
-  def get_last_n(self, n):
-    return self.window[self.win_write - n:self.win_write]
+  def get_from(self, win_start):
+    if window.win_write >= win_start:
+      return self.window[win_start:self.win_write]
+    else:
+      return self.window[win_start:] + self.window[:self.win_write]
 
 
 def deflate_decode_pretree(pretree, bitstream, num_lengths):
@@ -185,11 +188,16 @@ def deflate_decode_pretree(pretree, bitstream, num_lengths):
 
 # XXX explain.
 extra_len_bits = [0]*4 + [i/4 for i in range(6*4)] + [0]
-base_position = 3
-base_positions = []
+base_length = 3
+base_lengths = []
 for extra in extra_len_bits:
-  base_positions.append(base_position)
-  base_position += (1 << extra)
+  base_lengths.append(base_length)
+  base_length += (1 << extra)
+# Code 285 is special: It's a 0-extra-bits encoding of the longest-possible
+# value and it means "258", which could also (less efficiently) be coded
+# as code 284 (base position 227) + 31 in the 5 extra bits. The construction
+# in the loop above would assign 259 to code 285 instead.
+base_lengths[-1] = 258
 extra_dist_bits = [0, 0] + [i/2 for i in range(28)]
 base_dist = 1
 base_dists = []
@@ -197,6 +205,7 @@ for extra in extra_dist_bits:
   base_dists.append(base_dist)
   base_dist += (1 << extra)
 
+outfile = open('gunzip.out', 'wb')
 bitstream = Bitstream(gz[off:-8])
 window = Window(window_size=15)  # deflate always uses 32k windows,
                                  # and the window is shared over blocks
@@ -212,7 +221,7 @@ while not is_last_block:
     num_literals_lengths = bitstream.getbits(5) + 257
     num_distances = bitstream.getbits(5) + 1
     num_pretree = bitstream.getbits(4) + 4
-    print 'dynamix', num_literals_lengths, num_distances, num_pretree
+    print 'dynamic', num_literals_lengths, num_distances, num_pretree
     pretree_order = [16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15]  # per rfc
     pretree_lengths = [0]*19
     for i in xrange(num_pretree):
@@ -228,7 +237,7 @@ while not is_last_block:
     distlengths = lengths[num_literals_lengths:]
   else:
     assert block_type == 1
-    # fixed huffman code, used fixed deflate tree
+    # fixed huffman code, use fixed deflate tree
     litlengths = [8]*144 + [9]*(256-144) + [7]*(280-256) + [8]*(288-8)
     distlengths = [5]*30
 
@@ -246,12 +255,20 @@ while not is_last_block:
       # match. codes 257..285 represent lengths 3..258 (hence some bits might
       # have to follow the mapped code).
       code -= 257
-      match_len = base_positions[code] + bitstream.getbits(extra_len_bits[code])
+      match_len = base_lengths[code] + bitstream.getbits(extra_len_bits[code])
       dist = disttree.readsym(bitstream)
       match_offset = base_dists[dist] + bitstream.getbits(extra_dist_bits[dist])
       #print 'match', match_offset, match_len
       window.copy_match(match_offset, match_len)
+    # We could write to disk right after each literal and match, but instead
+    # just write every 16kB. Since the max match is 258 bytes, we won't miss
+    # data in the window after a long match: long matches are still short
+    # compared to the window size.
+    if (window.win_write - win_start) & 0x7fff > 0x3fff:
+      output = window.get_from(win_start)
+      outfile.write(''.join(map(chr, output)))
+      win_start = window.win_write
     code = littree.readsym(bitstream)
-  # FIXME: this is wrong for output larger than 32k
-  sys.stdout.write(
-      ''.join(map(chr, window.get_last_n(window.win_write - win_start))))
+  output = window.get_from(win_start)
+  outfile.write(''.join(map(chr, output)))
+  # win_write is set again before the decode while loop for the next block.
