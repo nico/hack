@@ -75,7 +75,7 @@ class Bitstream(object):
        self.curword_val = struct.unpack_from('<H', self.source, self.curword)[0]
     return bit
 
-  def getbits(self, n):
+  def getbits(self, n):  # n is at most 13, for extra_dist_bits
     # Doing this bit-by-bit is inefficient; this should try to bunch things up.
     bits = 0
     for i in range(n):
@@ -236,7 +236,7 @@ while not is_last_block:
   else:
     assert block_type == 1
     # fixed huffman code, use fixed deflate tree
-    litlengths = [8]*144 + [9]*(256-144) + [7]*(280-256) + [8]*(288-8)
+    litlengths = [8]*144 + [9]*(256-144) + [7]*(280-256) + [8]*(288-280)
     distlengths = [5]*30
 
   littree = HuffTree(litlengths)
