@@ -65,15 +65,54 @@ int getbits(struct Bitstream* bs, int n) {
 }
 
 struct HuffTree {
+  // XXX: storage should be owned by client; dists only need 30 codes, not 288
+  int last_code[16];
+  int codestorage[288];
+  int* codes[17];  // XXX 17 needed? (see +1 in readsym)
 };
 
 void init_hufftree(struct HuffTree* ht, int* nodelengths, int nodecount) {
-  // XXX
+  // Given the lengths of the nodes in a canonical huffman tree,
+  // returns a (last_code, codes) tuple, where last_code[n] returns the
+  // last prefix of length n, and codes[n] contains a list of all values of
+  // prefixes with length n.
+  // The canonical huffman trees match rfc1951.
+  int maxlen = 0;
+  for (int i = 0; i < nodecount; ++i)
+    if (nodelengths[i] > maxlen)
+      maxlen = nodelengths[i];
+  int bl_count[16] = {};
+  for (int i = 0; i < nodecount; ++i) {
+    int len_i = nodelengths[i];
+    if (len_i != 0) bl_count[len_i]++;
+  }
+  ht->codes[0] = &ht->codestorage[0];
+  for (int i = 1; i < 17; ++i)
+    ht->codes[i] = ht->codes[i - 1] + bl_count[i - 1];  // XXX i - i lol
+  int offs[16] = {};
+  for (int i = 0; i < nodecount; ++i) {
+    int len_i = nodelengths[i];
+    if (len_i != 0) ht->codes[len_i][offs[len_i]++] = i;
+  }
+  int code = 0;
+  memset(ht->last_code, 0, sizeof(ht->last_code));
+  for (int i = 1; i < 16; ++i) {
+    code = (code + bl_count[i - 1]) << 1;
+    ht->last_code[i] = code + bl_count[i] - 1;
+  }
 }
 
 int readsym(struct HuffTree* ht, struct Bitstream* bs) {
-  // XXX
-  return 0;
+  int curbits = getbit(bs);
+  int curlen = 1;
+  int* last_code = ht->last_code;
+  while (curbits > last_code[curlen]) {
+    // Note that this uses reversed bit order compared to getbits()
+    curbits = (curbits << 1) | getbit(bs);
+    curlen += 1;
+  }
+  // Note: 2nd index is negative to index from end of list (hence curlen+1)
+  return ht->codes[curlen+1][curbits - last_code[curlen] - 1];
 }
 
 void deflate_decode_pretree(struct HuffTree* pretree,
@@ -209,7 +248,7 @@ int main(int argc, char* argv[]) {
         pretree_lengths[pretree_order[i]] = getbits(&bitstream, 3);
       for (; i < 19; ++i)
         pretree_lengths[pretree_order[i]] = 0;
- 
+
       struct HuffTree pretree;
       init_hufftree(&pretree, pretree_lengths, 19);
       // "The code length repeat codes can cross from HLIT + 257 to the HDIST +
@@ -238,7 +277,8 @@ int main(int argc, char* argv[]) {
       if (code < 256) {
         // literal
         //window.output_literal(code)
-      } else {
+        //printf("lit %d\n", code);
+      } else if (code > 256) {
         // match. codes 257..285 represent lengths 3..258 (hence some bits might
         // have to follow the mapped code).
         code -= 257;
@@ -248,6 +288,7 @@ int main(int argc, char* argv[]) {
         int match_offset =
           base_dists[dist] + getbits(&bitstream, extra_dist_bits[dist]);
         //window.copy_match(match_offset, match_len)
+        //printf("match %d %d\n", match_offset, match_len);
       }
     } while (code != 256);
   } while (!is_last_block);

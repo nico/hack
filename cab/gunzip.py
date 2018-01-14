@@ -248,6 +248,7 @@ while not is_last_block:
     if code < 256:
       # literal
       window.output_literal(code)
+      #print 'lit', code
     else:
       # match. codes 257..285 represent lengths 3..258 (hence some bits might
       # have to follow the mapped code).
@@ -256,6 +257,7 @@ while not is_last_block:
       dist = disttree.readsym(bitstream)
       match_offset = base_dists[dist] + bitstream.getbits(extra_dist_bits[dist])
       window.copy_match(match_offset, match_len)
+      #print 'match', match_offset, match_len
     # We could write to disk right after each literal and match, but instead
     # just write every 16kB. Since the max match is 258 bytes, we won't miss
     # data in the window after a long match: long matches are still short
