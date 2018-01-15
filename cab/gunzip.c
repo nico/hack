@@ -157,6 +157,15 @@ void copy_match(struct Window* w, int match_offset, int match_length) {
   }
 }
 
+void write_from(struct Window* w, FILE* outfile, int win_start) {
+  if (w->win_write >= win_start)
+    fwrite(w->window + win_start, 1, w->win_write - win_start, outfile);
+  else {
+    fwrite(w->window + win_start, 1, w->win_size - win_start, outfile);
+    fwrite(w->window, 1, w->win_write, outfile);
+  }
+}
+
 void deflate_decode_pretree(struct HuffTree* pretree,
                             struct Bitstream* bitstream,
                             int* lengths,
@@ -267,6 +276,7 @@ int main(int argc, char* argv[]) {
     base_dist += 1 << extra_dist_bits[i];
   }
 
+  FILE* outfile = fopen("gunzip.out", "wb");
   struct Bitstream bitstream;
   bitstream_init(&bitstream, gz + off, size - off - 8);
   struct Window window;
@@ -315,10 +325,12 @@ int main(int argc, char* argv[]) {
     struct HuffTree disttree;
     hufftree_init(&disttree, lengths + num_literals_lengths, num_distances);
 
-    int code;
-    do {
-      code = readsym(&littree, &bitstream);
-      if (code < 256) {
+    int win_start = window.win_write;
+    for(;;) {
+      int code = readsym(&littree, &bitstream);
+      if (code == 256) {
+        break;
+      } else if (code < 256) {
         // literal
         output_literal(&window, (uint8_t)code);
         //printf("lit %d\n", code);
@@ -334,8 +346,18 @@ int main(int argc, char* argv[]) {
         copy_match(&window, match_offset, match_len);
         //printf("match %d %d\n", match_offset, match_len);
       }
-    } while (code != 256);
+      // We could write to disk right after each literal and match, but instead
+      // just write every 16kB. Since the max match is 258 bytes, we won't miss
+      // data in the window after a long match: long matches are still short
+      // compared to the window size.
+      if (((window.win_write - win_start) & 0x7fff) > 0x3fff) {
+        write_from(&window, outfile, win_start);
+        win_start = window.win_write;
+      }
+    }
+    write_from(&window, outfile, win_start);
   } while (!is_last_block);
+  fclose(outfile);
 
   free(gz);
   fclose(in);
