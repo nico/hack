@@ -152,11 +152,12 @@ class Window(object):
       if match_offset >= self.win_size:
         match_offset -= self.win_size
 
-  def get_from(self, win_start):
+  def write_from(self, outfile, win_start):
     if window.win_write >= win_start:
-      return self.window[win_start:self.win_write]
+      outfile.write(''.join(map(chr, self.window[win_start:self.win_write])))
     else:
-      return self.window[win_start:] + self.window[:self.win_write]
+      outfile.write(''.join(map(chr, self.window[win_start:] +
+                                     self.window[:self.win_write])))
 
 
 def deflate_decode_pretree(pretree, bitstream, num_lengths):
@@ -263,10 +264,8 @@ while not is_last_block:
     # data in the window after a long match: long matches are still short
     # compared to the window size.
     if (window.win_write - win_start) & 0x7fff > 0x3fff:
-      output = window.get_from(win_start)
-      outfile.write(''.join(map(chr, output)))
+      window.write_from(outfile, win_start)
       win_start = window.win_write
     code = littree.readsym(bitstream)
-  output = window.get_from(win_start)
-  outfile.write(''.join(map(chr, output)))
+  window.write_from(outfile, win_start)
   # win_write is set again before the decode while loop for the next block.
