@@ -18,11 +18,11 @@ static void fatal(const char* msg, ...) {
   exit(1);
 }
 
-uint16_t little_uint16t(uint8_t* d) {
+static uint16_t little_uint16t(uint8_t* d) {
   return d[1] << 8 | d[0];
 }
 
-uint32_t little_uint32t(uint8_t* d) {
+static uint32_t little_uint32t(uint8_t* d) {
   return d[3] << 24 | d[2] << 16 | d[1] << 8 | d[0];
 }
 
@@ -35,7 +35,8 @@ struct Bitstream {
   size_t source_len;
 };
 
-void bitstream_init(struct Bitstream* bs, uint8_t* source, size_t source_len) {
+static void bitstream_init(
+    struct Bitstream* bs, uint8_t* source, size_t source_len) {
   bs->curbit = 0;
   bs->curword = 0;
   bs->curword_val = little_uint16t(source);
@@ -43,7 +44,7 @@ void bitstream_init(struct Bitstream* bs, uint8_t* source, size_t source_len) {
   bs->source_len = source_len;
 }
 
-int getbit(struct Bitstream* bs) {
+static int bitstream_getbit(struct Bitstream* bs) {
   int bit = (bs->curword_val >> bs->curbit) & 1;
   bs->curbit += 1;
   if (bs->curbit > 15) {
@@ -55,12 +56,12 @@ int getbit(struct Bitstream* bs) {
   return bit;
 }
 
-int getbits(struct Bitstream* bs, int n) {
+static int bitstream_getbits(struct Bitstream* bs, int n) {
   // Doing this bit-by-bit is inefficient; this should try to bunch things up.
   int bits = 0;
   for (int i = 0; i < n; ++i)
     // deflate orders bits right-to-left.
-    bits = bits | (getbit(bs) << i);
+    bits = bits | (bitstream_getbit(bs) << i);
   return bits;
 }
 
@@ -68,10 +69,11 @@ struct HuffTree {
   // XXX: storage should be owned by client; dists only need 30 codes, not 288
   int last_code[16];
   int codestorage[288];
-  int* codes[17];  // XXX 17 needed? (see +1 in readsym)
+  int* codes[17];  // XXX 17 needed? (see +1 in hufftree_readsym)
 };
 
-void hufftree_init(struct HuffTree* ht, int* nodelengths, int nodecount) {
+static void hufftree_init(
+    struct HuffTree* ht, int* nodelengths, int nodecount) {
   // Given the lengths of the nodes in a canonical huffman tree,
   // returns a (last_code, codes) tuple, where last_code[n] returns the
   // last prefix of length n, and codes[n] contains a list of all values of
@@ -102,13 +104,13 @@ void hufftree_init(struct HuffTree* ht, int* nodelengths, int nodecount) {
   }
 }
 
-int readsym(struct HuffTree* ht, struct Bitstream* bs) {
-  int curbits = getbit(bs);
+static int hufftree_readsym(struct HuffTree* ht, struct Bitstream* bs) {
+  int curbits = bitstream_getbit(bs);
   int curlen = 1;
   int* last_code = ht->last_code;
   while (curbits > last_code[curlen]) {
-    // Note that this uses reversed bit order compared to getbits()
-    curbits = (curbits << 1) | getbit(bs);
+    // Note that this uses reversed bit order compared to bitstream_getbits()
+    curbits = (curbits << 1) | bitstream_getbit(bs);
     curlen += 1;
   }
   // Note: 2nd index is negative to index from end of list (hence curlen+1)
@@ -121,20 +123,21 @@ struct Window {
   uint8_t* window;  // XXX ownership?
 };
 
-void window_init(struct Window* w, int window_size) {
+static void window_init(struct Window* w, int window_size) {
   w->win_write = 0;
   w->win_size = 1 << window_size;
   w->window = malloc(w->win_size);
 }
 
-void output_literal(struct Window* w, uint8_t c) {
+static void window_output_literal(struct Window* w, uint8_t c) {
   if (w->win_write >= w->win_size)
     w->win_write = 0;
   w->window[w->win_write] = c;
   w->win_write++;
 }
 
-void copy_match(struct Window* w, int match_offset, int match_length) {
+static void window_copy_match(
+    struct Window* w, int match_offset, int match_length) {
   // match_offset is relative to the end of the window.
   bool no_overlap = w->win_write >= match_offset >= match_length &&
                     w->win_write + match_length < w->win_size;
@@ -150,14 +153,14 @@ void copy_match(struct Window* w, int match_offset, int match_length) {
     match_offset += w->win_size;
   // Max match length is 258, win size is 32768, match will always fit.
   for (int i = 0; i < match_length; ++i) {
-    output_literal(w, w->window[match_offset]);  // FIXME: chunkier?
+    window_output_literal(w, w->window[match_offset]);  // FIXME: chunkier?
     match_offset += 1;
     if (match_offset >= w->win_size)
       match_offset -= w->win_size;
   }
 }
 
-void write_from(struct Window* w, FILE* outfile, int win_start) {
+static void window_write_from(struct Window* w, FILE* outfile, int win_start) {
   if (w->win_write >= win_start)
     fwrite(w->window + win_start, 1, w->win_write - win_start, outfile);
   else {
@@ -166,13 +169,13 @@ void write_from(struct Window* w, FILE* outfile, int win_start) {
   }
 }
 
-void deflate_decode_pretree(struct HuffTree* pretree,
-                            struct Bitstream* bitstream,
-                            int* lengths,
-                            int num_lengths) {
+static void deflate_decode_pretree(struct HuffTree* pretree,
+                                   struct Bitstream* bitstream,
+                                   int* lengths,
+                                   int num_lengths) {
   int i = 0;
   while (i < num_lengths) {
-    int code = readsym(pretree, bitstream);
+    int code = hufftree_readsym(pretree, bitstream);
     // code 0-15: Len[x] = code
     // 16: for next (3 + getbits(2)) elements, Len[x] = previous code
     // 17: for next (3 + getbits(3)) elements, Len[x] = 0
@@ -181,18 +184,18 @@ void deflate_decode_pretree(struct HuffTree* pretree,
       lengths[i] = code;
       i += 1;
     } else if (code == 16) {
-      int n = 3 + getbits(bitstream, 2);
+      int n = 3 + bitstream_getbits(bitstream, 2);
       for (int j = i; j < i+n; ++j)
         lengths[j] = lengths[i - 1];
       i += n;
     } else if(code == 17) {
-      int n = 3 + getbits(bitstream, 3);
+      int n = 3 + bitstream_getbits(bitstream, 3);
       for (int j = i; j < i+n; ++j)
         lengths[j] = 0;
       i += n;
     } else {
       // code == 18
-      int n = 11 + getbits(bitstream, 7);
+      int n = 11 + bitstream_getbits(bitstream, 7);
       for (int j = i; j < i+n; ++j)
         lengths[j] = 0;
       i += n;
@@ -283,8 +286,8 @@ int main(int argc, char* argv[]) {
   window_init(&window, 15);
   bool is_last_block;
   do {
-    is_last_block = getbit(&bitstream);
-    int block_type = getbits(&bitstream, 2);
+    is_last_block = bitstream_getbit(&bitstream);
+    int block_type = bitstream_getbits(&bitstream, 2);
     if (block_type == 3) fatal("invalid block\n");
     if (block_type == 0) fatal("unsupported uncompressed block\n");
 
@@ -293,13 +296,13 @@ int main(int argc, char* argv[]) {
     int num_distances;
     if (block_type == 2) {
       // dynamic huffman code, read huffman tree description
-      num_literals_lengths = getbits(&bitstream, 5) + 257;
-      num_distances = getbits(&bitstream, 5) + 1;
-      int num_pretree = getbits(&bitstream, 4) + 4;
+      num_literals_lengths = bitstream_getbits(&bitstream, 5) + 257;
+      num_distances = bitstream_getbits(&bitstream, 5) + 1;
+      int num_pretree = bitstream_getbits(&bitstream, 4) + 4;
       int pretree_order[] = {16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15};
       int pretree_lengths[19], i;
       for (i = 0; i < num_pretree; ++i)
-        pretree_lengths[pretree_order[i]] = getbits(&bitstream, 3);
+        pretree_lengths[pretree_order[i]] = bitstream_getbits(&bitstream, 3);
       for (; i < 19; ++i)
         pretree_lengths[pretree_order[i]] = 0;
 
@@ -327,23 +330,23 @@ int main(int argc, char* argv[]) {
 
     int win_start = window.win_write;
     for(;;) {
-      int code = readsym(&littree, &bitstream);
+      int code = hufftree_readsym(&littree, &bitstream);
       if (code == 256) {
         break;
       } else if (code < 256) {
         // literal
-        output_literal(&window, (uint8_t)code);
+        window_output_literal(&window, (uint8_t)code);
         //printf("lit %d\n", code);
       } else if (code > 256) {
         // match. codes 257..285 represent lengths 3..258 (hence some bits might
         // have to follow the mapped code).
         code -= 257;
-        int match_len =
-            base_lengths[code] + getbits(&bitstream, extra_len_bits[code]);
-        int dist = readsym(&disttree, &bitstream);
-        int match_offset =
-          base_dists[dist] + getbits(&bitstream, extra_dist_bits[dist]);
-        copy_match(&window, match_offset, match_len);
+        int match_len = base_lengths[code] +
+                        bitstream_getbits(&bitstream, extra_len_bits[code]);
+        int dist = hufftree_readsym(&disttree, &bitstream);
+        int match_offset = base_dists[dist] +
+                           bitstream_getbits(&bitstream, extra_dist_bits[dist]);
+        window_copy_match(&window, match_offset, match_len);
         //printf("match %d %d\n", match_offset, match_len);
       }
       // We could write to disk right after each literal and match, but instead
@@ -351,11 +354,11 @@ int main(int argc, char* argv[]) {
       // data in the window after a long match: long matches are still short
       // compared to the window size.
       if (((window.win_write - win_start) & 0x7fff) > 0x3fff) {
-        write_from(&window, outfile, win_start);
+        window_write_from(&window, outfile, win_start);
         win_start = window.win_write;
       }
     }
-    write_from(&window, outfile, win_start);
+    window_write_from(&window, outfile, win_start);
   } while (!is_last_block);
   fclose(outfile);
 
