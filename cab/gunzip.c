@@ -212,7 +212,7 @@ int main(int argc, char* argv[]) {
   rewind(in);
 
   uint8_t* gz = (uint8_t*)malloc(size);
-  fread(gz, size, 1, in);
+  fread(gz, 1, size, in);
 
   if (size < 10) fatal("file too small\n");
 
