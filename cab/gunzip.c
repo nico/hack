@@ -71,7 +71,7 @@ struct HuffTree {
   int* codes[17];  // XXX 17 needed? (see +1 in readsym)
 };
 
-void init_hufftree(struct HuffTree* ht, int* nodelengths, int nodecount) {
+void hufftree_init(struct HuffTree* ht, int* nodelengths, int nodecount) {
   // Given the lengths of the nodes in a canonical huffman tree,
   // returns a (last_code, codes) tuple, where last_code[n] returns the
   // last prefix of length n, and codes[n] contains a list of all values of
@@ -113,6 +113,48 @@ int readsym(struct HuffTree* ht, struct Bitstream* bs) {
   }
   // Note: 2nd index is negative to index from end of list (hence curlen+1)
   return ht->codes[curlen+1][curbits - last_code[curlen] - 1];
+}
+
+struct Window {
+  int win_write;
+  int win_size;
+  uint8_t* window;  // XXX ownership?
+};
+
+void window_init(struct Window* w, int window_size) {
+  w->win_write = 0;
+  w->win_size = 1 << window_size;
+  w->window = malloc(w->win_size);
+}
+
+void output_literal(struct Window* w, uint8_t c) {
+  if (w->win_write >= w->win_size)
+    w->win_write = 0;
+  w->window[w->win_write] = c;
+  w->win_write++;
+}
+
+void copy_match(struct Window* w, int match_offset, int match_length) {
+  // match_offset is relative to the end of the window.
+  bool no_overlap = w->win_write >= match_offset >= match_length &&
+                    w->win_write + match_length < w->win_size;
+  match_offset = w->win_write - match_offset;
+  if (no_overlap) {
+    // Can use faster memcpy().
+    // XXX: measure if this actually helps in C.
+    memcpy(w->window + w->win_write, w->window + match_offset, match_length);
+    w->win_write += match_length;
+    return;
+  }
+  if (match_offset < 0)
+    match_offset += w->win_size;
+  // Max match length is 258, win size is 32768, match will always fit.
+  for (int i = 0; i < match_length; ++i) {
+    output_literal(w, w->window[match_offset]);  // FIXME: chunkier?
+    match_offset += 1;
+    if (match_offset >= w->win_size)
+      match_offset -= w->win_size;
+  }
 }
 
 void deflate_decode_pretree(struct HuffTree* pretree,
@@ -227,6 +269,8 @@ int main(int argc, char* argv[]) {
 
   struct Bitstream bitstream;
   bitstream_init(&bitstream, gz + off, size - off - 8);
+  struct Window window;
+  window_init(&window, 15);
   bool is_last_block;
   do {
     is_last_block = getbit(&bitstream);
@@ -250,7 +294,7 @@ int main(int argc, char* argv[]) {
         pretree_lengths[pretree_order[i]] = 0;
 
       struct HuffTree pretree;
-      init_hufftree(&pretree, pretree_lengths, 19);
+      hufftree_init(&pretree, pretree_lengths, 19);
       // "The code length repeat codes can cross from HLIT + 257 to the HDIST +
       // 1 code lengths", so we have to use a single list for the huflengths
       // here.
@@ -267,16 +311,16 @@ int main(int argc, char* argv[]) {
       num_distances = 30;
     }
     struct HuffTree littree;
-    init_hufftree(&littree, lengths, num_literals_lengths);
+    hufftree_init(&littree, lengths, num_literals_lengths);
     struct HuffTree disttree;
-    init_hufftree(&disttree, lengths + num_literals_lengths, num_distances);
+    hufftree_init(&disttree, lengths + num_literals_lengths, num_distances);
 
     int code;
     do {
       code = readsym(&littree, &bitstream);
       if (code < 256) {
         // literal
-        //window.output_literal(code)
+        output_literal(&window, (uint8_t)code);
         //printf("lit %d\n", code);
       } else if (code > 256) {
         // match. codes 257..285 represent lengths 3..258 (hence some bits might
@@ -287,7 +331,7 @@ int main(int argc, char* argv[]) {
         int dist = readsym(&disttree, &bitstream);
         int match_offset =
           base_dists[dist] + getbits(&bitstream, extra_dist_bits[dist]);
-        //window.copy_match(match_offset, match_len)
+        copy_match(&window, match_offset, match_len);
         //printf("match %d %d\n", match_offset, match_len);
       }
     } while (code != 256);
