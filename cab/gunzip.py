@@ -153,7 +153,7 @@ class Window(object):
         match_offset -= self.win_size
 
   def write_from(self, outfile, win_start):
-    if window.win_write >= win_start:
+    if self.win_write >= win_start:
       outfile.write(''.join(map(chr, self.window[win_start:self.win_write])))
     else:
       outfile.write(''.join(map(chr, self.window[win_start:] +
