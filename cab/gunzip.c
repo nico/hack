@@ -97,7 +97,7 @@ static void hufftree_init(
   for (int i = 0; i < nodecount; ++i)
     if (nodelengths[i] > maxlen)
       maxlen = nodelengths[i];
-  int bl_count[16] = {};
+  int bl_count[16] = {0};
   for (int i = 0; i < nodecount; ++i) {
     int len_i = nodelengths[i];
     if (len_i != 0) bl_count[len_i]++;
@@ -105,7 +105,7 @@ static void hufftree_init(
   ht->codes[0] = &ht->codestorage[0];
   for (int i = 1; i < 17; ++i)
     ht->codes[i] = ht->codes[i - 1] + bl_count[i - 1];  // XXX i - i lol
-  int offs[16] = {};
+  int offs[16] = {0};
   for (int i = 0; i < nodecount; ++i) {
     int len_i = nodelengths[i];
     if (len_i != 0) ht->codes[len_i][offs[len_i]++] = i;
@@ -285,7 +285,7 @@ int main(int argc, char* argv[]) {
   }
 
   // XXX explain.
-  int extra_len_bits[7*4 + 1] = {};
+  int extra_len_bits[7*4 + 1] = {0};
   for (int i = 0; i < 6*4; ++i)
     extra_len_bits[i + 4] = i/4;
   extra_len_bits[7*4] = 0;
@@ -300,7 +300,7 @@ int main(int argc, char* argv[]) {
   // as code 284 (base position 227) + 31 in the 5 extra bits. The construction
   // in the loop above would assign 259 to code 285 instead.
   base_lengths[7*4] = 258;
-  int extra_dist_bits[30] = {};
+  int extra_dist_bits[30] = {0};
   for (int i = 0; i < 28; ++i)
     extra_dist_bits[i + 2] = i/2;
   int base_dist = 1;
