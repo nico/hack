@@ -65,6 +65,20 @@ static int bitstream_getbits(struct Bitstream* bs, int n) {
   return bits;
 }
 
+static void bitstream_parse_uncompressed_block(
+    struct Bitstream* bs, uint16_t* size, uint16_t* nsize, uint8_t** data) {
+  size_t start = bs->curword;
+  if (bs->curbit > 0) ++start;
+  if (bs->curbit > 8) ++start;
+  *size = little_uint16t(bs->source + start);
+  *nsize = little_uint16t(bs->source + start + 2);
+  *data = bs->source + start + 4;
+  bs->curbit = 0;
+  bs->curword = start + 4 + *size;
+  if (bs->curword < bs->source_len)
+    bs->curword_val = little_uint16t(bs->source + bs->curword);
+}
+
 struct HuffTree {
   // XXX: storage should be owned by client; dists only need 30 codes, not 288
   int last_code[16];
@@ -134,6 +148,23 @@ static void window_output_literal(struct Window* w, uint8_t c) {
     w->win_write = 0;
   w->window[w->win_write] = c;
   w->win_write++;
+}
+
+static void window_output_block(struct Window* w, uint8_t* d, uint16_t size) {
+  if (size > w->win_size) {
+    d += size - w->win_size;
+    size = w->win_size;
+  }
+  size_t rightspace = w->win_size - w->win_write;
+  if (rightspace >= size) {
+    memcpy(w->window + w->win_write, d, size);
+    w->win_write += size;
+  } else {
+    size_t leftspace = size - rightspace;
+    memcpy(w->window + w->win_write, d, rightspace);
+    memcpy(w->window, d + rightspace, leftspace);
+    w->win_write = leftspace;
+  }
 }
 
 static void window_copy_match(
@@ -289,7 +320,16 @@ int main(int argc, char* argv[]) {
     is_last_block = bitstream_getbit(&bitstream);
     int block_type = bitstream_getbits(&bitstream, 2);
     if (block_type == 3) fatal("invalid block\n");
-    if (block_type == 0) fatal("unsupported uncompressed block\n");
+
+    if (block_type == 0) {
+      uint16_t size, nsize;
+      uint8_t* data;
+      bitstream_parse_uncompressed_block(&bitstream, &size, &nsize, &data);
+      if (size != (uint16_t)~nsize) fatal("invalid uncompressed header\n");
+      fwrite(data, 1, size, outfile);
+      window_output_block(&window, data, size);
+      continue;
+    }
 
     int lengths[288 + 30];
     int num_literals_lengths;

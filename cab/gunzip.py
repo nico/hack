@@ -83,6 +83,18 @@ class Bitstream(object):
       bits = bits | (self.getbit() << i)
     return bits
 
+  def parse_uncompressed_block(self):
+    start = self.curword
+    if self.curbit > 0: start += 1
+    if self.curbit > 8: start += 1
+    size, nsize = struct.unpack_from('<HH', self.source, start)
+    data = struct.unpack_from('%ds' % size, self.source, start + 4)[0]
+    self.curbit = 0
+    self.curword = start + 4 + size
+    if self.curword < len(self.source):
+     self.curword_val = struct.unpack_from('<H', self.source, self.curword)[0]
+    return data
+
 
 class HuffTree(object):
   def __init__(self, nodelengths):
@@ -131,6 +143,20 @@ class Window(object):
       self.win_write = 0
     self.window[self.win_write] = c
     self.win_write += 1
+
+  def output_block(self, data):
+    if len(data) > self.win_size:
+      data = data[len(data) - self.win_size:]
+    data = map(ord, data)
+    rightspace = self.win_size - self.win_write
+    if rightspace >= len(data):
+      self.window[self.win_write:self.win_write+len(data)] = data
+      self.win_write += len(data)
+    else:
+      leftspace = len(data) - rightspace
+      self.window[self.win_write:] = data[0:rightspace]
+      self.window[:leftspace] = data[rightspace:]
+      self.win_write = leftspace
 
   def copy_match(self, match_offset, match_length):
     # match_offset is relative to the end of the window.
@@ -216,7 +242,11 @@ while not is_last_block:
   block_type = bitstream.getbits(2)
   #print is_last_block, block_type
   assert block_type != 3, 'invalid block'
-  assert block_type != 0, 'unsupported uncompressed block'
+  if block_type == 0:
+    data = bitstream.parse_uncompressed_block()
+    window.output_block(data)
+    outfile.write(data)
+    continue
   if block_type == 2:
     # dynamic huffman code, read huffman tree description
     num_literals_lengths = bitstream.getbits(5) + 257
