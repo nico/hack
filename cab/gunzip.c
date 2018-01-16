@@ -81,43 +81,41 @@ static void bitstream_parse_uncompressed_block(
 
 struct HuffTree {
   int count[16];
-  uint16_t* codes[16];
+  uint16_t* storage;
 };
 
 static void hufftree_init(
     struct HuffTree* ht, int* nodelengths, int nodecount, uint16_t* storage) {
   // Given the lengths of the nodes in a canonical huffman tree,
-  // returns a (count, codes) tuple, where count[n] returns the number of nodes
-  // at level n, and codes[n] contains a list of all values of prefixes with
-  // length n.
+  // counts the number of nodes per level, and stores all values in level order.
   // The canonical huffman trees match rfc1951.
   memset(ht->count, 0, sizeof(ht->count));
   for (int i = 0; i < nodecount; ++i)
     ht->count[nodelengths[i]]++;
   ht->count[0] = 0;
-  ht->codes[0] = storage;
+  ht->storage = storage;
+  int offs[16]; offs[0] = 0;
   for (int i = 1; i < 16; ++i)
-    ht->codes[i] = ht->codes[i - 1] + ht->count[i - 1];
-  int offs[16] = {0};
+    offs[i] = offs[i - 1] + ht->count[i - 1];
   for (int i = 0; i < nodecount; ++i) {
     int len_i = nodelengths[i];
-    if (len_i != 0) ht->codes[len_i][offs[len_i]++] = i;
+    if (len_i != 0) storage[offs[len_i]++] = i;
   }
 }
 
 static int hufftree_readsym(struct HuffTree* ht, struct Bitstream* bs) {
   int curbits = bitstream_getbit(bs);
-  int curlen = 1;
-  int* count = ht->count;
-  int first_at_cur = 0, first_at_next = count[1];
+  int* count = ht->count + 1;
+  int curcount = *count++;
+  int off = 0, first_at_cur = 0, first_at_next = curcount;
   while (curbits >= first_at_next) {
     // Note that this uses reversed bit order compared to bitstream_getbits()
     curbits = (curbits << 1) | bitstream_getbit(bs);
-    curlen += 1;
     first_at_cur = first_at_next << 1;
-    first_at_next = first_at_cur + count[curlen];
+    off += curcount;
+    first_at_next = first_at_cur + (curcount = *count++);
   }
-  return ht->codes[curlen][curbits - first_at_cur];
+  return ht->storage[off + curbits - first_at_cur];
 }
 
 struct Window {
