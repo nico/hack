@@ -95,8 +95,8 @@ static void hufftree_init(
   for (int i = 0; i < nodecount; ++i)
     bl_count[nodelengths[i]]++;
   bl_count[0] = 0;
-  ht->codes[0] = &storage[0];
-  memset(ht->first_at_next, 0, sizeof(ht->first_at_next));
+  ht->codes[0] = storage;
+  ht->first_at_next[0] = 0;
   for (int i = 1; i < 16; ++i) {
     ht->first_at_next[i] = (ht->first_at_next[i-1]<<1) + bl_count[i];
     ht->codes[i] = ht->codes[i - 1] + bl_count[i - 1];  // XXX i - i lol
