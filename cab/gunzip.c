@@ -329,7 +329,8 @@ int main(int argc, char* argv[]) {
       continue;
     }
 
-    int lengths[288 + 30];
+    enum { kMaxLitLenCount = 288, kMaxDistCount = 30 };
+    int lengths[kMaxLitLenCount + kMaxDistCount];
     int num_literals_lengths;
     int num_distances;
     if (block_type == 2) {
@@ -338,14 +339,15 @@ int main(int argc, char* argv[]) {
       num_distances = bitstream_getbits(&bitstream, 5) + 1;
       int num_pretree = bitstream_getbits(&bitstream, 4) + 4;
       int pretree_order[] = {16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15};
-      int pretree_lengths[19], i;
+      enum { kLenCount = 19 };
+      int pretree_lengths[kLenCount], i;
       for (i = 0; i < num_pretree; ++i)
         pretree_lengths[pretree_order[i]] = bitstream_getbits(&bitstream, 3);
-      for (; i < 19; ++i)
+      for (; i < kLenCount; ++i)
         pretree_lengths[pretree_order[i]] = 0;
 
-      struct HuffTree pretree; uint16_t pretree_storage[19];
-      hufftree_init(&pretree, pretree_lengths, 19, pretree_storage);
+      struct HuffTree pretree; uint16_t pretree_storage[kLenCount];
+      hufftree_init(&pretree, pretree_lengths, kLenCount, pretree_storage);
       // "The code length repeat codes can cross from HLIT + 257 to the HDIST +
       // 1 code lengths", so we have to use a single list for the huflengths
       // here.
@@ -356,14 +358,14 @@ int main(int argc, char* argv[]) {
       for (; i < 144; ++i) lengths[i] = 8;
       for (; i < 256; ++i) lengths[i] = 9;
       for (; i < 280; ++i) lengths[i] = 7;
-      for (; i < 288; ++i) lengths[i] = 8;
-      num_literals_lengths = 288;
-      for (; i < 288 + 30; ++i) lengths[i] = 5;
-      num_distances = 30;
+      for (; i < kMaxLitLenCount; ++i) lengths[i] = 8;
+      num_literals_lengths = kMaxLitLenCount;
+      for (; i < kMaxLitLenCount + kMaxDistCount; ++i) lengths[i] = 5;
+      num_distances = kMaxDistCount;
     }
-    struct HuffTree littree; uint16_t littree_storage[288];
+    struct HuffTree littree; uint16_t littree_storage[kMaxLitLenCount];
     hufftree_init(&littree, lengths, num_literals_lengths, littree_storage);
-    struct HuffTree disttree; uint16_t disttree_storage[30];
+    struct HuffTree disttree; uint16_t disttree_storage[kMaxDistCount];
     hufftree_init(&disttree,
         lengths + num_literals_lengths, num_distances, disttree_storage);
 
