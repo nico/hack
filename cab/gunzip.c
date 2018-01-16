@@ -91,15 +91,10 @@ static void hufftree_init(
   // last prefix of length n, and codes[n] contains a list of all values of
   // prefixes with length n.
   // The canonical huffman trees match rfc1951.
-  int maxlen = 0;
-  for (int i = 0; i < nodecount; ++i)
-    if (nodelengths[i] > maxlen)
-      maxlen = nodelengths[i];
   int bl_count[16] = {0};
-  for (int i = 0; i < nodecount; ++i) {
-    int len_i = nodelengths[i];
-    if (len_i != 0) bl_count[len_i]++;
-  }
+  for (int i = 0; i < nodecount; ++i)
+    bl_count[nodelengths[i]]++;
+  bl_count[0] = 0;
   ht->codes[0] = &storage[0];
   for (int i = 1; i < 17; ++i)
     ht->codes[i] = ht->codes[i - 1] + bl_count[i - 1];  // XXX i - i lol
