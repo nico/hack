@@ -80,15 +80,15 @@ static void bitstream_parse_uncompressed_block(
 }
 
 struct HuffTree {
-  int last_code[16];
-  uint16_t* codes[17];  // XXX 17 needed? (see +1 in hufftree_readsym)
+  int first_at_next[16];
+  uint16_t* codes[16];
 };
 
 static void hufftree_init(
     struct HuffTree* ht, int* nodelengths, int nodecount, uint16_t* storage) {
   // Given the lengths of the nodes in a canonical huffman tree,
-  // returns a (last_code, codes) tuple, where last_code[n] returns the
-  // last prefix of length n, and codes[n] contains a list of all values of
+  // returns a (first_at_next, codes) tuple, where first_at_next[n] returns the
+  // first prefix of length n+1, and codes[n] contains a list of all values of
   // prefixes with length n.
   // The canonical huffman trees match rfc1951.
   int bl_count[16] = {0};
@@ -96,7 +96,7 @@ static void hufftree_init(
     bl_count[nodelengths[i]]++;
   bl_count[0] = 0;
   ht->codes[0] = &storage[0];
-  for (int i = 1; i < 17; ++i)
+  for (int i = 1; i < 16; ++i)
     ht->codes[i] = ht->codes[i - 1] + bl_count[i - 1];  // XXX i - i lol
   int offs[16] = {0};
   for (int i = 0; i < nodecount; ++i) {
@@ -104,24 +104,23 @@ static void hufftree_init(
     if (len_i != 0) ht->codes[len_i][offs[len_i]++] = i;
   }
   int code = 0;
-  memset(ht->last_code, 0, sizeof(ht->last_code));
+  memset(ht->first_at_next, 0, sizeof(ht->first_at_next));
   for (int i = 1; i < 16; ++i) {
     code = (code + bl_count[i - 1]) << 1;
-    ht->last_code[i] = code + bl_count[i] - 1;
+    ht->first_at_next[i] = code + bl_count[i];
   }
 }
 
 static int hufftree_readsym(struct HuffTree* ht, struct Bitstream* bs) {
   int curbits = bitstream_getbit(bs);
   int curlen = 1;
-  int* last_code = ht->last_code;
-  while (curbits > last_code[curlen]) {
+  int* first_at_next = ht->first_at_next;
+  while (curbits >= first_at_next[curlen]) {
     // Note that this uses reversed bit order compared to bitstream_getbits()
     curbits = (curbits << 1) | bitstream_getbit(bs);
     curlen += 1;
   }
-  // Note: 2nd index is negative to index from end of list (hence curlen+1)
-  return ht->codes[curlen+1][curbits - last_code[curlen] - 1];
+  return ht->codes[curlen][curbits - first_at_next[curlen-1]*2];
 }
 
 struct Window {
