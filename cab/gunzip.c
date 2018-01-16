@@ -80,27 +80,24 @@ static void bitstream_parse_uncompressed_block(
 }
 
 struct HuffTree {
-  int first_at_next[16];
+  int count[16];
   uint16_t* codes[16];
 };
 
 static void hufftree_init(
     struct HuffTree* ht, int* nodelengths, int nodecount, uint16_t* storage) {
   // Given the lengths of the nodes in a canonical huffman tree,
-  // returns a (first_at_next, codes) tuple, where first_at_next[n] returns the
-  // first prefix of length n+1, and codes[n] contains a list of all values of
-  // prefixes with length n.
+  // returns a (count, codes) tuple, where count[n] returns the number of nodes
+  // at level n, and codes[n] contains a list of all values of prefixes with
+  // length n.
   // The canonical huffman trees match rfc1951.
-  int bl_count[16] = {0};
+  memset(ht->count, 0, sizeof(ht->count));
   for (int i = 0; i < nodecount; ++i)
-    bl_count[nodelengths[i]]++;
-  bl_count[0] = 0;
+    ht->count[nodelengths[i]]++;
+  ht->count[0] = 0;
   ht->codes[0] = storage;
-  ht->first_at_next[0] = 0;
-  for (int i = 1; i < 16; ++i) {
-    ht->first_at_next[i] = (ht->first_at_next[i-1]<<1) + bl_count[i];
-    ht->codes[i] = ht->codes[i - 1] + bl_count[i - 1];  // XXX i - i lol
-  }
+  for (int i = 1; i < 16; ++i)
+    ht->codes[i] = ht->codes[i - 1] + ht->count[i - 1];
   int offs[16] = {0};
   for (int i = 0; i < nodecount; ++i) {
     int len_i = nodelengths[i];
@@ -111,13 +108,16 @@ static void hufftree_init(
 static int hufftree_readsym(struct HuffTree* ht, struct Bitstream* bs) {
   int curbits = bitstream_getbit(bs);
   int curlen = 1;
-  int* first_at_next = ht->first_at_next;
-  while (curbits >= first_at_next[curlen]) {
+  int* count = ht->count;
+  int first_at_cur = 0, first_at_next = count[1];
+  while (curbits >= first_at_next) {
     // Note that this uses reversed bit order compared to bitstream_getbits()
     curbits = (curbits << 1) | bitstream_getbit(bs);
     curlen += 1;
+    first_at_cur = first_at_next << 1;
+    first_at_next = first_at_cur + count[curlen];
   }
-  return ht->codes[curlen][curbits - first_at_next[curlen-1]*2];
+  return ht->codes[curlen][curbits - first_at_cur];
 }
 
 struct Window {
