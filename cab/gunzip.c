@@ -80,14 +80,12 @@ static void bitstream_parse_uncompressed_block(
 }
 
 struct HuffTree {
-  // XXX: storage should be owned by client; dists only need 30 codes, not 288
   int last_code[16];
-  int codestorage[288];
-  int* codes[17];  // XXX 17 needed? (see +1 in hufftree_readsym)
+  uint16_t* codes[17];  // XXX 17 needed? (see +1 in hufftree_readsym)
 };
 
 static void hufftree_init(
-    struct HuffTree* ht, int* nodelengths, int nodecount) {
+    struct HuffTree* ht, int* nodelengths, int nodecount, uint16_t* storage) {
   // Given the lengths of the nodes in a canonical huffman tree,
   // returns a (last_code, codes) tuple, where last_code[n] returns the
   // last prefix of length n, and codes[n] contains a list of all values of
@@ -102,7 +100,7 @@ static void hufftree_init(
     int len_i = nodelengths[i];
     if (len_i != 0) bl_count[len_i]++;
   }
-  ht->codes[0] = &ht->codestorage[0];
+  ht->codes[0] = &storage[0];
   for (int i = 1; i < 17; ++i)
     ht->codes[i] = ht->codes[i - 1] + bl_count[i - 1];  // XXX i - i lol
   int offs[16] = {0};
@@ -346,8 +344,8 @@ int main(int argc, char* argv[]) {
       for (; i < 19; ++i)
         pretree_lengths[pretree_order[i]] = 0;
 
-      struct HuffTree pretree;
-      hufftree_init(&pretree, pretree_lengths, 19);
+      struct HuffTree pretree; uint16_t pretree_storage[19];
+      hufftree_init(&pretree, pretree_lengths, 19, pretree_storage);
       // "The code length repeat codes can cross from HLIT + 257 to the HDIST +
       // 1 code lengths", so we have to use a single list for the huflengths
       // here.
@@ -363,10 +361,11 @@ int main(int argc, char* argv[]) {
       for (; i < 288 + 30; ++i) lengths[i] = 5;
       num_distances = 30;
     }
-    struct HuffTree littree;
-    hufftree_init(&littree, lengths, num_literals_lengths);
-    struct HuffTree disttree;
-    hufftree_init(&disttree, lengths + num_literals_lengths, num_distances);
+    struct HuffTree littree; uint16_t littree_storage[288];
+    hufftree_init(&littree, lengths, num_literals_lengths, littree_storage);
+    struct HuffTree disttree; uint16_t disttree_storage[30];
+    hufftree_init(&disttree,
+        lengths + num_literals_lengths, num_distances, disttree_storage);
 
     int win_start = window.win_write;
     for(;;) {
