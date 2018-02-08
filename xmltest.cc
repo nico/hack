@@ -28,21 +28,31 @@ using Microsoft::WRL::ComPtr;
 
 void print(IXMLDOMNode* n, int indent) {
   DOMNodeType node_type;
+  bstr_t node_type_str, node_name, namespace_uri;
+  variant_t node_value;
+  bstr_t node_value_str;
   CHK_HR(n->get_nodeType(&node_type));
-  bstr_t node_name, namespace_uri;
+  CHK_HR(n->get_nodeTypeString(node_type_str.GetAddress()));
   CHK_HR(n->get_nodeName(node_name.GetAddress()));
+  CHK_HR(n->get_nodeValue(node_value.GetAddress()));
+  if (node_value.GetVARIANT().vt != VT_NULL)
+    node_value_str = (bstr_t)node_value;
   CHK_HR(n->get_namespaceURI(namespace_uri.GetAddress()));
   for (int i = 0; i < indent; ++i) printf(" ");
-  printf("%d %S %S", node_type, (BSTR)node_name, (BSTR)namespace_uri);
-  if (node_type == NODE_ELEMENT) {
-    ComPtr<IXMLDOMElement> ChildElt;
-    // Note: Can't just upcast COM object, need to QueryInterface().
-    CHK_HR(n->QueryInterface(ChildElt.GetAddressOf()));
-    bstr_t tag_name;
-    CHK_HR(ChildElt->get_tagName(tag_name.GetAddress()));
-    printf(" %S", (BSTR)tag_name);
+  printf("%d/%S %S %S %S\n", node_type, (BSTR)node_type_str, (BSTR)node_name,
+         (BSTR)node_value_str, (BSTR)namespace_uri);
+
+  ComPtr<IXMLDOMNamedNodeMap> attribs;
+  CHK_HR(n->get_attributes(attribs.GetAddressOf()));
+  if (attribs) {
+    long num_attribs;
+    CHK_HR(attribs->get_length(&num_attribs));
+    for (long i = 0; i < num_attribs; ++i) {
+      ComPtr<IXMLDOMNode> attrib;
+      CHK_HR(attribs->get_item(i, attrib.GetAddressOf()));
+      print(attrib.Get(), indent + 2);
+    }
   }
-  printf("\n");
 
   ComPtr<IXMLDOMNodeList> children;
   long num_children;
