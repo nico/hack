@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<hi>
+  <hi xmlns="foo" xmlns:x="bar">
+    <?foobar version="1.0"?>
+    <ho
+    />text&amp;more@<x:ho x:attr="adsf"/>
+    <!-- adsf -->
+  </hi>
+  <![CDATA[my cdata]]>
+  <ho/>
+</hi>
