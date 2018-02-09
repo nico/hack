@@ -85,7 +85,7 @@ void DumpFile(const char* filename) {
   }
   ComPtr<IXMLDOMElement> root;
   CHK_HR(xml_doc->get_documentElement(root.GetAddressOf()));
-  print(root.Get(), 0);
+  print(root.Get(), 0);  // `xml_doc.Get()` would print the document node too.
 }
 
 int main(int argc, char *argv[]) {
