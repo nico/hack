@@ -83,9 +83,7 @@ void DumpFile(const char* filename) {
     printf("Failed to load DOM from stocks.xml. %S\n", (BSTR)reason);
     return;
   }
-  ComPtr<IXMLDOMElement> root;
-  CHK_HR(xml_doc->get_documentElement(root.GetAddressOf()));
-  print(root.Get(), 0);  // `xml_doc.Get()` would print the document node too.
+  print(xml_doc.Get(), 0);
 }
 
 int main(int argc, char *argv[]) {
