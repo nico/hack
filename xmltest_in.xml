@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet href="common.css"?>
 <hi>
   <hi xmlns="http://example.com/foo-ns" xmlns:x="urn:example-com:bar-ns">
     <?foobar version="1.0"?>

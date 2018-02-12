@@ -33,22 +33,25 @@ const char* TypeStr(xmlElementType v) {
 void print(xmlNodePtr n, int indent) {
   for (int i = 0; i < indent; ++i) printf(" ");
   printf("%d/%s %s %s", n->type, TypeStr(n->type), n->name, n->content);
-  for (xmlNs* ns = n->ns; ns; ns = ns->next)
-    printf(" (%s:%s %s)", ns->prefix, ns->href, TypeStr(ns->type));
-  printf("\n");
-  if (n->type != XML_ATTRIBUTE_NODE) {
-    if (n->nsDef) {
-      for (int i = 0; i < indent + 2; ++i)
-        printf(" ");
-      printf("def ns:");
-      for (xmlNs* ns = n->nsDef; ns; ns = ns->next)
-        printf(" (%s:%s %s)", ns->prefix, ns->href, TypeStr(ns->type));
-      printf("\n");
+  if (n->type != XML_DOCUMENT_NODE) {
+    for (xmlNs* ns = n->ns; ns; ns = ns->next)
+      printf(" (%s:%s %s)", ns->prefix, ns->href, TypeStr(ns->type));
+    printf("\n");
+    if (n->type != XML_ATTRIBUTE_NODE) {
+      if (n->nsDef) {
+        for (int i = 0; i < indent + 2; ++i)
+          printf(" ");
+        printf("def ns:");
+        for (xmlNs* ns = n->nsDef; ns; ns = ns->next)
+          printf(" (%s:%s %s)", ns->prefix, ns->href, TypeStr(ns->type));
+        printf("\n");
+      }
+      if (n->properties)
+        for (xmlAttr* attr = n->properties; attr; attr = attr->next)
+          print((xmlNodePtr)attr, indent + 2);
     }
-    if (n->properties)
-      for (xmlAttr* attr = n->properties; attr; attr = attr->next)
-        print((xmlNodePtr)attr, indent + 2);
-  }
+  } else
+    printf("\n");
   for (xmlNodePtr child = n->children; child; child = child->next)
     print(child, indent + 1);
 }
@@ -59,7 +62,7 @@ void DumpFile(const char* filename) {
     fprintf(stderr, "failed to parse\n");
     exit(1);
   }
-  print(xmlDocGetRootElement(doc), 0);
+  print((xmlNodePtr)doc, 0);
 }
 
 
