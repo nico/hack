@@ -1,26 +1,11 @@
-// cl /nologo xmltest.cc ole32.lib oleaut32.lib comsuppw.lib
+// cl /nologo xmltest.cc
+// comdef.h autolinks ole32.lib oleaut32.lib comsuppw.lib
 #include <msxml6.h>
 #include <comdef.h>
 #include <comip.h>
 #include <comutil.h>
 #include <stdio.h>
 #include <wrl/client.h>
-
-// COM progression:
-// 1. c-style
-// 2. with atl helpers (CComPtr, CComBSTR)
-// 3. with compiler helpers (bstr_t, _com_ptr_t) (exceptions!)
-// 4. with _COM_SMARTPTR_TYPEDEF / Ptr types (comdef.h) (exceptions!)
-// 5. with #import and Ptr types (comdef.h) (exceptions!)
-// 6. ATL-less Microsoft::WRL::ComPtr, manual error handling again
-
-#if 0
-  # With #import <msxml.dll>, can do the CHK_HR-less, exception-using version:
-  MSXML2::IXMLDOMDocumentPtr  p;  // this is different from ::IXMLDOMDocumentPtr!
-  p.CreateInstance(__uuidof(MSXML2::DOMDocument60));
-  p->load("stocks.xml");
-  p->documentElement->nodeName;
-#endif
 
 using Microsoft::WRL::ComPtr;
 
