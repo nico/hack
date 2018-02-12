@@ -43,6 +43,7 @@ void print(xmlNodePtr n, int indent) {
       printf("def ns:");
       for (xmlNs* ns = n->nsDef; ns; ns = ns->next)
         printf(" (%s:%s %s)", ns->prefix, ns->href, TypeStr(ns->type));
+      printf("\n");
     }
     if (n->properties)
       for (xmlAttr* attr = n->properties; attr; attr = attr->next)
