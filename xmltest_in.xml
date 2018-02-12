@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <hi>
-  <hi xmlns="foo" xmlns:x="bar">
+  <hi xmlns="http://example.com/foo-ns" xmlns:x="urn:example-com:bar-ns">
     <?foobar version="1.0"?>
     <ho
     />text&amp;more@<x:ho x:attr="adsf"/>
