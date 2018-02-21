@@ -2459,17 +2459,21 @@ std::unique_ptr<Resource> Parser::ParseResource() {
            cur_or_last_token().value_.to_string();
     return std::unique_ptr<Resource>();
   }
+  uint16_t id_int = 0;
+  if (id.type() == Token::kInt) {
+    // Fun fact: rc.exe silently truncates to 16 bit as well.
+    id_int = (uint16_t)id.IntValue();
+  }
   C16string id_utf16;
   // FIXME: "", \a, L"" handling?
-  if (id.type() != Token::kInt &&
+  if (!id_int &&
       !ToUTF16(&id_utf16, id.value_, encoding_, &err_))  // Do NOT strip quotes
     return std::unique_ptr<Resource>();
-  // Fun fact: rc.exe silently truncates to 16 bit as well.
   // FIXME: consider warning on non-int IDs, that seems to be unintentional
   // quite often.
   IntOrStringName name =
-      id.type() == Token::kInt
-          ? IntOrStringName::MakeInt(id.IntValue())
+      id_int != 0
+          ? IntOrStringName::MakeInt(id_int)
           : IntOrStringName::MakeUpperStringUTF16(id_utf16);
 
   const Token& type = Consume();
@@ -2607,16 +2611,19 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   if ((type.type_ == Token::kIdentifier || type.type_ == Token::kInt ||
        type.type_ == Token::kString) &&
       data.type_ == Token::kString) {
+    uint16_t type_int = 0;
+    if (type.type() == Token::kInt)
+      type_int = (uint16_t)type.IntValue();  // FIXME: is_32?
     C16string type_utf16;
     // Do NOT strip quotes.
     // FIXME: "", \a, L"" handling?
-    if (type.type() != Token::kInt &&
+    if (type_int == 0 &&
         !ToUTF16(&type_utf16, type.value_, encoding_, &err_))
       return std::unique_ptr<Resource>();
 
     std::experimental::string_view str_val = StringContents(data);
-    IntOrStringName type_name = type.type() == Token::kInt
-                                    ? IntOrStringName::MakeInt(type.IntValue())
+    IntOrStringName type_name = type_int != 0
+                                    ? IntOrStringName::MakeInt(type_int)
                                     : IntOrStringName::MakeUpperStringUTF16(
                                           type_utf16);
     return std::make_unique<UserDefinedResource>(type_name, name, str_val);
