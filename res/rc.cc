@@ -146,7 +146,8 @@ template<> struct hash<string_view> {
     return hash;
   }
 };
-#if defined(__linux__) && GCC_VERSION <= 40800
+// https://gcc.gnu.org/develop.html#timeline for __GLIBCXX__.
+#if defined(__linux__) && GCC_VERSION <= 40800 && __GLIBCXX__ <= 20150623
 template<typename T, typename... Args>
 std::unique_ptr<T> make_unique(Args&&... args) {
     return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
