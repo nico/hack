@@ -55,5 +55,5 @@ subprocess.check_call(
     common + ['-o', 'rc-win.exe', '-fuse-ld=lld',
      '-target', 'x86_64-windows-msvc',
      '-D_CRT_SECURE_NO_WARNINGS', '-Wno-msvc-not-found',
-     '-lShlwapi.lib',
+     '-lShlwapi.lib', '-Wl,/ignore:4217'
     ] + win_include + win_lib)
