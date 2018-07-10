@@ -530,6 +530,21 @@ typedef std::basic_string<Char16> C16string;
 //////////////////////////////////////////////////////////////////////////////
 // Lexer
 
+struct Location {
+  std::string Error(std::string message) const {
+    std::string str = AsString(file_);
+    if (line_)
+      str += ":" + std::to_string(line_);
+    if (column_)
+      str += ":" + std::to_string(column_);
+    return str + ": error: " + message;
+  }
+
+  std::string_view file_;
+  uint32_t line_;
+  uint32_t column_;
+};
+
 struct Token {
  public:
   enum Type {
@@ -554,8 +569,8 @@ struct Token {
     kStarComment,  // /* foo */
   };
 
-  Token(Type type, std::string_view value)
-      : type_(type), value_(value) {}
+  Token(Type type, std::string_view value, Location location)
+      : type_(type), value_(value), location_(location) {}
 
   Type type() const { return type_; }
 
@@ -564,6 +579,8 @@ struct Token {
 
   Type type_;
   std::string_view value_;
+
+  Location location_;
 };
 
 uint32_t Token::IntValue(bool* is_32) const {
@@ -590,7 +607,8 @@ uint32_t Token::IntValue(bool* is_32) const {
 
 class Tokenizer {
  public:
-  static std::vector<Token> Tokenize(std::string_view source,
+  static std::vector<Token> Tokenize(std::string_view file,
+                                     std::string_view source,
                                      std::string* err);
 
   static bool IsDigit(char c);
@@ -600,10 +618,19 @@ class Tokenizer {
   static bool IsWhitespace(char c);
 
  private:
-  Tokenizer(std::string_view input) : input_(input), cur_(0) {}
+  Tokenizer(std::string_view file, std::string_view input)
+      : file_(file), line_(1), column_(1), input_(input), cur_(0) {}
   std::vector<Token> Run(std::string* err);
 
-  void Advance() { ++cur_; }  // Must only be called if not at_end().
+  void Advance() {  // Must only be called if not at_end().
+    if (IsCurrentNewline()) {
+      ++line_;
+      column_ = 1;
+    } else {
+      ++column_;
+    }
+    ++cur_;
+  }
   void AdvanceToNextToken();
   Token::Type ClassifyCurrent() const;
   void AdvanceToEndOfToken(Token::Type type);
@@ -616,18 +643,30 @@ class Tokenizer {
   bool at_end() const { return cur_ == input_.size(); }
   char cur_char() const { return input_[cur_]; }
 
+  void SetError(std::string message) {
+    err_ = CurrentLocation().Error(message);
+  }
+
   bool has_error() const { return !err_.empty(); }
 
+  Location CurrentLocation() const {
+    return Location{ file_, line_, column_ };
+  }
+
   std::vector<Token> tokens_;
+  std::string_view file_;
+  uint32_t line_;
+  uint32_t column_;
   const std::string_view input_;
   std::string err_;
   size_t cur_;  // Byte offset into input buffer.
 };
 
 // static
-std::vector<Token> Tokenizer::Tokenize(std::string_view source,
+std::vector<Token> Tokenizer::Tokenize(std::string_view file,
+                                       std::string_view source,
                                        std::string* err) {
-  Tokenizer t(source);
+  Tokenizer t(file, source);
   return t.Run(err);
 }
 
@@ -644,8 +683,7 @@ std::vector<Token> Tokenizer::Run(std::string* err) {
       break;
     Token::Type type = ClassifyCurrent();
     if (type == Token::kInvalid) {
-      err_ = "invalid token around " + AsString(input_.substr(cur_, 20)) +
-             ", utf-8 byte position " + std::to_string(cur_);
+      SetError("invalid token around " + AsString(input_.substr(cur_, 20)));
       break;
     }
     size_t token_begin = cur_;
@@ -669,7 +707,7 @@ std::vector<Token> Tokenizer::Run(std::string* err) {
     // FIXME: Also, probably do something with #pragma code_page(n).
     if (type != Token::kLineComment && type != Token::kStarComment &&
         type != Token::kDirective)
-      tokens_.push_back(Token(type, token_value));
+      tokens_.push_back(Token(type, token_value, CurrentLocation()));
   }
   if (has_error()) {
     tokens_.clear();
@@ -799,14 +837,14 @@ void Tokenizer::AdvanceToEndOfToken(Token::Type type) {
       Advance();  // Advance past initial "
       for (;;) {
         if (at_end()) {
-          err_ = "Unterminated string literal.";
+          SetError("Unterminated string literal.");
           break;
         }
         if (FindStringTerminator(initial)) {
           Advance();  // Skip past last "
           break;
         } else if (IsCurrentNewline()) {
-          err_ = "Newline in string constant.";
+          SetError("Newline in string constant.");
         }
         Advance();
       }
@@ -831,7 +869,59 @@ void Tokenizer::AdvanceToEndOfToken(Token::Type type) {
       Advance();  // All are one char.
       break;
 
-    case Token::kDirective:
+    case Token::kDirective: {
+      // Skip whitespaces.
+      do {
+        Advance();
+      } while (!at_end() && IsWhitespace(cur_char()) && !IsCurrentNewline());
+
+      if (!IsDigit(cur_char())) {
+        // Skip rest of the string if this is not a line marker.
+        while (!at_end() && !IsCurrentNewline())
+          Advance();
+        break;
+      }
+
+      // Read line marker.
+      size_t token_begin = cur_;
+      AdvanceToEndOfToken(Token::kInt);
+      if (has_error())
+        break;
+      size_t token_end = cur_;
+
+      std::string_view token_value(&input_.data()[token_begin],
+                                   token_end - token_begin);
+      uint32_t line = Token(
+          Token::kInt, token_value, CurrentLocation()).IntValue();
+
+      // Skip whitespaces.
+      do {
+        Advance();
+      } while (!at_end() && IsWhitespace(cur_char()) && !IsCurrentNewline());
+
+      // Read file name.
+      std::string_view file = file_;
+      if (cur_char() == '"') {
+        token_begin = cur_;
+        AdvanceToEndOfToken(Token::kString);
+        if (has_error())
+          break;
+        token_end = cur_;
+        token_value = std::string_view(&input_.data()[token_begin],
+                                       token_end - token_begin);
+        file = token_value.substr(1, token_value.size() - 2);
+      }
+
+      // Skip rest of the line.
+      while (!at_end() && !IsCurrentNewline())
+        Advance();
+
+      // Set new file/line.
+      file_ = file;
+      line_ = line-1;
+      column_ = 0;
+      break;
+    }
     case Token::kLineComment:
       // Eat to EOL.
       while (!at_end() && !IsCurrentNewline())
@@ -851,7 +941,7 @@ void Tokenizer::AdvanceToEndOfToken(Token::Type type) {
       break;
 
     case Token::kInvalid:
-      err_ = "Everything is all messed up";
+      SetError("Everything is all messed up");
       return;
   }
 }
@@ -944,12 +1034,15 @@ class Resource {
  public:
   virtual ~Resource() {}
 
-  Resource(IntOrStringName name) : name_(name) {}
+  Resource(Location location, IntOrStringName name)
+      : location_(location), name_(name) {}
   virtual bool Visit(Visitor* v) const = 0;
 
   const IntOrStringName& name() const { return name_; }
+  const Location& location() const { return location_; }
 
  private:
+  Location location_;
   IntOrStringName name_;
 };
 
@@ -968,8 +1061,8 @@ class LanguageResource final : public Resource {
   // LANGUAGE doesn't get emitted as its own entry to the .res file, instead
   // it modifies the language field in all the other emitted resources.  So
   // it doesn't have an id itself.
-  LanguageResource(uint8_t language, uint8_t sublanguage)
-      : Resource(IntOrStringName::MakeEmpty()),
+  LanguageResource(Location location, uint8_t language, uint8_t sublanguage)
+      : Resource(location, IntOrStringName::MakeEmpty()),
         language_{language, sublanguage} {}
 
   bool Visit(Visitor* v) const override {
@@ -984,8 +1077,8 @@ class LanguageResource final : public Resource {
 
 class FileResource : public Resource {
  public:
-  FileResource(IntOrStringName name, std::string_view path)
-      : Resource(name), path_(path) {}
+  FileResource(Location location, IntOrStringName name, std::string_view path)
+      : Resource(location, name), path_(path) {}
 
   std::string_view path() const { return path_; }
 
@@ -995,24 +1088,24 @@ class FileResource : public Resource {
 
 class CursorResource final : public FileResource {
  public:
-  CursorResource(IntOrStringName name, std::string_view path)
-      : FileResource(name, path) {}
+  CursorResource(Location location, IntOrStringName name, std::string_view path)
+      : FileResource(location, name, path) {}
 
   bool Visit(Visitor* v) const override { return v->VisitCursorResource(this); }
 };
 
 class BitmapResource final : public FileResource {
  public:
-  BitmapResource(IntOrStringName name, std::string_view path)
-      : FileResource(name, path) {}
+  BitmapResource(Location location, IntOrStringName name, std::string_view path)
+      : FileResource(location, name, path) {}
 
   bool Visit(Visitor* v) const override { return v->VisitBitmapResource(this); }
 };
 
 class IconResource final : public FileResource {
  public:
-  IconResource(IntOrStringName name, std::string_view path)
-      : FileResource(name, path) {}
+  IconResource(Location location, IntOrStringName name, std::string_view path)
+      : FileResource(location, name, path) {}
 
   bool Visit(Visitor* v) const override { return v->VisitIconResource(this); }
 };
@@ -1053,8 +1146,9 @@ class MenuResource final : public Resource {
     std::vector<std::unique_ptr<Entry>> subentries;
   };
 
-  MenuResource(IntOrStringName name, SubmenuEntryData entries)
-      : Resource(name), entries_(std::move(entries)) {}
+  MenuResource(Location location, IntOrStringName name,
+               SubmenuEntryData entries)
+      : Resource(location, name), entries_(std::move(entries)) {}
 
 
   bool Visit(Visitor* v) const override { return v->VisitMenuResource(this); }
@@ -1117,7 +1211,8 @@ class DialogResource final : public Resource {
     }
   };
 
-  DialogResource(IntOrStringName name,
+  DialogResource(Location location,
+                 IntOrStringName name,
                  DialogKind kind,
                  uint16_t x,
                  uint16_t y,
@@ -1131,7 +1226,7 @@ class DialogResource final : public Resource {
                  IntOrStringName menu,
                  std::optional<uint32_t> style,
                  std::vector<Control> controls)
-      : Resource(name),
+      : Resource(location, name),
         kind(kind),
         x(x),
         y(y),
@@ -1177,12 +1272,13 @@ class StringtableResource final : public Resource {
  public:
   struct Entry {
     uint16_t id;
+    Location location;
     std::string_view value;
   };
 
-  StringtableResource(Entry* entries, size_t num_entries)
+  StringtableResource(Location location, Entry* entries, size_t num_entries)
       // STRINGTABLEs have no names.
-      : Resource(IntOrStringName::MakeInt(0)),
+      : Resource(location, IntOrStringName::MakeInt(0)),
         entries_(entries, entries + num_entries) {}
 
   bool Visit(Visitor* v) const override {
@@ -1215,9 +1311,9 @@ class AcceleratorsResource final : public Resource {
     uint16_t pad;  // Seems to be always 0.
   };
 
-  AcceleratorsResource(IntOrStringName name,
+  AcceleratorsResource(Location location, IntOrStringName name,
                        std::vector<Accelerator> accelerators)
-      : Resource(name), accelerators_(std::move(accelerators)) {}
+      : Resource(location, name), accelerators_(std::move(accelerators)) {}
 
   bool Visit(Visitor* v) const override {
     return v->VisitAcceleratorsResource(this);
@@ -1235,11 +1331,13 @@ class FileOrDataResource : public Resource {
  public:
   enum Type { kFile, kData };
 
-  FileOrDataResource(IntOrStringName name,
+  FileOrDataResource(Location location,
+                     IntOrStringName name,
                      Type type,
                      std::string_view path,
                      std::vector<uint8_t> data)
-      : Resource(name), type_(type), path_(path), data_(std::move(data)) {}
+      : Resource(location, name), type_(type), path_(path),
+        data_(std::move(data)) {}
 
   std::string_view path() const { return path_; }
 
@@ -1254,10 +1352,13 @@ class FileOrDataResource : public Resource {
 
 class RcdataResource final : public FileOrDataResource {
  public:
-  RcdataResource(IntOrStringName name, std::string_view path)
-      : FileOrDataResource(name, kFile, path, std::vector<uint8_t>()) {}
-  RcdataResource(IntOrStringName name, std::vector<uint8_t> data)
-      : FileOrDataResource(name, kData, "", std::move(data)) {}
+  RcdataResource(Location location, IntOrStringName name,
+                 std::string_view path)
+      : FileOrDataResource(location, name, kFile, path,
+        std::vector<uint8_t>()) {}
+  RcdataResource(Location location, IntOrStringName name,
+                 std::vector<uint8_t> data)
+      : FileOrDataResource(location, name, kData, "", std::move(data)) {}
 
   bool Visit(Visitor* v) const override { return v->VisitRcdataResource(this); }
 };
@@ -1316,10 +1417,10 @@ class VersioninfoResource final : public Resource {
     std::vector<std::unique_ptr<Entry>> values;
   };
 
-  VersioninfoResource(IntOrStringName name,
+  VersioninfoResource(Location location, IntOrStringName name,
                       const FixedInfo& info,
                       BlockData block)
-      : Resource(name), fixed_info_(info), block_(std::move(block)) {}
+      : Resource(location, name), fixed_info_(info), block_(std::move(block)) {}
 
   bool Visit(Visitor* v) const override {
     return v->VisitVersioninfoResource(this);
@@ -1331,8 +1432,9 @@ class VersioninfoResource final : public Resource {
 
 class DlgincludeResource final : public Resource {
  public:
-  DlgincludeResource(IntOrStringName name, std::string_view data)
-      : Resource(name), data_(data) {}
+  DlgincludeResource(Location location, IntOrStringName name,
+                     std::string_view data)
+      : Resource(location, name), data_(data) {}
 
   bool Visit(Visitor* v) const override {
     return v->VisitDlgincludeResource(this);
@@ -1346,25 +1448,29 @@ class DlgincludeResource final : public Resource {
 
 class HtmlResource final : public FileOrDataResource {
  public:
-  HtmlResource(IntOrStringName name, std::string_view path)
-      : FileOrDataResource(name, kFile, path, std::vector<uint8_t>()) {}
-  HtmlResource(IntOrStringName name, std::vector<uint8_t> data)
-      : FileOrDataResource(name, kData, "", std::move(data)) {}
+  HtmlResource(Location location, IntOrStringName name, std::string_view path)
+      : FileOrDataResource(location, name, kFile, path,
+                           std::vector<uint8_t>()) {}
+  HtmlResource(Location location, IntOrStringName name,
+               std::vector<uint8_t> data)
+      : FileOrDataResource(location, name, kData, "", std::move(data)) {}
 
   bool Visit(Visitor* v) const override { return v->VisitHtmlResource(this); }
 };
 
 class UserDefinedResource final : public FileOrDataResource {
  public:
-  UserDefinedResource(IntOrStringName type,
+  UserDefinedResource(Location location,
+                      IntOrStringName type,
                       IntOrStringName name,
                       std::string_view path)
-      : FileOrDataResource(name, kFile, path, std::vector<uint8_t>()),
+      : FileOrDataResource(location, name, kFile, path, std::vector<uint8_t>()),
         type_(type) {}
-  UserDefinedResource(IntOrStringName type,
+  UserDefinedResource(Location location, IntOrStringName type,
                       IntOrStringName name,
                       std::vector<uint8_t> data)
-      : FileOrDataResource(name, kData, "", std::move(data)), type_(type) {}
+      : FileOrDataResource(location, name, kData, "", std::move(data)),
+                           type_(type) {}
 
   bool Visit(Visitor* v) const override {
     return v->VisitUserDefinedResource(this);
@@ -1579,6 +1685,9 @@ class Parser {
   bool done() const { return at_end() || has_error(); }
   bool at_end() const { return cur_ >= tokens_.size(); }
   bool has_error() const { return !err_.empty(); }
+  void SetError(std::string message) {
+    err_ = cur_or_last_token().location_.Error(message);
+  }
 
   std::vector<Token> tokens_;
   std::string err_;
@@ -1606,8 +1715,8 @@ bool Parser::Is(Token::Type type, const char* error_message) {
     return false;
   bool is_match = cur_token().type() == type;
   if (!is_match && error_message) {
-    err_ = error_message + std::string(", got ") +
-           AsString(cur_or_last_token().value_);
+    SetError(error_message + std::string(", got ") +
+             AsString(cur_or_last_token().value_));
   }
   return is_match;
 }
@@ -1696,8 +1805,8 @@ bool Parser::ParseVersioninfoData(std::vector<uint8_t>* data,
       continue;
     }
     if (!Is(Token::kInt) && !Is(Token::kString)) {
-      err_ = "expected int or string, got " +
-             AsString(cur_or_last_token().value_);
+      SetError("expected int or string, got " +
+             AsString(cur_or_last_token().value_));
       return false;
     }
     bool is_text_token = Is(Token::kString);
@@ -1750,8 +1859,8 @@ bool Parser::ParseVersioninfoData(std::vector<uint8_t>* data,
 bool Parser::ParseRawData(std::vector<uint8_t>* data) {
   while (!at_end() && !Is(Token::kEndBlock)) {
     if (!Is(Token::kInt) && !Is(Token::kString)) {
-      err_ = "expected int or string, got " +
-             AsString(cur_or_last_token().value_);
+      SetError("expected int or string, got " +
+             AsString(cur_or_last_token().value_));
       return false;
     }
     bool is_text_token = Is(Token::kString);
@@ -1786,6 +1895,7 @@ bool Parser::ParseRawData(std::vector<uint8_t>* data) {
 }
 
 std::unique_ptr<LanguageResource> Parser::ParseLanguage() {
+  Location location = cur_or_last_token().location_;
   if (!Is(Token::kInt, "expected int"))
     return std::unique_ptr<LanguageResource>();
   uint8_t language = Consume().IntValue();
@@ -1793,7 +1903,7 @@ std::unique_ptr<LanguageResource> Parser::ParseLanguage() {
       !Is(Token::kInt, "expected int"))
     return std::unique_ptr<LanguageResource>();
   uint8_t sub_language = Consume().IntValue();
-  return std::make_unique<LanguageResource>(language, sub_language);
+  return std::make_unique<LanguageResource>(location, language, sub_language);
 }
 
 void Parser::MaybeParseMenuOptions(uint16_t* style) {
@@ -1830,8 +1940,8 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
     if (!Is(Token::kIdentifier) ||
         (!IsEqualAsciiUppercase(cur_token().value_, "MENUITEM") &&
          !IsEqualAsciiUppercase(cur_token().value_, "POPUP"))) {
-      err_ = "expected MENUITEM or POPUP, got " +
-             AsString(cur_or_last_token().value_);
+      SetError("expected MENUITEM or POPUP, got " +
+               AsString(cur_or_last_token().value_));
       return std::unique_ptr<MenuResource::SubmenuEntryData>();
     }
     bool is_item = IsEqualAsciiUppercase(cur_token().value_ , "MENUITEM");
@@ -1882,7 +1992,7 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
   if (!Match(Token::kEndBlock, "expected END or }"))
     return std::unique_ptr<MenuResource::SubmenuEntryData>();
   if (entries->subentries.empty()) {
-    err_ = "empty menus are not allowed";
+    SetError("empty menus are not allowed");
     return std::unique_ptr<MenuResource::SubmenuEntryData>();
   }
   return entries;
@@ -1890,10 +2000,12 @@ std::unique_ptr<MenuResource::SubmenuEntryData> Parser::ParseMenuBlock() {
 
 
 std::unique_ptr<MenuResource> Parser::ParseMenu(IntOrStringName name) {
+  Location location = cur_or_last_token().location_;
   std::unique_ptr<MenuResource::SubmenuEntryData> entries = ParseMenuBlock();
   if (!entries)
     return std::unique_ptr<MenuResource>();
-  return std::make_unique<MenuResource>(name, std::move(*entries.get()));
+  return std::make_unique<MenuResource>(
+      location, name, std::move(*entries.get()));
 }
 
 static void ClassAndStyleForControl(std::string_view type,
@@ -1977,7 +2089,7 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
           "SCROLLBAR", "STATE3"},
           40, CaseInsensitiveHash, IsEqualAsciiUppercase}
           .count(type.value_) == 0) {
-    err_ = "unknown control type " + AsString(type.value_);
+    SetError("unknown control type " + AsString(type.value_));
     return false;
   }
 
@@ -1987,8 +2099,8 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
   if (wants_text) {
     // FIXME: rc.exe also accepts identifiers (bare `adsf`, no quotes).
     if (!Is(Token::kString) && !Is(Token::kInt)) {
-      err_ = "expected string or int, got " +
-             AsString(cur_or_last_token().value_);
+      SetError("expected string or int, got " +
+               AsString(cur_or_last_token().value_));
       return false;
     }
     const Token& text = Consume();
@@ -2098,6 +2210,7 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
 std::unique_ptr<DialogResource> Parser::ParseDialog(
     IntOrStringName name,
     DialogResource::DialogKind dialog_kind) {
+  Location location = cur_or_last_token().location_;
   // Parse attributes of dialog itself.
   uint16_t rect[4];
   for (int i = 0; i < 4; ++i) {
@@ -2133,8 +2246,8 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
     }
     else if (IsEqualAsciiUppercase(tok.value_, "CLASS")) {
       if (!Is(Token::kString) && !Is(Token::kInt)) {
-        err_ = "expected string or int, got " +
-               AsString(cur_or_last_token().value_);
+        SetError("expected string or int, got " +
+                 AsString(cur_or_last_token().value_));
         return std::unique_ptr<DialogResource>();
       }
       const Token& clazz_tok = Consume();
@@ -2203,7 +2316,7 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
         return std::unique_ptr<DialogResource>();
       style = style_val;
     } else {
-      err_ = "unknown DIALOG attribute " + AsString(tok.value_);
+      SetError("unknown DIALOG attribute " + AsString(tok.value_));
       return std::unique_ptr<DialogResource>();
     }
   }
@@ -2222,16 +2335,19 @@ std::unique_ptr<DialogResource> Parser::ParseDialog(
     return std::unique_ptr<DialogResource>();
 
   return std::make_unique<DialogResource>(
+      location,
       name, dialog_kind, rect[0], rect[1], rect[2], rect[3], help_id,
       caption_val, std::move(clazz), exstyle, std::move(font), std::move(menu),
       style, std::move(controls));
 }
 
 std::unique_ptr<StringtableResource> Parser::ParseStringtable() {
+  Location location = cur_or_last_token().location_;
   if (!Match(Token::kBeginBlock, "expected BEGIN or {"))
     return std::unique_ptr<StringtableResource>();
   std::vector<StringtableResource::Entry> entries;
   while (!at_end() && cur_token().type() != Token::kEndBlock) {
+    Location string_location = cur_or_last_token().location_;
     if (!Is(Token::kInt, "expected int"))
       return std::unique_ptr<StringtableResource>();
     uint16_t key_num = Consume().IntValue();
@@ -2240,17 +2356,19 @@ std::unique_ptr<StringtableResource> Parser::ParseStringtable() {
     if (!Is(Token::kString, "expected string"))
       return std::unique_ptr<StringtableResource>();
     std::string_view str_val = StringContents(Consume());
-    entries.push_back(StringtableResource::Entry{key_num, str_val});
+    entries.push_back(
+        StringtableResource::Entry{key_num, string_location, str_val});
   }
   if (!Match(Token::kEndBlock, "expected END or }"))
     return std::unique_ptr<StringtableResource>();
-  return std::make_unique<StringtableResource>(entries.data(), entries.size());
+  return std::make_unique<StringtableResource>(
+      location, entries.data(), entries.size());
 }
 
 bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
   if (!Is(Token::kString) && !Is(Token::kInt)) {
-    err_ =
-        "expected string or int, got " + AsString(cur_or_last_token().value_);
+    SetError(
+        "expected string or int, got " + AsString(cur_or_last_token().value_));
     return false;
   }
   const Token& name = Consume();
@@ -2278,7 +2396,7 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
     else if (IsEqualAsciiUppercase(flag.value_, "ALT"))
       flags |= kAccelALT;
     else {
-      err_ = "unknown flag " + AsString(flag.value_);
+      SetError("unknown flag " + AsString(flag.value_));
       return false;
     }
   }
@@ -2291,7 +2409,7 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
     // name was checked to be kInt or kString above, so it's a kString here.
     std::string_view name_val = StringContents(name);
     if (name_val.size() == 0 || name_val.size() > 2) {
-      err_ = "invalid key \"" + AsString(name_val) + "\"";
+      SetError("invalid key \"" + AsString(name_val) + "\"");
       return false;
     }
 
@@ -2324,6 +2442,7 @@ bool Parser::ParseAccelerator(AcceleratorsResource::Accelerator* accelerator) {
 
 std::unique_ptr<AcceleratorsResource> Parser::ParseAccelerators(
     IntOrStringName name) {
+  Location location = cur_or_last_token().location_;
   if (!Match(Token::kBeginBlock, "expected BEGIN or {"))
     return std::unique_ptr<AcceleratorsResource>();
 
@@ -2336,7 +2455,8 @@ std::unique_ptr<AcceleratorsResource> Parser::ParseAccelerators(
   }
   if (!Match(Token::kEndBlock, "expected END or }"))
     return std::unique_ptr<AcceleratorsResource>();
-  return std::make_unique<AcceleratorsResource>(name, std::move(entries));
+  return std::make_unique<AcceleratorsResource>(
+      location, name, std::move(entries));
 }
 
 std::unique_ptr<VersioninfoResource::BlockData>
@@ -2350,8 +2470,8 @@ Parser::ParseVersioninfoBlock() {
     if (!Is(Token::kIdentifier) ||
         (!IsEqualAsciiUppercase(cur_token().value_, "BLOCK") &&
          !IsEqualAsciiUppercase(cur_token().value_, "VALUE"))) {
-      err_ = "expected BLOCK or VALUE, got " +
-             AsString(cur_or_last_token().value_);
+      SetError("expected BLOCK or VALUE, got " +
+               AsString(cur_or_last_token().value_));
       return std::unique_ptr<VersioninfoResource::BlockData>();
     }
     bool is_value = IsEqualAsciiUppercase(cur_token().value_, "VALUE");
@@ -2387,6 +2507,7 @@ Parser::ParseVersioninfoBlock() {
 
 std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(
     IntOrStringName name) {
+  Location location = cur_or_last_token().location_;
   // Parse fixed info.
   VersioninfoResource::FixedInfo fixed_info = {};
   CaseInsensitiveStringMap<uint32_t*> fields{{
@@ -2419,7 +2540,7 @@ std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(
     } else {
       auto it = fields.find(name.value_);
       if (it == fields.end()) {
-        err_ = "unknown field " + AsString(name.value_);
+        SetError("unknown field " + AsString(name.value_));
         return std::unique_ptr<VersioninfoResource>();
       }
       *it->second = val_num;
@@ -2431,11 +2552,12 @@ std::unique_ptr<VersioninfoResource> Parser::ParseVersioninfo(
       ParseVersioninfoBlock();
   if (!block)
     return std::unique_ptr<VersioninfoResource>();
-  return std::make_unique<VersioninfoResource>(name, fixed_info,
+  return std::make_unique<VersioninfoResource>(location, name, fixed_info,
                                                std::move(*block.get()));
 }
 
 std::unique_ptr<Resource> Parser::ParseResource() {
+  Location location = cur_or_last_token().location_;
   // FIXME: `"hi ho" {}` is parsed by Microsoft rc as a user-defined resource
   // with id `"hi` and type `ho"` -- so their tokenizer is context-dependent.
   // Maybe just check if `id` or `name` below contain namespace and if so,
@@ -2444,7 +2566,7 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   const Token& id = Consume();  // Either int or ident.
 
   if (at_end()) {
-    err_ = "expected resource name";
+    SetError("expected resource name");
     return std::unique_ptr<Resource>();
   }
 
@@ -2463,8 +2585,8 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   // FIXME: rc.exe allows unquoted names like `foo.bmp`
   if (id.type() != Token::kInt && id.type() != Token::kString &&
       id.type() != Token::kIdentifier) {
-    err_ = "expected int, string, or identifier, got " +
-           AsString(cur_or_last_token().value_);
+    SetError("expected int, string, or identifier, got " +
+             AsString(cur_or_last_token().value_));
     return std::unique_ptr<Resource>();
   }
   uint16_t id_int = 0;
@@ -2486,7 +2608,7 @@ std::unique_ptr<Resource> Parser::ParseResource() {
 
   const Token& type = Consume();
   if (at_end()) {
-    err_ = "expected resource type";
+    SetError("expected resource type");
     return std::unique_ptr<Resource>();
   }
 
@@ -2507,7 +2629,7 @@ std::unique_ptr<Resource> Parser::ParseResource() {
     return ParseMenu(name);
   if (type.type_ == Token::kIdentifier &&
       IsEqualAsciiUppercase(type.value_, "MENUEX")) {
-    err_ = "MENUEX not implemented yet";  // FIXME
+    SetError("MENUEX not implemented yet");  // FIXME
     return std::unique_ptr<Resource>();
   }
   if (type.type_ == Token::kIdentifier &&
@@ -2521,7 +2643,7 @@ std::unique_ptr<Resource> Parser::ParseResource() {
     return ParseAccelerators(name);
   if (type.type_ == Token::kIdentifier &&
       IsEqualAsciiUppercase(type.value_, "MESSAGETABLE")) {
-    err_ = "MESSAGETABLE not implemented yet";  // FIXME
+    SetError("MESSAGETABLE not implemented yet");  // FIXME
     return std::unique_ptr<Resource>();
   }
   if (type.type_ == Token::kIdentifier &&
@@ -2530,28 +2652,28 @@ std::unique_ptr<Resource> Parser::ParseResource() {
 
   // Unsupported types.
   if (IsEqualAsciiUppercase(type.value_, "FONTDIR")) {
-    err_ = "FONTDIR not implemented yet";  // FIXME
+    SetError("FONTDIR not implemented yet");  // FIXME
     return std::unique_ptr<Resource>();
   }
   if (IsEqualAsciiUppercase(type.value_, "FONT")) {
-    err_ = "FONT not implemented yet";  // FIXME
+    SetError("FONT not implemented yet");  // FIXME
     // If this gets implemented: rc requires numeric names for FONTs.
     return std::unique_ptr<Resource>();
   }
   if (IsEqualAsciiUppercase(type.value_, "PLUGPLAY")) {
-    err_ = "PLUGPLAY not implemented";
+    SetError("PLUGPLAY not implemented");
     return std::unique_ptr<Resource>();
   }
   if (IsEqualAsciiUppercase(type.value_, "VXD")) {
-    err_ = "VXD not implemented";
+    SetError("VXD not implemented");
     return std::unique_ptr<Resource>();
   }
   if (IsEqualAsciiUppercase(type.value_, "ANICURSOR")) {
-    err_ = "ANICURSOR not implemented yet";  // FIXME
+    SetError("ANICURSOR not implemented yet");  // FIXME
     return std::unique_ptr<Resource>();
   }
   if (IsEqualAsciiUppercase(type.value_, "ANIICON")) {
-    err_ = "ANIICON not implemented yet";  // FIXME
+    SetError("ANIICON not implemented yet");  // FIXME
     return std::unique_ptr<Resource>();
   }
 
@@ -2567,13 +2689,13 @@ std::unique_ptr<Resource> Parser::ParseResource() {
     std::string_view str_val = StringContents(data);
 
     if (IsEqualAsciiUppercase(type.value_, "CURSOR"))
-      return std::make_unique<CursorResource>(name, str_val);
+      return std::make_unique<CursorResource>(location, name, str_val);
     if (IsEqualAsciiUppercase(type.value_, "BITMAP"))
-      return std::make_unique<BitmapResource>(name, str_val);
+      return std::make_unique<BitmapResource>(location, name, str_val);
     if (IsEqualAsciiUppercase(type.value_, "ICON"))
-      return std::make_unique<IconResource>(name, str_val);
+      return std::make_unique<IconResource>(location, name, str_val);
     if (IsEqualAsciiUppercase(type.value_, "DLGINCLUDE"))
-      return std::make_unique<DlgincludeResource>(name, str_val);
+      return std::make_unique<DlgincludeResource>(location, name, str_val);
   }
 
   // The remaining types can either take a string filename or a BEGIN END
@@ -2585,9 +2707,11 @@ std::unique_ptr<Resource> Parser::ParseResource() {
       return std::unique_ptr<Resource>();
 
     if (IsEqualAsciiUppercase(type.value_, "RCDATA"))
-      return std::make_unique<RcdataResource>(name, std::move(raw_data));
+      return std::make_unique<RcdataResource>(
+          location, name, std::move(raw_data));
     if (IsEqualAsciiUppercase(type.value_, "HTML"))
-      return std::make_unique<HtmlResource>(name, std::move(raw_data));
+      return std::make_unique<HtmlResource>(
+          location, name, std::move(raw_data));
 
     // Not a known resource type, so it's a User-Defined Resource.
     if (type.type_ == Token::kIdentifier || type.type_ == Token::kInt ||
@@ -2602,7 +2726,7 @@ std::unique_ptr<Resource> Parser::ParseResource() {
           type.type() == Token::kInt
              ? IntOrStringName::MakeInt(type.IntValue())
              : IntOrStringName::MakeUpperStringUTF16(type_utf16);
-      return std::make_unique<UserDefinedResource>(type_name, name,
+      return std::make_unique<UserDefinedResource>(location ,type_name, name,
                                                    std::move(raw_data));
     }
   }
@@ -2610,9 +2734,9 @@ std::unique_ptr<Resource> Parser::ParseResource() {
   if (type.type_ == Token::kIdentifier && data.type_ == Token::kString) {
     std::string_view str_val = StringContents(data);
     if (IsEqualAsciiUppercase(type.value_, "RCDATA"))
-      return std::make_unique<RcdataResource>(name, str_val);
+      return std::make_unique<RcdataResource>(location, name, str_val);
     if (IsEqualAsciiUppercase(type.value_, "HTML"))
-      return std::make_unique<HtmlResource>(name, str_val);
+      return std::make_unique<HtmlResource>(location, name, str_val);
   }
 
   // Not a known resource type, so it's a custom User-Defined Resource.
@@ -2634,10 +2758,11 @@ std::unique_ptr<Resource> Parser::ParseResource() {
                                     ? IntOrStringName::MakeInt(type_int)
                                     : IntOrStringName::MakeUpperStringUTF16(
                                           type_utf16);
-    return std::make_unique<UserDefinedResource>(type_name, name, str_val);
+    return std::make_unique<UserDefinedResource>(
+        location, type_name, name, str_val);
   }
 
-  err_ = "unknown resource, type " + AsString(type.value_);
+  SetError("unknown resource, type " + AsString(type.value_));
   return std::unique_ptr<Resource>();
 }
 
@@ -2835,7 +2960,7 @@ FILE* SerializationVisitor::OpenFile(const char* path) {
       break;
   }
   if (!f) {
-    *err_ = std::string("failed to open ") + path;
+    *err_ = Location{path}.Error("failed to open file");
     return NULL;
   }
   if (show_includes_) {
@@ -2927,13 +3052,13 @@ bool SerializationVisitor::WriteIconOrCursorGroup(const FileResource* r,
 
   dir.reserved = read_little_short(f);
   if (dir.reserved != 0) {
-    *err_ = "reserved not 0 in " + AsString(r->path());
+    *err_ = r->location().Error("reserved not 0 in" + AsString(r->path()));
     return false;
   }
   dir.type = read_little_short(f);
   // rc.exe allows both 1 and 2 here for both ICON and CURSOR.
   if (dir.type != type) {
-    *err_ = "unexpected type in " + AsString(r->path());
+    *err_ = r->location().Error("unexpected type in " + AsString(r->path()));
     return false;
   }
   dir.count = read_little_short(f);
@@ -3355,7 +3480,8 @@ bool SerializationVisitor::VisitStringtableResource(
       bundle = &*it->second;
     }
     if (bundle->strings[str.id - key.first]) {
-      *err_ = "duplicate string table key " + std::to_string(str.id);
+      *err_ = str.location.Error(
+          "duplicate string table key " + std::to_string(str.id));
       return false;
     }
     bundle->strings[str.id - key.first] = &str.value;
@@ -3595,7 +3721,7 @@ bool WriteRes(const FileBlock& file,
               std::string* err) {
   FILE* f = fopen(out.c_str(), "wb");
   if (!f) {
-    *err = "failed to open " + out;
+    *err = Location{ out, 0, 0}.Error("failed to open file");
     return false;
   }
   FClose closer(f);
@@ -3724,20 +3850,20 @@ int main(int argc, char* argv[]) {
   }
 
   std::string err;
-  std::vector<Token> tokens = Tokenizer::Tokenize(s, &err);
+  std::vector<Token> tokens = Tokenizer::Tokenize("<stdin>", s, &err);
   if (tokens.empty() && !err.empty()) {
-    fprintf(stderr, "rc: %s\n", err.c_str());
+    fprintf(stderr, "%s\n", err.c_str());
     return 1;
   }
   StringStorage string_storage;
   std::unique_ptr<FileBlock> file =
       Parser::Parse(std::move(tokens), encoding, &string_storage, &err);
   if (!file) {
-    fprintf(stderr, "rc: %s\n", err.c_str());
+    fprintf(stderr, "%s\n", err.c_str());
     return 1;
   }
   if (!WriteRes(*file.get(), output, includes, show_includes, encoding, &err)) {
-    fprintf(stderr, "rc: %s\n", err.c_str());
+    fprintf(stderr, "%s\n", err.c_str());
     return 1;
   }
 }
