@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
       type = kSigTerm;
 #endif
     else {
-      fprintf(stderr, "unkonwn %s\n", argv[i]);
+      fprintf(stderr, "unknown %s\n", argv[i]);
       return 1;
     }
   }
