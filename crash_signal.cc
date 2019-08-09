@@ -52,6 +52,7 @@ int main(int argc, char* argv[]) {
     kSigBus,
 #endif
     kSigFPE,
+    kSigIll,
     kSigSegv,
 #if !defined(_WIN32)
     kSigTerm,
@@ -69,6 +70,8 @@ int main(int argc, char* argv[]) {
 #endif
     else if (strcmp(argv[i], "fpe") == 0)
       type = kSigFPE;
+    else if (strcmp(argv[i], "ill") == 0)
+      type = kSigIll;
     else if (strcmp(argv[i], "segv") == 0)
       type = kSigSegv;
 #if !defined(_WIN32)
@@ -98,6 +101,10 @@ int main(int argc, char* argv[]) {
     return 1;
   }
   if (sigaction(SIGFPE, &act, /*oact=*/0) != 0) {
+    fprintf(stderr, "failed sigaction\n");
+    return 1;
+  }
+  if (sigaction(SIGILL, &act, /*oact=*/0) != 0) {
     fprintf(stderr, "failed sigaction\n");
     return 1;
   }
@@ -133,6 +140,7 @@ int main(int argc, char* argv[]) {
       int c = a / b;
       return c;
     }
+    case kSigIll: asm("ud2");;
     case kSigSegv: *(volatile char*)0 = 0; break;
 #if !defined(_WIN32)
     case kSigTerm: kill(getpid(), SIGTERM); break;
