@@ -18,8 +18,8 @@ flow = client.flow_from_clientsecrets(clientsecrets,
 storage = file.Storage('mail.dat')
 creds = storage.get()
 if creds is None or creds.invalid:
+  #args = tools.argparser.parse_args(['--noauth_local_webserver'])
   args = tools.argparser.parse_args()
-  args.noauth_local_webserver = True
   creds = tools.run_flow(flow, storage, args)
 
 from googleapiclient.discovery import build
