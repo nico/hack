@@ -2,6 +2,7 @@
 
 """A simple commandclient client around the GMail OAuth API."""
 
+# pip install --user --upgrade google-api-python-client oauth2client
 from oauth2client import client
 from oauth2client import file
 from oauth2client import tools
