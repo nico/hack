@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""A simple commandclient client around the GMail OAuth API."""
+"""A simple commandline client around the GMail OAuth API."""
 
 # pip install --user --upgrade google-api-python-client oauth2client
 from oauth2client import client
