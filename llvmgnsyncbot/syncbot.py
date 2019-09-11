@@ -13,8 +13,8 @@ This script runs the following in a loop:
 It is meant to be run on a bot in a loop.
 The bot should have `llvm_targets_to_build = "all"` in its args.gn.
 
-Run like so:
-while true; do llvm/utils/gn/build/syncbot.py 2>&1 | tee -a synclog.txt; done
+Use through syncbot.sh wrapper script:
+./syncbot.sh
 """
 
 from __future__ import print_function
