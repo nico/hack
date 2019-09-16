@@ -12,6 +12,10 @@ This script runs the following in a loop:
 
 It is meant to be run on a bot in a loop.
 The bot should have `llvm_targets_to_build = "all"` in its args.gn.
+Also run `git config core.trustctime false` -- else ctime change caused by the
+hardlinking LLVM's gn build does for copy steps causes git to change the mtime
+for random file copy inputs, making incremental builds do much more work than
+necessary.
 
 Use through syncbot.sh wrapper script:
 ./syncbot.sh
