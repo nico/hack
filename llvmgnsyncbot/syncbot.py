@@ -80,7 +80,11 @@ def run():
     # Build/test.
     logging.info('building')
     subprocess.check_call([os.path.expanduser('~/goma/goma_ctl.py'), 'restart'])
-    subprocess.check_call(['ninja', '-C', 'out/gn', '-j1000'])
+    j = '-j1000'
+    if sys.platform == 'darwin':
+        # `ninja: fatal: pipe: Too many open files` with default ulimit else.
+        j = '-j200'
+    subprocess.check_call(['ninja', '-C', 'out/gn', j])
 
     logging.info('testing')
     tests = [
@@ -89,8 +93,9 @@ def run():
             'check-clang-tools',
             'check-lld',
             'check-llvm',
-            'check-hwasan',
     ]
+    if sys.platform != 'darwin':
+        tests += [ 'check-hwasan' ]
     for test in tests:
       logging.info('test %s', test)
       subprocess.check_call(['ninja', '-C', 'out/gn', test])
