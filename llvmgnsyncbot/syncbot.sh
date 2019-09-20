@@ -20,12 +20,28 @@ umask 022
 # that path need a+x permissions).
 
 while true; do
+  # XXX interesting state to return:
+  # - build successful or not
+  # - tests successful or not
+  # - were there any new commits at all
+  # - does stuff need to be merged
+  # - did the script commit something
+  # - duration of build and each test (?)
+  # - revisions new in this build
+  # - number of build edges run (?)
+  SECONDS=0
   ./syncbot.py 2>&1 | tee buildlogs/$build_num.txt
+  echo '{ "elapsed_s":' $SECONDS', "exit_code":' ${PIPESTATUS[0]} '}' \
+      > buildlogs/$build_num.meta.json
 
   # Reuse build numbers of no-op builds.
   if ! grep -q 'no new commits. sleeping for 30s' buildlogs/$build_num.txt; then
     ((build_num++))
     echo $build_num > syncbot.state
   fi
-done
 
+  case "$OSTYPE" in
+    darwin*) rsync -az buildlogs/ llvm@45.33.8.238:~/buildlog/mac ;;
+    linux*)  rsync -az buildlogs/ llvm@45.33.8.238:~/buildlog/linux ;;
+  esac
+done
