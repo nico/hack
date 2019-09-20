@@ -109,7 +109,11 @@ def run():
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO,
+        format='%(levelname)s:%(asctime)s:%(name)s:%(message)s',
+        datefmt='%Y-%m-%dT%H:%M:%SZ')  # ISO 8601, trailing 'Z' for UTC.
+    logging.Formatter.converter = time.gmtime  # UTC.
+
 
     # XXX: loop
     run()
