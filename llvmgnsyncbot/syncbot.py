@@ -78,8 +78,9 @@ def run():
             '--write'])
 
     # Build/test.
-    logging.info('building')
+    logging.info('restart goma')
     subprocess.check_call([os.path.expanduser('~/goma/goma_ctl.py'), 'restart'])
+    logging.info('building')
     j = '-j1000'
     if sys.platform == 'darwin':
         # `ninja: fatal: pipe: Too many open files` with default ulimit else.
@@ -104,12 +105,15 @@ def run():
     logging.info('committing changes')
     subprocess.check_call(['llvm/utils/git-svn/git-llvm', 'push', '-f'])
 
+    logging.info('done')
+
 
 def main():
     logging.basicConfig(level=logging.INFO)
 
     # XXX: loop
     run()
+
 
 if __name__ == '__main__':
     sys.exit(main())
