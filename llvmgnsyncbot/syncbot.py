@@ -98,12 +98,13 @@ def run():
     if sys.platform != 'darwin':
         tests += [ 'check-hwasan' ]
     for test in tests:
-      logging.info('test %s', test)
-      subprocess.check_call(['ninja', '-C', 'out/gn', test])
+        logging.info('test %s', test)
+        subprocess.check_call(['ninja', '-C', 'out/gn', test])
 
     # All worked fine, so land changes (if any).
-    logging.info('committing changes')
-    subprocess.check_call(['llvm/utils/git-svn/git-llvm', 'push', '-f'])
+    if sys.platform.startswith('linux'):
+        logging.info('committing changes')
+        subprocess.check_call(['llvm/utils/git-svn/git-llvm', 'push', '-f'])
 
     logging.info('done')
 
