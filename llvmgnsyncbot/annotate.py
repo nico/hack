@@ -6,6 +6,7 @@ from __future__ import print_function
 
 import datetime
 import json
+import os
 import re
 import sys
 
@@ -25,15 +26,15 @@ def parse_output(log, meta):
         utc = datetime.datetime.strptime(utc_str, '%Y-%m-%dT%H:%M:%SZ')
         annot_lines.append((name, utc_str, utc, m.start(), m.end()))
 
-    durations_s = []
+    elapsed_s = []
     for i in range(len(annot_lines) - 1):
-        durations_s.append(
+        elapsed_s.append(
             (annot_lines[i + 1][2] - annot_lines[i][2]).total_seconds())
 
     step_outputs = []
     for i in range(len(annot_lines) - 1):
         assert log[annot_lines[i][4]] == '\n'
-        step_outputs.append(log[annot_lines[i][4] + 1:annot_lines[i + 1][3]])
+        step_outputs.append((annot_lines[i][4] + 1, annot_lines[i + 1][3]))
 
     # The pending build has a final
     # 'no new commits. sleeping for 30s, then exiting.' annotation.
@@ -48,20 +49,20 @@ def parse_output(log, meta):
         assert log[-1] == '\n'
         assert annot_lines[-1][4] + 1 == len(log)
         del annot_lines[-1]
-        if 'durations_s' in meta:
-            assert sum(durations_s) == meta['durations_s']
+        if 'elapsed_s' in meta:
+            assert sum(elapsed_s) == meta['elapsed_s']
     else:
         assert meta.get('exit_code', 0) != 0
-        if 'durations_s' in meta:
-            durations_s.append(meta['durations_s'] - sum(durations_s))
+        if 'elapsed_s' in meta:
+            elapsed_s.append(meta['elapsed_s'] - sum(elapsed_s))
 
     steps = []
-    assert len(annot_lines) == len(durations_s) == len(step_outputs)
+    assert len(annot_lines) == len(elapsed_s) == len(step_outputs)
     for i in range(len(annot_lines)):
         step = {
             'name': annot_lines[i][0],
             'start': annot_lines[i][1],
-            'duration_s': durations_s[i],
+            'elapsed_s': elapsed_s[i],
             'output': step_outputs[i],
         }
         steps.append(step)
@@ -70,27 +71,56 @@ def parse_output(log, meta):
     return parsed
 
 
-def main():
-    if len(sys.argv) != 2:
-        return 1
-    logname = '%s.txt' % sys.argv[1]
-    metaname = '%s.meta.json' % sys.argv[1]
-
-    with open(logname) as f:
+def parse_buildlog(logfile, metafile):
+    with open(logfile) as f:
         log = f.read()
 
     meta = {}
-    try:
-        with open(metaname) as f:
+    # Very old builds don't have meta.json files yet.
+    # FIXME: Require meta.json files soonish.
+    if metafile is not None:
+       with open(metafile) as f:
             meta = json.load(f)
-    except IOError:
-        # Very old builds don't have meta.json files yet.
-        # FIXME: Require meta.json files soonish.
-        pass
 
-    meta = parse_output(log, meta)
-    print(meta)
-    print(json.dumps(meta, indent=2))
+    return parse_output(log, meta)
+
+
+def get_newest_build(platform, platform_logdir):
+    # Filter out swap files, .DS_store files, etc.
+    files = [b for b in os.listdir(platform_logdir) if not b.startswith('.')]
+
+    # 1.txt, 1.meta.json => 1
+    def get_num(f): return int(f.split('.', 1)[0])
+
+    num_builds = max(get_num(f) for f in files)
+    builds = [[None, None] for i in range(num_builds)]
+    for f in files:
+        builds[get_num(f) - 1][f.endswith('.meta.json')] = \
+            os.path.join(platform_logdir, f)
+
+    for log, meta in reversed(builds):
+       # FIXME: if meta.json stored the no_commits bit directly, this wouldn't
+       # have to do full log parsing. (OTOH, need to do that later anyways.)
+       info = parse_buildlog(log, meta)
+       if info.get('no_commits', False):
+           continue
+       # FIXME: last build date/elapsed (and if fail, first fail and last pass,
+       # and maybe failing step, and link to logfile)
+       return '%s %s' % (
+           platform, 'passing' if info['exit_code'] == 0 else 'failing')
+
+
+def main():
+    if len(sys.argv) != 2:
+        return 1
+
+    buildlog_dir = sys.argv[1]
+    platforms = os.listdir(buildlog_dir)
+
+    for platform in platforms:
+        newest = get_newest_build(
+            platform, os.path.join(buildlog_dir, platform))
+        print(newest)
 
 
 if __name__ == '__main__':
