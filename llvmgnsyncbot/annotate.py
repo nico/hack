@@ -160,7 +160,7 @@ def get_newest_build(platform, platform_logdir):
         status += '\n    failing step: ' + newest['steps'][-1]['name']
     if last_good is not None:
         status += '\n    last good %s' % build_str(last_good)
-        status += '\n    regression range: %s..%s' % (
+        status += '\n    regression range: https://github.com/llvm/llvm-project/compare/%s...%s' % (
             last_good['git_revision'],
             first_fail_with_current_cause['git_revision'])
     return status
