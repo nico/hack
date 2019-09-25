@@ -2,6 +2,9 @@
 
 """Reads N.txt / N.meta.json produced by syncbot.sh writes processed output."""
 
+# Use e.g. like
+# rsync -az llvm@45.33.8.238:buildlog . && llvmgnsyncbot/annotate.py buildlog
+
 from __future__ import print_function
 
 import datetime
@@ -55,6 +58,7 @@ def parse_output(log, meta):
         assert meta.get('exit_code', 0) != 0
         if 'elapsed_s' in meta:
             elapsed_s.append(meta['elapsed_s'] - sum(elapsed_s))
+        step_outputs.append((annot_lines[-1][4] + 1, len(log)))
 
     steps = []
     assert len(annot_lines) == len(elapsed_s) == len(step_outputs)
