@@ -10,25 +10,8 @@ import re
 import sys
 
 
-def main():
-    if len(sys.argv) != 2:
-        return 1
-    logname = '%s.txt' % sys.argv[1]
-    metaname = '%s.meta.json' % sys.argv[1]
-
-    with open(logname) as f:
-        log = f.read()
-
-    meta = {}
-    try:
-        with open(metaname) as f:
-            meta = json.load(f)
-    except IOError:
-        # Very old builds don't have meta.json files yet.
-        # FIXME: Require meta.json files soonish.
-        pass
-
-    print(meta)
+def parse_output(log, meta):
+    parsed = dict(meta)
 
     # Older builds don't have timestamps yet.
     # FIXME: Require timestamps.
@@ -51,6 +34,12 @@ def main():
     for i in range(len(annot_lines) - 1):
         assert log[annot_lines[i][4]] == '\n'
         step_outputs.append(log[annot_lines[i][4] + 1:annot_lines[i + 1][3]])
+
+    # The pending build has a final
+    # 'no new commits. sleeping for 30s, then exiting.' annotation.
+    if annot_lines[-1][0].startswith('no new commits.'):
+        parsed['no_commits'] = True
+        return parsed
 
     # Successful builds have a final 'done' annotation, unsuccessful builds
     # don't. Strip it, for consistency onward.
@@ -77,7 +66,30 @@ def main():
         }
         steps.append(step)
 
-    meta['steps'] = steps
+    parsed['steps'] = steps
+    return parsed
+
+
+def main():
+    if len(sys.argv) != 2:
+        return 1
+    logname = '%s.txt' % sys.argv[1]
+    metaname = '%s.meta.json' % sys.argv[1]
+
+    with open(logname) as f:
+        log = f.read()
+
+    meta = {}
+    try:
+        with open(metaname) as f:
+            meta = json.load(f)
+    except IOError:
+        # Very old builds don't have meta.json files yet.
+        # FIXME: Require meta.json files soonish.
+        pass
+
+    meta = parse_output(log, meta)
+    print(meta)
     print(json.dumps(meta, indent=2))
 
 
