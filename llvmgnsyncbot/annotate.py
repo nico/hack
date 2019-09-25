@@ -172,7 +172,7 @@ def main():
         return 1
 
     buildlog_dir = sys.argv[1]
-    platforms = os.listdir(buildlog_dir)
+    platforms = [d for d in os.listdir(buildlog_dir) if os.path.isdir(d)]
 
     for platform in sorted(platforms):
         newest = get_newest_build(
