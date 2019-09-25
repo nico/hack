@@ -75,6 +75,11 @@ def parse_output(log, meta):
         }
         steps.append(step)
 
+    m = re.search(r'^Updating [0-9a-f]+\.\.([0-9a-f]+)$',
+                  log[steps[0]['output'][0]:steps[0]['output'][1]], re.M)
+    assert m
+    parsed['git_revision'] = m.group(1)
+
     parsed['steps'] = steps
     return parsed
 
@@ -108,6 +113,13 @@ def get_newest_build(platform, platform_logdir):
 
     newest = None
     last_good = None
+    infos = [None for _ in range(len(builds))]
+
+    # The build after last_good is not always the one with the regression for
+    # the current breakage. Imagine someone breaking compile and while compile
+    # is broken someone breaks a test, and then compile is fixed.
+    currently_failing_step = None
+    first_fail_with_current_cause = None
     for i in reversed(range(len(builds))):
        log, meta = builds[i]
        # FIXME: if meta.json stored the no_commits bit directly, this wouldn't
@@ -119,21 +131,22 @@ def get_newest_build(platform, platform_logdir):
        info['build_nr'] = i + 1
        info['log_file'] = log
        info['meta_file'] = meta
+       infos[i] = info
 
        if newest is None:
            newest = info
            if newest['exit_code'] == 0:
                break
-       elif info['exit_code'] == 0:
+           currently_failing_step = newest['steps'][-1]['name']
+           continue
+       if (first_fail_with_current_cause is None and
+             info['steps'][-1]['name'] != currently_failing_step):
+           first_fail_with_current_cause = infos[i + 1]
+       if info['exit_code'] == 0:
            last_good = info
            break
 
-    # FIXME: The build after last_good is not always the one with the regression
-    # for the current breakage. Imagine someone breaking compile and while
-    # compile is broken someone breaks a test, and then compile is fixed.
-
-    # FIXME: last build date/elapsed (and if fail, first fail and last pass,
-    # regression range, and maybe failing step, and link to logfile)
+    # FIXME: if fail, link to logfile?
     def build_str(info):
       elapsed = datetime.timedelta(seconds=info['elapsed_s'])
       start = info['steps'][0]['start']
@@ -147,6 +160,9 @@ def get_newest_build(platform, platform_logdir):
         status += '\n    failing step: ' + newest['steps'][-1]['name']
     if last_good is not None:
         status += '\n    last good %s' % build_str(last_good)
+        status += '\n    regression range: %s..%s' % (
+            last_good['git_revision'],
+            first_fail_with_current_cause['git_revision'])
     return status
 
 
