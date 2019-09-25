@@ -57,7 +57,7 @@ def parse_output(log, meta):
         assert annot_lines[-1][4] + 1 == len(log)
         del annot_lines[-1]
         if 'elapsed_s' in meta:
-            assert sum(elapsed_s) == meta['elapsed_s']
+            assert abs(sum(elapsed_s) - meta['elapsed_s']) <= 1
     else:
         assert meta.get('exit_code', 0) != 0
         if 'elapsed_s' in meta:
@@ -160,7 +160,8 @@ def get_newest_build(platform, platform_logdir):
         status += '\n    failing step: ' + newest['steps'][-1]['name']
     if last_good is not None:
         status += '\n    last good %s' % build_str(last_good)
-        status += '\n    regression range: https://github.com/llvm/llvm-project/compare/%s...%s' % (
+        url = 'https://github.com/llvm/llvm-project/compare/'
+        status += '\n    regression range: %s%s...%s' % (url,
             last_good['git_revision'],
             first_fail_with_current_cause['git_revision'])
     return status
