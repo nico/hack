@@ -14,6 +14,10 @@ import re
 import sys
 
 
+def parse_utc(s):
+    return datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%SZ')
+
+
 def parse_output(log, meta):
     parsed = dict(meta)
 
@@ -26,7 +30,7 @@ def parse_output(log, meta):
     annot_lines = []
     for m in annot_re.finditer(log):
         utc_str, name = m.groups()
-        utc = datetime.datetime.strptime(utc_str, '%Y-%m-%dT%H:%M:%SZ')
+        utc = parse_utc(utc_str)
         annot_lines.append((name, utc_str, utc, m.start(), m.end()))
 
     elapsed_s = []
@@ -124,13 +128,25 @@ def get_newest_build(platform, platform_logdir):
            last_good = info
            break
 
+    # FIXME: The build after last_good is not always the one with the regression
+    # for the current breakage. Imagine someone breaking compile and while
+    # compile is broken someone breaks a test, and then compile is fixed.
+
     # FIXME: last build date/elapsed (and if fail, first fail and last pass,
     # regression range, and maybe failing step, and link to logfile)
-    status = '%s %s, build %d' % (
+    def build_str(info):
+      elapsed = datetime.timedelta(seconds=info['elapsed_s'])
+      start = info['steps'][0]['start']
+      return 'build %d (%s, %s ago, elapsed %s)' % (
+          info['build_nr'], start,
+          datetime.datetime.utcnow() - parse_utc(start), str(elapsed))
+    status = '%s %s, %s' % (
         platform, 'passing' if newest['exit_code'] == 0 else 'failing',
-        newest['build_nr'])
+        build_str(newest))
+    if newest['exit_code'] != 0:
+        status += '\n    failing step: ' + newest['steps'][-1]['name']
     if last_good is not None:
-        status += '\n    last good build %d' % last_good['build_nr']
+        status += '\n    last good %s' % build_str(last_good)
     return status
 
 
@@ -141,7 +157,7 @@ def main():
     buildlog_dir = sys.argv[1]
     platforms = os.listdir(buildlog_dir)
 
-    for platform in platforms:
+    for platform in sorted(platforms):
         newest = get_newest_build(
             platform, os.path.join(buildlog_dir, platform))
         print(newest)
