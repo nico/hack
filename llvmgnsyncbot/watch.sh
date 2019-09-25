@@ -7,7 +7,7 @@
 # FIXME maybe add -m flag for robustness
 # FIXME maybe add -d flag instead of the disown stuff above
 
-while inotifywait -e create -r $1 do
+while inotifywait -e create -r $1; do
   # Update annotation script.
   # FIXME: Maybe exec self if the pull updated watch.sh?
   (cd $2; git pull)
