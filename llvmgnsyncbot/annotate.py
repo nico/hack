@@ -102,16 +102,36 @@ def get_newest_build(platform, platform_logdir):
         builds[get_num(f) - 1][f.endswith('.meta.json')] = \
             os.path.join(platform_logdir, f)
 
-    for log, meta in reversed(builds):
+    newest = None
+    last_good = None
+    for i in reversed(range(len(builds))):
+       log, meta = builds[i]
        # FIXME: if meta.json stored the no_commits bit directly, this wouldn't
        # have to do full log parsing. (OTOH, need to do that later anyways.)
        info = parse_buildlog(log, meta)
        if info.get('no_commits', False):
            continue
-       # FIXME: last build date/elapsed (and if fail, first fail and last pass,
-       # and maybe failing step, and link to logfile)
-       return '%s %s' % (
-           platform, 'passing' if info['exit_code'] == 0 else 'failing')
+
+       info['build_nr'] = i + 1
+       info['log_file'] = log
+       info['meta_file'] = meta
+
+       if newest is None:
+           newest = info
+           if newest['exit_code'] == 0:
+               break
+       elif info['exit_code'] == 0:
+           last_good = info
+           break
+
+    # FIXME: last build date/elapsed (and if fail, first fail and last pass,
+    # regression range, and maybe failing step, and link to logfile)
+    status = '%s %s, build %d' % (
+        platform, 'passing' if newest['exit_code'] == 0 else 'failing',
+        newest['build_nr'])
+    if last_good is not None:
+        status += '\n    last good build %d' % last_good['build_nr']
+    return status
 
 
 def main():
