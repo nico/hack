@@ -150,9 +150,8 @@ def get_newest_build(platform, platform_logdir):
     def build_str(info):
       elapsed = datetime.timedelta(seconds=info['elapsed_s'])
       start = info['steps'][0]['start']
-      return 'build %d (%s, %s ago, elapsed %s)' % (
-          info['build_nr'], start,
-          datetime.datetime.utcnow() - parse_utc(start), str(elapsed))
+      return 'build %d (%s, elapsed %s)' % (
+          info['build_nr'], start, str(elapsed))
     status = '%s %s, %s' % (
         platform, 'passing' if newest['exit_code'] == 0 else 'failing',
         build_str(newest))
