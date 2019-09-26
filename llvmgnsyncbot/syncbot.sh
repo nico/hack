@@ -30,12 +30,14 @@ while true; do
   # - revisions new in this build
   # - number of build edges run (?)
   SECONDS=0
-  ./syncbot.py 2>&1 | tee buildlogs/$build_num.txt
+  ./syncbot.py 2>&1 | tee curbuild.txt
   echo '{ "elapsed_s":' $SECONDS', "exit_code":' ${PIPESTATUS[0]} '}' \
-      > buildlogs/$build_num.meta.json
+      > buildlogs/curbuild.meta.json
 
   # Reuse build numbers of no-op builds.
-  if ! grep -q 'no new commits. sleeping for 30s' buildlogs/$build_num.txt; then
+  if ! grep -q 'no new commits. sleeping for 30s' curbuild.txt; then
+    mv curbuild.txt buildlogs/$build_num.txt
+    mv curbuild.meta.json buildlogs/$build_num.meta.json
     ((build_num++))
     echo $build_num > syncbot.state
   fi
