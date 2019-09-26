@@ -150,8 +150,8 @@ def get_newest_build(platform, platform_logdir):
     def build_str(info):
       elapsed = datetime.timedelta(seconds=info['elapsed_s'])
       start = info['steps'][0]['start']
-      return 'build %d (%s, elapsed %s)' % (
-          info['build_nr'], start, str(elapsed))
+      return 'build %d (<time datetime="%s">%s</time>, elapsed %s)' % (
+          info['build_nr'], start, start, str(elapsed))
     status = '%s %s, %s' % (
         platform, 'passing' if newest['exit_code'] == 0 else 'failing',
         build_str(newest))
@@ -181,6 +181,11 @@ def main():
 <!doctype html>
 <title>LLVM GN buildbot</title>
 <pre>%s</pre>
+<script>
+Array.from(document.getElementsByTagName('time')).forEach(elt => {
+  elt.innerText = new Date(elt.getAttribute('datetime')).toLocaleString();
+});
+</script>
 '''
     print(template % text)
 
