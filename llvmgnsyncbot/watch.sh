@@ -14,5 +14,5 @@ while inotifywait -e create -r $1; do
 
   # Create output. Note that this is in the watched directory,
   # so it's important that inotifywait only looks for create, not for modify.
-  $2/llvmgnsyncbot/annotate.py $1 > $1/summary.txt
+  $2/llvmgnsyncbot/annotate.py $1 > $1/summary.html
 done
