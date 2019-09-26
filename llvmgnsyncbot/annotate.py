@@ -150,8 +150,9 @@ def get_newest_build(platform, platform_logdir):
     def build_str(info):
       elapsed = datetime.timedelta(seconds=info['elapsed_s'])
       start = info['steps'][0]['start']
-      return 'build %d (<time datetime="%s">%s</time>, elapsed %s)' % (
-          info['build_nr'], start, start, str(elapsed))
+      log = '%s/%s.txt' % (platform, info['build_nr'])
+      return 'build <a href="%s">%d</a> (<time datetime="%s">%s</time>, elapsed %s)' % (
+          log, info['build_nr'], start, start, str(elapsed))
     status = '%s %s, %s' % (
         platform, 'passing' if newest['exit_code'] == 0 else 'failing',
         build_str(newest))
