@@ -32,7 +32,7 @@ while true; do
   SECONDS=0
   ./syncbot.py 2>&1 | tee curbuild.txt
   echo '{ "elapsed_s":' $SECONDS', "exit_code":' ${PIPESTATUS[0]} '}' \
-      > buildlogs/curbuild.meta.json
+      > curbuild.meta.json
 
   # Reuse build numbers of no-op builds.
   if ! grep -q 'no new commits. sleeping for 30s' curbuild.txt; then
