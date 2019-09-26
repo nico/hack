@@ -180,6 +180,7 @@ def main():
         for platform in sorted(platforms))
     template = '''\
 <!doctype html>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LLVM GN buildbot</title>
 <pre>%s</pre>
 <script>
