@@ -174,10 +174,15 @@ def main():
     platforms = [d for d in os.listdir(buildlog_dir)
                  if os.path.isdir(os.path.join(buildlog_dir, d))]
 
-    for platform in sorted(platforms):
-        newest = get_newest_build(
-            platform, os.path.join(buildlog_dir, platform))
-        print(newest)
+    text = '\n'.join(
+        get_newest_build(platform, os.path.join(buildlog_dir, platform))
+        for platform in sorted(platforms))
+    template = '''\
+<!doctype html>
+<title>LLVM GN buildbot</title>
+<pre>%s</pre>
+'''
+    print(template % text)
 
 
 if __name__ == '__main__':
