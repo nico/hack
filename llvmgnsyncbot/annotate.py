@@ -140,7 +140,8 @@ def get_newest_build(platform, platform_logdir):
            currently_failing_step = newest['steps'][-1]['name']
            continue
        if (first_fail_with_current_cause is None and
-             info['steps'][-1]['name'] != currently_failing_step):
+             (info['exit_code'] == 0 or
+              info['steps'][-1]['name'] != currently_failing_step)):
            first_fail_with_current_cause = infos[i + 1]
        if info['exit_code'] == 0:
            last_good = info
