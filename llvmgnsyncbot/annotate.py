@@ -92,37 +92,46 @@ def parse_buildlog(logfile, metafile):
     return parse_output(log, meta)
 
 
-def get_newest_build(platform, platform_logdir):
-    # Filter out swap files, .DS_store files, etc.
-    files = [b for b in os.listdir(platform_logdir) if not b.startswith('.')]
+class BuildList(object):
+    def __init__(self, platform_logdir):
+        # Filter out swap files, .DS_store files, etc.
+        files = [b for b in os.listdir(platform_logdir)
+                      if not b.startswith('.')]
+        # 1.txt, 1.meta.json => 1
+        def get_num(f): return int(f.split('.', 1)[0])
 
-    # 1.txt, 1.meta.json => 1
-    def get_num(f): return int(f.split('.', 1)[0])
+        num_builds = max(get_num(f) for f in files)
+        self.builds = [[None, None] for i in range(num_builds)]
+        for f in files:
+            self.builds[get_num(f) - 1][f.endswith('.meta.json')] = \
+                os.path.join(platform_logdir, f)
+        self.infos = [None for _ in range(self.num_builds())]
 
-    num_builds = max(get_num(f) for f in files)
-    builds = [[None, None] for i in range(num_builds)]
-    for f in files:
-        builds[get_num(f) - 1][f.endswith('.meta.json')] = \
-            os.path.join(platform_logdir, f)
+    def num_builds(self):
+        return len(self.builds)
 
+    def get_build_info(self, i):
+        if self.infos[i] is None:
+            log, meta = self.builds[i]
+            info = parse_buildlog(log, meta)
+            info['build_nr'] = i + 1
+            info['log_file'] = log
+            info['meta_file'] = meta
+            self.infos[i] = info
+        return self.infos[i]
+
+
+def get_newest_build(platform, build_list):
     newest = None
     last_good = None
-    infos = [None for _ in range(len(builds))]
 
     # The build after last_good is not always the one with the regression for
     # the current breakage. Imagine someone breaking compile and while compile
     # is broken someone breaks a test, and then compile is fixed.
     currently_failing_step = None
     first_fail_with_current_cause = None
-    for i in reversed(range(len(builds))):
-       log, meta = builds[i]
-       info = parse_buildlog(log, meta)
-
-       info['build_nr'] = i + 1
-       info['log_file'] = log
-       info['meta_file'] = meta
-       infos[i] = info
-
+    for i in reversed(range(build_list.num_builds())):
+       info = build_list.get_build_info(i)
        if newest is None:
            newest = info
            if newest['exit_code'] == 0:
@@ -132,7 +141,7 @@ def get_newest_build(platform, platform_logdir):
        if (first_fail_with_current_cause is None and
              (info['exit_code'] == 0 or
               info['steps'][-1]['name'] != currently_failing_step)):
-           first_fail_with_current_cause = infos[i + 1]
+           first_fail_with_current_cause = build_list.get_build_info(i + 1)
        if info['exit_code'] == 0:
            last_good = info
            break
@@ -167,7 +176,8 @@ def main():
                  if os.path.isdir(os.path.join(buildlog_dir, d))]
 
     text = '\n'.join(
-        get_newest_build(platform, os.path.join(buildlog_dir, platform))
+        get_newest_build(platform,
+                         BuildList(os.path.join(buildlog_dir, platform)))
         for platform in sorted(platforms))
     template = '''\
 <!doctype html>
