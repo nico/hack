@@ -19,12 +19,8 @@ def parse_utc(s):
 
 
 def parse_output(log, meta):
-    parsed = dict(meta)
-
-    # Older builds don't have timestamps yet.
-    # FIXME: Require timestamps.
-    utc_iso_8601_re = r'(\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ)'
-    annot_re = re.compile(r'^INFO:(?:' + utc_iso_8601_re + ':)root:(.*)$', re.M)
+    utc_iso_8601_re = r'\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ'
+    annot_re = re.compile(r'^INFO:(' + utc_iso_8601_re + '):root:(.*)$', re.M)
 
     # name, timestamp_str, timestamp_datetime, start, end
     annot_lines = []
@@ -50,12 +46,10 @@ def parse_output(log, meta):
         assert log[-1] == '\n'
         assert annot_lines[-1][4] + 1 == len(log)
         del annot_lines[-1]
-        if 'elapsed_s' in meta:
-            assert abs(sum(elapsed_s) - meta['elapsed_s']) <= 1
+        assert abs(sum(elapsed_s) - meta['elapsed_s']) <= 1
     else:
         assert meta.get('exit_code', 0) != 0
-        if 'elapsed_s' in meta:
-            elapsed_s.append(meta['elapsed_s'] - sum(elapsed_s))
+        elapsed_s.append(meta['elapsed_s'] - sum(elapsed_s))
         step_outputs.append((annot_lines[-1][4] + 1, len(log)))
 
     steps = []
@@ -69,11 +63,11 @@ def parse_output(log, meta):
         }
         steps.append(step)
 
+    parsed = dict(meta)
     m = re.search(r'^Updating [0-9a-f]+\.\.([0-9a-f]+)$',
                   log[steps[0]['output'][0]:steps[0]['output'][1]], re.M)
     assert m
     parsed['git_revision'] = m.group(1)
-
     parsed['steps'] = steps
     return parsed
 
@@ -81,14 +75,8 @@ def parse_output(log, meta):
 def parse_buildlog(logfile, metafile):
     with open(logfile) as f:
         log = f.read()
-
-    meta = {}
-    # Very old builds don't have meta.json files yet.
-    # FIXME: Require meta.json files soonish.
-    if metafile is not None:
-       with open(metafile) as f:
-            meta = json.load(f)
-
+    with open(metafile) as f:
+        meta = json.load(f)
     return parse_output(log, meta)
 
 
