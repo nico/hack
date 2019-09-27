@@ -43,12 +43,6 @@ def parse_output(log, meta):
         assert log[annot_lines[i][4]] == '\n'
         step_outputs.append((annot_lines[i][4] + 1, annot_lines[i + 1][3]))
 
-    # The pending build has a final
-    # 'no new commits. sleeping for 30s, then exiting.' annotation.
-    if annot_lines[-1][0].startswith('no new commits.'):
-        parsed['no_commits'] = True
-        return parsed
-
     # Successful builds have a final 'done' annotation, unsuccessful builds
     # don't. Strip it, for consistency onward.
     if annot_lines[-1][0] == 'done':
@@ -122,11 +116,7 @@ def get_newest_build(platform, platform_logdir):
     first_fail_with_current_cause = None
     for i in reversed(range(len(builds))):
        log, meta = builds[i]
-       # FIXME: if meta.json stored the no_commits bit directly, this wouldn't
-       # have to do full log parsing. (OTOH, need to do that later anyways.)
        info = parse_buildlog(log, meta)
-       if info.get('no_commits', False):
-           continue
 
        info['build_nr'] = i + 1
        info['log_file'] = log
