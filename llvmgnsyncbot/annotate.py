@@ -93,8 +93,11 @@ def parse_buildlog(logfile, metafile):
 
 
 class BuildList(object):
-    def __init__(self, platform_logdir):
+    def __init__(self, platform, buildlog_dir):
+        self.platform = platform
+
         # Filter out swap files, .DS_store files, etc.
+        platform_logdir = os.path.join(buildlog_dir, platform)
         files = [b for b in os.listdir(platform_logdir)
                       if not b.startswith('.')]
         # 1.txt, 1.meta.json => 1
@@ -121,7 +124,7 @@ class BuildList(object):
         return self.infos[i]
 
 
-def get_newest_build(platform, build_list):
+def get_newest_build(build_list):
     newest = None
     last_good = None
 
@@ -150,11 +153,12 @@ def get_newest_build(platform, build_list):
     def build_str(info):
       elapsed = datetime.timedelta(seconds=info['elapsed_s'])
       start = info['steps'][0]['start']
-      log = '%s/%s.txt' % (platform, info['build_nr'])
+      log = '%s/%s.txt' % (build_list.platform, info['build_nr'])
       return 'build <a href="%s">%d</a> (<time datetime="%s">%s</time>, elapsed %s)' % (
           log, info['build_nr'], start, start, str(elapsed))
     status = '%s %s, %s' % (
-        platform, 'passing' if newest['exit_code'] == 0 else 'failing',
+        build_list.platform,
+        'passing' if newest['exit_code'] == 0 else 'failing',
         build_str(newest))
     if newest['exit_code'] != 0:
         status += '\n    failing step: ' + newest['steps'][-1]['name']
@@ -172,13 +176,12 @@ def main():
         return 1
 
     buildlog_dir = sys.argv[1]
-    platforms = [d for d in os.listdir(buildlog_dir)
-                 if os.path.isdir(os.path.join(buildlog_dir, d))]
+    platforms = sorted([d for d in os.listdir(buildlog_dir)
+                        if os.path.isdir(os.path.join(buildlog_dir, d))])
 
     text = '\n'.join(
-        get_newest_build(platform,
-                         BuildList(os.path.join(buildlog_dir, platform)))
-        for platform in sorted(platforms))
+        get_newest_build(BuildList(platform, buildlog_dir))
+        for platform in platforms)
     template = '''\
 <!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
