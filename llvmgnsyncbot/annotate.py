@@ -108,7 +108,6 @@ class BuildList(object):
             info = parse_buildlog(log, meta)
             info['build_nr'] = i + 1
             info['log_file'] = log
-            info['meta_file'] = meta
             self.infos[i] = info
         return self.infos[i]
 
@@ -123,28 +122,28 @@ def get_newest_build(build_list):
     currently_failing_step = None
     first_fail_with_current_cause = None
     for i in reversed(range(build_list.num_builds())):
-       info = build_list.get_build_info(i)
-       if newest is None:
-           newest = info
-           if newest['exit_code'] == 0:
-               break
-           currently_failing_step = newest['steps'][-1]['name']
-           continue
-       if (first_fail_with_current_cause is None and
-             (info['exit_code'] == 0 or
-              info['steps'][-1]['name'] != currently_failing_step)):
-           first_fail_with_current_cause = build_list.get_build_info(i + 1)
-       if info['exit_code'] == 0:
-           last_good = info
-           break
+        info = build_list.get_build_info(i)
+        if newest is None:
+            newest = info
+            if newest['exit_code'] == 0:
+                break
+            currently_failing_step = newest['steps'][-1]['name']
+            continue
+        if (first_fail_with_current_cause is None and
+              (info['exit_code'] == 0 or
+               info['steps'][-1]['name'] != currently_failing_step)):
+            first_fail_with_current_cause = build_list.get_build_info(i + 1)
+        if info['exit_code'] == 0:
+            last_good = info
+            break
 
     # FIXME: if fail, link to logfile?
     def build_str(info):
-      elapsed = datetime.timedelta(seconds=info['elapsed_s'])
-      start = info['steps'][0]['start']
-      log = '%s/%s.txt' % (build_list.platform, info['build_nr'])
-      return 'build <a href="%s">%d</a> (<time datetime="%s">%s</time>, elapsed %s)' % (
-          log, info['build_nr'], start, start, str(elapsed))
+        elapsed = datetime.timedelta(seconds=info['elapsed_s'])
+        start = info['steps'][0]['start']
+        log = '%s/%d/summary.html' % (build_list.platform, info['build_nr'])
+        return 'build <a href="%s">%d</a> (<time datetime="%s">%s</time>, elapsed %s)' % (
+            log, info['build_nr'], start, start, str(elapsed))
     status = '<a href="%s">%s</a> %s, %s' % (
         build_list.platform + '/summary.html',
         build_list.platform,
@@ -169,7 +168,9 @@ def platform_summary(build_list):
        info = build_list.get_build_info(i)
        start = info['steps'][0]['start']
        did_pass = info['exit_code'] == 0
-       t = '%5d %s %s' % (info['build_nr'],
+       t = '<a href="%s">%5d</a> %s %s' % (
+                          '%d/summary.html' % info['build_nr'],
+                          info['build_nr'],
                           'pass' if did_pass else 'fail',
                           start,
                          )
@@ -190,6 +191,32 @@ def platform_summary(build_list):
         100.0 * num_pass / build_list.num_builds())
 
     return summary + '\n'.join(text)
+
+
+def build_details(info):
+    text = []
+    for j, step in enumerate(info['steps']):
+       # XXX link to step output
+       elapsed = datetime.timedelta(seconds=step['elapsed_s'])
+       t = '     %s <a href="%s">%s</a>' % (
+           str(elapsed),
+           'step_%d.txt' % (j + 1),
+           step['name'],
+           )
+       text.append(t)
+
+    elapsed = datetime.timedelta(seconds=info['elapsed_s'])
+    did_pass = info['exit_code'] == 0
+    summary = '%s %s\n\n' % (
+        'pass' if did_pass else 'fail',
+        str(elapsed),
+        )
+
+    # XXX include link to raw log, revision, number of revs in build,
+    # link to next/prev build,
+    # link to last green build, first build with same failure,
+    # number of committed changes
+    return summary + '\n'.join(text) + '\n\n<a href="log.txt">full log</a>'
 
 
 def main():
@@ -224,11 +251,29 @@ Array.from(document.getElementsByTagName('time')).forEach(elt => {
     with open(os.path.join(html_dir, 'summary.html'), 'w') as f:
         print(template % text, file=f)
 
-    # Generate per-platform summary page.
+    # Generate per-platform summary page, and pages for every build.
     for build_list in build_lists:
         platform_dir = os.path.join(html_dir, build_list.platform)
         with open(os.path.join(platform_dir, 'summary.html'), 'w') as f:
             f.write(template % platform_summary(build_list))
+
+        for i in reversed(range(build_list.num_builds())):
+            info = build_list.get_build_info(i)
+            build_dir = os.path.join(platform_dir, '%d' % info['build_nr'])
+            if os.path.isdir(build_dir):
+                continue
+            os.mkdir(build_dir)
+            build_html = os.path.join(build_dir, 'summary.html')
+            with open(build_html, 'w') as f:
+                f.write(template % build_details(info))
+            with open(info['log_file']) as f:
+                log = f.read()
+            with open(os.path.join(build_dir, 'log.txt'), 'w') as f:
+                f.write(log)
+            for j, step in enumerate(info['steps']):
+                step_file = os.path.join(build_dir, 'step_%d.txt' % (j + 1))
+                with open(step_file, 'w') as f:
+                    f.write(log[step['output'][0]:step['output'][1]])
 
 
 if __name__ == '__main__':
