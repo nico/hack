@@ -3,7 +3,8 @@
 """Reads N.txt / N.meta.json produced by syncbot.sh writes processed output."""
 
 # Use e.g. like
-# rsync -az llvm@45.33.8.238:buildlog . && llvmgnsyncbot/annotate.py buildlog
+#     rsync -az llvm@45.33.8.238:buildlog .
+#     llvmgnsyncbot/annotate.py buildlog html
 
 from __future__ import print_function
 
@@ -192,17 +193,14 @@ def platform_summary(build_list):
 
 
 def main():
-    if len(sys.argv) not in [2, 3]:
+    if len(sys.argv) != 3:
         return 1
 
     buildlog_dir = sys.argv[1]
     platforms = sorted([d for d in os.listdir(buildlog_dir)
                         if os.path.isdir(os.path.join(buildlog_dir, d))])
 
-    if len(sys.argv) == 3:
-        html_dir = sys.argv[2]
-    else:
-        html_dir = os.path.join(buildlog_dir, '..', 'html')
+    html_dir = sys.argv[2]
     for platform in platforms:
         platform_dir = os.path.join(html_dir, platform)
         if not os.path.isdir(platform_dir):
