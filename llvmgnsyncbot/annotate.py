@@ -26,8 +26,6 @@ def parse_output(log, meta):
     annot_lines = []
     for m in annot_re.finditer(log):
         utc_str, name = m.groups()
-        # FIXME: Require timestamps.
-        if not utc_str: utc_str = '1970-01-01T00:00:00Z'
         utc = parse_utc(utc_str)
         annot_lines.append((name, utc_str, utc, m.start(), m.end()))
 
@@ -194,14 +192,17 @@ def platform_summary(build_list):
 
 
 def main():
-    if len(sys.argv) != 2:
+    if len(sys.argv) not in [2, 3]:
         return 1
 
     buildlog_dir = sys.argv[1]
     platforms = sorted([d for d in os.listdir(buildlog_dir)
                         if os.path.isdir(os.path.join(buildlog_dir, d))])
 
-    html_dir = os.path.join(buildlog_dir, '..', 'html')
+    if len(sys.argv) == 3:
+        html_dir = sys.argv[2]
+    else:
+        html_dir = os.path.join(buildlog_dir, '..', 'html')
     for platform in platforms:
         platform_dir = os.path.join(html_dir, platform)
         if not os.path.isdir(platform_dir):
