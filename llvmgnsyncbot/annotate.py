@@ -26,6 +26,8 @@ def parse_output(log, meta):
     annot_lines = []
     for m in annot_re.finditer(log):
         utc_str, name = m.groups()
+        # FIXME: Require timestamps.
+        if not utc_str: utc_str = '1970-01-01T00:00:00Z'
         utc = parse_utc(utc_str)
         annot_lines.append((name, utc_str, utc, m.start(), m.end()))
 
@@ -159,6 +161,37 @@ def get_newest_build(build_list):
     return status
 
 
+def platform_summary(build_list):
+    text = []
+    num_pass = 0
+    sum_pass_elapsed_s = 0
+    for i in reversed(range(build_list.num_builds())):
+       info = build_list.get_build_info(i)
+       start = info['steps'][0]['start']
+       did_pass = info['exit_code'] == 0
+       t = '%5d %s %s' % (info['build_nr'],
+                          'pass' if did_pass else 'fail',
+                          start,
+                         )
+       # XXX duration (as graph), only for successful builds
+       if did_pass:
+           num_pass += 1
+           sum_pass_elapsed_s += info['elapsed_s']
+       text.append(t)
+
+    # XXX
+    # average duration
+    # failing step histogram
+    # 1 build every N time units / day
+    # num revisions per build
+    summary = '%d/%d (%.1f%%) builds passed\n\n' % (
+        num_pass,
+        build_list.num_builds(),
+        100.0 * num_pass / build_list.num_builds())
+
+    return summary + '\n'.join(text)
+
+
 def main():
     if len(sys.argv) != 2:
         return 1
@@ -167,9 +200,16 @@ def main():
     platforms = sorted([d for d in os.listdir(buildlog_dir)
                         if os.path.isdir(os.path.join(buildlog_dir, d))])
 
-    text = '\n'.join(
-        get_newest_build(BuildList(platform, buildlog_dir))
-        for platform in platforms)
+    html_dir = os.path.join(buildlog_dir, '..', 'html')
+    for platform in platforms:
+        platform_dir = os.path.join(html_dir, platform)
+        if not os.path.isdir(platform_dir):
+            os.makedirs(platform_dir)
+
+    build_lists = [BuildList(platform, buildlog_dir) for platform in platforms]
+
+    # Generate global summary page.
+    text = ''#'\n'.join(get_newest_build(bl) for bl in build_lists)
     template = '''\
 <!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -181,7 +221,17 @@ Array.from(document.getElementsByTagName('time')).forEach(elt => {
 });
 </script>
 '''
-    print(template % text)
+    with open(os.path.join(html_dir, 'summary.html'), 'w') as f:
+        print(template % text, file=f)
+
+    # FIXME: Stop printing to stdout; make html outdir a parameter.
+    #print(template % text)
+
+    # Generate per-platform summary page.
+    for build_list in build_lists:
+        platform_dir = os.path.join(html_dir, build_list.platform)
+        with open(os.path.join(platform_dir, 'summary.html'), 'w') as f:
+            f.write(template % platform_summary(build_list))
 
 
 if __name__ == '__main__':
