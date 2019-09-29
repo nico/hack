@@ -146,7 +146,8 @@ def get_newest_build(build_list):
       log = '%s/%s.txt' % (build_list.platform, info['build_nr'])
       return 'build <a href="%s">%d</a> (<time datetime="%s">%s</time>, elapsed %s)' % (
           log, info['build_nr'], start, start, str(elapsed))
-    status = '%s %s, %s' % (
+    status = '<a href="%s">%s</a> %s, %s' % (
+        build_list.platform + '/summary.html',
         build_list.platform,
         'passing' if newest['exit_code'] == 0 else 'failing',
         build_str(newest))
@@ -223,9 +224,6 @@ Array.from(document.getElementsByTagName('time')).forEach(elt => {
 '''
     with open(os.path.join(html_dir, 'summary.html'), 'w') as f:
         print(template % text, file=f)
-
-    # FIXME: Stop printing to stdout; make html outdir a parameter.
-    print(template % text)
 
     # Generate per-platform summary page.
     for build_list in build_lists:
