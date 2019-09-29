@@ -209,7 +209,7 @@ def main():
     build_lists = [BuildList(platform, buildlog_dir) for platform in platforms]
 
     # Generate global summary page.
-    text = ''#'\n'.join(get_newest_build(bl) for bl in build_lists)
+    text = '\n'.join(get_newest_build(bl) for bl in build_lists)
     template = '''\
 <!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -225,7 +225,7 @@ Array.from(document.getElementsByTagName('time')).forEach(elt => {
         print(template % text, file=f)
 
     # FIXME: Stop printing to stdout; make html outdir a parameter.
-    #print(template % text)
+    print(template % text)
 
     # Generate per-platform summary page.
     for build_list in build_lists:
