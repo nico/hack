@@ -213,9 +213,13 @@ def build_details(info):
 
     elapsed = datetime.timedelta(seconds=info['elapsed_s'])
     did_pass = info['exit_code'] == 0
-    header = '%s %s\n\n' % (
+
+    start = info['steps'][0]['start']
+    header = '%s in %s, started <time datetime="%s">%s</time>\n\n' % (
         'pass' if did_pass else 'fail',
         str(elapsed),
+        start,
+        start,
         )
 
     footer = 'at rev <a href="%s">%s</a>\n' % (
