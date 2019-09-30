@@ -58,7 +58,6 @@ def parse_output(log, meta):
     for i in range(len(annot_lines)):
         step = {
             'name': annot_lines[i][0],
-            'start': annot_lines[i][1],
             'elapsed_s': elapsed_s[i],
             'output': step_outputs[i],
         }
@@ -76,6 +75,7 @@ def parse_output(log, meta):
     assert m
     parsed['num_commits'] = int(m.group(1))
 
+    parsed['start_utc'] = annot_lines[0][1]
     parsed['steps'] = steps
     return parsed
 
@@ -147,7 +147,7 @@ def get_newest_build(build_list):
     # FIXME: if fail, link to logfile?
     def build_str(info):
         elapsed = datetime.timedelta(seconds=info['elapsed_s'])
-        start = info['steps'][0]['start']
+        start = info['start_utc']
         log = '%s/%d/summary.html' % (build_list.platform, info['build_nr'])
         return 'build <a href="%s">%d</a> (<time datetime="%s">%s</time>, elapsed %s)' % (
             log, info['build_nr'], start, start, str(elapsed))
@@ -174,7 +174,7 @@ def platform_summary(build_list):
     sum_num_commits = 0
     for i in reversed(range(build_list.num_builds())):
        info = build_list.get_build_info(i)
-       start = info['steps'][0]['start']
+       start = info['start_utc']
        did_pass = info['exit_code'] == 0
        t = '<a href="%s">%5d</a> %s %s' % (
                           '%d/summary.html' % info['build_nr'],
@@ -222,7 +222,7 @@ def build_details(info, has_next):
     elapsed = datetime.timedelta(seconds=info['elapsed_s'])
     did_pass = info['exit_code'] == 0
 
-    start = info['steps'][0]['start']
+    start = info['start_utc']
     header = '%s in %s, started <time datetime="%s">%s</time>\n' % (
         'pass' if did_pass else 'fail',
         str(elapsed),
