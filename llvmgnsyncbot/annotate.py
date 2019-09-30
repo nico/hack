@@ -196,7 +196,6 @@ def platform_summary(build_list):
 def build_details(info):
     text = []
     for j, step in enumerate(info['steps']):
-       # XXX link to step output
        elapsed = datetime.timedelta(seconds=step['elapsed_s'])
        t = '     %s <a href="%s">%s</a>' % (
            str(elapsed),
@@ -212,7 +211,7 @@ def build_details(info):
         str(elapsed),
         )
 
-    # XXX include link to raw log, revision, number of revs in build,
+    # XXX include revision, number of revs in build,
     # link to next/prev build,
     # link to last green build, first build with same failure,
     # number of committed changes
