@@ -59,6 +59,16 @@ Each builder needs some amount of one-time manual setup.
            getenv("HOME") + "/src/chrome/src/third_party/llvm-build/Release+Asserts"
        use_goma = true
 
+1. Run `git config core.trustctime false` in the llvm checkout.
+   The GN build uses hardlinks to copy files, which changes the ctime on the
+   copy source inode. By default, `git checkout -f master` will replace files
+   with modified ctime with a new copy of the file, which in turn changes the
+   mtime on the copy inputs -- which makes ninja think copy steps are dirty
+   and need to be rerun on every build. This setting fixes this.
+   (More information)(1).
+
+1: https://docs.google.com/document/d/1rRL-rWDyL0Nwr6SdQTkh1tf5kYcjDoJwKhHs8WJHQSc/
+
 1. Create `~/.ssh/id_rsa.pub` if necessary by running `ssh-keygen -t rsa`, then
    copy it to the buildlog server with
    `cat ~/.ssh/id_rsa.pub | ssh llvm@45.33.8.238 'cat >> .ssh/authorized_keys'`
