@@ -68,3 +68,54 @@ Each builder needs some amount of one-time manual setup.
 
 1. In a tmux or screen session, or a CRD window, run `./syncbot.sh` while in
    the LLVM checkout. Then disconnect from the builder.
+
+Server setup
+------------
+
+Create a user `llvm`, and create `~llvm/buildlog`. The builders will rsync build
+logs to `~llvm/buildlog/{linux,max}`.
+
+Check out this repository as llvm to `~llvm/hack`.
+
+To run `annotate.py` automatically every time a file appears, run
+`hack/llvmgnsyncbot/watch.sh buildlog html hack > watch.out 2> watch.err < /dev/null &`
+followed by `disown -h`.
+
+`annotate.py` then writes static html files to `~llvm/html`.
+
+Create symlinks in `/var/www/html` to these two directories.
+
+The webserver runs nginx in the default debian configuration.
+
+`/etc/nginx/sites-enabled/default` contains custom bits to serve `~llvm/html`
+as `/`, and currently a fallback to serve `~llvm/buildlog` at `/buildlog`:
+
+    server {
+        listen 80 default_server;
+        listen [::]:80 default_server;
+
+        root /var/www/html/html;
+
+        index summary.html;
+
+        server_name _;
+
+        location /buildlog {
+                root /var/www/html;
+                autoindex on;
+        }
+
+        location / {
+                # First attempt to serve request as file, then
+                # as directory, then fall back to displaying a 404.
+                try_files $uri $uri/ =404;
+        }
+    }
+
+After changing this config, run `nginx -s reload` to make nginx reload its
+config.
+
+This setup requires that the user running nginx can access all files and
+directories in `~llvm/buildlog` and `~llvm/html` -- directories need to be
+`+rx` for others, files need to be `+r` for others. An easy way to check this
+is `namei -m ~llvm/buildlog/linux/1.txt`.
