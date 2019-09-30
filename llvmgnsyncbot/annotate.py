@@ -301,8 +301,11 @@ Array.from(document.getElementsByTagName('time')).forEach(elt => {
             info = build_list.get_build_info(i)
             build_dir = os.path.join(platform_dir, '%d' % info['build_nr'])
             if os.path.isdir(build_dir):
-                continue
-            os.mkdir(build_dir)
+                # Rewrite the previous last build to give it a "next" link.
+                if i != build_list.num_builds() - 2:
+                    continue
+            else:
+                os.mkdir(build_dir)
             build_html = os.path.join(build_dir, 'summary.html')
             with open(build_html, 'w') as f:
                 has_next = i + 1 != build_list.num_builds()
