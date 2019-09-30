@@ -42,7 +42,7 @@ Builder setup
 
 Each builder needs some amount of one-time manual setup.
 
-1. Check out (llvm-project)[https://github.com/llvm/llvm-project/] from github
+1. Check out [llvm-project](https://github.com/llvm/llvm-project/) from github
    to some directory, e.g. `~/src/llvm-project`.
 
 1. Check out this repository here to some other directory.
@@ -65,9 +65,9 @@ Each builder needs some amount of one-time manual setup.
    with modified ctime with a new copy of the file, which in turn changes the
    mtime on the copy inputs -- which makes ninja think copy steps are dirty
    and need to be rerun on every build. This setting fixes this.
-   (More information)(1).
+   [More information][1].
 
-1: https://docs.google.com/document/d/1rRL-rWDyL0Nwr6SdQTkh1tf5kYcjDoJwKhHs8WJHQSc/
+[1]: https://docs.google.com/document/d/1rRL-rWDyL0Nwr6SdQTkh1tf5kYcjDoJwKhHs8WJHQSc/
 
 1. Create `~/.ssh/id_rsa.pub` if necessary by running `ssh-keygen -t rsa`, then
    copy it to the buildlog server with
