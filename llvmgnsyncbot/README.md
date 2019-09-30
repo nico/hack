@@ -54,10 +54,10 @@ Each builder needs some amount of one-time manual setup.
 
 1. Use `out/gn` as build directory, containing this `args.gn`:
 
-      llvm_targets_to_build = "all"
-      clang_base_path =
-          getenv("HOME") + "/src/chrome/src/third_party/llvm-build/Release+Asserts"
-      use_goma = true
+       llvm_targets_to_build = "all"
+       clang_base_path =
+           getenv("HOME") + "/src/chrome/src/third_party/llvm-build/Release+Asserts"
+       use_goma = true
 
 1. Create `~/.ssh/id_rsa.pub` if necessary by running `ssh-keygen -t rsa`, then
    copy it to the buildlog server with
