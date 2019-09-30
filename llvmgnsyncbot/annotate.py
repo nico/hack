@@ -171,6 +171,7 @@ def platform_summary(build_list):
     text = []
     num_pass = 0
     sum_pass_elapsed_s = 0
+    sum_num_commits = 0
     for i in reversed(range(build_list.num_builds())):
        info = build_list.get_build_info(i)
        start = info['steps'][0]['start']
@@ -185,19 +186,26 @@ def platform_summary(build_list):
        if did_pass:
            num_pass += 1
            sum_pass_elapsed_s += info['elapsed_s']
+       sum_num_commits += info['num_commits']
        text.append(t)
 
     # XXX
-    # average duration
     # failing step histogram
     # 1 build every N time units / day
-    # num revisions per build
-    summary = '%d/%d (%.1f%%) builds passed\n\n' % (
+    summary = '%d/%d (%.1f%%) builds pass\n' % (
         num_pass,
         build_list.num_builds(),
-        100.0 * num_pass / build_list.num_builds())
+        100.0 * num_pass / build_list.num_builds(),
+        )
+    avg_seconds = round(sum_pass_elapsed_s / float(num_pass))
+    summary += 'passing builds take %s on average\n' % (
+        str(datetime.timedelta(seconds=avg_seconds)),
+        )
+    summary += '%.2f commits per build on average\n' % (
+        sum_num_commits / float(build_list.num_builds()),
+        )
 
-    return summary + '\n'.join(text)
+    return summary + '\n' + '\n'.join(text)
 
 
 def build_details(info, has_next):
