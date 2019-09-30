@@ -200,11 +200,11 @@ def platform_summary(build_list):
     return summary + '\n'.join(text)
 
 
-def build_details(info):
+def build_details(info, has_next):
     text = []
     for j, step in enumerate(info['steps']):
        elapsed = datetime.timedelta(seconds=step['elapsed_s'])
-       t = '     %s <a href="%s">%s</a>' % (
+       t = '        %s <a href="%s">%s</a>' % (
            str(elapsed),
            'step_%d.txt' % (j + 1),
            step['name'],
@@ -215,7 +215,7 @@ def build_details(info):
     did_pass = info['exit_code'] == 0
 
     start = info['steps'][0]['start']
-    header = '%s in %s, started <time datetime="%s">%s</time>\n\n' % (
+    header = '%s in %s, started <time datetime="%s">%s</time>\n' % (
         'pass' if did_pass else 'fail',
         str(elapsed),
         start,
@@ -233,12 +233,22 @@ def build_details(info):
         info['num_commits'],
         '' if info['num_commits'] == 1 else 's',
         )
-    footer += '\n<a href="log.txt">full log</a>'
+    footer += '\n<a href="log.txt">full log</a>\n'
 
-    # XXX include
-    # link to next/prev build,
-    # link to last green build, first build with same failure,
-    return header + '\n'.join(text) + '\n\n' + footer
+    nextprev = ''
+    if has_next:
+        nextprev += '<a href="%s">next</a> ' % (
+            '../%d/summary.html' % (info['build_nr'] + 1))
+    else:
+        nextprev += '     '
+    nextprev += '<a href="../summary.html">up</a> '
+    if info['build_nr'] > 1:
+        nextprev += '<a href="%s">prev</a>' % (
+            '../%d/summary.html' % (info['build_nr'] - 1))
+    nextprev += '\n'
+
+    # XXX include link to last green build, first build with same failure (?)
+    return nextprev + '\n' + header + '\n' + '\n'.join(text) + '\n\n' + footer
 
 
 def main():
@@ -287,7 +297,8 @@ Array.from(document.getElementsByTagName('time')).forEach(elt => {
             os.mkdir(build_dir)
             build_html = os.path.join(build_dir, 'summary.html')
             with open(build_html, 'w') as f:
-                f.write(template % build_details(info))
+                has_next = i + 1 != build_list.num_builds()
+                f.write(template % build_details(info, has_next))
             with open(info['log_file']) as f:
                 log = f.read()
             with open(os.path.join(build_dir, 'log.txt'), 'w') as f:
