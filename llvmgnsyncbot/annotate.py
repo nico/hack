@@ -65,10 +65,17 @@ def parse_output(log, meta):
         steps.append(step)
 
     parsed = dict(meta)
-    m = re.search(r'^Updating [0-9a-f]+\.\.([0-9a-f]+)$',
-                  log[steps[0]['output'][0]:steps[0]['output'][1]], re.M)
+
+    pull_output = log[steps[0]['output'][0]:steps[0]['output'][1]]
+    m = re.search(r'^Updating ([0-9a-f]+)\.\.([0-9a-f]+)$', pull_output, re.M)
     assert m
-    parsed['git_revision'] = m.group(1)
+    parsed['prev_git_revision'] = m.group(1)
+    parsed['git_revision'] = m.group(2)
+    m = re.search(r"^Your branch is behind 'origin/master' by (\d+) commit",
+                  pull_output, re.M)
+    assert m
+    parsed['num_commits'] = int(m.group(1))
+
     parsed['steps'] = steps
     return parsed
 
@@ -206,16 +213,28 @@ def build_details(info):
 
     elapsed = datetime.timedelta(seconds=info['elapsed_s'])
     did_pass = info['exit_code'] == 0
-    summary = '%s %s\n\n' % (
+    header = '%s %s\n\n' % (
         'pass' if did_pass else 'fail',
         str(elapsed),
         )
 
-    # XXX include revision, number of revs in build,
+    footer = 'at rev <a href="%s">%s</a>\n' % (
+        'https://github.com/llvm/llvm-project/tree/' + info['git_revision'],
+        info['git_revision'],
+        )
+
+    revs = '%s...%s' % (info['prev_git_revision'], info['git_revision'])
+    footer += 'contains <a href="%s">%d commit%s</a>\n' % (
+        'https://github.com/llvm/llvm-project/compare/' + revs,
+        info['num_commits'],
+        '' if info['num_commits'] == 1 else 's',
+        )
+    footer += '\n<a href="log.txt">full log</a>'
+
+    # XXX include
     # link to next/prev build,
     # link to last green build, first build with same failure,
-    # number of committed changes
-    return summary + '\n'.join(text) + '\n\n<a href="log.txt">full log</a>'
+    return header + '\n'.join(text) + '\n\n' + footer
 
 
 def main():
