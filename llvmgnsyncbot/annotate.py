@@ -193,7 +193,8 @@ def platform_summary(build_list):
        sum_num_commits += info['num_commits']
        text.append(t)
 
-    summary = '<a href="../summary.html">up</a>\n\n'
+    # Include spaces for "next " on build summary pages, for fast click-through.
+    summary = '     <a href="../summary.html">up</a>\n\n'
 
     # XXX:
     # failing step histogram
