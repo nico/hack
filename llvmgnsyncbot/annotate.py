@@ -160,10 +160,14 @@ def get_newest_build(build_list):
         status += '\n    failing step: ' + newest['steps'][-1]['name']
     if last_good is not None:
         status += '\n    last good %s' % build_str(last_good)
-        revs = '%s...%s' % (last_good['git_revision'],
-                                first_fail_with_current_cause['git_revision'])
+        revs = '%s...%s' % (
+            last_good['git_revision'],
+            first_fail_with_current_cause['git_revision'],
+            )
         url = 'https://github.com/llvm/llvm-project/compare/' + revs
         status += '\n    regression range: <a href="%s">%s</a>' % (url, revs)
+
+    status += '\n    <span class="pending" hidden>%s</span>' % info['git_revision']
     return status
 
 
@@ -288,8 +292,23 @@ Array.from(document.getElementsByTagName('time')).forEach(elt => {
 });
 </script>
 '''
+    fetch = '''\
+<script>
+let url = "https://api.github.com/repos/llvm/llvm-project/git/refs/heads/master";
+fetch(url).then(response => response.json()).then(json => {
+  Array.from(document.getElementsByClassName('pending')).forEach(elt => {
+    let trunkRev = json.object.sha;
+    let curRev = elt.innerText.trim();
+    if (!trunkRev.startsWith(curRev)) {
+      elt.innerHTML = `<a href="https://github.com/llvm/llvm-project/compare/${curRev}...${trunkRev}">pending ${curRev.substring(0,8)}...${trunkRev.substring(0,8)}</a>`;
+      elt.hidden = false;
+    }
+  });
+});
+</script>
+'''
     with open(os.path.join(html_dir, 'summary.html'), 'w') as f:
-        print(template % text, file=f)
+        print(template % text + fetch, file=f)
 
     # Generate per-platform summary page, and pages for every build.
     for build_list in build_lists:
