@@ -193,10 +193,12 @@ def platform_summary(build_list):
        sum_num_commits += info['num_commits']
        text.append(t)
 
-    # XXX
+    summary = '<a href="../summary.html">up</a>\n\n'
+
+    # XXX:
     # failing step histogram
     # 1 build every N time units / day
-    summary = '%d/%d (%.1f%%) builds pass\n' % (
+    summary += '%d/%d (%.1f%%) builds pass\n' % (
         num_pass,
         build_list.num_builds(),
         100.0 * num_pass / build_list.num_builds(),
