@@ -301,8 +301,10 @@ fetch(url).then(response => response.json()).then(json => {
     let curRev = elt.innerText.trim();
     if (!trunkRev.startsWith(curRev)) {
       elt.innerHTML = `<a href="https://github.com/llvm/llvm-project/compare/${curRev}...${trunkRev}">pending ${curRev.substring(0,8)}...${trunkRev.substring(0,8)}</a>`;
-      elt.hidden = false;
+    } else {
+      elt.innerText = 'caught up';
     }
+    elt.hidden = false;
   });
 });
 </script>
