@@ -157,7 +157,12 @@ def get_newest_build(build_list):
         'passing' if newest['exit_code'] == 0 else 'failing',
         build_str(newest))
     if newest['exit_code'] != 0:
-        status += '\n    failing step: ' + newest['steps'][-1]['name']
+        status += '\n    failing step: <a href="%s/%d/%s">%s</a>' % (
+            build_list.platform,
+            newest['build_nr'],
+            'step_%d.txt' % len(newest['steps']),
+            newest['steps'][-1]['name'],
+            )
     if last_good is not None:
         status += '\n    last good %s' % build_str(last_good)
         revs = '%s...%s' % (
