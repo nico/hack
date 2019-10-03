@@ -167,7 +167,7 @@ def get_newest_build(build_list):
         url = 'https://github.com/llvm/llvm-project/compare/' + revs
         status += '\n    regression range: <a href="%s">%s</a>' % (url, revs)
 
-    status += '\n    <span class="pending" hidden>%s</span>' % info['git_revision']
+    status += '\n    <span class="pending" hidden>%s</span>' % newest['git_revision']
     return status
 
 
