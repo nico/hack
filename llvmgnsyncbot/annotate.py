@@ -300,6 +300,15 @@ Array.from(document.getElementsByTagName('time')).forEach(elt => {
 });
 </script>
 '''
+
+    # Requesting https://api.github.com/repos/llvm/llvm-project/compare/$a...$b
+    # would allow showing number of pending commits and would allow showing
+    # an ETA for the pending build (get max of finish time of latest build,
+    # timestamp of first commit in range, add average build duration),
+    # but that includes full diff contents and lots of other stuff we don't
+    # care about -- easily hundreds of kB of data, while refs/heads/master
+    # returns 368 bytes.
+    # Maybe the graphql v4 api won't require auth one day...
     fetch = '''\
 <script>
 let url = "https://api.github.com/repos/llvm/llvm-project/git/refs/heads/master";
