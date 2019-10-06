@@ -82,7 +82,7 @@ def parse_output(log, meta):
 
 def parse_buildlog(logfile, metafile):
     with open(logfile) as f:
-        log = f.read()
+        log = f.read().replace('\r\n', '\n')
     with open(metafile) as f:
         meta = json.load(f)
     return parse_output(log, meta)
@@ -204,15 +204,18 @@ def platform_summary(build_list):
     # XXX:
     # failing step histogram
     # 1 build every N time units / day
+    # stuff from the global summary page (pending builds, eta,
+    # maybe regression ranges?)
     summary += '%d/%d (%.1f%%) builds pass\n' % (
         num_pass,
         build_list.num_builds(),
         100.0 * num_pass / build_list.num_builds(),
         )
-    avg_seconds = round(sum_pass_elapsed_s / float(num_pass))
-    summary += 'passing builds take %s on average\n' % (
-        str(datetime.timedelta(seconds=avg_seconds)),
-        )
+    if num_pass > 0:
+        avg_seconds = round(sum_pass_elapsed_s / float(num_pass))
+        summary += 'passing builds take %s on average\n' % (
+            str(datetime.timedelta(seconds=avg_seconds)),
+            )
     summary += '%.2f commits per build on average\n' % (
         sum_num_commits / float(build_list.num_builds()),
         )
@@ -349,7 +352,7 @@ fetch(url).then(response => response.json()).then(json => {
                 has_next = i + 1 != build_list.num_builds()
                 f.write(template % build_details(info, has_next))
             with open(info['log_file']) as f:
-                log = f.read()
+                log = f.read().replace('\r\n', '\n')
             with open(os.path.join(build_dir, 'log.txt'), 'w') as f:
                 f.write(log)
             for j, step in enumerate(info['steps']):
