@@ -8,27 +8,7 @@ fi
 # Make created files world-readable.
 umask 022
 
-# Add something like 
-# Alias /syncbot "/usr/local/google/home/thakis/src/llvm-project/buildlogs/"  
-# <Directory /usr/local/google/home/thakis/src/llvm-project/buildlogs/>
-#    Options Indexes
-#    AllowOverride None
-#    Require all granted
-# </Directory>
-# to /etc/apache2/apache2.conf to map buildlogs to dotc.c.googlers.com/syncbot
-# Check /var/log/apache2/error.log for errors (in particular, all dirs on
-# that path need a+x permissions).
-
 while true; do
-  # XXX interesting state to return:
-  # - build successful or not
-  # - tests successful or not
-  # - were there any new commits at all
-  # - does stuff need to be merged
-  # - did the script commit something
-  # - duration of build and each test (?)
-  # - revisions new in this build
-  # - number of build edges run (?)
   SECONDS=0
   if [[ "$OSTYPE" == "msys" ]]; then
     # The `tee` and the `/usr/bin/env python` both
