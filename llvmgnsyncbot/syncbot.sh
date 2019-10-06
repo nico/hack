@@ -30,8 +30,16 @@ while true; do
   # - revisions new in this build
   # - number of build edges run (?)
   SECONDS=0
-  ./syncbot.py 2>&1 | tee curbuild.txt
-  echo '{ "elapsed_s":' $SECONDS', "exit_code":' ${PIPESTATUS[0]} '}' \
+  if [[ "$OSTYPE" == "msys" ]]; then
+    # The `tee` and the `/usr/bin/env python` both
+    # seem to not work well in `git bash`.
+    python syncbot.py >curbuild.txt 2>&1
+    EXIT_CODE=$?
+  else
+    ./syncbot.py 2>&1 | tee curbuild.txt
+    EXIT_CODE=${PIPESTATUS[0]}
+  fi
+  echo '{ "elapsed_s":' $SECONDS', "exit_code":' $EXIT_CODE '}' \
       > curbuild.meta.json
 
   # Reuse build numbers of no-op builds.
@@ -45,5 +53,8 @@ while true; do
   case "$OSTYPE" in
     darwin*) rsync -az buildlogs/ llvm@45.33.8.238:~/buildlog/mac ;;
     linux*)  rsync -az buildlogs/ llvm@45.33.8.238:~/buildlog/linux ;;
+    # msys2.org's rsync binary doesn't support old-style --compress / -z
+    # due to its external zlib. Use --new-compress / -zz to get compression.
+    msys)    rsync -azz buildlogs/ llvm@45.33.8.238:~/buildlog/win ;;
   esac
 done

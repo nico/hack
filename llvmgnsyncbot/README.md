@@ -49,8 +49,10 @@ Each builder needs some amount of one-time manual setup.
 
 1. In the root of the llvm repository, symlink `syncbot.sh` to `syncbot.sh` in
    the checkout of this directory, and do the same for `syncbot.py`.
+   XXX: Windows writeup.
 
-1. Set up the goma client in `~/goma`.
+1. Set up the goma client in `~/goma` on non-Windows, and in `c:\src\goma`
+   on Windows.
 
 1. Use `out/gn` as build directory, containing this `args.gn`:
 
@@ -59,7 +61,17 @@ Each builder needs some amount of one-time manual setup.
            getenv("HOME") + "/src/chrome/src/third_party/llvm-build/Release+Asserts"
        use_goma = true
 
-1. Run `git config core.trustctime false` in the llvm checkout.
+   On Windows, use this for `clang_base_path` instead:
+
+       clang_base_path = "c:/src/chrome/src/third_party/llvm-build/Release+Asserts"
+
+1. On Windows, most of the build runs natively, but rsync needs a cygwin-like
+   environment, and since it's needed for that anyways, syncbot.sh runs in it
+   too. It's easiest to use a `git bash` shell. To add `rsync` to it, grab
+   [rsync off the msys2 repo][rsync] and put it in
+   `dirname $(cygpath -w $(which ls))` (just `bin/rsync.exe` is enough).
+
+1. On non-Windows, Run `git config core.trustctime false` in the llvm checkout.
    The GN build uses hardlinks to copy files, which changes the ctime on the
    copy source inode. By default, `git checkout -f master` will replace files
    with modified ctime with a new copy of the file, which in turn changes the
@@ -78,6 +90,7 @@ Each builder needs some amount of one-time manual setup.
    the LLVM checkout. Then disconnect from the builder.
 
 [1]: https://docs.google.com/document/d/1rRL-rWDyL0Nwr6SdQTkh1tf5kYcjDoJwKhHs8WJHQSc/
+[rsync]: http://repo.msys2.org/msys/x86_64/rsync-3.1.2-2-x86_64.pkg.tar.xz
 
 Server setup
 ------------
