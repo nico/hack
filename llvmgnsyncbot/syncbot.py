@@ -93,8 +93,13 @@ def run():
     logging.info('testing')
     tests = [
             'check-clang',
-            'check-clangd',
-            'check-clang-tools',
+    ]
+    if sys.platform != 'win32':
+        tests += [
+            'check-clangd',      # PR43592
+            'check-clang-tools', # PR43593
+        ]
+    tests += [
             'check-lld',
             'check-llvm',
     ]
