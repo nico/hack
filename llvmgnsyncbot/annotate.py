@@ -298,9 +298,9 @@ def main():
 <style>
 @media(prefers-color-scheme:dark){
 body{color:#E8EAED;background:#202124;}
-a{color:#2196F3;}
+a{color:#8AB4F8;}
 a:active{color:#EF5350;}
-a:visited{color:#BA68C8;}
+a:visited{color:#B388FF;}
 }
 </style>
 <pre>%s</pre>
