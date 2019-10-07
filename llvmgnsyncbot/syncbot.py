@@ -79,7 +79,10 @@ def run():
 
     # Build/test.
     logging.info('restart goma')
-    subprocess.check_call([os.path.expanduser('~/goma/goma_ctl.py'), 'restart'])
+    if sys.platform == 'win32':
+        subprocess.check_call([r'c:\src\goma\goma-win64\goma_ctl.bat', 'restart'])
+    else:
+        subprocess.check_call([os.path.expanduser('~/goma/goma_ctl.py'), 'restart'])
     logging.info('building')
     j = '-j1000'
     if sys.platform == 'darwin':
@@ -95,7 +98,7 @@ def run():
             'check-lld',
             'check-llvm',
     ]
-    if sys.platform != 'darwin':
+    if sys.platform not in ['darwin', 'win32' ]:
         tests += [ 'check-hwasan' ]
     for test in tests:
         logging.info('test %s', test)
