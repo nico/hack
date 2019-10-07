@@ -12,28 +12,21 @@ portable thing is to explicitly set all colors and use prefer-color-scheme.
 It's way more code, but in addition to working cross-browser is that links
 are readable in Safari with this as well.
 */
-html {
-  --grey-900: #202124;
-
-  --interactive-color: #1A73E8;
-  --interactive-active-color: red;
-  --interactive-visited-color: #551A8B;
-  --primary-color: var(--grey-900);
-  background: white;
+html{
+--grey-900:#202124;
+--color:var(--grey-900);
+--a:#1A73E8;--a-active:red;--a-visited:#551A8B;
+background:white;
 }
-@media (prefers-color-scheme:dark) {
-  html {
-    --interactive-color: #8AB4F8;
-    --interactive-active-color: #EF5350;
-    --interactive-visited-color: #7E57C2;
-    --primary-color: #E8EAED;
-    background: var(--grey-900);
-  }
-}
-body { color: var(--primary-color); }
-a { color: var(--interactive-color); }
-a:active { color: var(--interactive-active-color); }
-a:visited { color: var(--interactive-visited-color); }
+@media(prefers-color-scheme:dark){html{
+--color:#E8EAED;
+--a:#8AB4F8;--a-active:#EF5350;--a-visited:#7E57C2;
+background:var(--grey-900);
+}}
+body{color:var(--color);}
+a{color:var(--a);}
+a:active{color:var(--a-active);}
+a:visited{color:var(--a-visited);}
 </style>
 <h1>heading</h1>
 <pre>yo here's a <a href="https://gaaogle.com">link</a>.
