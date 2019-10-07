@@ -300,7 +300,7 @@ def main():
 body{color:#E8EAED;background:#202124;}
 a{color:#8AB4F8;}
 a:active{color:#EF5350;}
-a:visited{color:#7E57C2;}
+a:visited{color:#B388FF;}
 }
 </style>
 <pre>%s</pre>
