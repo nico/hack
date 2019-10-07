@@ -295,6 +295,14 @@ def main():
 <!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>LLVM GN buildbot</title>
+<style>
+@media(prefers-color-scheme:dark){
+body{color:#E8EAED;background:#202124;}
+a{color:#8AB4F8;}
+a:active{color:#EF5350;}
+a:visited{color:#7E57C2;}
+}
+</style>
 <pre>%s</pre>
 <script>
 Array.from(document.getElementsByTagName('time')).forEach(elt => {
