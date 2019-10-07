@@ -1,0 +1,39 @@
+<!doctype html>
+<title>dark mode theme test</title>
+<style>
+/*
+With just
+  <meta name="supported-color-schemes" content="light dark">
+Safari (but no other browser) will auto-adjust colors to dark mode -- but the
+default link color doesn't change so links are hard to read. Also, it was
+renamed to `color-scheme: light dark` (also avail as meta tag) recently,
+and no shipping Safari (or other browser) supports that yet. So for now, the
+portable thing is to explicitly set all colors and use prefer-color-scheme.
+It's way more code, but in addition to working cross-browser is that links
+are readable in Safari with this as well.
+*/
+html {
+  --grey-900: rgb(32, 33, 36);
+
+  --interactive-color: rgb(26, 115, 232);
+  --interactive-active-color: red;
+  --interactive-visited-color: #551A8B;
+  --primary-color: var(--grey-900);
+  background: white;
+}
+@media (prefers-color-scheme:dark) {
+  html {
+    --interactive-color: rgb(138, 180, 248);
+    --interactive-active-color: #EF5350;
+    --interactive-visited-color: #7E57C2;
+    --primary-color: rgb(232, 234, 237);
+    background: var(--grey-900);
+  }
+}
+body { color: var(--primary-color); }
+a { color: var(--interactive-color); }
+a:active { color: var(--interactive-active-color); }
+a:visited { color: var(--interactive-visited-color); }
+</style>
+<h1>heading</h1>
+<pre>yo here's a <a href="https://gaaogle.com">link</a>.
