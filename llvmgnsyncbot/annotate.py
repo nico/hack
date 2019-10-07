@@ -144,7 +144,6 @@ def get_newest_build(build_list):
             last_good = info
             break
 
-    # FIXME: if fail, link to logfile?
     def build_str(info):
         elapsed = datetime.timedelta(seconds=info['elapsed_s'])
         start = info['start_utc']
