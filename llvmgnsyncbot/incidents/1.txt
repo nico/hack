@@ -1,0 +1,115 @@
+"pulling..." step failing on Windows, causing thousands of builds
+=================================================================
+
+Date: 2019-10-09T04:49:36Z
+
+What
+----
+
+[r374139](http://reviews.llvm.org/rL374139) added two binary files, it
+made the "pulling..." stage fail like so:
+
+    INFO:2019-10-09T04:49:36Z:root:pulling...
+    From https://github.com/llvm/llvm-project
+     * branch                    master     -> FETCH_HEAD
+       0746aafd897..4ac388f7cac  master     -> origin/master
+    Your branch is behind 'origin/master' by 1 commit, and can be fast-forwarded.
+      (use "git pull" to update your local branch)
+    Switched to branch 'master'
+    error: unable to stat just-written file llvm/test/tools/dsymutil/Inputs/private/tmp/common/com1.o: No such file or directory
+    error: unable to create file llvm/test/tools/dsymutil/Inputs/private/tmp/common/com2.o: No such file or directory
+    Checking out files:  80% (4/5)   
+    Checking out files: 100% (5/5)   
+    Checking out files: 100% (5/5), done.
+    Updating 0746aafd897..4ac388f7cac
+    Traceback (most recent call last):
+      File "syncbot.py", line 132, in <module>
+        sys.exit(main())
+      File "syncbot.py", line 128, in main
+        run()
+      File "syncbot.py", line 66, in run
+        check_git(['merge', '--ff-only', 'origin/master'])
+      File "syncbot.py", line 37, in check_git
+        return subprocess.check_call(['git'] + args)
+      File "C:\python_27_amd64\files\lib\subprocess.py", line 190, in check_call
+        raise CalledProcessError(retcode, cmd)
+    subprocess.CalledProcessError: Command '['git', 'merge', '--ff-only', 'origin/master']' returned non-zero exit status 1
+
+From here on, every "pulling..." failed with
+
+    From https://github.com/llvm/llvm-project
+     * branch                    master     -> FETCH_HEAD
+    Your branch is behind 'origin/master' by 1 commit, and can be fast-forwarded.
+      (use "git pull" to update your local branch)
+    Already on 'master'
+    Updating 0746aafd897..4ac388f7cac
+    error: The following untracked working tree files would be overwritten by merge:
+            llvm/test/tools/dsymutil/Inputs/private/tmp/common/com
+            llvm/test/tools/dsymutil/X86/common-sym-multi.test
+    Please move or remove them before you merge.
+    Aborting
+    Traceback (most recent call last):
+      File "syncbot.py", line 132, in <module>
+        sys.exit(main())
+      File "syncbot.py", line 128, in main
+        run()
+      File "syncbot.py", line 66, in run
+        check_git(['merge', '--ff-only', 'origin/master'])
+      File "syncbot.py", line 37, in check_git
+        return subprocess.check_call(['git'] + args)
+      File "C:\python_27_amd64\files\lib\subprocess.py", line 190, in check_call
+        raise CalledProcessError(retcode, cmd)
+    subprocess.CalledProcessError: Command '['git', 'merge', '--ff-only', 'origin/master']' returned non-zero exit status 1
+
+[r374144](http://reviews.llvm.org/rL374144) reverted that change again 4 hours
+later.
+
+After this, things recovered.
+
+However, since the error happened during syncing, `syncbot.py`'s checkpointing
+thought that there were new commits all the time and cycled through builds
+as fast as it could. On Windows, that's luckily not very fast, but the builder
+still recorded 2523 builds (compared to 92 existing legit builds) in the
+4h15min things were broken.
+
+Also, I happened to check the state of things while the first good build
+was running, and since it takes 50 minutes on Win and there's no indication of
+an ongoing build and there were 2523 failing builds, I didn't realize that
+things were already fixed.
+
+Why
+===
+
+r374139 added a file called `con`, which is a reserved name on Windows.
+
+`syncbot.py`s compares the rev on the branches `master` and `origin/master` to
+check if new commits are present. If the two branches are different, it runs
+`git checkout -f master && git merge --ff-only origin/master` to update
+the local `master` branch (and then builds).
+
+Since the `git merge` itself was failing, `master` and `origin/master` never
+got equal until the fix landed.
+
+Now what
+========
+
+Ideas for merge issue:
+
+1. In `syncbot.sh`, if a build takes less than 15 seconds, chances are something
+   went wrong. Sleep for 5 min or so? With this, the builder would still have
+   spammed ~50 builds, which is still way too many, but better than 2500.
+
+1. Make `syncbot.py` check if `git merge` fails and if so, sleep there.
+
+1. Make `syncbot.py` not use git state for checkpointing. Write last seen rev
+   on `origin/master` to a state file somewhere, and compare `origin/master`
+   to the state on next run, instead of comparing to `master`. This way,
+   at most one build per upstream rev is guaranteed, even if `git merge` fails.
+
+Ideas for pending build issue:
+
+1. Maybe sync logs after every completed build step instead of just after every
+   build?
+
+1. Figure out why the Windows bot is so slow. If it's 10x faster, this is less
+   of an issue.
