@@ -30,6 +30,7 @@ while true; do
     echo $build_num > syncbot.state
   fi
 
+  # Upload buildlogs.
   case "$OSTYPE" in
     darwin*) rsync -az buildlogs/ llvm@45.33.8.238:~/buildlog/mac ;;
     linux*)  rsync -az buildlogs/ llvm@45.33.8.238:~/buildlog/linux ;;

@@ -45,19 +45,15 @@ def run():
 
     # Pull.
     logging.info('pulling...')
-    check_git(['fetch', 'origin', 'master'])
-
-    # Check if it's the same ref
-    # as HEAD, in which case nothing happened since the last time
-    # the script ran.
-    local_ref = git_output(['rev-parse', 'master'])
-    remote_ref = git_output(['rev-parse', 'origin/master'])
-
-    # Need to compare master and origin/master instead of merge and
-    # origin/master, else we'd busy-loop if sync_source_lists_from_cmake
-    # creates commits on the merge branch that don't build cleanly
-    # (e.g. when trunk is broken for unrelated reasons).
-    if local_ref == remote_ref:
+    try:
+        old_rev = git_output(['rev-parse', 'origin/master'])
+        check_git(['fetch', 'origin', 'master'])
+        new_rev = git_output(['rev-parse', 'origin/master'])
+    except subprocess.CalledProcessError:
+        # Connectivity issues. Wait a bit and hope it goes away.
+        time.sleep(5 * 60)
+        raise
+    if old_rev == new_rev:
         logging.info('no new commits. sleeping for 30s, then exiting.')
         time.sleep(30)
         return
