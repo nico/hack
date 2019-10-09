@@ -1,0 +1,5 @@
+/* @media(prefers-color-scheme:dark) is in <link> already, don't need it here */
+body{color:#E8EAED;background:#202124;}
+a{color:#8AB4F8;}
+a:active{color:#EF5350;}
+a:visited{color:#B388FF;}
