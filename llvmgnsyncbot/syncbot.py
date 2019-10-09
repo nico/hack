@@ -97,9 +97,9 @@ def run():
     if sys.platform != 'win32':
         tests += [
             'check-clangd',      # PR43592
-            'check-clang-tools', # PR43593
         ]
     tests += [
+            'check-clang-tools',
             'check-lld',
             'check-llvm',
     ]
