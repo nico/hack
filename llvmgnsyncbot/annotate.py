@@ -65,15 +65,18 @@ def parse_output(log, meta):
 
     parsed = dict(meta)
 
-    pull_output = log[steps[0]['output'][0]:steps[0]['output'][1]]
-    m = re.search(r'^Updating ([0-9a-f]+)\.\.([0-9a-f]+)$', pull_output, re.M)
-    assert m
-    parsed['prev_git_revision'] = m.group(1)
-    parsed['git_revision'] = m.group(2)
-    m = re.search(r"^Your branch is behind 'origin/master' by (\d+) commit",
-                  pull_output, re.M)
-    assert m
-    parsed['num_commits'] = int(m.group(1))
+    # If the pull step failed, don't try to parse its output.
+    if len(steps) > 1:
+        pull_output = log[steps[0]['output'][0]:steps[0]['output'][1]]
+        m = re.search(r'^Updating ([0-9a-f]+)\.\.([0-9a-f]+)$', pull_output,
+                      re.M)
+        assert m
+        parsed['prev_git_revision'] = m.group(1)
+        parsed['git_revision'] = m.group(2)
+        m = re.search(r"^Your branch is behind 'origin/master' by (\d+) commit",
+                      pull_output, re.M)
+        assert m
+        parsed['num_commits'] = int(m.group(1))
 
     parsed['start_utc'] = annot_lines[0][1]
     parsed['steps'] = steps
@@ -128,8 +131,11 @@ def get_newest_build(build_list):
     # is broken someone breaks a test, and then compile is fixed.
     currently_failing_step = None
     first_fail_with_current_cause = None
+    newest_rev = None
     for i in reversed(range(build_list.num_builds())):
         info = build_list.get_build_info(i)
+        if newest_rev is None and 'git_revision' in info:
+            newest_rev = info['git_revision']
         if newest is None:
             newest = info
             if newest['exit_code'] == 0:
@@ -164,6 +170,8 @@ def get_newest_build(build_list):
             )
     if last_good is not None:
         status += '\n    last good %s' % build_str(last_good)
+    if last_good is not None and \
+            'git_revision' in first_fail_with_current_cause:
         revs = '%s...%s' % (
             last_good['git_revision'],
             first_fail_with_current_cause['git_revision'],
@@ -171,7 +179,7 @@ def get_newest_build(build_list):
         url = 'https://github.com/llvm/llvm-project/compare/' + revs
         status += '\n    regression range: <a href="%s">%s</a>' % (url, revs)
 
-    status += '\n    <span class="pending" hidden>%s</span>' % newest['git_revision']
+    status += '\n    <span class="pending" hidden>%s</span>' % newest_rev
     return status
 
 
@@ -194,7 +202,7 @@ def platform_summary(build_list):
        if did_pass:
            num_pass += 1
            sum_pass_elapsed_s += info['elapsed_s']
-       sum_num_commits += info['num_commits']
+       sum_num_commits += info.get('num_commits', 0)
        text.append(t)
 
     # Include spaces for "next " on build summary pages, for fast click-through.
@@ -244,17 +252,19 @@ def build_details(info, has_next):
         start,
         )
 
-    footer = 'at rev <a href="%s">%s</a>\n' % (
-        'https://github.com/llvm/llvm-project/tree/' + info['git_revision'],
-        info['git_revision'],
-        )
+    footer = ''
+    if 'git_revision' in info:
+        footer = 'at rev <a href="%s">%s</a>\n' % (
+            'https://github.com/llvm/llvm-project/tree/' + info['git_revision'],
+            info['git_revision'],
+            )
 
-    revs = '%s...%s' % (info['prev_git_revision'], info['git_revision'])
-    footer += 'contains <a href="%s">%d commit%s</a>\n' % (
-        'https://github.com/llvm/llvm-project/compare/' + revs,
-        info['num_commits'],
-        '' if info['num_commits'] == 1 else 's',
-        )
+        revs = '%s...%s' % (info['prev_git_revision'], info['git_revision'])
+        footer += 'contains <a href="%s">%d commit%s</a>\n' % (
+            'https://github.com/llvm/llvm-project/compare/' + revs,
+            info['num_commits'],
+            '' if info['num_commits'] == 1 else 's',
+            )
     footer += '\n<a href="log.txt">full log</a>\n'
 
     nextprev = ''
