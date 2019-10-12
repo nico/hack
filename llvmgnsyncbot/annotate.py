@@ -47,7 +47,8 @@ def parse_output(log, meta):
         assert log[-1] == '\n'
         assert annot_lines[-1][4] + 1 == len(log)
         del annot_lines[-1]
-        assert abs(sum(elapsed_s) - meta['elapsed_s']) <= 1
+        time_error = abs(sum(elapsed_s) - meta['elapsed_s'])
+        assert time_error <= 2, 'time diff %d' % time_error
     else:
         assert meta.get('exit_code', 0) != 0
         elapsed_s.append(meta['elapsed_s'] - sum(elapsed_s))
