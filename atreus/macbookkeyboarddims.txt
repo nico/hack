@@ -1,0 +1,29 @@
+4 1/8 inner height fits well
+
+4 1/16 exact?
+10.2 mm
+
+10 3/4 wide should fit
+27.2cm pretty tight upper bound
+
+ca 3/16 (1/8?) gap from keys to rim
+
+ca 1/4 from speaker to keys
+
+3.5/7 mm
+
+
+~2.5mm radius
+0.01 in
+3/32 in
+
+
+cm board:
+10.25cm x 27.25cm   == 282.5 x 112.5 mm outer dims
+5mm wide
+2.5mm outer corner radius
+
+in board:
+4 1/16 x 10 3/4    == 11 1/4 x 4 9/16 outer dims
+1/4 in wide
+3/32 outer corner radius
