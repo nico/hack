@@ -83,8 +83,18 @@ Each builder needs some amount of one-time manual setup.
    copy it to the buildlog server with
    `cat ~/.ssh/id_rsa.pub | ssh llvm@45.33.8.238 'cat >> .ssh/authorized_keys'`
 
-1. On the linux bot, make sure svn auth for https://llvm.org:443 on the linux
-   bot is set to the gnsyncbot svn account.
+1. On the linux bot, run `git config user.email llvmgnsyncbot@gmail.com` and
+   `git config user.name "LLVM GN Syncbot"` in the LLVM checkout used by the
+   bot.
+
+1. On the linux bot, generate a second public key with
+   `ssh-keygen -t rsa -f ~/.ssh -f ~/.ssh/llvmgnsyncbot_id_rsa`, and add the
+   `.pub` file contents as SSH key on https://github.com/settings/keys for
+   the llvmgnsyncbot github account. Run
+   `git config core.sshCommand "ssh -i ~/.ssh/llvmgnsyncbot_id_rsa"` in the LLVM
+   checkout used by the bot. If the checkout is using https, run
+   `git remote set-url origin git@github.com:llvm/llvm-project.git` to move
+   to SSH.
 
 1. In a tmux or screen session, or a CRD window, run `./syncbot.sh` while in
    the LLVM checkout. Then disconnect from the builder.
