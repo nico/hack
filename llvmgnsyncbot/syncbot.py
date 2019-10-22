@@ -103,7 +103,7 @@ def run():
     # All worked fine, so land changes (if any).
     if sys.platform.startswith('linux'):
         logging.info('committing changes')
-        subprocess.check_call(['llvm/utils/git-svn/git-llvm', 'push', '-f'])
+        check_git(['push', 'origin', 'HEAD:master'])
 
     logging.info('done')
 
