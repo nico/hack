@@ -158,7 +158,7 @@ int main(int argc, char* argv[]) {
   else
     drawMandelbrot_sse(pix, w, h);  // 2000 x 1400 takes about 1.3s / 0.4 at O2
 
-  // Takes about 0.1s / 0.08s at O2
+  // takes about 0.1s / 0.08s at O2
   FILE* f = fopen("mandel.png", "wb");
   wpng(w, h, (uint8_t*)pix, f);  // assumes little-endian, but so does SSE
   fclose(f);
