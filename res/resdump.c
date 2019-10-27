@@ -95,6 +95,92 @@ static const char* type_str(uint16_t type) {
   }
 }
 
+enum WithIdStr { kIdStr, kNoIdStr };
+static uint16_t dump_id(
+    const char* name, uint8_t** data, enum WithIdStr id_str) {
+  uint16_t id = read_little_short(data);
+  if (id == 0xffff) {
+    id = read_little_short(data);
+    if (id_str == kIdStr)
+      printf("  %s 0x%" PRIx32 " (%s) ", name, id, type_str(id));
+    else
+      printf("  %s 0x%" PRIx32 " ", name, id);
+    return id;
+  } else {
+    printf("  %s \"", name);
+    while (id != 0) {
+      if (id < 128)
+        fputc(id, stdout);
+      else
+        fputc('?', stdout);
+      id = read_little_short(data);
+    }
+    printf("\" ");
+    return 0xffff;
+  }
+}
+
+static void dump_RT_DIALOG_details(uint8_t* data) {
+  uint8_t* dialog_start = data;
+  uint32_t style = read_little_long(&data);
+  printf("  dialog style 0x%" PRIx32 "\n", style);
+  uint32_t exstyle = read_little_long(&data);
+  printf("  dialog exstyle 0x%" PRIx32 "\n", exstyle);
+
+  uint16_t child_count = read_little_short(&data);
+  printf("  control count %d\n", child_count);
+
+  uint16_t x = read_little_short(&data);
+  uint16_t y = read_little_short(&data);
+  uint16_t w = read_little_short(&data);
+  uint16_t h = read_little_short(&data);
+  printf("  rect %d %d %d %d\n", x, y, w, h);
+
+  dump_id("menu", &data, kNoIdStr); printf("\n");
+  dump_id("class", &data, kNoIdStr); printf("\n");
+
+  // This is a bit of a hack; as far as I know this is always a string,
+  // never an ID. But in practice no string starts with 0xffff do dump_id()
+  // works.
+  dump_id("caption", &data, kNoIdStr); printf("\n");
+
+  if (style & 0x40) {
+    uint16_t font_size = read_little_short(&data);
+    printf("  font size %d bytes\n", font_size);
+    data += font_size;  // XXX dump font name?
+  }
+
+  if ((data - dialog_start) % 4)
+    data += 2;  // Pad to dword.
+
+  for (int i = 0; i < child_count; ++i) {
+    uint8_t* control_start = data;
+    uint32_t ctrl_style = read_little_long(&data);
+    printf("  control style 0x%" PRIx32 "\n", ctrl_style);
+    uint32_t ctrl_exstyle = read_little_long(&data);
+    printf("  control exstyle 0x%" PRIx32 "\n", ctrl_exstyle);
+
+    uint16_t ctrl_x = read_little_short(&data);
+    uint16_t ctrl_y = read_little_short(&data);
+    uint16_t ctrl_w = read_little_short(&data);
+    uint16_t ctrl_h = read_little_short(&data);
+    printf("  control rect %d %d %d %d\n", ctrl_x, ctrl_y, ctrl_w, ctrl_h);
+
+    uint16_t ctrl_id = read_little_short(&data);
+    printf("  control id 0x%x\n", ctrl_id);
+
+    dump_id("control class", &data, kNoIdStr); printf("\n");
+    dump_id("control text", &data, kNoIdStr); printf("\n");
+
+    uint16_t ctrl_extradata = read_little_short(&data);
+    printf("  %d bytes control extradata\n", ctrl_extradata);
+    data += ctrl_extradata;
+
+    if ((data - control_start) % 4)
+      data += 2;  // Pad to dword.
+  }
+}
+
 static size_t dump_resource_entry(uint8_t* data) {
   uint32_t data_size = read_little_long(&data);
   uint32_t header_size = read_little_long(&data);
@@ -111,36 +197,8 @@ static size_t dump_resource_entry(uint8_t* data) {
   // inline zero-terminated utf-16le strings. After name, there might be one
   // word of padding to align data_version.
   uint8_t* string_start = data;
-  uint16_t type = read_little_short(&data);
-  if (type == 0xffff) {
-    type = read_little_short(&data);
-    printf("  type 0x%" PRIx32 " (%s) ", type, type_str(type));
-  } else {
-    printf("  type \"");
-    while (type != 0) {
-      if (type < 128)
-        fputc(type, stdout);
-      else
-        fputc('?', stdout);
-      type = read_little_short(&data);
-    }
-    printf("\" ");
-  }
-  uint16_t name = read_little_short(&data);
-  if (name == 0xffff) {
-    name = read_little_short(&data);
-    printf("name 0x%" PRIx32 " ", name);
-  } else {
-    printf("name \"");
-    while (name != 0) {
-      if (name < 128)
-        fputc(name, stdout);
-      else
-        fputc('?', stdout);
-      name = read_little_short(&data);
-    }
-    printf("\" ");
-  }
+  uint16_t type = dump_id("type", &data, kIdStr);
+  dump_id("name", &data, kNoIdStr);
   // Pad to dword boundary:
   if ((data - string_start) & 2)
     data += 2;
@@ -155,6 +213,9 @@ static size_t dump_resource_entry(uint8_t* data) {
   printf("  memflags 0x%" PRIx16 " langid %" PRIu16 " version %" PRIx32 "\n",
          memory_flags, language_id, version);
   printf("  characteristics %" PRIx32 "\n", characteristics);
+
+  if (type == 5)
+    dump_RT_DIALOG_details(data);
 
   uint32_t total_size = data_size + header_size;
   return total_size + ((4 - (total_size & 3)) & 3);  // DWORD-align.
