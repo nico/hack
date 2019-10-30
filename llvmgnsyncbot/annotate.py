@@ -69,8 +69,10 @@ def parse_output(log, meta):
     # If the pull step failed, don't try to parse its output.
     if len(steps) > 1:
         pull_output = log[steps[0]['output'][0]:steps[0]['output'][1]]
-        m = re.search(r'^Updating ([0-9a-f]+)\.\.([0-9a-f]+)$', pull_output,
-                      re.M)
+        # Matches:
+        #   70caa1fc30c..5c9bdc79e1f  master     -> origin/master
+        rev = r'^\s+([0-9a-f]+)\.\.([0-9a-f]+)\s+master\s+->\s+origin/master$'
+        m = re.search(rev, pull_output, re.M)
         assert m
         parsed['prev_git_revision'] = m.group(1)
         parsed['git_revision'] = m.group(2)

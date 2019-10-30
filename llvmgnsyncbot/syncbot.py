@@ -59,7 +59,7 @@ def run():
         return
 
     check_git(['checkout', '-f', 'master'])
-    check_git(['merge', '--ff-only', 'origin/master'])
+    check_git(['reset', '--hard', 'origin/master'])
 
     # Sync GN files.
     logging.info('syncing...')
