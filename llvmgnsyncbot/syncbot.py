@@ -76,9 +76,11 @@ def run():
     # Build/test.
     logging.info('restart goma')
     if sys.platform == 'win32':
-        subprocess.check_call([r'c:\src\goma\goma-win64\goma_ctl.bat', 'restart'])
+        goma_ctl = r'c:\src\goma\goma-win64\goma_ctl.py'
     else:
-        subprocess.check_call([os.path.expanduser('~/goma/goma_ctl.py'), 'restart'])
+        goma_ctl = os.path.expanduser('~/goma/goma_ctl.py')
+    subprocess.check_call([sys.executable, goma_ctl, 'restart'])
+
     logging.info('building')
     j = '-j1000'
     if sys.platform == 'darwin':
