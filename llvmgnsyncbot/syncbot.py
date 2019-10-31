@@ -103,7 +103,13 @@ def run():
         subprocess.check_call(['ninja', '-C', 'out/gn', test])
 
     # All worked fine, so land changes (if any).
-    if sys.platform.startswith('linux'):
+    if (sys.platform.startswith('linux') and
+            git(['diff', '--quiet', 'master']) != 0):
+        # FIXME: Maybe fetch and rebase before pushing, so that the commit
+        # works if something landed while tests ran -- see
+        # http://lists.llvm.org/pipermail/llvm-dev/2019-October/136266.html
+        # If I do that, I need to change the triggering logic, else the next
+        # build won't build the commits fetched here.
         logging.info('committing changes')
         check_git(['push', 'origin', 'HEAD:master'])
 
