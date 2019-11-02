@@ -27,3 +27,75 @@ in board:
 4 1/16 x 10 3/4    == 11 1/4 x 4 9/16 outer dims
 1/4 in wide
 3/32 outer corner radius
+
+
+With better ruler:
+27.2 cm wide enough, maybe even 27.1 cm
+at least 10.3 cm high, maybe more
+
+
+
+cm board:
+Ordered:
+282.5 x 112.5 mm outer dims
+  (says inkscape's rect tool; select tool says 282.6 x 112.6mm, due to stroke
+  width of 0.1mm)
+272.5 x 102.5 mm inner dims
+5mm wide
+2.5mm outer corner radius
+
+Got:
+Upper: 283.5 (!) mm x 112mm
+Lower: 282.5 mm x 112mm
+       272.5 mm x 102.5mm
+       On one side more 4mm wide
+
+Inner width pretty good fit, could be a taaad smaller.
+Inner height too small.
+
+5mm width almost a bit flimsy.
+
+
+
+in board:
+Got:
+Upper: 285 mm x 114 mm
+Lower: 285 mm x 114 mm
+       273 mm x 103 mm
+
+Inner width too big.
+Inner height almost-but-not-quite fits.
+
+6mm width almost a bit much.
+
+
+
+Next:
+4mm wide
+3.5mm outer corner radius
+
+Inner corner radius: 0.5mm
+Inner: 272mm x 103.5mm?
+Outer: 280mm x 111.5mm?
+
+Inner corner radius: 1mm
+Inner: 272.5mm x 104mm?
+Outer: 280.5mm x 112mm?
+
+
+Got:
+3.5mm outer corner radius
+
+4mm wide rim y, 3.5m wide rim x
+Inner corner radius: 0.5mm
+Inner: 272mm x 103.5mm?
+Outer: 279mm (-1) x 111.5mm?
+
+3.5m wide rim
+Inner corner radius: 1mm
+Inner: 272.5mm x 104mm?
+Outer: 279.5mm (-1) x 111mm (-1)?
+
+
+Both fit. THe smaller one fits pretty well. Could maybe be 0.5 less wide still.
+Inner radius can be 1mm for sure. Rim could maybe be 3mm instead of 4mm.
