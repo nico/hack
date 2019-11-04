@@ -318,8 +318,13 @@ a:visited{color:#B388FF;}
 </style>
 <pre>%s</pre>
 <script>
+let todaysDate = new Date().toDateString();
 Array.from(document.getElementsByTagName('time')).forEach(elt => {
-  elt.innerText = new Date(elt.getAttribute('datetime')).toLocaleString();
+  let date = new Date(elt.getAttribute('datetime'));
+  if (date.toDateString() === todaysDate)
+    elt.innerText = date.toLocaleTimeString();
+  else
+    elt.innerText = date.toLocaleString();
 });
 </script>
 '''
