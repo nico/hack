@@ -191,22 +191,33 @@ def platform_summary(build_list):
     num_pass = 0
     sum_pass_elapsed_s = 0
     sum_num_commits = 0
+    NUM_BUILDS_TO_SHOW = 2000
     for i in reversed(range(build_list.num_builds())):
        info = build_list.get_build_info(i)
-       start = info['start_utc']
        did_pass = info['exit_code'] == 0
+       # XXX duration (as graph), only for successful builds
+       if did_pass:
+           num_pass += 1
+           sum_pass_elapsed_s += info['elapsed_s']
+       sum_num_commits += info.get('num_commits', 0)
+
+       # Chrome gets slow at over 2500 builds, so truncate after 2000 builds.
+       # That's about a month of builds.
+       # XXX: Paginate, eventually.
+       if build_list.num_builds() - i > NUM_BUILDS_TO_SHOW:
+           continue  # NOT 'break', for stats collected earlier in loop.
+       start = info['start_utc']
        t = '<a href="%s">%5d</a> %s %s' % (
                           '%d/summary.html' % info['build_nr'],
                           info['build_nr'],
                           'pass' if did_pass else 'fail',
                           start,
                          )
-       # XXX duration (as graph), only for successful builds
-       if did_pass:
-           num_pass += 1
-           sum_pass_elapsed_s += info['elapsed_s']
-       sum_num_commits += info.get('num_commits', 0)
        text.append(t)
+
+    if build_list.num_builds() > NUM_BUILDS_TO_SHOW:
+      text.append('(and %d more builds)' % (
+                      build_list.num_builds() - NUM_BUILDS_TO_SHOW))
 
     # Include spaces for "next " on build summary pages, for fast click-through.
     summary = '     <a href="../summary.html">up</a>\n\n'
