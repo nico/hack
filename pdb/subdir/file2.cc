@@ -1,1 +1,1 @@
-int f() { return 42; }
+int f() { return 32; }

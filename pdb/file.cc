@@ -1,3 +1,4 @@
+int f();
 int main() {
-  return 42;
+  return f();
 }
