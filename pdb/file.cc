@@ -1,4 +1,4 @@
-int f();
+int f(int i);
 int main() {
-  return f();
+  return f(42);
 }
