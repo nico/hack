@@ -157,12 +157,12 @@ def get_newest_build(build_list):
         elapsed = datetime.timedelta(seconds=info['elapsed_s'])
         start = info['start_utc']
         log = '%s/%d/summary.html' % (build_list.platform, info['build_nr'])
-        return 'build <a href="%s">%d</a> (<time datetime="%s">%s</time>, elapsed %s)' % (
+        return 'build <a href="%s">%d</a> (<time datetime="%s">%s</time>, took %s)' % (
             log, info['build_nr'], start, start, str(elapsed))
     status = '<a href="%s">%s</a> %s, %s' % (
         build_list.platform + '/summary.html',
         build_list.platform,
-        'passing' if newest['exit_code'] == 0 else 'failing',
+        'pass' if newest['exit_code'] == 0 else 'fail',
         build_str(newest))
     if newest['exit_code'] != 0:
         status += '\n    failing step: <a href="%s/%d/%s">%s</a>' % (
