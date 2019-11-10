@@ -45,6 +45,7 @@ struct CFBHeader {
   uint16_t byte_order;  // MUST be 0xFFFE (implying little endian).
   uint16_t sector_shift;  // MUST be 9 if version is 3, 0xc if version is 12.
 
+
   uint16_t mini_sector_shift;  // MUST be 6.
   uint8_t reserved[6];  // MUST be all zeroes.
 
@@ -59,6 +60,7 @@ struct CFBHeader {
   uint32_t mini_stream_cutoff_size;  // MUST be 4096.
 
   uint32_t first_mini_fat_sector_loc;
+
 
   uint32_t num_mini_fat_sectors;
 
@@ -111,10 +113,9 @@ void dump_suo(uint8_t* data, size_t size) {
   if (header->mini_stream_cutoff_size != 4096)
     fatal("invalid mini stream cutoff size\n");
 
-  // XXX not true for MSVC .suo files apparently.
-  //for (int i = sizeof(CFBHeader); i < 4096; ++i)
-    //if (data[i] != 0)
-      //fatal("invalid fill, %d %d\n", i, data[i]);
+  for (int i = sizeof(CFBHeader); i < 1 << header->sector_shift; ++i)
+    if (data[i] != 0)
+      fatal("invalid fill, %d %d\n", i, data[i]);
 
   // Dump.
   printf("version 0x%x.0x%x\n", header->version_major, header->version_minor);
