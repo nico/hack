@@ -69,13 +69,79 @@ struct CFBHeader {
   uint32_t num_difat_sectors;
 
   uint32_t difat[109];
-  // MUST be followed by 4096 - 512 bytes of zeroes.
+  // MUST be followed by (1 << sector_shift) - 512 bytes of zeroes.
 };
 static_assert(sizeof(CFBHeader) == 512, "");
 
+// Storage object: Like a directory in a file system.
+// Stream object: Like a file in a file system.
+struct CFBDirEntry {
+  uint16_t dir_entry_name[32];
+
+  uint16_t dir_entry_name_len; // In bytes, MUST be multiple of 2.
+  uint8_t object_type; // 0: unknown/unallocated, 1: storage, 2: stream, 5: root
+  uint8_t color;  // 0: red, 1: black.
+
+  uint32_t left_sibling_stream_id;
+  uint32_t right_sibling_stream_id;
+  uint32_t child_object_stream_id;
+
+  // MUST be all zeroes for stream object; set for root or storage object.
+  uint8_t clsid[16];
+
+  uint32_t state_bits;
+
+  // For root and stream object, this MUST be all zeroes.
+  uint32_t creation_time_low;  // FILETIME
+  uint32_t creation_time_high;  // FILETIME
+
+  // For stream object, this MUST be all zeroes, for root it MAY be.
+  uint32_t modification_time_low;  // FILETIME
+  uint32_t modification_time_high;  // FILETIME
+
+  // MUST be zeroes for storage object.
+  // For root object, stores first sector of mini stream.
+  // For steam object, location of first sector.
+  uint32_t starting_sector_loc;
+
+  // For version 3, this must be < 2 GiB, but it's recommended that
+  // stream_size_high is treated as 0 even if it's not.
+  uint32_t stream_size_low;
+  uint32_t stream_size_high;
+};
+static_assert(sizeof(CFBDirEntry) == 128, "");
+
+void dump_dir_entry(uint8_t* data, size_t size,
+                    CFBHeader* header, uint32_t dir_num) {
+  // XXX don't cast like this
+  CFBDirEntry* entry = (CFBDirEntry*)(
+      data + (dir_num + 1) * (1 << header->sector_shift));
+
+  // XXX Validate.
+
+  // Dump.
+  printf("name: ");
+  for (int i = 0; i < entry->dir_entry_name_len/2 - 1; i++)
+    printf("%c", entry->dir_entry_name[i]);
+  printf("\n");
+  printf("object type: 0x%x\n", entry->object_type);
+  printf("color: %d\n", entry->color);
+  printf("left: 0x%x\n", entry->left_sibling_stream_id);
+  printf("right: 0x%x\n", entry->right_sibling_stream_id);
+  printf("child: 0x%x\n", entry->child_object_stream_id);
+  printf(entry->object_type == 5 ? "mini stream sector: 0x%0x\n"
+                                 : "starting sector: 0x%x\n",
+         entry->starting_sector_loc);
+  const char* size_type = entry->object_type == 5 ? "ministream " : "";
+  if (header->version_major != 3 && entry->stream_size_high)
+    printf("%ssize: 0x%x%08x\n",
+           size_type, entry->stream_size_high, entry->stream_size_low);
+  else
+    printf("%ssize: 0x%x\n", size_type, entry->stream_size_low);
+}
 
 void dump_suo(uint8_t* data, size_t size) {
-  if (size < 4096)
+  if (size < 512)
     fatal("file too small\n");
 
   // XXX don't cast like this
@@ -130,6 +196,8 @@ void dump_suo(uint8_t* data, size_t size) {
   printf("\n");
   printf("first difat sector loc 0x%x\n", header->first_difat_sector_loc);
   printf("%d difat sectors\n", header->num_dir_sectors);
+  printf("\n");
+  dump_dir_entry(data, size, header, 0);
 }
 
 int main(int argc, char* argv[]) {
