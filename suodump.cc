@@ -117,7 +117,29 @@ void dump_dir_entry(uint8_t* data, size_t size,
   CFBDirEntry* entry = (CFBDirEntry*)(
       data + (dir_num + 1) * (1 << header->sector_shift));
 
-  // XXX Validate.
+  // Validate.
+  // XXX check size
+  if (entry->dir_entry_name_len % 2 || entry->dir_entry_name_len >= 64)
+    fatal("invalid entry name length\n");
+  if (entry->dir_entry_name[entry->dir_entry_name_len/2 - 1] != 0)
+    fatal("entry name length not zero terminated\n");
+  for (int i = 0; i < entry->dir_entry_name_len/2; i++) {
+    uint16_t c = entry->dir_entry_name[i];
+    if (c == '/' || c == '\\' || c == ':' || c == '!')
+      fatal("invalid entry name\n");
+  }
+
+  if (entry->object_type != 0 && entry->object_type != 1 &&
+      entry->object_type != 2 && entry->object_type != 5)
+    fatal("invalid object type\n");
+
+  if (entry->color != 0 && entry->color != 1)
+    fatal("invalid color\n");
+
+  // XXX check left/right/child id validity
+  // XXX check CLSID all zeroes for stream object
+  // XXX check creation time zero for root object
+  // XXX check file stream_size_low <= 0x80000000 for version_major == 3
 
   // Dump.
   printf("name: ");
