@@ -127,15 +127,12 @@ struct CFBDirEntry {
 };
 static_assert(sizeof(CFBDirEntry) == 128, "");
 
-void dump_dir_entry(uint8_t* data, size_t size,
-                    CFBHeader* header, uint32_t dir_num) {
-  // XXX don't cast like this
-  CFBDirEntry* entry = (CFBDirEntry*)(
-      data + (dir_num + 1) * (1 << header->sector_shift));
+void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
+                    CFBHeader* header, uint32_t dir_num, int indent) {
+  CFBDirEntry* entry = dir_entries[dir_num];
 
   // Validate.
-  // XXX check size
-  if (entry->dir_entry_name_len % 2 || entry->dir_entry_name_len >= 64)
+  if (entry->dir_entry_name_len % 2 || entry->dir_entry_name_len > 64)
     fatal("invalid entry name length\n");
   if (entry->dir_entry_name[entry->dir_entry_name_len/2 - 1] != 0)
     fatal("entry name length not zero terminated\n");
@@ -158,24 +155,33 @@ void dump_dir_entry(uint8_t* data, size_t size,
   // XXX check file stream_size_low <= 0x80000000 for version_major == 3
 
   // Dump.
-  printf("name: ");
+  if (entry->left_sibling_stream_id != 0xffffffff)
+    dump_dir_entry(dir_entries, header, entry->left_sibling_stream_id, indent);
+  printf("%*sid: 0x%x\n", indent, "", dir_num);
+  printf("%*sname: ", indent, "");
   for (int i = 0; i < entry->dir_entry_name_len/2 - 1; i++)
     printf("%c", entry->dir_entry_name[i]);
   printf("\n");
-  printf("object type: 0x%x\n", entry->object_type);
-  printf("color: %d\n", entry->color);
-  printf("left: 0x%x\n", entry->left_sibling_stream_id);
-  printf("right: 0x%x\n", entry->right_sibling_stream_id);
-  printf("child: 0x%x\n", entry->child_object_stream_id);
-  printf(entry->object_type == 5 ? "mini stream sector: 0x%0x\n"
-                                 : "starting sector: 0x%x\n",
-         entry->starting_sector_loc);
+  printf("%*sobject type: 0x%x\n", indent, "", entry->object_type);
+  printf("%*scolor: %d\n", indent, "", entry->color);
+  printf("%*sleft: 0x%x\n", indent, "", entry->left_sibling_stream_id);
+  printf("%*sright: 0x%x\n", indent, "", entry->right_sibling_stream_id);
+  printf("%*schild: 0x%x\n", indent, "", entry->child_object_stream_id);
+  printf(entry->object_type == 5 ? "%*smini stream sector: 0x%0x\n"
+                                 : "%*sstarting sector: 0x%x\n",
+         indent, "", entry->starting_sector_loc);
   const char* size_type = entry->object_type == 5 ? "ministream " : "";
   if (header->version_major != 3 && entry->stream_size_high)
-    printf("%ssize: 0x%x%08x\n",
+    printf("%*s%ssize: 0x%x%08x\n", indent, "",
            size_type, entry->stream_size_high, entry->stream_size_low);
   else
-    printf("%ssize: 0x%x\n", size_type, entry->stream_size_low);
+    printf("%*s%ssize: 0x%x\n", indent, "", size_type, entry->stream_size_low);
+  printf("\n");
+  if (entry->child_object_stream_id != 0xffffffff)
+    dump_dir_entry(dir_entries, header, entry->child_object_stream_id,
+                   indent + 2);
+  if (entry->right_sibling_stream_id != 0xffffffff)
+    dump_dir_entry(dir_entries, header, entry->right_sibling_stream_id, indent);
 }
 
 void dump_suo(uint8_t* data, size_t size) {
@@ -314,7 +320,31 @@ void dump_suo(uint8_t* data, size_t size) {
       fatal("0xfffffffd fat entry not actually part of fat\n");
   }
 
-  dump_dir_entry(data, size, header, 0);
+  // XXX could add checks like number of distinct sector chains, checking that
+  // there are no loops and that each sector is part of just a single chain.
+
+  // Collect directory entries. These could make up more than half the total
+  // file size in theory, and a measurable fraction of it in practice, so
+  // just loading the whole directory into memory is less sound than doing that
+  // for the DIFAT and FAT. Even if it's just pointers: For a 2 GiB v3 file,
+  // this could be several 100 MiB of pointers.
+  std::vector<CFBDirEntry*> dir_entries;
+  uint32_t dir_entry_sector = header->first_dir_sector_loc;
+  while (dir_entry_sector != 0xfffffffe) {
+    if ((dir_entry_sector + 2)*(1 << header->sector_shift) > size)
+      fatal("file too small\n");
+    // XXX don't cast like this
+    CFBDirEntry* entry_data =
+      (CFBDirEntry*)(data + (dir_entry_sector + 1)*(1 << header->sector_shift));
+    for (int i = 0; i < 1 << (header->sector_shift - 7); ++i)
+      dir_entries.push_back(entry_data + i);
+
+    if (dir_entry_sector >= FAT.size())
+      fatal("invalid FAT");
+    dir_entry_sector = FAT[dir_entry_sector];
+  }
+
+  dump_dir_entry(dir_entries, header, 0, 0);
 }
 
 int main(int argc, char* argv[]) {
