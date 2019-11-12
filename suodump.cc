@@ -13,6 +13,7 @@ Dumps suo files created by Visual Studio.
 #include <string.h>
 
 #if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #else
 #include <errno.h>
@@ -21,6 +22,9 @@ Dumps suo files created by Visual Studio.
 #include <sys/stat.h>
 #include <unistd.h>
 #endif
+
+#include <set>
+#include <vector>
 
 static void fatal(const char* msg, ...) {
   va_list args;
@@ -32,6 +36,18 @@ static void fatal(const char* msg, ...) {
 
 // [MS-CFB] spec is at
 // https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-cfb/53989ce4-7b05-4f8d-829b-d08d6148375b
+
+// Summary:
+// - File is a sequence of 512 / 4096 byte blocks called "sectors"
+// - First sector stores CFB header; the sector _after_ it is sector 0, then
+//   sectors are named 1, 2, ... after that.
+// - Sectors can be chained, where an array called "FAT" stores at index n
+//   the next sector after sector n; entry 0xfffffffe ends a chain.
+// - The FAT array is stored in several sectors if needed, an array called
+//   DIFAT stores at DIFAT[n] where the n'th sector storing the FAT is at.
+//   The first 109 DIFAT entries are in the header, the location of the first
+//   dedicated DIFAT sector is also in the header, and the last entry in a
+//   DIFAT sector stores the next sector in the DIFAT chain.
 
 struct CFBHeader {
   // MUST be set to the value 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1.
@@ -201,6 +217,8 @@ void dump_suo(uint8_t* data, size_t size) {
   if (header->mini_stream_cutoff_size != 4096)
     fatal("invalid mini stream cutoff size\n");
 
+  if (size < 1 << header->sector_shift)
+    fatal("file too small\n");
   for (int i = sizeof(CFBHeader); i < 1 << header->sector_shift; ++i)
     if (data[i] != 0)
       fatal("invalid fill, %d %d\n", i, data[i]);
@@ -217,8 +235,85 @@ void dump_suo(uint8_t* data, size_t size) {
   printf("%d mini fat sectors\n", header->num_mini_fat_sectors);
   printf("\n");
   printf("first difat sector loc 0x%x\n", header->first_difat_sector_loc);
-  printf("%d difat sectors\n", header->num_dir_sectors);
+  printf("%d difat sectors\n", header->num_difat_sectors);
   printf("\n");
+
+  // Version 3 has 512 byte sectors, and a max file size of 2 GiB. So the FAT
+  // has at most 4 * 2**20 entries (unless there are lots of FREESECT entries)
+  // and is hence (each entry is an uint32_t) at most 16 MiB, and the DIFAT has
+  // at most (4 * 2**20 - 109) / 127 uint32_t entries and is at most 129 kiB.
+  // Version 4 has 4096 byte sectors, so there roughly the same is true for
+  // 16 GiB files.
+  // So just keep FAT and DIFAT in memory instead of doing anything clever.
+
+  // Read DIFAT.
+  uint32_t entries_per_difat_sector = (1 << (header->sector_shift - 2)) - 1;
+  std::vector<uint32_t> DIFAT;
+  DIFAT.reserve(109 + header->num_difat_sectors*entries_per_difat_sector);
+  DIFAT.insert(
+      DIFAT.end(), &header->difat[0], &header->difat[109]);
+  uint32_t next_difat_sector = header->first_difat_sector_loc;
+  for (uint32_t i = 0; i < header->num_difat_sectors; ++i) {
+    if (next_difat_sector > 0xfffffffa)
+      fatal("invalid difat\n");
+    if ((next_difat_sector + 2)*(1 << header->sector_shift) > size)
+      fatal("file too small\n");
+    uint32_t* difat_data =
+      (uint32_t*)(data + (next_difat_sector + 1)*(1 << header->sector_shift));
+    DIFAT.insert(
+        DIFAT.end(), difat_data, difat_data + entries_per_difat_sector);
+    next_difat_sector = difat_data[entries_per_difat_sector];
+  }
+  if (next_difat_sector != 0xfffffffe)
+    fatal("invalid difat\n");
+
+  // Read FAT.
+  std::vector<uint32_t> FAT;
+  uint32_t entries_per_fat_sector = (1 << (header->sector_shift - 2));
+  FAT.reserve(header->num_fat_sectors * entries_per_fat_sector);
+  for (uint32_t i = 0; i < header->num_fat_sectors; ++i) {
+    if (i >= DIFAT.size())
+      fatal("invalid fat/difat\n");
+    uint32_t fat_sector = DIFAT[i];
+    if (fat_sector > 0xfffffffa)
+      fatal("invalid fat/difat\n");
+    if ((fat_sector + 2)*(1 << header->sector_shift) > size)
+      fatal("file too small\n");
+    uint32_t* fat_data =
+      (uint32_t*)(data + (fat_sector + 1)*(1 << header->sector_shift));
+    FAT.insert(
+        FAT.end(), fat_data, fat_data + entries_per_fat_sector);
+  }
+
+  // Validate FAT / DIFAT a bit.
+  // DIFAT sectors should have 0xfffffffc entries in the FAT.
+  std::set<uint32_t> difat_sectors;
+  for (uint32_t next_difat = header->first_difat_sector_loc;
+      next_difat != 0xfffffffe;) {
+    difat_sectors.insert(next_difat);
+    if (FAT[next_difat] != 0xfffffffc)
+      fatal("invalid fat/difat\n");
+    uint32_t* difat_data =
+      (uint32_t*)(data + (next_difat + 1)*(1 << header->sector_shift));
+    next_difat = difat_data[entries_per_difat_sector];
+  }
+  // FAT sectors should have 0xfffffffd in the FAT.
+  std::set<uint32_t> fat_sectors;
+  for (uint32_t i = 0; i < header->num_fat_sectors; ++i) {
+    uint32_t fat_sector = DIFAT[i];
+    fat_sectors.insert(fat_sector);
+    if (FAT[fat_sector] != 0xfffffffd)
+      fatal("invalid fat\n");
+  }
+  // Nothing else should have 0xfffffffc / 0xfffffffd.
+  for (size_t i = 0; i < FAT.size(); ++i) {
+    uint32_t F = FAT[i];
+    if (F == 0xfffffffc && !difat_sectors.count(i))
+      fatal("0xfffffffc fat entry not actually part of difat\n");
+    if (F == 0xfffffffd && !fat_sectors.count(i))
+      fatal("0xfffffffd fat entry not actually part of fat\n");
+  }
+
   dump_dir_entry(data, size, header, 0);
 }
 
