@@ -149,6 +149,14 @@ void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
   if (entry->color != 0 && entry->color != 1)
     fatal("invalid color\n");
 
+  if (entry->object_type == 1 && entry->starting_sector_loc != 0)
+    fatal("non-0 starting sector for storage object\n");
+
+  if (entry->object_type == 1 &&
+      ((header->version_major == 4 && entry->stream_size_high != 0) ||
+       entry->stream_size_low != 0))
+    fatal("non-0 stream size for storage object\n");
+
   // XXX check left/right/child id validity
   // XXX check CLSID all zeroes for stream object
   // XXX check creation time zero for root object
@@ -321,7 +329,29 @@ void dump_suo(uint8_t* data, size_t size) {
   }
 
   // XXX could add checks like number of distinct sector chains, checking that
-  // there are no loops and that each sector is part of just a single chain.
+  // there are no loops and that each sector is part of just a single chain,
+  // and that there's exactly one directory entry pointing to the root of
+  // every chain.
+
+  // Read Mini FAT. (Ministream start sector and size is in root dir entry.)
+  // XXX mention that it's not super reasonable to keep this in ram, and why.
+  std::vector<uint32_t> mini_FAT;
+  uint32_t minifat_sector = header->first_mini_fat_sector_loc;
+  for (uint32_t i = 0; i < header->num_mini_fat_sectors; ++i) {
+    if (minifat_sector > 0xfffffffa)
+      fatal("invalid minifat\n");
+    if ((minifat_sector + 2)*(1 << header->sector_shift) > size)
+      fatal("file too small\n");
+    uint32_t* minifat_data =
+      (uint32_t*)(data + (minifat_sector + 1)*(1 << header->sector_shift));
+    mini_FAT.insert(
+        mini_FAT.end(), minifat_data, minifat_data + entries_per_fat_sector);
+    if (minifat_sector >= FAT.size())
+      fatal("invalid FAT");
+    minifat_sector = FAT[minifat_sector];
+  }
+  if (minifat_sector != 0xfffffffe)
+    fatal("invalid minifat\n");
 
   // Collect directory entries. These could make up more than half the total
   // file size in theory, and a measurable fraction of it in practice, so
