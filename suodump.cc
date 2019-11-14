@@ -149,6 +149,9 @@ void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
       entry->object_type != 2 && entry->object_type != 5)
     fatal("invalid object type\n");
 
+  if ((entry->object_type == 5) != (dir_num == 0))
+    fatal("invalid root node\n");
+
   if (entry->color != 0 && entry->color != 1)
     fatal("invalid color\n");
 
@@ -186,9 +189,10 @@ void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
   const char* size_type = entry->object_type == 5 ? "ministream " : "";
   printf("%*s%ssize: 0x%" PRIx64 "\n", indent, "", size_type, stream_size);
 
-  if (entry->object_type == 2) {
+  if (entry->object_type == 2 || entry->object_type == 5) {
     // A stream (think "file"); dump where its data lives.
-    if (stream_size <= header->mini_stream_cutoff_size) {
+    if (stream_size <= header->mini_stream_cutoff_size
+        && entry->object_type != 5) {
       // Data is in the mini stream.
       printf("%*sminifat sectors: FIXME\n", indent, "");
     } else {
