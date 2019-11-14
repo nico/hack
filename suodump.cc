@@ -319,9 +319,9 @@ void dump_suo(uint8_t* data, size_t size) {
   // Nothing else should have 0xfffffffc / 0xfffffffd.
   for (size_t i = 0; i < FAT.size(); ++i) {
     uint32_t F = FAT[i];
-    if (F == 0xfffffffc && !difat_sectors.count(i))
+    if (F == 0xfffffffc && !difat_sectors.count(static_cast<uint32_t>(i)))
       fatal("0xfffffffc fat entry not actually part of difat\n");
-    if (F == 0xfffffffd && !fat_sectors.count(i))
+    if (F == 0xfffffffd && !fat_sectors.count(static_cast<uint32_t>(i)))
       fatal("0xfffffffd fat entry not actually part of fat\n");
   }
 
