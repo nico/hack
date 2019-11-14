@@ -128,7 +128,10 @@ struct CFBDirEntry {
 static_assert(sizeof(CFBDirEntry) == 128, "");
 
 void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
-                    CFBHeader* header, uint32_t dir_num, int indent) {
+                    CFBHeader* header,
+                    const std::vector<uint32_t>& FAT,
+                    uint32_t dir_num,
+                    int indent) {
   CFBDirEntry* entry = dir_entries[dir_num];
 
   // Validate.
@@ -165,7 +168,8 @@ void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
 
   // Dump.
   if (entry->left_sibling_stream_id != 0xffffffff)
-    dump_dir_entry(dir_entries, header, entry->left_sibling_stream_id, indent);
+    dump_dir_entry(dir_entries, header, FAT, entry->left_sibling_stream_id,
+                   indent);
   printf("%*sid: 0x%x\n", indent, "", dir_num);
   printf("%*sname: ", indent, "");
   for (int i = 0; i < entry->dir_entry_name_len/2 - 1; i++)
@@ -181,12 +185,39 @@ void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
          indent, "", entry->starting_sector_loc);
   const char* size_type = entry->object_type == 5 ? "ministream " : "";
   printf("%*s%ssize: 0x%" PRIx64 "\n", indent, "", size_type, stream_size);
+
+  if (entry->object_type == 2) {
+    // A stream (think "file"); dump where its data lives.
+    if (stream_size <= header->mini_stream_cutoff_size) {
+      // Data is in the mini stream.
+      printf("%*sminifat sectors: FIXME\n", indent, "");
+    } else {
+      // Data is in regular sectors.
+      printf("%*sfat sectors:", indent, "");
+      uint32_t sector = entry->starting_sector_loc;
+      while (stream_size > 0) {
+        printf(" %u", sector);
+        if (stream_size <= 1 << header->sector_shift)
+          stream_size = 0;
+        else
+          stream_size -= 1 << header->sector_shift;
+        if (sector >= FAT.size())
+          fatal("invalid FAT\n");
+        sector = FAT[sector];
+      }
+      if (sector != 0xfffffffe)
+        fatal("invalid chain\n");
+      printf("\n");
+    }
+  }
+
   printf("\n");
   if (entry->child_object_stream_id != 0xffffffff)
-    dump_dir_entry(dir_entries, header, entry->child_object_stream_id,
+    dump_dir_entry(dir_entries, header, FAT, entry->child_object_stream_id,
                    indent + 2);
   if (entry->right_sibling_stream_id != 0xffffffff)
-    dump_dir_entry(dir_entries, header, entry->right_sibling_stream_id, indent);
+    dump_dir_entry(dir_entries, header, FAT, entry->right_sibling_stream_id,
+                   indent);
 }
 
 void dump_suo(uint8_t* data, size_t size) {
@@ -371,7 +402,7 @@ void dump_suo(uint8_t* data, size_t size) {
     dir_entry_sector = FAT[dir_entry_sector];
   }
 
-  dump_dir_entry(dir_entries, header, 0, 0);
+  dump_dir_entry(dir_entries, header, FAT, 0, 0);
 }
 
 int main(int argc, char* argv[]) {
