@@ -152,9 +152,10 @@ void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
   if (entry->object_type == 1 && entry->starting_sector_loc != 0)
     fatal("non-0 starting sector for storage object\n");
 
-  if (entry->object_type == 1 &&
-      ((header->version_major == 4 && entry->stream_size_high != 0) ||
-       entry->stream_size_low != 0))
+  uint64_t stream_size = entry->stream_size_low;
+  if (header->version_major == 4)
+    stream_size |= static_cast<uint64_t>(entry->stream_size_high) << 32;
+  if (entry->object_type == 1 && stream_size != 0)
     fatal("non-0 stream size for storage object\n");
 
   // XXX check left/right/child id validity
@@ -179,11 +180,7 @@ void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
                                  : "%*sstarting sector: 0x%x\n",
          indent, "", entry->starting_sector_loc);
   const char* size_type = entry->object_type == 5 ? "ministream " : "";
-  if (header->version_major != 3 && entry->stream_size_high)
-    printf("%*s%ssize: 0x%x%08x\n", indent, "",
-           size_type, entry->stream_size_high, entry->stream_size_low);
-  else
-    printf("%*s%ssize: 0x%x\n", indent, "", size_type, entry->stream_size_low);
+  printf("%*s%ssize: 0x%" PRIx64 "\n", indent, "", size_type, stream_size);
   printf("\n");
   if (entry->child_object_stream_id != 0xffffffff)
     dump_dir_entry(dir_entries, header, entry->child_object_stream_id,
