@@ -212,7 +212,8 @@ void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
       printf("\n");
     } else {
       // Data is in regular sectors.
-      printf("%*sfat sectors:", indent, "");
+      const char* stream_type = entry->object_type == 5 ? "ministream " : "";
+      printf("%*s%sfat sectors:", indent, "", stream_type);
       uint32_t sector = entry->starting_sector_loc;
       while (stream_size > 0) {
         printf(" %u", sector);
@@ -297,7 +298,6 @@ void dump_suo(uint8_t* data, size_t size) {
   printf("\n");
   printf("first difat sector loc 0x%x\n", header->first_difat_sector_loc);
   printf("%d difat sectors\n", header->num_difat_sectors);
-  printf("\n");
 
   // Version 3 has 512 byte sectors, and a max file size of 2 GiB. So the FAT
   // has at most 4 * 2**20 entries (unless there are lots of FREESECT entries)
@@ -308,6 +308,7 @@ void dump_suo(uint8_t* data, size_t size) {
   // So just keep FAT and DIFAT in memory instead of doing anything clever.
 
   // Read DIFAT.
+  printf("difat sectors:");
   uint32_t entries_per_difat_sector = (1 << (header->sector_shift - 2)) - 1;
   std::vector<uint32_t> DIFAT;
   DIFAT.reserve(109 + header->num_difat_sectors*entries_per_difat_sector);
@@ -319,6 +320,7 @@ void dump_suo(uint8_t* data, size_t size) {
       fatal("invalid difat\n");
     if ((next_difat_sector + 2)*(1 << header->sector_shift) > size)
       fatal("file too small\n");
+    printf(" %d", next_difat_sector);
     uint32_t* difat_data =
       (uint32_t*)(data + (next_difat_sector + 1)*(1 << header->sector_shift));
     DIFAT.insert(
@@ -327,8 +329,10 @@ void dump_suo(uint8_t* data, size_t size) {
   }
   if (next_difat_sector != 0xfffffffe)
     fatal("invalid difat\n");
+  printf("\n");
 
   // Read FAT.
+  printf("fat sectors:");
   std::vector<uint32_t> FAT;
   uint32_t entries_per_fat_sector = (1 << (header->sector_shift - 2));
   FAT.reserve(header->num_fat_sectors * entries_per_fat_sector);
@@ -340,11 +344,13 @@ void dump_suo(uint8_t* data, size_t size) {
       fatal("invalid fat/difat\n");
     if ((fat_sector + 2)*(1 << header->sector_shift) > size)
       fatal("file too small\n");
+    printf(" %d", fat_sector);
     uint32_t* fat_data =
       (uint32_t*)(data + (fat_sector + 1)*(1 << header->sector_shift));
     FAT.insert(
         FAT.end(), fat_data, fat_data + entries_per_fat_sector);
   }
+  printf("\n");
 
   // Validate FAT / DIFAT a bit.
   // DIFAT sectors should have 0xfffffffc entries in the FAT.
@@ -383,12 +389,14 @@ void dump_suo(uint8_t* data, size_t size) {
   // Read Mini FAT. (Ministream start sector and size is in root dir entry.)
   // XXX mention that it's not super reasonable to keep this in ram, and why.
   std::vector<uint32_t> mini_FAT;
+  printf("minifat sectors:");
   uint32_t minifat_sector = header->first_mini_fat_sector_loc;
   for (uint32_t i = 0; i < header->num_mini_fat_sectors; ++i) {
     if (minifat_sector > 0xfffffffa)
       fatal("invalid minifat\n");
     if ((minifat_sector + 2)*(1 << header->sector_shift) > size)
       fatal("file too small\n");
+    printf(" %d", minifat_sector);
     uint32_t* minifat_data =
       (uint32_t*)(data + (minifat_sector + 1)*(1 << header->sector_shift));
     mini_FAT.insert(
@@ -399,17 +407,20 @@ void dump_suo(uint8_t* data, size_t size) {
   }
   if (minifat_sector != 0xfffffffe)
     fatal("invalid minifat\n");
+  printf("\n");
 
   // Collect directory entries. These could make up more than half the total
   // file size in theory, and a measurable fraction of it in practice, so
   // just loading the whole directory into memory is less sound than doing that
   // for the DIFAT and FAT. Even if it's just pointers: For a 2 GiB v3 file,
   // this could be several 100 MiB of pointers.
+  printf("dir entry sectors:");
   std::vector<CFBDirEntry*> dir_entries;
   uint32_t dir_entry_sector = header->first_dir_sector_loc;
   while (dir_entry_sector != 0xfffffffe) {
     if ((dir_entry_sector + 2)*(1 << header->sector_shift) > size)
       fatal("file too small\n");
+    printf(" %d", dir_entry_sector);
     // XXX don't cast like this
     CFBDirEntry* entry_data =
       (CFBDirEntry*)(data + (dir_entry_sector + 1)*(1 << header->sector_shift));
@@ -420,7 +431,9 @@ void dump_suo(uint8_t* data, size_t size) {
       fatal("invalid FAT");
     dir_entry_sector = FAT[dir_entry_sector];
   }
+  printf("\n");
 
+  printf("\n");
   dump_dir_entry(dir_entries, header, FAT, mini_FAT, 0, 0);
 }
 
