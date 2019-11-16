@@ -236,8 +236,8 @@ void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
         printf(" %d-%d", range.first, range.second);
     }
     printf("\n");
-    printf("%*sfile bytes:", indent, "");
     if (fat == &FAT) {
+      printf("%*sfile bytes:", indent, "");
       for (const std::pair<uint32_t,uint32_t>& range : ranges) {
         uint32_t start = (range.first + 1) * sector_size;
         uint32_t end = (range.second + 2) * sector_size - 1;
@@ -247,7 +247,18 @@ void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
         printf(" 0x%x-0x%x", start, end);
       }
     } else {
-      printf("FIXME");
+      // The ranges are contiguous in the ministream, but since that's allocated
+      // on the FAT it might not be contiguous itself (and it usually isn't).
+      printf("%*sministream bytes:", indent, "");
+      for (const std::pair<uint32_t,uint32_t>& range : ranges) {
+        uint32_t start = range.first * sector_size;
+        uint32_t end = range.second * sector_size - 1;
+        if (&range == &ranges.back() && stream_size % sector_size != 0)
+          end =
+            range.second * sector_size + (stream_size % sector_size) - 1;
+        printf(" 0x%x-0x%x", start, end);
+      }
+    printf("\nfile bytes: FIXME");
     }
     printf("\n");
   }
