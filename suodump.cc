@@ -211,16 +211,17 @@ void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
       fat = &FAT;
     }
     std::vector<std::pair<uint32_t,uint32_t>> ranges;
-    while (stream_size > 0) {
+    uint64_t bytes_remaining = stream_size;
+    while (bytes_remaining > 0) {
       if (!ranges.empty() && ranges.back().second + 1 == sector)
         ranges.back().second = sector;
       else
         ranges.push_back(std::make_pair(sector, sector));
 
-      if (stream_size <= sector_size)
-        stream_size = 0;
+      if (bytes_remaining <= sector_size)
+        bytes_remaining = 0;
       else
-        stream_size -= sector_size;
+        bytes_remaining -= sector_size;
       if (sector >= fat->size())
         fatal("invalid stream\n");
       sector = (*fat)[sector];
@@ -233,6 +234,20 @@ void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
         printf(" %d", range.first);
       else
         printf(" %d-%d", range.first, range.second);
+    }
+    printf("\n");
+    printf("%*sfile bytes:", indent, "");
+    if (fat == &FAT) {
+      for (const std::pair<uint32_t,uint32_t>& range : ranges) {
+        uint32_t start = (range.first + 1) * sector_size;
+        uint32_t end = (range.second + 2) * sector_size - 1;
+        if (&range == &ranges.back() && stream_size % sector_size != 0)
+          end =
+            (range.second + 1) * sector_size + (stream_size % sector_size) - 1;
+        printf(" 0x%x-0x%x", start, end);
+      }
+    } else {
+      printf("FIXME");
     }
     printf("\n");
   }
