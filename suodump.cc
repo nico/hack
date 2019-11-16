@@ -210,8 +210,13 @@ void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
       sector_size = 1 << header->sector_shift;
       fat = &FAT;
     }
+    std::vector<std::pair<uint32_t,uint32_t>> ranges;
     while (stream_size > 0) {
-      printf(" %u", sector);
+      if (!ranges.empty() && ranges.back().second + 1 == sector)
+        ranges.back().second = sector;
+      else
+        ranges.push_back(std::make_pair(sector, sector));
+
       if (stream_size <= sector_size)
         stream_size = 0;
       else
@@ -222,6 +227,13 @@ void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
     }
     if (sector != 0xfffffffe)
       fatal("invalid stream\n");
+    std::vector<std::pair<uint32_t,uint32_t>> byte_ranges;
+    for (const std::pair<uint32_t,uint32_t>& range : ranges) {
+      if (range.first == range.second)
+        printf(" %d", range.first);
+      else
+        printf(" %d-%d", range.first, range.second);
+    }
     printf("\n");
   }
 
