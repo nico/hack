@@ -194,7 +194,7 @@ void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
     // A stream (think "file"); dump where its data lives.
     uint32_t sector;
     uint32_t sector_size;
-    std::vector<uint32_t>* fat;
+    const std::vector<uint32_t>* fat;
     if (stream_size <= header->mini_stream_cutoff_size
         && entry->object_type != 5) {
       // Data is in the mini stream.
