@@ -192,43 +192,37 @@ void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
 
   if (entry->object_type == 2 || entry->object_type == 5) {
     // A stream (think "file"); dump where its data lives.
+    uint32_t sector;
+    uint32_t sector_size;
+    std::vector<uint32_t>* fat;
     if (stream_size <= header->mini_stream_cutoff_size
         && entry->object_type != 5) {
       // Data is in the mini stream.
       printf("%*sminifat sectors:", indent, "");
-      uint32_t sector = entry->starting_sector_loc;
-      while (stream_size > 0) {
-        printf(" %u", sector);
-        if (stream_size <= 1 << header->mini_sector_shift)
-          stream_size = 0;
-        else
-          stream_size -= 1 << header->mini_sector_shift;
-        if (sector >= mini_FAT.size())
-          fatal("invalid mini_FAT\n");
-        sector = mini_FAT[sector];
-      }
-      if (sector != 0xfffffffe)
-        fatal("invalid chain\n");
-      printf("\n");
+      sector = entry->starting_sector_loc;
+      sector_size = 1 << header->mini_sector_shift;
+      fat = &mini_FAT;
     } else {
       // Data is in regular sectors.
       const char* stream_type = entry->object_type == 5 ? "ministream " : "";
       printf("%*s%sfat sectors:", indent, "", stream_type);
-      uint32_t sector = entry->starting_sector_loc;
-      while (stream_size > 0) {
-        printf(" %u", sector);
-        if (stream_size <= 1 << header->sector_shift)
-          stream_size = 0;
-        else
-          stream_size -= 1 << header->sector_shift;
-        if (sector >= FAT.size())
-          fatal("invalid FAT\n");
-        sector = FAT[sector];
-      }
-      if (sector != 0xfffffffe)
-        fatal("invalid chain\n");
-      printf("\n");
+      sector = entry->starting_sector_loc;
+      sector_size = 1 << header->sector_shift;
+      fat = &FAT;
     }
+    while (stream_size > 0) {
+      printf(" %u", sector);
+      if (stream_size <= sector_size)
+        stream_size = 0;
+      else
+        stream_size -= sector_size;
+      if (sector >= fat->size())
+        fatal("invalid stream\n");
+      sector = (*fat)[sector];
+    }
+    if (sector != 0xfffffffe)
+      fatal("invalid stream\n");
+    printf("\n");
   }
 
   printf("\n");
