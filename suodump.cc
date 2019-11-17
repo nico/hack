@@ -131,6 +131,7 @@ void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
                     CFBHeader* header,
                     const std::vector<uint32_t>& FAT,
                     const std::vector<uint32_t>& mini_FAT,
+                    std::vector<uint32_t>* ministream,
                     uint32_t dir_num,
                     int indent) {
   CFBDirEntry* entry = dir_entries[dir_num];
@@ -172,7 +173,7 @@ void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
 
   // Dump.
   if (entry->left_sibling_stream_id != 0xffffffff)
-    dump_dir_entry(dir_entries, header, FAT, mini_FAT,
+    dump_dir_entry(dir_entries, header, FAT, mini_FAT, ministream,
                    entry->left_sibling_stream_id, indent);
   printf("%*sid: 0x%x\n", indent, "", dir_num);
   printf("%*sname: ", indent, "");
@@ -192,26 +193,24 @@ void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
 
   if (entry->object_type == 2 || entry->object_type == 5) {
     // A stream (think "file"); dump where its data lives.
-    uint32_t sector;
     uint32_t sector_size;
     const std::vector<uint32_t>* fat;
     if (stream_size <= header->mini_stream_cutoff_size
         && entry->object_type != 5) {
       // Data is in the mini stream.
       printf("%*sminifat sectors:", indent, "");
-      sector = entry->starting_sector_loc;
       sector_size = 1 << header->mini_sector_shift;
       fat = &mini_FAT;
     } else {
       // Data is in regular sectors.
       const char* stream_type = entry->object_type == 5 ? "ministream " : "";
       printf("%*s%sfat sectors:", indent, "", stream_type);
-      sector = entry->starting_sector_loc;
       sector_size = 1 << header->sector_shift;
       fat = &FAT;
     }
     std::vector<std::pair<uint32_t,uint32_t>> ranges;
     uint64_t bytes_remaining = stream_size;
+    uint32_t sector = entry->starting_sector_loc;
     while (bytes_remaining > 0) {
       if (!ranges.empty() && ranges.back().second + 1 == sector)
         ranges.back().second = sector;
@@ -228,7 +227,12 @@ void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
     }
     if (sector != 0xfffffffe)
       fatal("invalid stream\n");
-    std::vector<std::pair<uint32_t,uint32_t>> byte_ranges;
+    if (entry->object_type == 5) {
+      ministream->reserve((stream_size + sector_size - 1) / sector_size);
+      for (const std::pair<uint32_t,uint32_t>& range : ranges)
+        for (uint32_t i = range.first; i <= range.second; ++i)
+          ministream->push_back(i);
+    }
     for (const std::pair<uint32_t,uint32_t>& range : ranges) {
       if (range.first == range.second)
         printf(" %d", range.first);
@@ -258,17 +262,41 @@ void dump_dir_entry(const std::vector<CFBDirEntry*>& dir_entries,
             range.second * sector_size + (stream_size % sector_size) - 1;
         printf(" 0x%x-0x%x", start, end);
       }
-    printf("\nfile bytes: FIXME");
+      printf("\n%*sfile bytes:", indent, "");
+      uint32_t ministream_sectors_per_sector =
+        1 << (header->sector_shift - header->mini_sector_shift);
+      uint32_t full_sector_size = 1 << header->sector_shift;
+      std::vector<std::pair<uint32_t,uint32_t>> phys_ranges;
+      for (const std::pair<uint32_t,uint32_t>& range : ranges) {
+        for (uint32_t i = range.first; i <= range.second; ++i) {
+          uint32_t sector = (*ministream)[i / ministream_sectors_per_sector];
+          uint32_t start = (sector + 1) * full_sector_size +
+                           (i % ministream_sectors_per_sector) * sector_size;
+          if (!phys_ranges.empty() &&
+              phys_ranges.back().second + sector_size == start)
+            phys_ranges.back().second = start;
+          else
+            phys_ranges.push_back(std::make_pair(start, start));
+        }
+      }
+      for (const std::pair<uint32_t,uint32_t>& phys_range : phys_ranges) {
+        uint32_t start = phys_range.first;
+        uint32_t end = phys_range.second + sector_size - 1;
+        if (&phys_range == &phys_ranges.back() &&
+            stream_size % sector_size != 0)
+          end = phys_range.second + (stream_size % sector_size) - 1;
+        printf(" 0x%x-0x%x", start, end);
+      }
     }
     printf("\n");
   }
 
   printf("\n");
   if (entry->child_object_stream_id != 0xffffffff)
-    dump_dir_entry(dir_entries, header, FAT, mini_FAT,
+    dump_dir_entry(dir_entries, header, FAT, mini_FAT, ministream,
                    entry->child_object_stream_id, indent + 2);
   if (entry->right_sibling_stream_id != 0xffffffff)
-    dump_dir_entry(dir_entries, header, FAT, mini_FAT,
+    dump_dir_entry(dir_entries, header, FAT, mini_FAT, ministream,
                    entry->right_sibling_stream_id, indent);
 }
 
@@ -466,7 +494,8 @@ void dump_suo(uint8_t* data, size_t size) {
   printf("\n");
 
   printf("\n");
-  dump_dir_entry(dir_entries, header, FAT, mini_FAT, 0, 0);
+  std::vector<uint32_t> ministream;
+  dump_dir_entry(dir_entries, header, FAT, mini_FAT, &ministream, 0, 0);
 }
 
 int main(int argc, char* argv[]) {
