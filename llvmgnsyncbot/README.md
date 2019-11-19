@@ -45,11 +45,7 @@ Each builder needs some amount of one-time manual setup.
 1. Check out [llvm-project](https://github.com/llvm/llvm-project/) from github
    to some directory, e.g. `~/src/llvm-project`.
 
-1. Check out this repository here to some other directory.
-
-1. In the root of the llvm repository, symlink `syncbot.sh` to `syncbot.sh` in
-   the checkout of this directory, and do the same for `syncbot.py`.
-   XXX: Windows writeup.
+1. Check out this repository here to some other directory, e.g. `~/src/hack`.
 
 1. Set up the goma client in `~/goma` on non-Windows, and in `c:\src\goma`
    on Windows.
@@ -96,8 +92,8 @@ Each builder needs some amount of one-time manual setup.
    `git remote set-url origin git@github.com:llvm/llvm-project.git` to move
    to SSH.
 
-1. In a tmux or screen session, or a CRD window, run `./syncbot.sh` while in
-   the LLVM checkout. Then disconnect from the builder.
+1. In a tmux or screen session, or a CRD window, run `../hack/llvmgnsyncbot/syncbot.sh`
+   while in the LLVM checkout. Then disconnect from the builder.
 
 [1]: https://docs.google.com/document/d/1rRL-rWDyL0Nwr6SdQTkh1tf5kYcjDoJwKhHs8WJHQSc/
 [rsync]: http://repo.msys2.org/msys/x86_64/rsync-3.1.2-2-x86_64.pkg.tar.xz
