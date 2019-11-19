@@ -1,4 +1,5 @@
 #!/bin/bash
+
 if [ -e syncbot.state ]; then
   build_num=$(cat syncbot.state)
 else
@@ -8,15 +9,17 @@ fi
 # Make created files world-readable.
 umask 022
 
+THIS_DIR=$(dirname "$0")
+
 while true; do
   SECONDS=0
   if [[ "$OSTYPE" == "msys" ]]; then
     # The `tee` and the `/usr/bin/env python` both
     # seem to not work well in `git bash`.
-    python syncbot.py >curbuild.txt 2>&1
+    python $THIS_DIR/syncbot.py >curbuild.txt 2>&1
     EXIT_CODE=$?
   else
-    ./syncbot.py 2>&1 | tee curbuild.txt
+    $THIS_DIR/syncbot.py 2>&1 | tee curbuild.txt
     EXIT_CODE=${PIPESTATUS[0]}
   fi
   echo '{ "elapsed_s":' $SECONDS', "exit_code":' $EXIT_CODE '}' \
