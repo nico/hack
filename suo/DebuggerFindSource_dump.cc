@@ -33,6 +33,18 @@ static void fatal(const char* msg, ...) {
   exit(1);
 }
 
+static uint32_t read_little_long(unsigned char** d) {
+  uint32_t r = ((*d)[3] << 24) | ((*d)[2] << 16) | ((*d)[1] << 8) | (*d)[0];
+  *d += sizeof(uint32_t);
+  return r;
+}
+
+static uint16_t read_little_short(unsigned char** d) {
+  uint16_t r = ((*d)[1] << 8) | (*d)[0];
+  *d += sizeof(uint16_t);
+  return r;
+}
+
 // See suodump.cc in this directory for .suo file format information.
 
 struct CFBHeader {
@@ -285,6 +297,7 @@ void dump_suo(uint8_t* data, size_t size) {
   }
   if (ministream_sector != 0xfffffffe)
     fatal("invalid ministream\n");
+  // XXX check that round(root->stream_size / sector_size) == ministream.size()
 
   const char kKey[] =
       "D\0e\0b\0u\0g\0g\0e\0r\0F\0i\0n\0d\0S\0o\0u\0r\0c\0e\0\0";
@@ -293,8 +306,123 @@ void dump_suo(uint8_t* data, size_t size) {
       root->child_object_stream_id, dir_entries);
   if (!data)
     fatal("did not find node\n");
-  // XXX check that round(root->stream_size / sector_size) == ministream.size()
-  //dump_dir_entry(dir_entries, header, FAT, ministream, &ministream, 0, 0);
+
+  if (debug_node->object_type != 2)
+    fatal("unexpected DebuggerFindSource node type\n");
+
+  uint64_t stream_size = debug_node->stream_size_low;
+  if (header->version_major == 4)
+    stream_size |= static_cast<uint64_t>(debug_node->stream_size_high) << 32;
+
+  std::vector<uint8_t> debug_data;
+  debug_data.reserve(stream_size);  // XXX round up
+  if (stream_size > header->mini_stream_cutoff_size) {
+    // Data is in regular FAT sectors.
+    uint32_t sector = debug_node->starting_sector_loc;
+    while (sector != 0xfffffffe) {
+      if ((sector + 2)*(1 << header->sector_shift) > size)
+        fatal("file too small\n");
+
+      uint8_t* sector_data = data + (sector + 1)*(1 << header->sector_shift);
+      debug_data.insert(
+          debug_data.end(),
+          sector_data,
+          sector_data + (1 << header->sector_shift));
+      if (sector >= FAT.size())
+        fatal("invalid FAT");
+      sector = FAT[sector];
+    }
+    if (debug_data.size() < stream_size)
+      fatal("not enough debug data in stream\n");
+  } else {
+    // Data is in the ministream.
+    uint32_t sector = debug_node->starting_sector_loc;
+    uint32_t ministream_sectors_per_sector =
+      1 << (header->sector_shift - header->mini_sector_shift);
+    uint32_t full_sector_size = 1 << header->sector_shift;
+    while (sector != 0xfffffffe) {
+      uint32_t fat_sector = ministream[sector / ministream_sectors_per_sector];
+      uint32_t start =
+          (fat_sector + 1) * full_sector_size +
+          (sector % ministream_sectors_per_sector) *
+              (1 << header->mini_sector_shift);
+
+      if (start + (1 << header->mini_sector_shift) > size)
+        fatal("file too small\n");
+
+      debug_data.insert(
+          debug_data.end(),
+          data + start,
+          data + start + (1 << header->mini_sector_shift));
+
+      if (sector >= FAT.size())
+        fatal("invalid FAT");
+      sector = mini_FAT[sector];
+    }
+    if (debug_data.size() < stream_size)
+      fatal("not enough debug data in stream\n");
+  }
+
+#if 0
+  FILE* f = fopen("tmp.dmp", "wb");
+  fwrite(debug_data.data(), 1, debug_data.size(), f);
+  fclose(f);
+#endif
+
+  // According to
+  // https://microsoft.public.vstudio.extensibility.narkive.com/ONn7ZAb3/accessing-sln-properties-in-common-properties-debug-source-files
+  // the format of the DebuggerFindSource stream is:
+  // uint32_t verDirCache (0)
+  // uint32_t verStringList (0)
+  // uint32_t num source dirs
+  // For each source dir:
+  //   uint32_t numBytes
+  //   That many bytes UTF-16LE dir
+  // uint32_t verStringList;
+  // uint32_t num ignored files
+  // For each ignored file:
+  //   uint32_t numBytes
+  //   That many bytes UTF-16LE file
+  // XXX don't cast like this
+  uint8_t* debug_data_p = debug_data.data();
+  uint32_t verDirCache = read_little_long(&debug_data_p);
+  uint32_t verStringList = read_little_long(&debug_data_p);
+  printf("verDirCache: %d\n", verDirCache);
+  printf("source dirs verStringList: %d\n", verStringList);
+  if (verDirCache != 0 || verStringList != 0)
+    return;
+  printf("Source dirs:\n");
+  uint32_t num_source_dirs = read_little_long(&debug_data_p);
+  for (uint32_t i = 0; i < num_source_dirs; ++i) {
+    // In bytes, including nul.
+    uint32_t str_len = read_little_long(&debug_data_p);
+    if (str_len % 2)
+      fatal("unexpected string length\n");
+    for (uint32_t j = 0; j < str_len; j += 2) {
+      uint16_t c = read_little_short(&debug_data_p);
+      if (j + 2 != str_len)  // Skip nul;
+        printf("%c", c);
+    }
+    printf("\n");
+  }
+  uint32_t verStringList2 = read_little_long(&debug_data_p);
+  printf("ignored files verStringList: %d\n", verStringList2);
+  if (verStringList2 != 0)
+    return;
+  printf("Ignored files:\n");
+  uint32_t num_ignored_files = read_little_long(&debug_data_p);
+  for (uint32_t i = 0; i < num_ignored_files; ++i) {
+    // In bytes, including nul.
+    uint32_t str_len = read_little_long(&debug_data_p);
+    if (str_len % 2)
+      fatal("unexpected string length\n");
+    for (uint32_t j = 0; j < str_len; j += 2) {
+      uint16_t c = read_little_short(&debug_data_p);
+      if (j + 2 != str_len)  // Skip nul;
+        printf("%c", c);
+    }
+    printf("\n");
+  }
 }
 
 int main(int argc, char* argv[]) {
