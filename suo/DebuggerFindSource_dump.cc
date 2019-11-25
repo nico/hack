@@ -383,7 +383,6 @@ void dump_suo(uint8_t* data, size_t size) {
   // For each ignored file:
   //   uint32_t numBytes
   //   That many bytes UTF-16LE file
-  // XXX don't cast like this
   uint8_t* debug_data_p = debug_data.data();
   uint32_t verDirCache = read_little_long(&debug_data_p);
   uint32_t verStringList = read_little_long(&debug_data_p);
@@ -400,7 +399,7 @@ void dump_suo(uint8_t* data, size_t size) {
       fatal("unexpected string length\n");
     for (uint32_t j = 0; j < str_len; j += 2) {
       uint16_t c = read_little_short(&debug_data_p);
-      if (j + 2 != str_len)  // Skip nul;
+      if (j + 2 != str_len)  // Skip nul.
         printf("%c", c);
     }
     printf("\n");
@@ -418,7 +417,7 @@ void dump_suo(uint8_t* data, size_t size) {
       fatal("unexpected string length\n");
     for (uint32_t j = 0; j < str_len; j += 2) {
       uint16_t c = read_little_short(&debug_data_p);
-      if (j + 2 != str_len)  // Skip nul;
+      if (j + 2 != str_len)  // Skip nul.
         printf("%c", c);
     }
     printf("\n");

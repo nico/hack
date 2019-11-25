@@ -80,12 +80,33 @@ int main() {
   const int kSectorSize = 1 << kSectorShift;
   const int kMiniSectorSize = 1 << kMiniSectorShift;
 
+  const in kNumDirectorySectors = 1;
+
   if (data.size() > kMinistreamCutoffSize) {
     // Store data in regular sectors.
     size_t num_data_sectors = (data.size() + kSectorSize - 1) / kSectorSize;
+
+    size_t num_sectors = kNumDirectorySectors + num_data_sectors;
+    size_t num_fat_sectors = (4 * num_sectors + kSectorSize - 1) / kSectorSize;
+    // XXX ...but now need to add num_fat_sectors to num_sectors, which may
+    // increase num_fat_sectors again
+    // ...and then the DIFAT must store the fat and needs sectors that also
+    // must be mentioned in the FAT again
   } else {
     // Store data in ministream.
     size_t num_data_mini_sectors =
         (data.size() + kMiniSectorSize - 1) / kMiniSectorSize;
+    size_t num_minifat_sectors =
+        (4 * num_minifat_sectors + kSectorSize - 1) / kSectorSize;
+    size_t num_ministream_sectors =
+        (data.size() + kSectorSize - 1) / kSectorSize;
+
+    size_t num_sectors =
+      kNumDirectorySectors + num_mini_fat_sectors + num_ministream_sectors;
+    size_t num_fat_sectors = (4 * num_sectors + kSectorSize - 1) / kSectorSize;
+    // XXX ...but now need to add num_fat_sectors to num_sectors, which may
+    // increase num_fat_sectors again
+    // ...and then the DIFAT must store the fat and needs sectors that also
+    // must be mentioned in the FAT again
   }
 }
