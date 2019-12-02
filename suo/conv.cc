@@ -54,6 +54,24 @@ void full_iter(N n_blocks, N* out_n_difat, N* out_n_fat) {
   *out_n_fat = n_fat;
 }
 
+void short_iter(N n_blocks, N* out_n_difat, N* out_n_fat) {
+  // Every FAT block can store 128 blocks, but one of them is needed for
+  // the FAT block itself, so 127. (Actually, a bit less, because of the DIFAT
+  // blocks.)
+  N n_fat = align(n_blocks, 127), n_difat;
+  while (true) {
+    n_difat = 0;
+    if (n_fat > 109)
+      n_difat = align(n_fat - 109, 127);
+    N n_fat_prime = align((n_blocks + n_difat), 127);
+    if (n_fat_prime == n_fat)
+      break;
+    n_fat = n_fat_prime;
+  }
+  *out_n_difat = n_difat;
+  *out_n_fat = n_fat;
+}
+
 void parallel_for(size_t begin,
                   size_t end,
                   std::function<void(size_t, size_t)> body) {
@@ -74,6 +92,7 @@ void parallel_for(size_t begin,
 }
 
 int main() {
+#if 0
   // Compare naive() against full_iter() for some inputs.
   //parallel_for(4'000'000'000, 4'000'001'000, [](size_t begin, size_t end) {
   parallel_for(0, 10'000'000, [](size_t begin, size_t end) {
@@ -86,6 +105,25 @@ int main() {
           n_fat_full_iter != n_fat_naive) {
         printf("%" PRIu64 " %" PRIu64 " %" PRIu64 "\n", k, n_difat_naive,
                n_fat_naive);
+        printf("%" PRIu64 " %" PRIu64 " %" PRIu64 "\n", k, n_difat_full_iter,
+               n_fat_full_iter);
+      }
+    }
+  });
+#endif
+
+  // Compare full_iter() against short_iter() for all inputs (takes ~6s
+  // on my laptop).
+  parallel_for(0, UINT32_MAX, [](size_t begin, size_t end) {
+    for (N k = begin; k != end; ++k) {
+      N n_fat_full_iter, n_difat_full_iter;
+      full_iter(k, &n_difat_full_iter, &n_fat_full_iter);
+      N n_fat_short_iter, n_difat_short_iter;
+      short_iter(k, &n_difat_short_iter, &n_fat_short_iter);
+      if (n_difat_full_iter != n_difat_short_iter ||
+          n_fat_full_iter != n_fat_short_iter) {
+        printf("%" PRIu64 " %" PRIu64 " %" PRIu64 "\n", k, n_difat_short_iter,
+               n_fat_short_iter);
         printf("%" PRIu64 " %" PRIu64 " %" PRIu64 "\n", k, n_difat_full_iter,
                n_fat_full_iter);
       }
