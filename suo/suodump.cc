@@ -1,6 +1,6 @@
 
 /*
-clang -o suodump suodump.c
+clang++ -std=c++11 -o suodump suodump.cc
 
 Dumps suo files created by Visual Studio.
 */
@@ -531,9 +531,10 @@ int main(int argc, char* argv[]) {
   if (fstat(in_file, &in_stat))
     fatal("Failed to stat \'%s\'\n", in_name);
 
-  size_t size = in_stat.st_size;
-  uint8_t* data = mmap(/*addr=*/0, size, PROT_READ, MAP_SHARED, in_file,
-                       /*offset=*/0);
+  size_t size = static_cast<size_t>(in_stat.st_size);
+  uint8_t* data = static_cast<uint8_t*>(mmap(/*addr=*/0, size, PROT_READ,
+                                             MAP_SHARED, in_file,
+                                             /*offset=*/0));
   if (data == MAP_FAILED)
     fatal("Failed to mmap: %d (%s)\n", errno, strerror(errno));
 #endif
@@ -545,7 +546,7 @@ int main(int argc, char* argv[]) {
   CloseHandle(mapping);
   CloseHandle(in_file);
 #else
-  munmap(data, in_stat.st_size);
+  munmap(data, size);
   close(in_file);
 #endif
 }
