@@ -326,5 +326,10 @@ int main(int argc, char* argv[]) {
         write_little_long(kFree, out);
     }
 
+  // Actual data, padded to section size.
+  fwrite(data.data(), data_size, 1, out);
+  uint32_t padding = align(data_size, kSectorSize) * kSectorSize - data_size;
+  for (uint32_t i = 0; i < padding; ++i) fputc(0, out);
+
   fclose(out);
 }
