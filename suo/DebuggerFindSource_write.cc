@@ -129,11 +129,12 @@ int main(int argc, char* argv[]) {
   uint32_t n_difat, n_fat;
   uint32_t first_mini_fat_sector_loc = kEndOfList;
   uint32_t num_minifat_sectors = 0;
+  uint32_t num_data_sectors;
 
   uint32_t data_size = static_cast<uint32_t>(data.size());
   if (data_size > kMinistreamCutoffSize) {
     // Store data in regular sectors.
-    uint32_t num_data_sectors = align(data_size, kSectorSize);
+    num_data_sectors = align(data_size, kSectorSize);
 
     uint32_t num_sectors = kNumDirectorySectors + num_data_sectors;
     compute_blocks(num_sectors, kSectorSize, &n_difat, &n_fat);
@@ -142,6 +143,7 @@ int main(int argc, char* argv[]) {
     uint32_t num_data_mini_sectors = align(data_size, kMiniSectorSize);
     num_minifat_sectors = align(4 * num_data_mini_sectors, kSectorSize);
     uint32_t num_ministream_sectors = align(data_size, kSectorSize);
+    num_data_sectors = num_ministream_sectors;
 
     uint32_t num_sectors =
         kNumDirectorySectors + num_minifat_sectors + num_ministream_sectors;
@@ -193,6 +195,41 @@ int main(int argc, char* argv[]) {
       write_little_long(n < n_fat ? n_difat + n : 0, out);
     }
     write_little_long(i + 1 == n_difat ? kEndOfList : i + 1, out);
+  }
+
+  // FAT sectors.
+  const uint32_t kDifat = 0xfffffffc;
+  const uint32_t kFat = 0xfffffffd;
+  const uint32_t kFree = 0xffffffff;
+  for (uint32_t i = 0; i < n_fat; ++i) {
+    for (uint32_t j = 0; j < 128; ++j) {
+      uint32_t n = i * 128 + j;
+      if (n < n_difat)
+        // DIFAT sectors.
+        write_little_long(kDifat, out);
+      else if (n - n_difat < n_fat)
+        // FAT sectors.
+        write_little_long(kFat, out);
+      else if (n - n_difat - n_fat < kNumDirectorySectors) {
+        // Directory entry sectors.
+        uint32_t next = n - n_difat - n_fat + 1;
+        write_little_long(next == kNumDirectorySectors ? kEndOfList : next,
+                          out);
+      } else if (n - n_difat - n_fat - kNumDirectorySectors <
+                 num_minifat_sectors) {
+        // Mini FAT sectors.
+        uint32_t next = n - n_difat - n_fat - kNumDirectorySectors + 1;
+        write_little_long(next == num_minifat_sectors ? kEndOfList : next, out);
+      } else if (n - n_difat - n_fat - kNumDirectorySectors -
+                     num_minifat_sectors <
+                 num_data_sectors) {
+        // Main data stream sectors (either full stream, or mini stream).
+        uint32_t next = n - n_difat - n_fat - kNumDirectorySectors -
+                        num_minifat_sectors + 1;
+        write_little_long(next == num_data_sectors ? kEndOfList : next, out);
+      } else
+        write_little_long(kFree, out);
+    }
   }
 
   fclose(out);
