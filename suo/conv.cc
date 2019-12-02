@@ -60,9 +60,7 @@ void short_iter(N n_blocks, N* out_n_difat, N* out_n_fat) {
   // blocks.)
   N n_fat = align(n_blocks, 127), n_difat;
   while (true) {
-    n_difat = 0;
-    if (n_fat > 109)
-      n_difat = align(n_fat - 109, 127);
+    n_difat = n_fat > 109 ? n_difat = align(n_fat - 109, 127) : 0;
     N n_fat_prime = align((n_blocks + n_difat), 127);
     if (n_fat_prime == n_fat)
       break;
