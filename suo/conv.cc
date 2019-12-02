@@ -6,6 +6,10 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include <functional>
+#include <thread>
+#include <vector>
+
 typedef uint64_t N;
 
 void naive(N n_blocks, N* out_n_difat, N* out_n_fat) {
@@ -50,18 +54,41 @@ void full_iter(N n_blocks, N* out_n_difat, N* out_n_fat) {
   *out_n_fat = n_fat;
 }
 
-int main() {
-  //for (N k = 4000000000; k < 4000001000; ++k) {
-  for (N k = 0; k < 1'000'000; ++k) {
-    N n_fat_naive, n_difat_naive;
-    naive(k, &n_difat_naive, &n_fat_naive);
-    N n_fat_full_iter, n_difat_full_iter;
-    naive(k, &n_difat_full_iter, &n_fat_full_iter);
-    if (n_difat_full_iter != n_difat_naive || n_fat_full_iter != n_fat_naive) {
-      printf("%" PRIu64 " %" PRIu64 " %" PRIu64 "\n",
-          k, n_difat_naive, n_fat_naive);
-      printf("%" PRIu64 " %" PRIu64 " %" PRIu64 "\n",
-          k, n_difat_full_iter, n_fat_full_iter);
-    }
+void parallel_for(size_t begin,
+                  size_t end,
+                  std::function<void(size_t, size_t)> body) {
+  const size_t num_threads = std::thread::hardware_concurrency();
+  std::vector<std::thread> threads;
+  const size_t iterations_per_thread = (end - begin) / num_threads;
+  for (size_t i = 0; i < num_threads; ++i) {
+    size_t thread_begin = begin + i * iterations_per_thread;
+    size_t thread_end = std::min(end, begin + (i + 1) * iterations_per_thread);
+    threads.push_back(std::thread([thread_begin, thread_end, &body]() {
+      body(thread_begin, thread_end);
+    }));
   }
+
+  for (std::thread& t : threads)
+    t.join();
+}
+
+int main() {
+
+  //for (N k = 4000000000; k < 4000001000; ++k) {
+  //for (N k = 0; k < 1'000'000; ++k) {
+  parallel_for(0, 10'000'000, [](size_t begin, size_t end) {
+    for (N k = begin; k != end; ++k) {
+      N n_fat_naive, n_difat_naive;
+      naive(k, &n_difat_naive, &n_fat_naive);
+      N n_fat_full_iter, n_difat_full_iter;
+      naive(k, &n_difat_full_iter, &n_fat_full_iter);
+      if (n_difat_full_iter != n_difat_naive ||
+          n_fat_full_iter != n_fat_naive) {
+        printf("%" PRIu64 " %" PRIu64 " %" PRIu64 "\n", k, n_difat_naive,
+               n_fat_naive);
+        printf("%" PRIu64 " %" PRIu64 " %" PRIu64 "\n", k, n_difat_full_iter,
+               n_fat_full_iter);
+      }
+    }
+  });
 }
