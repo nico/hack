@@ -128,7 +128,16 @@ int main(int argc, char* argv[]) {
 
   uint32_t n_difat, n_fat;
   uint32_t first_mini_fat_sector_loc = kEndOfList;
+
+  // Number of (normal) sectors needed to store the mini FAT.
   uint32_t num_minifat_sectors = 0;
+
+  // Number of mini sectors in the ministream.
+  uint32_t num_data_mini_sectors = 0;
+
+  // Number of (normal) sectors used to store data. Either stores the
+  // actual data, or the ministream's data and the actual data is in the
+  // ministream. (In either case this stores the actual data in a way.)
   uint32_t num_data_sectors;
 
   uint32_t data_size = static_cast<uint32_t>(data.size());
@@ -140,7 +149,7 @@ int main(int argc, char* argv[]) {
     compute_blocks(num_sectors, kSectorSize, &n_difat, &n_fat);
   } else {
     // Store data in ministream.
-    uint32_t num_data_mini_sectors = align(data_size, kMiniSectorSize);
+    num_data_mini_sectors = align(data_size, kMiniSectorSize);
     num_minifat_sectors = align(4 * num_data_mini_sectors, kSectorSize);
     uint32_t num_ministream_sectors = align(data_size, kSectorSize);
     num_data_sectors = num_ministream_sectors;
@@ -305,6 +314,17 @@ int main(int argc, char* argv[]) {
     write_little_long(0, out);                   // stream_size_low
     write_little_long(0, out);                   // stream_size_high
   }
+
+  // Mini FAT, if applicable.
+  for (uint32_t i = 0; i < num_minifat_sectors; ++i)
+    for (uint32_t j = 0; j < 128; ++j) {
+      uint32_t n = i * 128 + j;
+      if (n < num_data_mini_sectors) {
+        write_little_long(n + 1 == num_data_mini_sectors ? kEndOfList : n + 1,
+                          out);
+      } else
+        write_little_long(kFree, out);
+    }
 
   fclose(out);
 }
