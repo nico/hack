@@ -73,9 +73,7 @@ void parallel_for(size_t begin,
 }
 
 int main() {
-
-  //for (N k = 4000000000; k < 4000001000; ++k) {
-  //for (N k = 0; k < 1'000'000; ++k) {
+  //parallel_for(4'000'000'000, 4'000'001'000, [](size_t begin, size_t end) {
   parallel_for(0, 10'000'000, [](size_t begin, size_t end) {
     for (N k = begin; k != end; ++k) {
       N n_fat_naive, n_difat_naive;
