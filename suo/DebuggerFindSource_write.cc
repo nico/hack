@@ -244,31 +244,38 @@ int main(int argc, char* argv[]) {
   for (uint32_t i = 0; i < n_fat; ++i) {
     for (uint32_t j = 0; j < 128; ++j) {
       uint32_t n = i * 128 + j;
-      if (n < n_difat)
+      if (n < n_difat) {
         // DIFAT sectors.
         write_little_long(kDifat, out);
-      else if (n - n_difat < n_fat)
+        continue;
+      }
+      n -= n_difat;
+      if (n < n_fat) {
         // FAT sectors.
         write_little_long(kFat, out);
-      else if (n - n_difat - n_fat < kNumDirectorySectors) {
+        continue;
+      }
+      n -= n_fat;
+      if (n < kNumDirectorySectors) {
         // Directory entry sectors.
-        uint32_t next = n - n_difat - n_fat + 1;
-        write_little_long(next == kNumDirectorySectors ? kEndOfList : next,
+        write_little_long(n + 1 == kNumDirectorySectors ? kEndOfList : n + 1,
                           out);
-      } else if (n - n_difat - n_fat - kNumDirectorySectors <
-                 num_minifat_sectors) {
+        continue;
+      }
+      n -= kNumDirectorySectors;
+      if (n  < num_minifat_sectors) {
         // Mini FAT sectors.
-        uint32_t next = n - n_difat - n_fat - kNumDirectorySectors + 1;
-        write_little_long(next == num_minifat_sectors ? kEndOfList : next, out);
-      } else if (n - n_difat - n_fat - kNumDirectorySectors -
-                     num_minifat_sectors <
-                 num_data_sectors) {
+        write_little_long(n + 1 == num_minifat_sectors ? kEndOfList : n + 1,
+                          out);
+        continue;
+      }
+      n -= num_minifat_sectors;
+      if (n < num_data_sectors) {
         // Main data stream sectors (either full stream, or mini stream).
-        uint32_t next = n - n_difat - n_fat - kNumDirectorySectors -
-                        num_minifat_sectors + 1;
-        write_little_long(next == num_data_sectors ? kEndOfList : next, out);
-      } else
-        write_little_long(kFree, out);
+        write_little_long(n + 1 == num_data_sectors ? kEndOfList : n + 1, out);
+        continue;
+      }
+      write_little_long(kFree, out);
     }
   }
 
