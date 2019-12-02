@@ -57,12 +57,13 @@ void full_iter(N n_blocks, N* out_n_difat, N* out_n_fat) {
 void parallel_for(size_t begin,
                   size_t end,
                   std::function<void(size_t, size_t)> body) {
-  const size_t num_threads = std::thread::hardware_concurrency();
+  size_t num_threads = std::max(1u, std::thread::hardware_concurrency());
   std::vector<std::thread> threads;
   const size_t iterations_per_thread = (end - begin) / num_threads;
   for (size_t i = 0; i < num_threads; ++i) {
     size_t thread_begin = begin + i * iterations_per_thread;
-    size_t thread_end = std::min(end, begin + (i + 1) * iterations_per_thread);
+    size_t thread_end =
+        i == num_threads - 1 ? end : begin + (i + 1) * iterations_per_thread;
     threads.push_back(std::thread([thread_begin, thread_end, &body]() {
       body(thread_begin, thread_end);
     }));
