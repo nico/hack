@@ -107,6 +107,34 @@ void write_little_long(uint32_t v, FILE* f) {
   fputc((v >> 24)& 0xff, f);
 }
 
+void write_directory_entry(const char* dir_entry_name,
+                           uint16_t dir_entry_name_len,
+                           uint8_t object_type,
+                           uint32_t child_object_stream_id,
+                           uint32_t first_data_sector_loc,
+                           uint32_t data_size,
+                           FILE* out) {
+  const uint32_t kNoChild = 0xffffffff;
+  fwrite(dir_entry_name, dir_entry_name_len, 1, out);  // dir_entry_name
+  for (int i = 0; i < 64 - dir_entry_name_len; ++i)
+    fputc(0, out);                             // pad remaining dir_entry_name
+  write_little_short(dir_entry_name_len, out);
+  fputc(object_type, out);
+  fputc(1, out);                               // color (1: black)
+  write_little_long(kNoChild, out);            // left_sibling_stream_id
+  write_little_long(kNoChild, out);            // right_sibling_stream_id
+  write_little_long(child_object_stream_id, out);
+  for (int i = 0; i < 16; ++i) fputc(0, out);  // clsid
+  write_little_long(0, out);                   // state_bits
+  write_little_long(0, out);                   // creation_time_low
+  write_little_long(0, out);                   // creation_time_high
+  write_little_long(0, out);                   // modification_time_low
+  write_little_long(0, out);                   // modification_time_high
+  write_little_long(first_data_sector_loc, out);
+  write_little_long(data_size, out);           // stream_size_low
+  write_little_long(0, out);  // stream_size_high, must be 0 for version 3 files
+}
+
 int main(int argc, char* argv[]) {
   std::vector<uint8_t> data = debug_data();
 
@@ -247,72 +275,25 @@ int main(int argc, char* argv[]) {
   // Directory entries.
   // First entry, root object.
   const uint32_t kNoChild = 0xffffffff;
-  fwrite("R\0o\0o\0t\0 \0E\0n\0t\0r\0y\0\0\0", 22, 1, out);  // dir_entry_name
-  for (int i = 0; i < 42; ++i) fputc(0, out);  // pad remaining dir_entry_name
-  write_little_short(22, out);                 // dir_entry_name_len
-  fputc(5, out);                               // object_type (5: root)
-  fputc(1, out);                               // color (1: black)
-  write_little_long(kNoChild, out);            // left_sibling_stream_id
-  write_little_long(kNoChild, out);            // right_sibling_stream_id
-  write_little_long(1, out);                   // child_object_stream_id
-  for (int i = 0; i < 16; ++i) fputc(0, out);  // clsid
-  write_little_long(0, out);                   // state_bits
-  write_little_long(0, out);                   // creation_time_low
-  write_little_long(0, out);                   // creation_time_high
-  write_little_long(0, out);                   // modification_time_low
-  write_little_long(0, out);                   // modification_time_high
-  if (num_minifat_sectors) {
-    write_little_long(first_data_sector_loc, out);
-    write_little_long(data_size, out);
-    write_little_long(0, out);
-  } else {
-    write_little_long(kEndOfList, out);
-    write_little_long(0, out);
-    write_little_long(0, out);
-  }
+  write_directory_entry(
+      "R\0o\0o\0t\0 \0E\0n\0t\0r\0y\0\0\0", 22,
+      /*object_type=*/5 /* 5: root */,
+      /*child_object_stream_id=*/1,
+      num_minifat_sectors ? first_data_sector_loc : kEndOfList,
+      num_minifat_sectors ? data_size : 0, out);
 
   // Second entry, DebuggerFindSource data object.
-  fwrite("D\0e\0b\0u\0g\0g\0e\0r\0F\0i\0n\0d\0S\0o\0u\0r\0c\0e\0\0", 38, 1,
-         out);                                 // dir_entry_name
-  for (int i = 0; i < 26; ++i) fputc(0, out);  // pad remaining dir_entry_name
-  write_little_short(38, out);                 // dir_entry_name_len
-  fputc(2, out);                               // object_type (2: stream)
-  fputc(1, out);                               // color (1: black)
-  write_little_long(kNoChild, out);            // left_sibling_stream_id
-  write_little_long(kNoChild, out);            // right_sibling_stream_id
-  write_little_long(kNoChild, out);            // child_object_stream_id
-  for (int i = 0; i < 16; ++i) fputc(0, out);  // clsid
-  write_little_long(0, out);                   // state_bits
-  write_little_long(0, out);                   // creation_time_low
-  write_little_long(0, out);                   // creation_time_high
-  write_little_long(0, out);                   // modification_time_low
-  write_little_long(0, out);                   // modification_time_high
-  if (num_minifat_sectors)
-    write_little_long(0, out);
-  else
-    write_little_long(first_data_sector_loc, out);
-  write_little_long(data_size, out);
-  write_little_long(0, out);
+  write_directory_entry(
+      "D\0e\0b\0u\0g\0g\0e\0r\0F\0i\0n\0d\0S\0o\0u\0r\0c\0e\0\0", 38,
+      /*object_type=*/2 /* 2: stream */, kNoChild,
+      num_minifat_sectors ? 0 : first_data_sector_loc, data_size, out);
 
   // Two entries padding to fill up the sector.
   for (int j = 0; j < 2; ++j) {
     // All entries must be null, except for sibling and child ids.
-    for (int i = 0; i < 64; ++i) fputc(0, out);  // dir_entry_name
-    write_little_short(0, out);                  // dir_entry_name_len
-    fputc(0, out);                               // object_type (0: empty)
-    fputc(0, out);                               // color (0: red)
-    write_little_long(kNoChild, out);            // left_sibling_stream_id
-    write_little_long(kNoChild, out);            // right_sibling_stream_id
-    write_little_long(kNoChild, out);            // child_object_stream_id
-    for (int i = 0; i < 16; ++i) fputc(0, out);  // clsid
-    write_little_long(0, out);                   // state_bits
-    write_little_long(0, out);                   // creation_time_low
-    write_little_long(0, out);                   // creation_time_high
-    write_little_long(0, out);                   // modification_time_low
-    write_little_long(0, out);                   // modification_time_high
-    write_little_long(0, out);                   // starting_sector_loc
-    write_little_long(0, out);                   // stream_size_low
-    write_little_long(0, out);                   // stream_size_high
+    for (int i = 0; i < 68; ++i) fputc(0, out);
+    for (int i = 0; i < 12; ++i) fputc(0xff, out);
+    for (int i = 0; i < 48; ++i) fputc(0, out);
   }
 
   // Mini FAT, if applicable.
