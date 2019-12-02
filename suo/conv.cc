@@ -74,13 +74,14 @@ void parallel_for(size_t begin,
 }
 
 int main() {
+  // Compare naive() against full_iter() for some inputs.
   //parallel_for(4'000'000'000, 4'000'001'000, [](size_t begin, size_t end) {
   parallel_for(0, 10'000'000, [](size_t begin, size_t end) {
     for (N k = begin; k != end; ++k) {
       N n_fat_naive, n_difat_naive;
       naive(k, &n_difat_naive, &n_fat_naive);
       N n_fat_full_iter, n_difat_full_iter;
-      naive(k, &n_difat_full_iter, &n_fat_full_iter);
+      full_iter(k, &n_difat_full_iter, &n_fat_full_iter);
       if (n_difat_full_iter != n_difat_naive ||
           n_fat_full_iter != n_fat_naive) {
         printf("%" PRIu64 " %" PRIu64 " %" PRIu64 "\n", k, n_difat_naive,
