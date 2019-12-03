@@ -1,5 +1,5 @@
 /*
-clang-cl -O2 /W4 -Wconversion DebuggerFindSource_write.cc ^
+clang-cl -O2 /W4 -Wconversion DebuggerFindSource_write.cc /Zi ^
     /D_CRT_SECURE_NO_DEPRECATE
 clang++ -std=c++17 -O2 -Wall -Wextra -Wconversion DebuggerFindSource_write.cc \
     -o DebuggerFindSource_write
@@ -204,6 +204,10 @@ int main(int argc, char* argv[]) {
   const char *out_name = argv[1];
   // XXX Write to temp, rename at end (?)
   FILE* out = fopen(out_name, "wb");
+  if (!out) {
+    fprintf(stderr, "failed to open '%s': %s\n", out_name, strerror(errno));
+    return 1;
+  }
 
   // Header.
   fwrite("\xD0\xCF\x11\xE0\xA1\xB1\x1a\xE1", 8, 1, out);  // signature
