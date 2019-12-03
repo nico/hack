@@ -1,6 +1,7 @@
 // Like conv.py, but in C, and computes DIFAT blocks too.
 // Also includes an extra-naive algorithm.
-// clang -O2 conv.cc -Wall -Wextra -Wconversion && ./a.out
+// clang++ -O2 conv.cc -Wall -Wextra -Wconversion && ./a.out
+// On Linux, also need -lpthread
 
 #include <inttypes.h>
 #include <stdint.h>
