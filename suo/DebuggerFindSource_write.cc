@@ -1,5 +1,6 @@
 /*
-clang-cl -O2 /W4 -Wconversion DebuggerFindSource_write.cc
+clang-cl -O2 /W4 -Wconversion DebuggerFindSource_write.cc ^
+    /D_CRT_SECURE_NO_DEPRECATE
 clang++ -std=c++17 -O2 -Wall -Wextra -Wconversion DebuggerFindSource_write.cc \
     -o DebuggerFindSource_write
 
