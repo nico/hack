@@ -24,7 +24,7 @@ directories and runs `annotate.py` to convert the buildlog text files to
 html files every time a new log file arrives. The watching is done by the
 `watch.sh` script.
 
-The html files are static files and served as such by the web server.
+The html files are static files and are served as such by the web server.
 
 The web server and the buildlog storage server happen to be the same machine
 at the moment.
@@ -102,7 +102,7 @@ Server setup
 ------------
 
 Create a user `llvm`, and create `~llvm/buildlog`. The builders will rsync build
-logs to `~llvm/buildlog/{linux,max}`.
+logs to `~llvm/buildlog/{linux,mac,win}`.
 
 Check out this repository as llvm to `~llvm/hack`.
 
