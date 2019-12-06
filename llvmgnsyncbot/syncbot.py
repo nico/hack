@@ -24,6 +24,7 @@ Use through syncbot.sh wrapper script:
 from __future__ import print_function
 
 import logging
+import json
 import os
 import subprocess
 import sys
@@ -37,7 +38,7 @@ def check_git(args):
     return subprocess.check_call(['git'] + args)
 
 def git_output(args):
-    return subprocess.check_output(['git'] + args)
+    return subprocess.check_output(['git'] + args).rstrip()
 
 
 def run():
@@ -73,7 +74,7 @@ def run():
             'llvm/utils/gn/build/sync_source_lists_from_cmake.py',
             '--write'])
 
-    # Build/test.
+    # Build.
     logging.info('restart goma')
     if sys.platform == 'win32':
         goma_ctl = r'c:\src\goma\goma-win64\goma_ctl.py'
@@ -88,17 +89,44 @@ def run():
         j = '-j200'
     subprocess.check_call(['ninja', '-C', 'out/gn', j])
 
-    logging.info('testing')
-    tests = [
-            'check-clang',
-            'check-clangd',
-            'check-clang-tools',
-            'check-lld',
-            'check-llvm',
-    ]
+    # Test.
+
+    tests = {
+            '//clang/test:check-clang': 'check-clang',
+            '//clang-tools-extra/clangd/test:check-clangd': 'check-clangd',
+            '//clang-tools-extra/test:check-clang-tools': 'check-clang-tools',
+            '//lld/test:check-lld': 'check-lld',
+            '//llvm/test:check-llvm': 'check-llvm',
+    }
     if sys.platform not in ['darwin', 'win32' ]:
-        tests += [ 'check-hwasan' ]
-    for test in tests:
+        tests['//compiler-rt/test/hwasan:check-hwasan'] = 'check-hwasan'
+
+    logging.info('analyze')
+    changed_files = git_output(
+            ['diff', '--name-only', '%s..%s' % (old_rev, new_rev)]).splitlines()
+    analyze_in = {
+        'files': ['//' + f for f in changed_files],
+        'test_targets': tests.keys(),
+        'additional_compile_targets': [],  # We don't use this, but GN insists.
+    }
+    with open('analyze_in.json', 'wb') as f:
+        json.dump(analyze_in, f)
+    subprocess.check_call([
+            sys.executable,
+            'llvm/utils/gn/gn.py',
+            'analyze',
+            'out/gn',
+            'analyze_in.json',
+            'analyze_out.json'])
+    with open('analyze_out.json', 'rb') as f:
+        analyze_out = json.load(f)
+    print('gn analyze output:\n' + json.dumps(analyze_out, indent=2))
+    print('gn analyze input:\n' + json.dumps(analyze_in, indent=2))
+    # FIXME: Add blacklist for .h/.def/.inc, */test/, llvm/utils/lit
+    # FIXME: Actually use analyze output
+
+    logging.info('testing')
+    for test in sorted(tests.values()):
         logging.info('test %s', test)
         subprocess.check_call(['ninja', '-C', 'out/gn', test])
 
