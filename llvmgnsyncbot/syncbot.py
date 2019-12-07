@@ -110,7 +110,7 @@ def run():
             ['diff', '--name-only', '%s..%s' % (old_rev, new_rev)]).splitlines()
     analyze_in = {
         'files': ['//' + f for f in changed_files],
-        'test_targets': tests.keys(),
+        'test_targets': sorted(tests.keys()),
         'additional_compile_targets': [],  # We don't use this, but GN insists.
     }
     with open('analyze_in.json', 'wb') as f:
