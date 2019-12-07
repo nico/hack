@@ -41,6 +41,10 @@ def git_output(args):
     return subprocess.check_output(['git'] + args).rstrip()
 
 
+def step_output(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
+
+
 def run():
     # XXX: Check if there are local changes and warn?
 
@@ -120,8 +124,8 @@ def run():
             'analyze_out.json'])
     with open('analyze_out.json', 'rb') as f:
         analyze_out = json.load(f)
-    print('gn analyze output:\n' + json.dumps(analyze_out, indent=2))
-    print('gn analyze input:\n' + json.dumps(analyze_in, indent=2))
+    step_output('gn analyze output:\n' + json.dumps(analyze_out, indent=2))
+    step_output('gn analyze input:\n' + json.dumps(analyze_in, indent=2))
     # FIXME: Add blacklist for .h/.def/.inc, */test/, llvm/utils/lit
     # FIXME: Actually use analyze output
 
