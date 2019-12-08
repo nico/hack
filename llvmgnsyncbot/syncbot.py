@@ -109,6 +109,7 @@ def run():
     # FIXME: Need to get all files since last green build, else a red build
     # might cycle green without tests being fixed because test stops running
     # due to no changing file affecting it.
+    # FIXME: Need to include local diff, for sync_source_lists_from_cmake output
     changed_files = git_output(
             ['diff', '--name-only', '%s..%s' % (old_rev, new_rev)]).splitlines()
     analyze_in = {
