@@ -130,7 +130,7 @@ def run():
         analyze_out = json.load(f)
     step_output('gn analyze output:\n' + json.dumps(analyze_out, indent=2))
     step_output('gn analyze input:\n' + json.dumps(analyze_in, indent=2))
-    # FIXME: Add blacklist for .h/.def/.inc, */test/, llvm/utils/lit
+    # FIXME: Add blacklist for .h/.def/.inc/.td, */test/, llvm/utils/lit
     # FIXME: Actually use analyze output
 
     logging.info('testing')
