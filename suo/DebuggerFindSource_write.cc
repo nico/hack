@@ -22,6 +22,11 @@ Writes an MSVC .suo file with a DebuggerFindSource entry.
 #include <iterator>
 #include <vector>
 
+#ifdef _WIN32
+#include <errno.h>
+#include <io.h>
+#endif
+
 void store_little_long(uint32_t v, std::vector<uint8_t>* data) {
   data->push_back(v & 0xff);
   data->push_back((v >> 8) & 0xff);
@@ -205,8 +210,26 @@ int main(int argc, char* argv[]) {
   // XXX Write to temp, rename at end (?)
   FILE* out = fopen(out_name, "wb");
   if (!out) {
+#ifdef _WIN32
+    // MSVC makes its main .suo file a hidden file, and those can't be
+    // written to in mode "w" (try `echo hi > hidden.txt` in cmd).
+    // Instead, open as "r+" and then truncate.
+    if (errno == EACCES) {
+      out = fopen(out_name, "r+b");
+      if (!out) {
+        fprintf(stderr, "failed to open '%s': %s\n", out_name, strerror(errno));
+        return 1;
+      }
+      if (_chsize(_fileno(out), 0) != 0) {
+        fprintf(stderr, "failed to _chsize '%s': %s\n",
+                out_name, strerror(errno));
+        return 1;
+      }
+    }
+#else
     fprintf(stderr, "failed to open '%s': %s\n", out_name, strerror(errno));
     return 1;
+#endif
   }
 
   // Header.
