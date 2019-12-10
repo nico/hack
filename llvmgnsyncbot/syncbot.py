@@ -144,10 +144,18 @@ def run():
         # FIXME: Maybe fetch and rebase before pushing, so that the commit
         # works if something landed while tests ran -- see
         # http://lists.llvm.org/pipermail/llvm-dev/2019-October/136266.html
-        # If I do that, I need to change the triggering logic, else the next
-        # build won't build the commits fetched here.
         logging.info('committing changes')
         check_git(['push', 'origin', 'HEAD:master'])
+        # Make origin/master forget the commit(s) with gn file changes, so that
+        # they pulled on the next build. Alternatively, annotate.py could look
+        # at the output of the 'committing changes' step and make the sync
+        # commit of the current build, but that works less well with a
+        # potential future "fetch and rebase before pushing", and it'd also
+        # be different from what the mac and linux bots are doing.
+        # The @{1} means "previous reflog entry", see
+        # https://git-scm.com/book/en/v2/Git-Tools-Revision-Selection#_git_reflog
+        check_git(['update-ref', 'refs/remotes/origin/master',
+                   'refs/remotes/origin/master@{1}'])
 
     logging.info('done')
 
