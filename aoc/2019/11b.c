@@ -162,5 +162,4 @@ done  :
       printf(grid[yi][xi]?"##":"  ");
     printf("\n");
   }
-
 }
