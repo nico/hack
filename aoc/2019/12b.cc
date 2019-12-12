@@ -26,25 +26,33 @@ static void update_pos(int* vel, int* pos, const int N) {
       pos[i*3 + k] += vel[i*3 + k];
 }
 
-uint64_t gcd(uint64_t a, uint64_t b) {
+static uint64_t gcd(uint64_t a, uint64_t b) {
   return b == 0 ? a : gcd(b, a % b);
 }
 
-uint64_t lcd(uint64_t a, uint64_t b) {
+static uint64_t lcd(uint64_t a, uint64_t b) {
   uint64_t d = gcd(a, b);
   return (a / d) * b;
 }
 
-uint64_t lcd3(uint64_t a, uint64_t b, uint64_t c) {
+static uint64_t lcd3(uint64_t a, uint64_t b, uint64_t c) {
   return lcd(a, lcd(b, c));
 }
 
-bool check(unordered_set<string>* seen, int* vel, int* pos) {
+static bool check(unordered_set<string>* seen, int* vel, int* pos) {
   char buf[1024];
   sprintf(buf, "%d,%d,%d,%d,%d,%d,%d,%d",
                pos[0], pos[3], pos[6], pos[9],
                vel[0], vel[3], vel[6], vel[9]);
   return !seen->insert(buf).second;
+}
+
+static void find_cycle(int step, int bit, int *mask, int *cycle,
+                       unordered_set<string>* seen, int* vel, int* pos) {
+  if (!(*mask & bit) && check(seen, vel, pos)) {
+    *cycle = step;
+    *mask |= bit;
+  }
 }
 
 int main() {
@@ -65,20 +73,9 @@ int main() {
     update_vel(vel, pos, N);
     update_pos(vel, pos, N);
 
-    if (!(mask & 1) && check(&seen_x, vel, pos)) {
-      cycle_x = step;
-      mask |= 1;
-    }
-
-    if (!(mask & 2) && check(&seen_y, &vel[1], &pos[1])) {
-      cycle_y = step;
-      mask |= 2;
-    }
-
-    if (!(mask & 4) && check(&seen_y, &vel[2], &pos[2])) {
-      cycle_z = step;
-      mask |= 4;
-    }
+    find_cycle(step, 1, &mask, &cycle_x, &seen_x, vel, pos);
+    find_cycle(step, 2, &mask, &cycle_y, &seen_y, &vel[1], &pos[1]);
+    find_cycle(step, 4, &mask, &cycle_z, &seen_z, &vel[2], &pos[2]);
   }
   printf("%" PRIu64 "\n", lcd3(cycle_x, cycle_y, cycle_z));
 }
