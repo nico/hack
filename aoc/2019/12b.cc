@@ -3,9 +3,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <numeric>
 #include <unordered_set>
 #include <string>
-using std::string, std::unordered_set;
+using std::lcm, std::string, std::unordered_set;
 
 static int delta(int a, int b) {
   if (a < b) return  1;
@@ -26,17 +27,8 @@ static void update_pos(int* vel, int* pos, const int N) {
       pos[i*3 + k] += vel[i*3 + k];
 }
 
-static uint64_t gcd(uint64_t a, uint64_t b) {
-  return b == 0 ? a : gcd(b, a % b);
-}
-
-static uint64_t lcd(uint64_t a, uint64_t b) {
-  uint64_t d = gcd(a, b);
-  return (a / d) * b;
-}
-
-static uint64_t lcd3(uint64_t a, uint64_t b, uint64_t c) {
-  return lcd(a, lcd(b, c));
+static uint64_t lcm3(uint64_t a, uint64_t b, uint64_t c) {
+  return lcm(a, lcm(b, c));
 }
 
 static bool check(unordered_set<string>* seen, int* vel, int* pos) {
@@ -77,5 +69,5 @@ int main() {
     find_cycle(step, 2, &mask, &cycle_y, &seen_y, &vel[1], &pos[1]);
     find_cycle(step, 4, &mask, &cycle_z, &seen_z, &vel[2], &pos[2]);
   }
-  printf("%" PRIu64 "\n", lcd3(cycle_x, cycle_y, cycle_z));
+  printf("%" PRIu64 "\n", lcm3(cycle_x, cycle_y, cycle_z));
 }
