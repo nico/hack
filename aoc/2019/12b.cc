@@ -27,10 +27,6 @@ static void update_pos(int* vel, int* pos, const int N) {
       pos[i*3 + k] += vel[i*3 + k];
 }
 
-static uint64_t lcm3(uint64_t a, uint64_t b, uint64_t c) {
-  return lcm(a, lcm(b, c));
-}
-
 static bool check(unordered_set<string>* seen, int* vel, int* pos) {
   char buf[1024];
   sprintf(buf, "%d,%d,%d,%d,%d,%d,%d,%d",
@@ -45,6 +41,10 @@ static void find_cycle(int step, int bit, int *mask, int *cycle,
     *cycle = step;
     *mask |= bit;
   }
+}
+
+static uint64_t lcm3(uint64_t a, uint64_t b, uint64_t c) {
+  return lcm(a, lcm(b, c));
 }
 
 int main() {
