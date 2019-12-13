@@ -4,17 +4,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+int ai(int paddle_x, int ball_x) {
+  if (paddle_x > ball_x) return -1;
+  if (paddle_x < ball_x) return  1;
+  return 0;
+}
+
 int main(void) {
-  const int N = 512 * 1024 * 1024;
-  int64_t* dat = (int64_t*)calloc(N, sizeof(int64_t));
+  int64_t dat[4096];
 
   {
-    const int BN = 1024 * 1024;
-    char* in = malloc(BN);
-    if (fgets(in, BN, stdin) == NULL) {
-      fprintf(stderr, "failed to read\n");
+    char in[8000];
+    if (fgets(in, sizeof(in), stdin) == NULL)
       return 1;
-    }
     if (in[strlen(in) - 1] != '\n') {
       fprintf(stderr, "program too long to read\n");
       return 1;
@@ -22,20 +24,11 @@ int main(void) {
 
     char *str = in, *token; size_t i = 0;
     while ((token = strsep(&str, ",")) != NULL) {
-      if (i >= N) {
-        fprintf(stderr, "program too large\n");
+      if (i >= sizeof(dat) / sizeof(dat[0]))
         return 2;
-      }
       dat[i++] = strtoll(token, (char**)NULL, 10);
     }
-    free(in);
   }
-
-  // All this macro goop exists so that the interpreter doesn't have to compute
-  // mods to get instruction modes. Instead, there's a dedicated piece of code
-  // for each parameter addressing mode combination. For 3-arg commands, there
-  // are 2x3x3 combinations (can't write to immediates), and this gets unwieldy
-  // without macros. Arguably gets unwieldy with macros too.
 
 #define ENTRY0_1(n, l) \
   [      n] = &&l##_m,    [  10##n] = &&l##_i,    [  20##n] = &&l##_r
@@ -66,29 +59,69 @@ int main(void) {
       [99] = &&done,
   };
 
+  const int NX = 44;
+  const int NY = 20;
+  uint8_t grid[NY][NX] = {0};
+  enum { kX, kY, kTile } state = kX;
+  int64_t in_op, x, y;
+
+  int64_t ball_x = 0;
+  int64_t paddle_x = 0;
+
+  dat[0] = 2;
+
   int64_t base = 0;
   int64_t *ip = dat;
   goto *opcode[*ip];
 
-#define CMD1_0(name) \
-name    : CODE(dat[ip[1]       ]); \
-name##_r: CODE(dat[ip[1] + base])
-
-#define CODE(dst) \
-{ int t = getchar(); dst = t == EOF ? 0 : t; } ip += 2; goto *opcode[*ip]
-CMD1_0(in);
-#undef CODE
-
-#undef CMD1_0
+in    : dat[ip[1]       ] = ai(paddle_x, ball_x); ip += 2; goto *opcode[*ip];
+in_r  : dat[ip[1] + base] = ai(paddle_x, ball_x); ip += 2; goto *opcode[*ip];
 
 #define CMD0_1(name) \
 name##_m: CODE(dat[ip[1]       ]); \
 name##_i: CODE(    ip[1]        ); \
 name##_r: CODE(dat[ip[1] + base])
 
-#define CODE(op1) putchar(op1); ip += 2; goto *opcode[*ip]
+#define CODE(op1) in_op = op1; ip += 2; goto move
 CMD0_1(out);
 #undef CODE
+
+move:
+  if (state == kX) {
+    x = in_op;
+    state = kY;
+  } else if (state == kY) {
+    y = in_op;
+    state = kTile;
+  } else {
+    if (x == -1 && y == 0)
+      printf("score: %lld\n", in_op);
+    else {
+      if (x < 0 || x >= NX || y < 0 || y >= NY) {
+        fprintf(stderr, "out of bounds %lld %lld\n", x, y);
+        exit(1);
+      }
+      grid[y][x] = in_op;
+      if (in_op == 4)
+        ball_x = x;
+      else if (in_op == 3)
+        paddle_x = x;
+
+      if (in_op == 4) {
+        char chars[] = { ' ', '#', 'x', '_', 'o' };
+        for (int iy = 0; iy < NY; ++iy) {
+          for (int ix = 0; ix < NX; ++ix)
+            printf("%c", chars[grid[iy][ix]]);
+          printf("\n");
+        }
+        printf("paddle x %lld, ball x %lld\n\n", paddle_x, ball_x);
+      }
+
+     }
+
+    state = kX;
+  }
+  goto *opcode[*ip];
 
 #define CODE(op1) base += op1; ip += 2; goto *opcode[*ip]
 CMD0_1(bas);

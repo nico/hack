@@ -5,16 +5,12 @@
 #include <stdlib.h>
 
 int main(void) {
-  const int N = 512 * 1024 * 1024;
-  int64_t* dat = (int64_t*)calloc(N, sizeof(int64_t));
+  int64_t dat[4096];
 
   {
-    const int BN = 1024 * 1024;
-    char* in = malloc(BN);
-    if (fgets(in, BN, stdin) == NULL) {
-      fprintf(stderr, "failed to read\n");
+    char in[8000];
+    if (fgets(in, sizeof(in), stdin) == NULL)
       return 1;
-    }
     if (in[strlen(in) - 1] != '\n') {
       fprintf(stderr, "program too long to read\n");
       return 1;
@@ -22,20 +18,11 @@ int main(void) {
 
     char *str = in, *token; size_t i = 0;
     while ((token = strsep(&str, ",")) != NULL) {
-      if (i >= N) {
-        fprintf(stderr, "program too large\n");
+      if (i >= sizeof(dat) / sizeof(dat[0]))
         return 2;
-      }
       dat[i++] = strtoll(token, (char**)NULL, 10);
     }
-    free(in);
   }
-
-  // All this macro goop exists so that the interpreter doesn't have to compute
-  // mods to get instruction modes. Instead, there's a dedicated piece of code
-  // for each parameter addressing mode combination. For 3-arg commands, there
-  // are 2x3x3 combinations (can't write to immediates), and this gets unwieldy
-  // without macros. Arguably gets unwieldy with macros too.
 
 #define ENTRY0_1(n, l) \
   [      n] = &&l##_m,    [  10##n] = &&l##_i,    [  20##n] = &&l##_r
@@ -66,29 +53,43 @@ int main(void) {
       [99] = &&done,
   };
 
+  const int N = 64;
+  uint8_t grid[N][N] = {0};
+  enum { kX, kY, kTile } state = kX;
+  int64_t in_op, x, y;
+
   int64_t base = 0;
   int64_t *ip = dat;
   goto *opcode[*ip];
 
-#define CMD1_0(name) \
-name    : CODE(dat[ip[1]       ]); \
-name##_r: CODE(dat[ip[1] + base])
-
-#define CODE(dst) \
-{ int t = getchar(); dst = t == EOF ? 0 : t; } ip += 2; goto *opcode[*ip]
-CMD1_0(in);
-#undef CODE
-
-#undef CMD1_0
+in    : dat[ip[1]       ] = grid[y][x] & 0x7f; ip += 2; goto *opcode[*ip];
+in_r  : dat[ip[1] + base] = grid[y][x] & 0x7f; ip += 2; goto *opcode[*ip];
 
 #define CMD0_1(name) \
 name##_m: CODE(dat[ip[1]       ]); \
 name##_i: CODE(    ip[1]        ); \
 name##_r: CODE(dat[ip[1] + base])
 
-#define CODE(op1) putchar(op1); ip += 2; goto *opcode[*ip]
+#define CODE(op1) in_op = op1; ip += 2; goto move
 CMD0_1(out);
 #undef CODE
+
+move:
+  if (state == kX) {
+    x = in_op;
+    state = kY;
+  } else if (state == kY) {
+    y = in_op;
+    state = kTile;
+  } else {
+    if (x < 0 || x >= N || y < 0 || y >= N) {
+      fprintf(stderr, "out of bounds %lld %lld\n", x, y);
+      exit(1);
+    }
+    grid[y][x] = in_op;
+    state = kX;
+  }
+  goto *opcode[*ip];
 
 #define CODE(op1) base += op1; ip += 2; goto *opcode[*ip]
 CMD0_1(bas);
@@ -155,5 +156,12 @@ CMD0_2(jne);
 
 #undef CMD0_2
 
-done  : return 0;
+done  : {
+    int n = 0;
+    for (int iy = 0; iy < N; ++iy)
+      for (int ix = 0; ix < N; ++ix)
+        if (grid[iy][ix] == 2)
+          ++n;
+    fprintf(stderr, "%d\n", n);
+  }
 }

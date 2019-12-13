@@ -1,6 +1,25 @@
 #include <string.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#ifdef __eir__
+char* strsep(char** stringp, const char* delim) {
+  char* start = *stringp;
+  char* p;
+
+  p = (start != NULL) ? strpbrk(start, delim) : NULL;
+
+  if (p == NULL) {
+    *stringp = NULL;
+  } else {
+    *p = '\0';
+    *stringp = p + 1;
+  }
+
+  return start;
+}
+#endif
 
 int main(void) {
   const int N = 512 * 1024 * 1024;
@@ -44,41 +63,47 @@ int main(void) {
   int64_t *ip = dat;
   goto *opcode[*ip];
 
+#if 0
+#define NEXT() goto *opcocde[*ip]
+#else
+#define NEXT() fprintf(stderr, "%ld\n", ip - dat); goto *opcode[*ip]
+#endif
+
 in    :
-{ int t = getchar(); dat[ip[1]] = t==EOF ? 0:t; } ip += 2; goto *opcode[*ip];
+{ int t = getchar(); dat[ip[1]] = t==EOF ? 0:t; } ip += 2; NEXT();
 
-out_m : putchar(dat[ip[1]]); ip += 2; goto *opcode[*ip];
-out_i : putchar(    ip[1] ); ip += 2; goto *opcode[*ip];
+out_m : putchar(dat[ip[1]]); ip += 2; NEXT();
+out_i : putchar(    ip[1] ); ip += 2; NEXT();
 
-add_mm: dat[ip[3]] = dat[ip[1]]  + dat[ip[2]]; ip += 4; goto *opcode[*ip];
-add_mi: dat[ip[3]] = dat[ip[1]]  +     ip[2] ; ip += 4; goto *opcode[*ip];
-add_im: dat[ip[3]] =     ip[1]   + dat[ip[2]]; ip += 4; goto *opcode[*ip];
-add_ii: dat[ip[3]] =     ip[1]   +     ip[2] ; ip += 4; goto *opcode[*ip];
+add_mm: dat[ip[3]] = dat[ip[1]]  + dat[ip[2]]; ip += 4; NEXT();
+add_mi: dat[ip[3]] = dat[ip[1]]  +     ip[2] ; ip += 4; NEXT();
+add_im: dat[ip[3]] =     ip[1]   + dat[ip[2]]; ip += 4; NEXT();
+add_ii: dat[ip[3]] =     ip[1]   +     ip[2] ; ip += 4; NEXT();
 
-mul_mm: dat[ip[3]] = dat[ip[1]]  * dat[ip[2]]; ip += 4; goto *opcode[*ip];
-mul_mi: dat[ip[3]] = dat[ip[1]]  *     ip[2] ; ip += 4; goto *opcode[*ip];
-mul_im: dat[ip[3]] =     ip[1]   * dat[ip[2]]; ip += 4; goto *opcode[*ip];
-mul_ii: dat[ip[3]] =     ip[1]   *     ip[2] ; ip += 4; goto *opcode[*ip];
+mul_mm: dat[ip[3]] = dat[ip[1]]  * dat[ip[2]]; ip += 4; NEXT();
+mul_mi: dat[ip[3]] = dat[ip[1]]  *     ip[2] ; ip += 4; NEXT();
+mul_im: dat[ip[3]] =     ip[1]   * dat[ip[2]]; ip += 4; NEXT();
+mul_ii: dat[ip[3]] =     ip[1]   *     ip[2] ; ip += 4; NEXT();
 
-lt_mm : dat[ip[3]] = dat[ip[1]]  < dat[ip[2]]; ip += 4; goto *opcode[*ip];
-lt_mi : dat[ip[3]] = dat[ip[1]]  <     ip[2] ; ip += 4; goto *opcode[*ip];
-lt_im : dat[ip[3]] =     ip[1]   < dat[ip[2]]; ip += 4; goto *opcode[*ip];
-lt_ii : dat[ip[3]] =     ip[1]   <     ip[2] ; ip += 4; goto *opcode[*ip];
+lt_mm : dat[ip[3]] = dat[ip[1]]  < dat[ip[2]]; ip += 4; NEXT();
+lt_mi : dat[ip[3]] = dat[ip[1]]  <     ip[2] ; ip += 4; NEXT();
+lt_im : dat[ip[3]] =     ip[1]   < dat[ip[2]]; ip += 4; NEXT();
+lt_ii : dat[ip[3]] =     ip[1]   <     ip[2] ; ip += 4; NEXT();
 
-eq_mm : dat[ip[3]] = dat[ip[1]] == dat[ip[2]]; ip += 4; goto *opcode[*ip];
-eq_mi : dat[ip[3]] = dat[ip[1]] ==     ip[2] ; ip += 4; goto *opcode[*ip];
-eq_im : dat[ip[3]] =     ip[1]  == dat[ip[2]]; ip += 4; goto *opcode[*ip];
-eq_ii : dat[ip[3]] =     ip[1]  ==     ip[2] ; ip += 4; goto *opcode[*ip];
+eq_mm : dat[ip[3]] = dat[ip[1]] == dat[ip[2]]; ip += 4; NEXT();
+eq_mi : dat[ip[3]] = dat[ip[1]] ==     ip[2] ; ip += 4; NEXT();
+eq_im : dat[ip[3]] =     ip[1]  == dat[ip[2]]; ip += 4; NEXT();
+eq_ii : dat[ip[3]] =     ip[1]  ==     ip[2] ; ip += 4; NEXT();
 
-je_mm : if ( dat[ip[1]]) ip = &dat[dat[ip[2]]]; else ip += 3; goto *opcode[*ip];
-je_mi : if ( dat[ip[1]]) ip = &dat[    ip[2] ]; else ip += 3; goto *opcode[*ip];
-je_im : if (     ip[1] ) ip = &dat[dat[ip[2]]]; else ip += 3; goto *opcode[*ip];
-je_ii : if (     ip[1] ) ip = &dat[    ip[2] ]; else ip += 3; goto *opcode[*ip];
+je_mm : if ( dat[ip[1]]) ip = &dat[dat[ip[2]]]; else ip += 3; NEXT();
+je_mi : if ( dat[ip[1]]) ip = &dat[    ip[2] ]; else ip += 3; NEXT();
+je_im : if (     ip[1] ) ip = &dat[dat[ip[2]]]; else ip += 3; NEXT();
+je_ii : if (     ip[1] ) ip = &dat[    ip[2] ]; else ip += 3; NEXT();
 
-jne_mm: if (!dat[ip[1]]) ip = &dat[dat[ip[2]]]; else ip += 3; goto *opcode[*ip];
-jne_mi: if (!dat[ip[1]]) ip = &dat[    ip[2] ]; else ip += 3; goto *opcode[*ip];
-jne_im: if (!    ip[1] ) ip = &dat[dat[ip[2]]]; else ip += 3; goto *opcode[*ip];
-jne_ii: if (!    ip[1] ) ip = &dat[    ip[2] ]; else ip += 3; goto *opcode[*ip];
+jne_mm: if (!dat[ip[1]]) ip = &dat[dat[ip[2]]]; else ip += 3; NEXT();
+jne_mi: if (!dat[ip[1]]) ip = &dat[    ip[2] ]; else ip += 3; NEXT();
+jne_im: if (!    ip[1] ) ip = &dat[dat[ip[2]]]; else ip += 3; NEXT();
+jne_ii: if (!    ip[1] ) ip = &dat[    ip[2] ]; else ip += 3; NEXT();
 
 done  : return 0;
 }
