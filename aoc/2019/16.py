@@ -18,7 +18,7 @@ def step(state):
             for i in range(len(state))]
 
 
-print_pattern = False
+print_pattern = True
 if print_pattern:
     n = 160
     for i in range(1, n + 1):
