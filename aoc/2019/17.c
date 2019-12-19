@@ -58,15 +58,6 @@ int main(void) {
   const int NX = 50;
   const int NY = 44;
   uint8_t grid[NY][NX] = {0};
-#if 0
-  enum { kX, kY, kTile } state = kX;
-  int dir, x = NX/2, y = NY/2, in_op, nx, ny;
-  int sx = x, sy = y, dx = -1, dy = -1;
-  grid[y][x] = 4;
-  int d[5][2] = { {0, 0}, {0, -1}, {0, 1}, {-1, 0}, {1, 0} };
-  int64_t i = 0;
-#endif
-
 
   int64_t base = 0;
   int64_t *ip = dat;
