@@ -23,6 +23,7 @@ Use through syncbot.sh wrapper script:
 
 from __future__ import print_function
 
+import argparse
 import logging
 import json
 import os
@@ -45,7 +46,7 @@ def step_output(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def run():
+def run(last_exit_code):
     # XXX: Check if there are local changes and warn?
 
     # Pull.
@@ -106,31 +107,35 @@ def run():
         tests['//compiler-rt/test/hwasan:check-hwasan'] = 'check-hwasan'
 
     logging.info('analyze')
-    # FIXME: Need to get all files since last green build, else a red build
-    # might cycle green without tests being fixed because test stops running
-    # due to no changing file affecting it.
-    changed_files = git_output(
-            ['diff', '--name-only', '%s' % old_rev]).splitlines()
-    analyze_in = {
-        'files': ['//' + f for f in changed_files],
-        'test_targets': sorted(tests.keys()),
-        'additional_compile_targets': [],  # We don't use this, but GN insists.
-    }
-    with open('analyze_in.json', 'wb') as f:
-        json.dump(analyze_in, f)
-    subprocess.check_call([
-            sys.executable,
-            'llvm/utils/gn/gn.py',
-            'analyze',
-            'out/gn',
-            'analyze_in.json',
-            'analyze_out.json'])
-    with open('analyze_out.json', 'rb') as f:
-        analyze_out = json.load(f)
-    step_output('gn analyze output:\n' + json.dumps(analyze_out, indent=2))
-    step_output('gn analyze input:\n' + json.dumps(analyze_in, indent=2))
-    # FIXME: Add blacklist for .h/.def/.inc/.td, */test/, llvm/utils/lit
-    # FIXME: Actually use analyze output
+    if last_exit_code != 0:
+        # Could instead try to get all files since last green build, but
+        # need to make sure that the last green build isn't too long ago
+        # with that approach.
+        step_output('skipping analyze because previous build was not green')
+    else:
+        changed_files = git_output(
+                ['diff', '--name-only', '%s' % old_rev]).splitlines()
+        analyze_in = {
+            'files': ['//' + f for f in changed_files],
+            'test_targets': sorted(tests.keys()),
+            # We don't use this, but GN insists:
+            'additional_compile_targets': [],
+        }
+        with open('analyze_in.json', 'wb') as f:
+            json.dump(analyze_in, f)
+        subprocess.check_call([
+                sys.executable,
+                'llvm/utils/gn/gn.py',
+                'analyze',
+                'out/gn',
+                'analyze_in.json',
+                'analyze_out.json'])
+        with open('analyze_out.json', 'rb') as f:
+            analyze_out = json.load(f)
+        step_output('gn analyze output:\n' + json.dumps(analyze_out, indent=2))
+        step_output('gn analyze input:\n' + json.dumps(analyze_in, indent=2))
+        # FIXME: Add blacklist for .h/.def/.inc/.td, */test/, llvm/utils/lit
+        # FIXME: Actually use analyze output
 
     logging.info('testing')
     for test in sorted(tests.values()):
@@ -160,14 +165,17 @@ def run():
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--last-exit', type=int, help='exit code of last build')
+    args = parser.parse_args()
+
     logging.basicConfig(level=logging.INFO,
         format='%(levelname)s:%(asctime)s:%(name)s:%(message)s',
         datefmt='%Y-%m-%dT%H:%M:%SZ')  # ISO 8601, trailing 'Z' for UTC.
     logging.Formatter.converter = time.gmtime  # UTC.
 
-
     # XXX: loop
-    run()
+    run(args.last_exit)
 
 
 if __name__ == '__main__':
