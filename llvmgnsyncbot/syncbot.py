@@ -96,7 +96,7 @@ def run(last_exit_code):
 
     # Test.
 
-    tests = {
+    all_tests = {
             '//clang/test:check-clang': 'check-clang',
             '//clang-tools-extra/clangd/test:check-clangd': 'check-clangd',
             '//clang-tools-extra/test:check-clang-tools': 'check-clang-tools',
@@ -104,7 +104,7 @@ def run(last_exit_code):
             '//llvm/test:check-llvm': 'check-llvm',
     }
     if sys.platform not in ['darwin', 'win32' ]:
-        tests['//compiler-rt/test/hwasan:check-hwasan'] = 'check-hwasan'
+        all_tests['//compiler-rt/test/hwasan:check-hwasan'] = 'check-hwasan'
 
     logging.info('analyze')
     if last_exit_code != 0:
@@ -112,12 +112,13 @@ def run(last_exit_code):
         # need to make sure that the last green build isn't too long ago
         # with that approach.
         step_output('skipping analyze because previous build was not green')
+        tests = sorted(all_tests.values())
     else:
         changed_files = git_output(
                 ['diff', '--name-only', '%s' % old_rev]).splitlines()
         analyze_in = {
             'files': ['//' + f for f in changed_files],
-            'test_targets': sorted(tests.keys()),
+            'test_targets': sorted(all_tests.keys()),
             # We don't use this, but GN insists:
             'additional_compile_targets': [],
         }
@@ -134,11 +135,50 @@ def run(last_exit_code):
             analyze_out = json.load(f)
         step_output('gn analyze output:\n' + json.dumps(analyze_out, indent=2))
         step_output('gn analyze input:\n' + json.dumps(analyze_in, indent=2))
-        # FIXME: Add blacklist for .h/.def/.inc/.td, */test/, llvm/utils/lit
-        # FIXME: Actually use analyze output
+        tests = set(all_tests[k] for k in analyze_out['test_targets'])
+
+        # `gn analyze` only knows about things in GN's build graph. The GN build
+        # doesn't currently list .h files (due to the CMake build not doing it),
+        # so included files (.h, .def, .inc) must conservatively cause all tests
+        # to run.
+        # Likewise, included .td files are currently only listed in depfiles,
+        # so GN doesn't know about them. We could give tblgen a mode where
+        # it lists included files and call that at GN time, but it'd be slow so
+        # it should be opt-in (like Chromium's compute_inputs_for_analyze).
+        # For now, conservatively run all tests when a .td file is touched.
+        def changed_ext(e):
+            return any(f.endswith(e) for f in changed_files)
+        def changed_start(e):
+            return any(f.startswith(e) for f in changed_files)
+        ext_blacklist = [ '.h', '.def', '.inc', '.td' ]
+
+        # The GN build graph does currently not know that llvm/utils/lit
+        # is needed to run tests, or that files in llvm/test are needed for
+        # check-llvm (etc). This can be added the the .gn files by using the
+        # "data" directive, but there's nothing yet that enforces the data
+        # directives are complete. Running tests on swarming would enforce this:
+        # https://gist.github.com/nico/ee7a6e3e77ed7224cbe47ec5e0d74997
+        # For now, put this knowledge here (also unenforced):
+        if (any(changed_ext(e) for e in ext_blacklist) or
+            changed_start('llvm/utils/lit/')):
+            step_output('running all tests due to change to blacklisted file')
+            tests = set(all_tests.values())
+
+        if changed_start('clang/test/'): tests.add('check-clang')
+        if changed_start('clang-tools-extra/test/'):
+            tests.add('check-clang-tools')
+        if changed_start('clang-tools-extra/clangd/test/'):
+            tests.add('check-clangd')
+        if changed_start('lld/test/'): tests.add('check-lld')
+        if changed_start('llvm/test/'): tests.add('check-llvm')
+        if (sys.platform not in ['darwin', 'win32' ] and
+            changed_start('compiler-rt/test/')):
+            tests.add('check-hwasan')
+
+        tests = sorted(tests)  # Convert from set to sorted list.
 
     logging.info('testing')
-    for test in sorted(tests.values()):
+    for test in tests:
         logging.info('test %s', test)
         subprocess.check_call(['ninja', '-C', 'out/gn', test])
 
