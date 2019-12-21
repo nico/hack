@@ -112,7 +112,7 @@ def run(last_exit_code):
         # need to make sure that the last green build isn't too long ago
         # with that approach.
         step_output('skipping analyze because previous build was not green')
-        tests = sorted(all_tests.values())
+        tests = set(all_tests.values())
     else:
         changed_files = git_output(
                 ['diff', '--name-only', '%s' % old_rev]).splitlines()
@@ -175,12 +175,13 @@ def run(last_exit_code):
             changed_start('compiler-rt/test/')):
             tests.add('check-hwasan')
 
-        tests = sorted(tests)  # Convert from set to sorted list.
-
     logging.info('testing')
-    for test in tests:
-        logging.info('test %s', test)
-        subprocess.check_call(['ninja', '-C', 'out/gn', test])
+    for test in sorted(all_tests.values()):
+        if test in tests:
+            logging.info('test %s', test)
+            subprocess.check_call(['ninja', '-C', 'out/gn', test])
+        else:
+            logging.info('skip %s', test)
 
     # All worked fine, so land changes (if any).
     if (sys.platform.startswith('linux') and
