@@ -95,8 +95,13 @@ def parse_buildlog(logfile, metafile):
 
 
 class BuildList(object):
-    def __init__(self, platform, buildlog_dir):
+    def __init__(self, platform, buildlog_dir, cache_dir):
         self.platform = platform
+        self.cache_dir = os.path.join(cache_dir, platform)
+        try:
+            os.makedirs(self.cache_dir)
+        except:
+            pass
 
         # Filter out swap files, .DS_store files, etc.
         platform_logdir = os.path.join(buildlog_dir, platform)
@@ -117,11 +122,18 @@ class BuildList(object):
 
     def get_build_info(self, i):
         if self.infos[i] is None:
-            log, meta = self.builds[i]
-            info = parse_buildlog(log, meta)
-            info['build_nr'] = i + 1
-            info['log_file'] = log
-            self.infos[i] = info
+            cache_file = os.path.join(self.cache_dir, '%d.json' % i)
+            try:
+                with open(cache_file) as f:
+                    self.infos[i] = json.load(f)
+            except:
+                log, meta = self.builds[i]
+                info = parse_buildlog(log, meta)
+                info['build_nr'] = i + 1
+                info['log_file'] = log
+                with open(cache_file, 'w') as f:
+                    json.dump(info, f)
+                self.infos[i] = info
         return self.infos[i]
 
 
@@ -302,6 +314,7 @@ def main():
         return 1
 
     buildlog_dir = sys.argv[1]
+    buildlog_cache_dir = buildlog_dir + '_cache'
     platforms = sorted([d for d in os.listdir(buildlog_dir)
                         if os.path.isdir(os.path.join(buildlog_dir, d))])
 
@@ -311,7 +324,8 @@ def main():
         if not os.path.isdir(platform_dir):
             os.makedirs(platform_dir)
 
-    build_lists = [BuildList(platform, buildlog_dir) for platform in platforms]
+    build_lists = [BuildList(platform, buildlog_dir, buildlog_cache_dir)
+                   for platform in platforms]
 
     # Generate global summary page.
     text = '\n'.join(get_newest_build(bl) for bl in build_lists)
