@@ -54,7 +54,6 @@ def rating(g):
     return int(gridstr.replace('#', '1').replace('.', '0'), 2)
 
 
-
 # Initially, just one level contains bugs, and it takes 2 steps for bugs
 # to cross a level, N/2 on each side is enough.
 N = 200
