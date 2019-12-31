@@ -260,12 +260,12 @@ def build_details(info, has_next):
     text = []
     for j, step in enumerate(info['steps']):
        elapsed = datetime.timedelta(seconds=step['elapsed_s'])
-       t = '        %s <a href="%s">%s</a>' % (
-           str(elapsed),
-           'step_%d.txt' % (j + 1),
-           step['name'],
-           )
-       text.append(t)
+       step_has_output = step['output'][0] != step['output'][1]
+       if step_has_output:
+           step_name = '<a href="step_%d.txt">%s</a>' % (j + 1, step['name'])
+       else:
+           step_name = step['name']
+       text.append('        %s %s' % (str(elapsed), step_name))
 
     elapsed = datetime.timedelta(seconds=info['elapsed_s'])
     did_pass = info['exit_code'] == 0
