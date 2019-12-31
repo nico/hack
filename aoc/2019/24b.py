@@ -62,4 +62,3 @@ for i in range(N):
 c = collections.Counter()
 print(sum(collections.Counter(itertools.chain.from_iterable(grid))['#']
           for grid in grids))
-
