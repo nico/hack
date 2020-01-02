@@ -141,26 +141,28 @@ def run(last_exit_code):
         # doesn't currently list .h files (due to the CMake build not doing it),
         # so included files (.h, .def, .inc) must conservatively cause all tests
         # to run.
+        #
         # Likewise, included .td files are currently only listed in depfiles,
         # so GN doesn't know about them. We could give tblgen a mode where
         # it lists included files and call that at GN time, but it'd be slow so
         # it should be opt-in (like Chromium's compute_inputs_for_analyze).
         # For now, conservatively run all tests when a .td file is touched.
-        def changed_ext(e):
-            return any(f.endswith(e) for f in changed_files)
-        def changed_start(e):
-            return any(f.startswith(e) for f in changed_files)
-        ext_blacklist = [ '.h', '.def', '.inc', '.td' ]
-
-        # The GN build graph does currently not know that llvm/utils/lit
-        # is needed to run tests, or that files in llvm/test are needed for
-        # check-llvm (etc). This can be added the the .gn files by using the
-        # "data" directive, but there's nothing yet that enforces the data
-        # directives are complete. Running tests on swarming would enforce this:
-        # https://gist.github.com/nico/ee7a6e3e77ed7224cbe47ec5e0d74997
+        #
+        # Finally, the GN build graph does currently not know that
+        # llvm/utils/lit is needed to run tests, or that files in llvm/test are
+        # needed for check-llvm (etc). This can be added the the .gn files by
+        # using the "data" directive, but there's nothing yet that enforces the
+        # data directives are complete. Running tests on swarming would enforce
+        # this: https://gist.github.com/nico/ee7a6e3e77ed7224cbe47ec5e0d74997
         # For now, put this knowledge here (also unenforced):
-        if (any(changed_ext(e) for e in ext_blacklist) or
-            changed_start('llvm/utils/lit/')):
+        def forces_full_test_run(f):
+            # .h/.td changes in busy directories not part of the GN build
+            # shouldn't cause all tests to run.
+            return (f.startswith('llvm/utils/lit/') or
+                    all(not f.startswith(p) for p in [ 'mlir/', 'lldb/' ]) and
+                    any(f.endswith(p) for e in [ '.h', '.def', '.inc', '.td' ]))
+
+        if any(forces_full_test_run(f) for f in changed_files):
             step_output('running all tests due to change to blacklisted file')
             tests = set(all_tests.values())
 
