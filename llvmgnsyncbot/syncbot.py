@@ -160,7 +160,7 @@ def run(last_exit_code):
             # shouldn't cause all tests to run.
             return (f.startswith('llvm/utils/lit/') or
                     all(not f.startswith(p) for p in [ 'mlir/', 'lldb/' ]) and
-                    any(f.endswith(p) for e in [ '.h', '.def', '.inc', '.td' ]))
+                    any(f.endswith(e) for e in [ '.h', '.def', '.inc', '.td' ]))
 
         if any(forces_full_test_run(f) for f in changed_files):
             step_output('running all tests due to change to blacklisted file')
