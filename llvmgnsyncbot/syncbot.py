@@ -161,11 +161,15 @@ def run(last_exit_code):
             return (f.startswith('llvm/utils/lit/') or
                     all(not f.startswith(p) for p in [ 'mlir/', 'lldb/' ]) and
                     any(f.endswith(e) for e in [ '.h', '.def', '.inc', '.td' ]))
-
         if any(forces_full_test_run(f) for f in changed_files):
             step_output('running all tests due to change to blacklisted file')
             tests = set(all_tests.values())
 
+        # Similar to llvm/utils/lit: The GN build doesn't yet know that the
+        # files in the various test/ directories are inputs of tests.
+        # These too should use "data", but for now hardcode this here.
+        def changed_start(e):
+            return any(f.startswith(e) for f in changed_files)
         if changed_start('clang/test/'): tests.add('check-clang')
         if changed_start('clang-tools-extra/test/'):
             tests.add('check-clang-tools')
