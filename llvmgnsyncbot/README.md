@@ -67,7 +67,7 @@ Each builder needs some amount of one-time manual setup.
    [rsync off the msys2 repo][rsync] and put it in
    `dirname $(cygpath -w $(which ls))` (just `bin/rsync.exe` is enough).
 
-1. On non-Windows, Run `git config core.trustctime false` in the llvm checkout.
+1. On non-Windows, run `git config core.trustctime false` in the llvm checkout.
    The GN build uses hardlinks to copy files, which changes the ctime on the
    copy source inode. By default, `git checkout -f master` will replace files
    with modified ctime with a new copy of the file, which in turn changes the
