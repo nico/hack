@@ -34,10 +34,18 @@ df = json_dir_to_dataframe(sys.argv[1])
 # Only keep successful builds.
 df = df[df.exit_code == 0]
 
-plt.scatter(df.build_nr, df.elapsed_s, alpha=0.1)
-plt.xlabel('build nr')
+df.start_utc = pd.to_datetime(df.start_utc, utc=True)
+#df.start_utc = df.start_utc.dt.tz_convert('US/Eastern')
+df = df.set_index('start_utc')
+print(df.head(3))
+
+# Register datetime converter for matplotlib plotting.
+pd.plotting.register_matplotlib_converters()
+
+plt.scatter(df.index, df.elapsed_s, alpha=0.1)
+plt.xlabel('date')
 plt.ylabel('elapsed seconds')
 
-# XXX Maybe make the index datetimelike and use the offset for of rolling()?
-plt.plot(df.build_nr, df.elapsed_s.rolling(30).mean(), color='C1')
+# XXX Maybe use an offset for of rolling() now that the index is datetime-like?
+plt.plot(df.index, df.elapsed_s.rolling(30).mean(), color='C1')
 plt.show()
