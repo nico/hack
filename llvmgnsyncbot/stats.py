@@ -35,4 +35,6 @@ df = json_dir_to_dataframe(sys.argv[1])
 df = df[df.exit_code == 0]
 
 plt.scatter(df.build_nr, df.elapsed_s)
+plt.xlabel('build nr')
+plt.ylabel('elapsed seconds')
 plt.show()
