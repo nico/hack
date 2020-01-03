@@ -34,7 +34,10 @@ df = json_dir_to_dataframe(sys.argv[1])
 # Only keep successful builds.
 df = df[df.exit_code == 0]
 
-plt.scatter(df.build_nr, df.elapsed_s)
+plt.scatter(df.build_nr, df.elapsed_s, alpha=0.1)
 plt.xlabel('build nr')
 plt.ylabel('elapsed seconds')
+
+# XXX Maybe make the index datetimelike and use the offset for of rolling()?
+plt.plot(df.build_nr, df.elapsed_s.rolling(30).mean(), color='C1')
 plt.show()
