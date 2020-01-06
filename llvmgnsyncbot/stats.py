@@ -37,15 +37,14 @@ df = df[df.exit_code == 0]
 df.start_utc = pd.to_datetime(df.start_utc, utc=True)
 #df.start_utc = df.start_utc.dt.tz_convert('US/Eastern')
 df = df.set_index('start_utc')
-print(df.head(3))
 
 # Register datetime converter for matplotlib plotting.
 pd.plotting.register_matplotlib_converters()
 
-plt.scatter(df.index, df.elapsed_s, alpha=0.1)
+df['elapsed_m'] = df.elapsed_s / 60.
+plt.scatter(df.index, df.elapsed_m, alpha=0.1)
 plt.xlabel('date')
-plt.ylabel('elapsed seconds')
+plt.ylabel('elapsed minutes')
 
-# XXX Maybe use an offset for of rolling() now that the index is datetime-like?
-plt.plot(df.index, df.elapsed_s.rolling(30).mean(), color='C1')
+plt.plot(df.index, df.elapsed_m.rolling('2d').mean(), color='C1')
 plt.show()
