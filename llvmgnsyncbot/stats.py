@@ -36,7 +36,7 @@ max_y = 0
 min_x = pd.to_datetime(pd.Timestamp.max, utc=True)
 max_x = pd.to_datetime(pd.Timestamp.min, utc=True)
 
-for platform in ('linux', 'mac', 'win'):
+for platform in ('linux', 'mac', 'win',):
     df = json_dir_to_dataframe(os.path.join(sys.argv[1], platform))
 
     # Only keep successful builds.
@@ -51,6 +51,8 @@ for platform in ('linux', 'mac', 'win'):
     #df.start_utc = df.start_utc.dt.tz_convert('US/Eastern')
     df = df.set_index('start_utc')
 
+    #df = df[df.index <= pd.Timestamp('2019-12-08T12').tz_localize('UTC')]
+
     max_x = max(max_x, df.index.max())
     min_x = min(min_x, df.index.min())
 
@@ -58,12 +60,12 @@ for platform in ('linux', 'mac', 'win'):
     max_y = max(max_y, df.elapsed_m.max())
 
     plt.scatter(df.index, df.elapsed_m, alpha=0.1, label=platform)
-    plt.xlabel('date')
-    plt.ylabel('elapsed minutes')
 
-    #plt.plot(df.index, df.elapsed_m.rolling('2d').mean(),
+    #plt.plot(df.index, df.elapsed_m.rolling('1D').mean(), c='C1',
              #label='%s (avg)' % platform)
 
+plt.ylabel('elapsed minutes')
+plt.gcf().autofmt_xdate()
 plt.legend()
 plt.xlim(min_x, max_x)
 plt.ylim(0, max_y)
