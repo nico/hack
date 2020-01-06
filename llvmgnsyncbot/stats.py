@@ -1,13 +1,11 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """Reads the buildlog_cache dir created by annotate.py to produce some stats."""
 
 # Use e.g. like
 #     rsync -az llvm@45.33.8.238:buildlog .
 #     llvmgnsyncbot/annotate.py buildlog html
-#     llvmgnsyncbot/stats.py buildlog_cache/linux
-
-from __future__ import print_function
+#     llvmgnsyncbot/stats.py buildlog_cache
 
 import json
 import os
@@ -51,7 +49,8 @@ for platform in ('linux', 'mac', 'win',):
     #df.start_utc = df.start_utc.dt.tz_convert('US/Eastern')
     df = df.set_index('start_utc')
 
-    #df = df[df.index <= pd.Timestamp('2019-12-08T12').tz_localize('UTC')]
+    #if platform == 'win':
+        #print(df[pd.Timestamp('2019-11-26').tz_localize('UTC') <= df.index and df.index <= pd.Timestamp('2019-11-27').tz_localize('UTC')])
 
     max_x = max(max_x, df.index.max())
     min_x = min(min_x, df.index.min())
