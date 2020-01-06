@@ -67,6 +67,15 @@ for platform in ('linux', 'mac', 'win',):
 plt.ylabel('elapsed minutes')
 plt.gcf().autofmt_xdate()
 plt.legend()
+plt.tight_layout()  # Less whitespace around the plot.
+
 plt.xlim(min_x, max_x)
 plt.ylim(0, max_y)
+
+# Highlight weekends in date range.
+s = pd.date_range(min_x.normalize(), max_x.normalize()).to_series(keep_tz=True)
+for d in s[s.dt.dayofweek >= 5]:
+    plt.gca().axvspan(d, d + pd.Timedelta(days=1),
+                      alpha=0.03, facecolor='black', edgecolor='none')
+
 plt.show()
