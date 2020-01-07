@@ -40,19 +40,19 @@ for platform in ('linux', 'mac', 'win',):
     # Only keep successful builds.
     df = df[df.exit_code == 0]
 
-    # Builds before 137 had lots of security software enabled which caused
-    # cycle times of 45+ mins. That blows out the scale, so omit them.
-    if platform == 'win':
-        df = df[df.build_nr >= 137]
-        # Filter out shark fine, for clearer trend lines.
-        #df = df[df.elapsed_s <= 8 * 60]
-
     df.start_utc = pd.to_datetime(df.start_utc, utc=True)
     #df.start_utc = df.start_utc.dt.tz_convert('US/Eastern')
     df = df.set_index('start_utc')
 
-    #if platform == 'win':
-        #print(df[pd.Timestamp('2019-11-26').tz_localize('UTC') <= df.index and df.index <= pd.Timestamp('2019-11-27').tz_localize('UTC')])
+    if platform == 'win':
+        # Builds before 137 had lots of security software enabled which caused
+        # cycle times of 45+ mins. That blows out the scale, so omit them.
+        df = df[df.build_nr >= 137]
+        # Filter out shark fin, for clearer trend lines.
+        fin_start = pd.Timestamp('2019-11-08').tz_localize('UTC')
+        fin_end = pd.Timestamp('2019-12-05').tz_localize('UTC')
+        df = df[(df.elapsed_s <= 8 * 60) |
+                (df.index < fin_start) | (df.index > fin_end)]
 
     max_x = max(max_x, df.index.max())
     min_x = min(min_x, df.index.min())
@@ -62,9 +62,9 @@ for platform in ('linux', 'mac', 'win',):
 
     plt.scatter(df.index, df.elapsed_m, alpha=0.1, label=platform)
 
-    #plt.plot(df.index, df.elapsed_m.rolling(
-            #200, min_periods=10, win_type='hann', center=True).mean(),
-        #label='%s (avg)' % platform)
+    plt.plot(df.index, df.elapsed_m.rolling(
+            250, min_periods=10, win_type='hann', center=True).mean(),
+        label='%s (avg)' % platform)
 
 plt.ylabel('elapsed minutes')
 plt.gcf().autofmt_xdate()
