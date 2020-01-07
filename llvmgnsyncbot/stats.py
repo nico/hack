@@ -44,6 +44,8 @@ for platform in ('linux', 'mac', 'win',):
     # cycle times of 45+ mins. That blows out the scale, so omit them.
     if platform == 'win':
         df = df[df.build_nr >= 137]
+        # Filter out shark fine, for clearer trend lines.
+        #df = df[df.elapsed_s <= 8 * 60]
 
     df.start_utc = pd.to_datetime(df.start_utc, utc=True)
     #df.start_utc = df.start_utc.dt.tz_convert('US/Eastern')
@@ -60,8 +62,9 @@ for platform in ('linux', 'mac', 'win',):
 
     plt.scatter(df.index, df.elapsed_m, alpha=0.1, label=platform)
 
-    #plt.plot(df.index, df.elapsed_m.rolling('1D').mean(), c='C1',
-             #label='%s (avg)' % platform)
+    #plt.plot(df.index, df.elapsed_m.rolling(
+            #200, min_periods=10, win_type='hann', center=True).mean(),
+        #label='%s (avg)' % platform)
 
 plt.ylabel('elapsed minutes')
 plt.gcf().autofmt_xdate()
