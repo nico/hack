@@ -231,7 +231,7 @@ def platform_summary(build_list):
       text.append('(and %d more builds)' % (
                       build_list.num_builds() - NUM_BUILDS_TO_SHOW))
 
-    # Include spaces for "next " on build summary pages, for fast click-through.
+    # Include spaces for "prev " on build summary pages, for fast click-through.
     summary = '     <a href="../summary.html">up</a>\n\n'
 
     # XXX:
