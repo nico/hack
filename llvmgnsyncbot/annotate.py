@@ -203,7 +203,7 @@ def platform_summary(build_list):
     num_pass = 0
     sum_pass_elapsed_s = 0
     sum_num_commits = 0
-    NUM_BUILDS_TO_SHOW = 2000
+    NUM_BUILDS_TO_SHOW = 1000
     for i in reversed(range(build_list.num_builds())):
        info = build_list.get_build_info(i)
        did_pass = info['exit_code'] == 0
@@ -213,8 +213,8 @@ def platform_summary(build_list):
            sum_pass_elapsed_s += info['elapsed_s']
        sum_num_commits += info.get('num_commits', 0)
 
-       # Chrome gets slow at over 2500 builds, so truncate after 2000 builds.
-       # That's about a month of builds.
+       # Chrome/Androdi gets slow at over 2000 builds, so truncate after 1000.
+       # That's about two weeks of builds.
        # XXX: Paginate, eventually.
        if build_list.num_builds() - i > NUM_BUILDS_TO_SHOW:
            continue  # NOT 'break', for stats collected earlier in loop.
