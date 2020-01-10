@@ -294,15 +294,15 @@ def build_details(info, has_next):
     footer += '\n<a href="log.txt">full log</a>\n'
 
     nextprev = ''
-    if has_next:
-        nextprev += '<a href="%s">next</a> ' % (
-            '../%d/summary.html' % (info['build_nr'] + 1))
+    if info['build_nr'] > 1:
+        nextprev += '<a href="%s">prev</a> ' % (
+            '../%d/summary.html' % (info['build_nr'] - 1))
     else:
         nextprev += '     '
     nextprev += '<a href="../summary.html">up</a> '
-    if info['build_nr'] > 1:
-        nextprev += '<a href="%s">prev</a>' % (
-            '../%d/summary.html' % (info['build_nr'] - 1))
+    if has_next:
+        nextprev += '<a href="%s">next</a>' % (
+            '../%d/summary.html' % (info['build_nr'] + 1))
     nextprev += '\n'
 
     # XXX include link to last green build, first build with same failure (?)
