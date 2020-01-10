@@ -5,7 +5,7 @@
 # Use e.g. like
 #     rsync -az llvm@45.33.8.238:buildlog .
 #     llvmgnsyncbot/annotate.py buildlog html
-#     llvmgnsyncbot/compile_time_avg.py buildlog_cache
+#     llvmgnsyncbot/stats/compile_time_avg.py buildlog_cache
 
 import json
 import os
