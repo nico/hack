@@ -1,7 +1,7 @@
 #/bin/bash
 
 # Use like
-# hack/llvmgnsyncbot/watch.sh buildlog html hack > html/watch.out 2> html/watch.err < /dev/null
+# hack/llvmgnsyncbot/watch.sh buildlog html hack > html/watch_out.txt 2> html/watch_err.txt < /dev/null &
 # disown -h
 
 # FIXME maybe add -m flag for robustness
