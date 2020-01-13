@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 
 # Use like
 # hack/llvmgnsyncbot/watch.sh buildlog html hack > html/watch_out.txt 2> html/watch_err.txt < /dev/null &
