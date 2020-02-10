@@ -347,11 +347,10 @@ a:visited{color:#B388FF;}
 let todaysDate = new Date().toDateString();
 Array.from(document.getElementsByTagName('time')).forEach(elt => {
   let date = new Date(elt.getAttribute('datetime'));
-  let opts = {hour:'2-digit',day:'2-digit'};
   if (date.toDateString() === todaysDate)
-    elt.innerText = date.toLocaleTimeString(undefined, opts);
+    elt.innerText = date.toLocaleTimeString();
   else
-    elt.innerText = date.toLocaleString(undefined, opts);
+    elt.innerText = date.toLocaleString();
 });
 </script>
 '''
