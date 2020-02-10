@@ -219,10 +219,11 @@ def platform_summary(build_list):
        if build_list.num_builds() - i > NUM_BUILDS_TO_SHOW:
            continue  # NOT 'break', for stats collected earlier in loop.
        start = info['start_utc']
-       t = '<a href="%s">%5d</a> %s %s' % (
+       t = '<a href="%s">%5d</a> %s <time datetime="%s">%s</time>' % (
                           '%d/summary.html' % info['build_nr'],
                           info['build_nr'],
                           'pass' if did_pass else 'fail',
+                          start,
                           start,
                          )
        text.append(t)
