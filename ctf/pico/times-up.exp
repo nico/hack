@@ -1,0 +1,9 @@
+#!/usr/bin/expect -f
+
+spawn ./times-up
+expect -re "Challenge: (.+?)\r"
+set chal $expect_out(1,string)
+set sol [expr $chal]
+expect "Solution?"
+send -- "$sol\r"
+interact
