@@ -29,6 +29,8 @@
 # the exception and call the default SIGINT handler. Without that,
 # Python programs can't be ctrl-c'd in a nice way.
 
+# This is fixed in Pyton 3.8: https://bugs.python.org/issue1054041
+
 # (Every other program that handles SIGINT needs to do this too, but Python
 # does the wrong thing by default. The "normal" default SIGINT handler
 # does the right thing.)
