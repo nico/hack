@@ -6,6 +6,12 @@ else
   build_num=1
 fi
 
+if [[ -e buildlogs/$build_num.txt ]]; then
+  echo "got build_num $build_num, but output for that already exists." 2>&1
+  echo "exiting." 2>&1
+  exit 1
+fi
+
 # Make created files world-readable.
 umask 022
 
