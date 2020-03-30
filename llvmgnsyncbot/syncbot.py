@@ -61,6 +61,8 @@ def run(last_exit_code):
         time.sleep(5 * 60)
         raise
     if old_rev == new_rev:
+        # syncbot.sh greps for this string. If you change this string, also
+        # change syncbot.sh.
         logging.info('no new commits. sleeping for 30s, then exiting.')
         time.sleep(30)
         return
