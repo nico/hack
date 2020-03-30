@@ -28,6 +28,7 @@ import logging
 import json
 import os
 import subprocess
+import signal
 import sys
 import time
 
@@ -226,4 +227,9 @@ def main():
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        # https://github.com/nico/hack/blob/master/sigint.sh
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        os.kill(os.getpid(), signal.SIGINT)
