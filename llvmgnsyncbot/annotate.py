@@ -205,6 +205,8 @@ def platform_summary(build_list):
     sum_num_commits = 0
     NUM_BUILDS_TO_SHOW = 1000
     for i in reversed(range(build_list.num_builds())):
+       if build_list.num_builds() - i > NUM_BUILDS_TO_SHOW:
+           break
        info = build_list.get_build_info(i)
        did_pass = info['exit_code'] == 0
        # XXX duration (as graph), only for successful builds
@@ -213,11 +215,11 @@ def platform_summary(build_list):
            sum_pass_elapsed_s += info['elapsed_s']
        sum_num_commits += info.get('num_commits', 0)
 
-       # Chrome/Androdi gets slow at over 2000 builds, so truncate after 1000.
+       # Chrome/Android gets slow at over 2000 builds, so truncate after 1000.
        # That's about two weeks of builds.
+       # Only keeping stats over the last 1000 builds also means that the number
+       # of build_infos loaded here is bounded instead of growing over time.
        # XXX: Paginate, eventually.
-       if build_list.num_builds() - i > NUM_BUILDS_TO_SHOW:
-           continue  # NOT 'break', for stats collected earlier in loop.
        start = info['start_utc']
        t = '<a href="%s">%5d</a> %s <time datetime="%s">%s</time>' % (
                           '%d/summary.html' % info['build_nr'],
@@ -235,15 +237,16 @@ def platform_summary(build_list):
     # Include spaces for "prev " on build summary pages, for fast click-through.
     summary = '     <a href="../summary.html">up</a>\n\n'
 
+    # See stats/stats.py for more comprehensive stats.
     # XXX:
     # failing step histogram
     # 1 build every N time units / day
     # stuff from the global summary page (pending builds, eta,
     # maybe regression ranges?)
-    summary += '%d/%d (%.1f%%) builds pass\n' % (
+    summary += '%d (%.1f%%) of last %d builds pass\n' % (
         num_pass,
-        build_list.num_builds(),
-        100.0 * num_pass / build_list.num_builds(),
+        100.0 * num_pass / NUM_BUILDS_TO_SHOW,
+        NUM_BUILDS_TO_SHOW,
         )
     if num_pass > 0:
         avg_seconds = round(sum_pass_elapsed_s / float(num_pass))
@@ -251,7 +254,7 @@ def platform_summary(build_list):
             str(datetime.timedelta(seconds=avg_seconds)),
             )
     summary += '%.2f commits per build on average\n' % (
-        sum_num_commits / float(build_list.num_builds()),
+        sum_num_commits / float(NUM_BUILDS_TO_SHOW),
         )
 
     return summary + '\n' + '\n'.join(text)
