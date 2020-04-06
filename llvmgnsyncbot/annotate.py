@@ -390,14 +390,15 @@ fetch(url).then(response => response.json()).then(json => {
             f.write(template % platform_summary(build_list))
 
         for i in reversed(range(build_list.num_builds())):
-            info = build_list.get_build_info(i)
-            build_dir = os.path.join(platform_dir, '%d' % info['build_nr'])
+            build_dir = os.path.join(platform_dir, '%d' % (i + 1))
             if os.path.isdir(build_dir):
                 # Rewrite the previous last build to give it a "next" link.
                 if i != build_list.num_builds() - 2:
                     continue
             else:
                 os.mkdir(build_dir)
+            info = build_list.get_build_info(i)
+            assert info['build_nr'] == i + 1
             build_html = os.path.join(build_dir, 'summary.html')
             with open(build_html, 'w') as f:
                 has_next = i + 1 != build_list.num_builds()
