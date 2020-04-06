@@ -102,3 +102,9 @@ print 'd', d
 plain = pow(c, d, n)
 print 'plain', ('%x' % plain)
 print 'plain', ('%x' % plain).decode('hex')
+
+
+
+###
+
+# openssl x509 -text -in cert
