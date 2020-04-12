@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 if [ -e syncbot.state ]; then
   build_num=$(cat syncbot.state)
 else
@@ -40,8 +42,8 @@ while true; do
   # Reuse build numbers of no-op builds.
   if ! grep -q 'no new commits. sleeping for 30s' curbuild.txt; then
     mkdir -p buildlogs
-    mv curbuild.txt buildlogs/$build_num.txt
-    mv curbuild.meta.json buildlogs/$build_num.meta.json
+    cp curbuild.txt buildlogs/$build_num.txt
+    cp curbuild.meta.json buildlogs/$build_num.meta.json
     ((build_num++))
     echo $build_num > syncbot.state
   fi
