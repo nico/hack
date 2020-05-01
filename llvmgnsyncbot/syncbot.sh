@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -e
-
 if [ -e syncbot.state ]; then
   build_num=$(cat syncbot.state)
 else
