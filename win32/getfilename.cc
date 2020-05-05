@@ -30,7 +30,7 @@ int __cdecl _tmain(int argc, TCHAR *argv[]) {
     else if (_tcscmp(argv[i], TEXT("--volume=none")) == 0)
       Flags |= VOLUME_NAME_NONE;
     else if (_tcscmp(argv[i], TEXT("--file=normalized")) == 0)
-      Flags |= FILE_NAME_OPENED;
+      Flags |= FILE_NAME_NORMALIZED;
     else if (_tcscmp(argv[i], TEXT("--file=opened")) == 0)
       Flags |= FILE_NAME_OPENED;
     else
