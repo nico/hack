@@ -1,13 +1,17 @@
 #!/bin/bash
 
-# Takes a shell script and runs it on swarming. usage:
-#  path/to/swarm-script.sh ./myscript.sh
+# Takes a shell command script and runs it on swarming. If the command
+# is a shell script, also uploads the script.
+# Usage:
+#  path/to/swarm-script.sh ls
+#  path/to/swarm-script.sh sh -c 'env; pwd'
+#  path/to/swarm-script.sh ./my-script.sh
 
 set -e
 
 if [[ $# -lt 1 ]]; then
-    echo "usage: $0 script [args]"
-    exit 1
+  echo "usage: $0 cmd [args]"
+  exit 1
 fi
 
 mkdir -p /tmp/swarm-script
@@ -33,7 +37,7 @@ for TOOL in isolate swarming; do
     # in the happy case, and even info logging goes to stderr :/
     # So write to an error log file and cat it if the command fails. Sigh.
     if ! ./cipd install infra/tools/luci/$TOOL/$PLAT $TOOLVER \
-        -root cipddir -log-level warning 2>&1 > cipd.log; then
+        -root cipddir -log-level warning > cipd.log 2>&1; then
       cat cipd.log
       exit 1
     fi
@@ -43,9 +47,14 @@ done
 popd > /dev/null
 
 # Upload shell script.
+if [ "$(which $1)" == "$1" ]; then
+  FILE="'$1'"
+else
+  FILE=
+fi
 ISO=$(mktemp .swarm-script.isolate.XXXXXX)
-trap "rm -f $ISO" EXIT
-echo "{'variables':{'files':['"$1"']}}" > $ISO
+trap 'rm -f $ISO' EXIT
+echo "{'variables':{'files':[$FILE]}}" > $ISO
 HASH=$(/tmp/swarm-script/cipddir/isolate archive -quiet \
     -I isolateserver.appspot.com \
     -i $ISO | grep -o '[a-z0-9]\+')
