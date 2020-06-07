@@ -11,6 +11,8 @@ raspberry pi os notes
 
 <https://www.raspberrypi.org/documentation/configuration/config-txt/boot.md>
 
+<https://sourceware.org/binutils/docs/ld/Scripts.html#Scripts>
+
 
 kernel7.img is executed in ARMv7 mode, kernel8.ig in AArch64 mode.
 64-bit image must be uncompressed.

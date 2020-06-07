@@ -7,7 +7,7 @@
 .section ".text.boot"
 
 .globl _start
-.org 0x8000
+// .org 0x8000  // Don't use: linker script kernel.ld already does this.
 _start:
   // Shut off extra cores
   mrc p15, 0, r5, c0, c0, 5
@@ -17,7 +17,8 @@ _start:
 
   mov sp, #0x8000
   mov r0, #0x42
+  ldr r1, =_start
 
 halt:
-  //wfe
+  wfe
   b halt
