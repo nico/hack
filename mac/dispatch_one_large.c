@@ -16,8 +16,13 @@ int main(int argc, char* argv[]) {
 
   dispatch_queue_t queue =
       dispatch_queue_create("com.example.FileProcessing", NULL);
+
+  // XXX consider `fcntl(fd, F_NOCACHE, 1);` and dispatch_io_create() with fd,
+  // for read-once files.
+
   dispatch_io_t io = dispatch_io_create_with_path(
       DISPATCH_IO_RANDOM, path, O_RDONLY, 0, queue, ^(int error) {
+        dispatch_release(queue);
         exit(error);
       });
   if (!io) {
@@ -41,10 +46,8 @@ int main(int argc, char* argv[]) {
                                     offset, len);
                              return true;
                            });
-                     if (done) {
+                     if (done)
                        dispatch_io_close(io, DISPATCH_IO_STOP);
-                       dispatch_release(queue);
-                     }
                    });
 
   dispatch_main();
