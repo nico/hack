@@ -68,6 +68,12 @@ func post(w http.ResponseWriter, req *http.Request, send func(string)) {
 		msgs = values
 	}
 	for _, h := range msgs {
+		if len(h) > 0 && h[0] == '\x01' && !strings.HasPrefix(strings.ToUpper(h), "\x01ACTION") {
+			http.Error(w, "400 no", http.StatusBadRequest)
+			return
+		}
+	}
+	for _, h := range msgs {
 		send(h)
 	}
 }
@@ -106,7 +112,7 @@ func main() {
 	ignore := func(string, string, []string) {}
 	ignore_channel := func(_ string, cmd string, args []string) {
 		if len(args) < 1 || args[0] != channel {
-			log.Fatalf("unexpected channel, cmd '%s', args %v", cmd, args)
+			log.Fatalf("unexpected channel, cmd '%q', args %v", cmd, args)
 		}
 		if !has_joined_channel {
 			go on_channel_joined(*http_port_flag, func(m string) { fmt.Fprintf(c, "privmsg %s :%s\n", channel, m) })
@@ -115,7 +121,7 @@ func main() {
 	}
 	ignore_nick_channel := func(_ string, cmd string, args []string) {
 		if len(args) < 2 || args[0] != nick || args[1] != channel {
-			log.Fatalf("unexpected channel, cmd '%s', args %v", cmd, args)
+			log.Fatalf("unexpected channel, cmd '%q', args %v", cmd, args)
 		}
 		if !has_joined_channel {
 			go on_channel_joined(*http_port_flag, func(m string) { fmt.Fprintf(c, "privmsg %s :%s\n", channel, m) })
@@ -154,18 +160,18 @@ func main() {
 		if len(args) != 1 {
 			log.Fatalf("invalid ping args, %v", args)
 		}
-		log.Printf("got ping, sending pong, '%s'", args[0])
+		log.Printf("got ping, sending pong, '%q'", args[0])
 		fmt.Fprintf(c, "pong :%s\r\n", args[0])
 	}
 
 	handlers["PRIVMSG"] = func(prefix string, _ string, args []string) {
 		if len(args) != 2 {
-			log.Printf("privmsg bad args %v from %s", args, prefix)
+			log.Printf("privmsg bad args %v from %q", args, prefix)
 			return
 		}
 		if args[0] != channel {
 			// FIXME: Support whisper-back to whisper?
-			log.Printf("got msg to '%s': %v from %s", args[0], args, prefix)
+			log.Printf("got msg to '%q': %v from %q", args[0], args, prefix)
 			return
 		}
 		msg := args[1]
@@ -214,10 +220,10 @@ _/¯(ツ)¯\_`
 				prefix = text[1:i]
 				text = text[i+1 : len(text)]
 				if text == "" {
-					log.Fatal("no data after prefix in '%s'", text)
+					log.Fatal("no data after prefix in '%q'", text)
 				}
 			} else {
-				log.Fatal("invalid prefix in '%s'", text)
+				log.Fatal("invalid prefix in '%q'", text)
 			}
 		}
 
@@ -235,7 +241,7 @@ _/¯(ツ)¯\_`
 			continue
 		}
 
-		log.Printf("%24s %s", prefix, text)
+		log.Printf("%24s %q", prefix, text)
 	}
 	if err := connreader.Err(); err != nil {
 		log.Fatal(err)
