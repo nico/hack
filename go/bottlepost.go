@@ -89,8 +89,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-    nick := *nick_flag
-    channel := *channel_flag
+	nick := *nick_flag
+	channel := *channel_flag
 
 	// Username and description are shown by /whois.
 	username := "username"
