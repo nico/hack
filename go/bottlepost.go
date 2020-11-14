@@ -61,7 +61,7 @@ func post(w http.ResponseWriter, req *http.Request, send func(string)) {
 	var msgs []string
 	for name, values := range req.Form {
 		if name != "msg" {
-			log.Print("invalid query param %V", name)
+			log.Printf("invalid query param %q", name)
 			http.Error(w, "400 Bad Request", http.StatusMethodNotAllowed)
 			return
 		}
@@ -73,7 +73,12 @@ func post(w http.ResponseWriter, req *http.Request, send func(string)) {
 			return
 		}
 	}
+	log.Printf("request from %q", req.RemoteAddr)
+	if forward_ip := req.Header.Get("X_FORWARDED-FOR"); forward_ip != "" {
+		log.Printf("forwarded for %q", forward_ip)
+	}
 	for _, h := range msgs {
+		log.Printf("sending %q", h)
 		send(h)
 	}
 }
@@ -160,7 +165,6 @@ func main() {
 		if len(args) != 1 {
 			log.Fatalf("invalid ping args, %v", args)
 		}
-		log.Printf("got ping, sending pong, '%q'", args[0])
 		fmt.Fprintf(c, "pong :%s\r\n", args[0])
 	}
 
