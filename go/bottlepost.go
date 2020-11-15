@@ -74,7 +74,7 @@ func post(w http.ResponseWriter, req *http.Request, send func(string)) {
 		}
 	}
 	log.Printf("request from %q", req.RemoteAddr)
-	if forward_ip := req.Header.Get("X_FORWARDED-FOR"); forward_ip != "" {
+	if forward_ip := req.Header.Get("X-FORWARDED-FOR"); forward_ip != "" {
 		log.Printf("forwarded for %q", forward_ip)
 	}
 	for _, h := range msgs {
@@ -117,7 +117,7 @@ func main() {
 	ignore := func(string, string, []string) {}
 	ignore_channel := func(_ string, cmd string, args []string) {
 		if len(args) < 1 || args[0] != channel {
-			log.Fatalf("unexpected channel, cmd '%q', args %v", cmd, args)
+			log.Fatalf("unexpected channel, cmd %q, args %v", cmd, args)
 		}
 		if !has_joined_channel {
 			go on_channel_joined(*http_port_flag, func(m string) { fmt.Fprintf(c, "privmsg %s :%s\n", channel, m) })
@@ -126,7 +126,7 @@ func main() {
 	}
 	ignore_nick_channel := func(_ string, cmd string, args []string) {
 		if len(args) < 2 || args[0] != nick || args[1] != channel {
-			log.Fatalf("unexpected channel, cmd '%q', args %v", cmd, args)
+			log.Fatalf("unexpected channel, cmd %q, args %v", cmd, args)
 		}
 		if !has_joined_channel {
 			go on_channel_joined(*http_port_flag, func(m string) { fmt.Fprintf(c, "privmsg %s :%s\n", channel, m) })
@@ -160,6 +160,8 @@ func main() {
 	handlers[RPL_CHANNEL_URL] = ignore_nick_channel
 	handlers["JOIN"] = ignore_channel
 	handlers["PART"] = ignore_channel
+	handlers["NICK"] = ignore
+	handlers["QUIT"] = ignore
 
 	handlers["PING"] = func(_ string, _ string, args []string) {
 		if len(args) != 1 {
@@ -175,7 +177,7 @@ func main() {
 		}
 		if args[0] != channel {
 			// FIXME: Support whisper-back to whisper?
-			log.Printf("got msg to '%q': %v from %q", args[0], args, prefix)
+			log.Printf("got msg to %q: %v from %q", args[0], args, prefix)
 			return
 		}
 		msg := args[1]
@@ -224,10 +226,10 @@ _/¯(ツ)¯\_`
 				prefix = text[1:i]
 				text = text[i+1 : len(text)]
 				if text == "" {
-					log.Fatal("no data after prefix in '%q'", text)
+					log.Fatal("no data after prefix in %q", text)
 				}
 			} else {
-				log.Fatal("invalid prefix in '%q'", text)
+				log.Fatal("invalid prefix in %q", text)
 			}
 		}
 
