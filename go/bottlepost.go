@@ -95,6 +95,8 @@ func main() {
 	var channel_flag = flag.String("irc_channel", "#bottlechan", "irc channel to join")
 	flag.Parse()
 
+	rand.Seed(time.Now().UnixNano())
+
 	c, err := net.Dial("tcp", *irc_server_flag)
 	if err != nil {
 		log.Fatal(err)
