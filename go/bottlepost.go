@@ -62,7 +62,7 @@ func post(w http.ResponseWriter, req *http.Request, send func(string)) {
 	for name, values := range req.Form {
 		if name != "msg" {
 			log.Printf("invalid query param %q", name)
-			http.Error(w, "400 Bad Request", http.StatusMethodNotAllowed)
+			http.Error(w, "400 Bad Request", http.StatusBadRequest)
 			return
 		}
 		msgs = values
