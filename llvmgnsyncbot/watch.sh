@@ -4,10 +4,11 @@
 # hack/llvmgnsyncbot/watch.sh buildlog html hack > html/watch_out.txt 2> html/watch_err.txt < /dev/null &
 # disown -h
 
-# FIXME maybe add -m flag for robustness
 # FIXME maybe add -d flag instead of the disown stuff above
 
-while inotifywait -e create -r $1; do
+inotifywait -m -e create -r $1 | while read; do
+  while read -t 0; do read; done  # Drain additional queued-up events, if any.
+
   now=$(TZ=UTC date +%FT%TZ)
   echo $now
 
