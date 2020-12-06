@@ -12,10 +12,7 @@ Example:
 """
 
 from __future__ import print_function
-import argparse
-import subprocess
-import sys
-import time
+import argparse, subprocess, sys, time
 
 parser = argparse.ArgumentParser(
              epilog=__doc__,
@@ -25,17 +22,15 @@ parser.add_argument('--output', '-o', help='write timing output to this file')
 parser.add_argument('cmd', nargs=argparse.REMAINDER, help='command to time')
 args = parser.parse_args()
 
-# Make `bench.py -o foo -- cmd` work
-if args.cmd and args.cmd[0] == '--':
-  del args.cmd[0]
-
-subprocess.call(args.cmd)  # Warmup
-
 out = open(args.output, 'w') if args.output else sys.stdout
 
+# Make `bench.py -o foo -- cmd` work
+if args.cmd and args.cmd[0] == '--':
+    del args.cmd[0]
+
+subprocess.call(args.cmd)  # Warmup
 for _ in range(args.n):
-  t = time.time()
-  subprocess.call(args.cmd)
-  e = time.time() - t
-  print(e, file=out)
+    t = time.time();
+    subprocess.call(args.cmd)
+    print(time.time() - t, file=out)
 
