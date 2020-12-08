@@ -8,7 +8,6 @@ Example:
     bench.py -o after.txt out/gn/bin/ld64.lld.darwinnew @response.txt
 
     ministat before.txt after.txt
-
 """
 
 from __future__ import print_function
@@ -21,6 +20,9 @@ parser.add_argument('-n', help='number of repetitions', default=5, type=int)
 parser.add_argument('--output', '-o', help='write timing output to this file')
 parser.add_argument('cmd', nargs=argparse.REMAINDER, help='command to time')
 args = parser.parse_args()
+if not args.cmd:
+    parser.print_help()
+    sys.exit(1)
 
 out = open(args.output, 'w') if args.output else sys.stdout
 
