@@ -70,14 +70,16 @@ def parse_output(log, meta):
     if len(steps) > 1:
         pull_output = log[steps[0]['output'][0]:steps[0]['output'][1]]
         # Matches:
-        #   70caa1fc30c..5c9bdc79e1f  master     -> origin/master
-        rev = r'^\s+([0-9a-f]+)\.\.([0-9a-f]+)\s+master\s+->\s+origin/master$'
-        m = re.search(rev, pull_output, re.M)
+        #   70caa1fc30c..5c9bdc79e1f  %s     -> origin/%s
+        rev = r'^\s+([0-9a-f]+)\.\.([0-9a-f]+)\s+(%s)\s+->\s+origin/\3$'
+        m = (re.search(rev % 'main', pull_output, re.M) or
+             re.search(rev % 'master', pull_output, re.M))
         assert m
         parsed['prev_git_revision'] = m.group(1)
         parsed['git_revision'] = m.group(2)
-        m = re.search(r"^Your branch is behind 'origin/master' by (\d+) commit",
-                      pull_output, re.M)
+        m = re.search(
+            r"^Your branch is behind 'origin/%s' by (\d+) commit" % m.group(3),
+            pull_output, re.M)
         assert m
         parsed['num_commits'] = int(m.group(1))
 
@@ -363,12 +365,12 @@ Array.from(document.getElementsByTagName('time')).forEach(elt => {
     # an ETA for the pending build (get max of finish time of latest build,
     # timestamp of first commit in range, add average build duration),
     # but that includes full diff contents and lots of other stuff we don't
-    # care about -- easily hundreds of kB of data, while refs/heads/master
+    # care about -- easily hundreds of kB of data, while refs/heads/main
     # returns 368 bytes.
     # Maybe the graphql v4 api won't require auth one day...
     fetch = '''\
 <script>
-let url = "https://api.github.com/repos/llvm/llvm-project/git/refs/heads/master";
+let url = "https://api.github.com/repos/llvm/llvm-project/git/refs/heads/main";
 fetch(url).then(response => response.json()).then(json => {
   Array.from(document.getElementsByClassName('pending')).forEach(elt => {
     let trunkRev = json.object.sha;

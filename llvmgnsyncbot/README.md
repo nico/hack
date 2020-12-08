@@ -69,7 +69,7 @@ Each builder needs some amount of one-time manual setup.
 
 1. On non-Windows, run `git config core.trustctime false` in the llvm checkout.
    The GN build uses hardlinks to copy files, which changes the ctime on the
-   copy source inode. By default, `git checkout -f master` will replace files
+   copy source inode. By default, `git checkout -f main` will replace files
    with modified ctime with a new copy of the file, which in turn changes the
    mtime on the copy inputs -- which makes ninja think copy steps are dirty
    and need to be rerun on every build. This setting fixes this.

@@ -53,9 +53,9 @@ def run(last_exit_code):
     # Pull.
     logging.info('pulling...')
     try:
-        old_rev = git_output(['rev-parse', 'origin/master'])
-        check_git(['fetch', 'origin', 'master'])
-        new_rev = git_output(['rev-parse', 'origin/master'])
+        old_rev = git_output(['rev-parse', 'origin/main'])
+        check_git(['fetch', 'origin', 'main'])
+        new_rev = git_output(['rev-parse', 'origin/main'])
     except subprocess.CalledProcessError:
         # Connectivity issues. Wait a bit and hope it goes away.
         time.sleep(5 * 60)
@@ -67,8 +67,8 @@ def run(last_exit_code):
         time.sleep(30)
         return
 
-    check_git(['checkout', '-f', 'master'])
-    check_git(['reset', '--hard', 'origin/master'])
+    check_git(['checkout', '-f', 'main'])
+    check_git(['reset', '--hard', 'origin/main'])
 
     # Sync GN files.
     logging.info('syncing...')
@@ -76,7 +76,7 @@ def run(last_exit_code):
     if git(['show-ref', '--verify', '--quiet', 'refs/heads/merge']) == 0:
         check_git(['branch', '-D', 'merge'])
     check_git(['checkout', '-b', 'merge'])
-    check_git(['branch', '--set-upstream-to', 'origin/master'])
+    check_git(['branch', '--set-upstream-to', 'origin/main'])
     subprocess.check_call([
             sys.executable,
             'llvm/utils/gn/build/sync_source_lists_from_cmake.py',
@@ -194,13 +194,13 @@ def run(last_exit_code):
 
     # All worked fine, so land changes (if any).
     if (sys.platform.startswith('linux') and
-            git(['diff', '--quiet', 'master']) != 0):
+            git(['diff', '--quiet', 'main']) != 0):
         # FIXME: Maybe fetch and rebase before pushing, so that the commit
         # works if something landed while tests ran -- see
         # http://lists.llvm.org/pipermail/llvm-dev/2019-October/136266.html
         logging.info('committing changes')
-        check_git(['push', 'origin', 'HEAD:master'])
-        # Make origin/master forget the commit(s) with gn file changes, so that
+        check_git(['push', 'origin', 'HEAD:main'])
+        # Make origin/main forget the commit(s) with gn file changes, so that
         # they pulled on the next build. Alternatively, annotate.py could look
         # at the output of the 'committing changes' step and make the sync
         # commit of the current build, but that works less well with a
@@ -208,8 +208,8 @@ def run(last_exit_code):
         # be different from what the mac and linux bots are doing.
         # The @{1} means "previous reflog entry", see
         # https://git-scm.com/book/en/v2/Git-Tools-Revision-Selection#_git_reflog
-        check_git(['update-ref', 'refs/remotes/origin/master',
-                   'refs/remotes/origin/master@{1}'])
+        check_git(['update-ref', 'refs/remotes/origin/main',
+                   'refs/remotes/origin/main@{1}'])
 
     logging.info('done')
 
@@ -232,6 +232,6 @@ if __name__ == '__main__':
     try:
         sys.exit(main())
     except KeyboardInterrupt:
-        # https://github.com/nico/hack/blob/master/sigint.sh
+        # https://github.com/nico/hack/blob/HEAD/sigint.sh
         signal.signal(signal.SIGINT, signal.SIG_DFL)
         os.kill(os.getpid(), signal.SIGINT)
