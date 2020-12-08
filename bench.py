@@ -24,7 +24,7 @@ args = parser.parse_args()
 if args.cmd and args.cmd[0] == '--': # Make `bench.py -o foo -- cmd` work
     del args.cmd[0]
 if not args.cmd:
-    parser.print_help()
+    parser.print_usage()
     sys.exit(1)
 
 out = open(args.output, 'w') if args.output else sys.stdout
