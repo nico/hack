@@ -83,19 +83,25 @@ def run(last_exit_code):
             '--write'])
 
     # Build.
-    logging.info('restart goma')
-    if sys.platform == 'win32':
-        goma_ctl = r'c:\src\goma\goma-win64\goma_ctl.py'
-    else:
-        goma_ctl = os.path.expanduser('~/goma/goma_ctl.py')
-    subprocess.check_call([sys.executable, goma_ctl, 'restart'])
+    use_goma = not (sys.platform == 'darwin' and os.uname()[4] == 'arm64')
+    if use_goma:
+        logging.info('restart goma')
+        if sys.platform == 'win32':
+            goma_ctl = r'c:\src\goma\goma-win64\goma_ctl.py'
+        else:
+            goma_ctl = os.path.expanduser('~/goma/goma_ctl.py')
+        subprocess.check_call([sys.executable, goma_ctl, 'restart'])
 
     logging.info('building')
-    j = '-j1000'
-    if sys.platform == 'darwin':
-        # `ninja: fatal: pipe: Too many open files` with default ulimit else.
-        j = '-j200'
-    subprocess.check_call(['ninja', '-C', 'out/gn', j])
+    build_cmd = ['ninja', '-C', 'out/gn', j]
+    if use_goma:
+        if sys.platform == 'darwin':
+            # `ninja: fatal: pipe: Too many open files` with -j1000 and default
+            # ulimit.
+            build_cmd.append('-j200')
+        else:
+            build_cmd.append('-j1000')
+    subprocess.check_call(build_cmd)
 
     # Test.
 
@@ -108,6 +114,9 @@ def run(last_exit_code):
     }
     if sys.platform not in ['darwin', 'win32' ]:
         all_tests['//compiler-rt/test/hwasan:check-hwasan'] = 'check-hwasan'
+    if sys.platform == 'darwin' and os.uname()[4] == 'arm64':
+        del all_tests['//clang/test:check-clang']  # llvm.org/PR46644
+        del all_tests['//llvm/test:check-llvm']  # llvm.org/PR46647
 
     logging.info('analyze')
     if last_exit_code != 0:

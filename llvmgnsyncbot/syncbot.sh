@@ -48,7 +48,12 @@ while true; do
 
   # Upload buildlogs.
   case "$OSTYPE" in
-    darwin*) rsync -az buildlogs/ llvm@45.33.8.238:~/buildlog/mac ;;
+    darwin*)
+      case "$HOSTTYPE" in
+        arm64) ;;  # FIXME: Upload eventually, too.
+        x86_64) rsync -az buildlogs/ llvm@45.33.8.238:~/buildlog/mac ;;
+      esac
+      ;;
     linux*)  rsync -az buildlogs/ llvm@45.33.8.238:~/buildlog/linux ;;
     # msys2.org's rsync binary doesn't support old-style --compress / -z
     # due to its external zlib. Use --new-compress / -zz to get compression.
