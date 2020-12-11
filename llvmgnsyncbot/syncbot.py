@@ -93,7 +93,7 @@ def run(last_exit_code):
         subprocess.check_call([sys.executable, goma_ctl, 'restart'])
 
     logging.info('building')
-    build_cmd = ['ninja', '-C', 'out/gn', j]
+    build_cmd = ['ninja', '-C', 'out/gn']
     if use_goma:
         if sys.platform == 'darwin':
             # `ninja: fatal: pipe: Too many open files` with -j1000 and default
@@ -104,7 +104,6 @@ def run(last_exit_code):
     subprocess.check_call(build_cmd)
 
     # Test.
-
     all_tests = {
             '//clang/test:check-clang': 'check-clang',
             '//clang-tools-extra/clangd/test:check-clangd': 'check-clangd',
