@@ -245,10 +245,11 @@ def platform_summary(build_list):
     # 1 build every N time units / day
     # stuff from the global summary page (pending builds, eta,
     # maybe regression ranges?)
+    num_builds = min(NUM_BUILDS_TO_SHOW, build_list.num_builds())
     summary += '%d (%.1f%%) of last %d builds pass\n' % (
         num_pass,
-        100.0 * num_pass / NUM_BUILDS_TO_SHOW,
-        NUM_BUILDS_TO_SHOW,
+        100.0 * num_pass / num_builds,
+        num_builds,
         )
     if num_pass > 0:
         avg_seconds = round(sum_pass_elapsed_s / float(num_pass))
@@ -256,7 +257,7 @@ def platform_summary(build_list):
             str(datetime.timedelta(seconds=avg_seconds)),
             )
     summary += '%.2f commits per build on average\n' % (
-        sum_num_commits / float(NUM_BUILDS_TO_SHOW),
+        sum_num_commits / float(num_builds),
         )
 
     return summary + '\n' + '\n'.join(text)
