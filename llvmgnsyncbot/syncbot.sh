@@ -50,7 +50,7 @@ while true; do
   case "$OSTYPE" in
     darwin*)
       case "$HOSTTYPE" in
-        arm64) ;;  # FIXME: Upload eventually, too.
+        arm64) rsync -az buildlogs/ llvm@45.33.8.238:~/buildlog/macm1 ;;
         x86_64) rsync -az buildlogs/ llvm@45.33.8.238:~/buildlog/mac ;;
       esac
       ;;
