@@ -114,7 +114,6 @@ def run(last_exit_code):
     if sys.platform not in ['darwin', 'win32' ]:
         all_tests['//compiler-rt/test/hwasan:check-hwasan'] = 'check-hwasan'
     if sys.platform == 'darwin' and os.uname()[4] == 'arm64':
-        del all_tests['//clang/test:check-clang']  # llvm.org/PR46644
         del all_tests['//llvm/test:check-llvm']  # llvm.org/PR46647
 
     logging.info('analyze')
