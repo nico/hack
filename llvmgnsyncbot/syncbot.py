@@ -95,12 +95,9 @@ def run(last_exit_code):
     logging.info('building')
     build_cmd = ['ninja', '-C', 'out/gn']
     if use_goma:
-        if sys.platform == 'darwin':
-            # `ninja: fatal: pipe: Too many open files` with -j1000 and default
-            # ulimit.
-            build_cmd.append('-j200')
-        else:
-            build_cmd.append('-j1000')
+        # `ninja: fatal: pipe: Too many open files` with -j1000 and default
+        # ulimit on macOS.
+        build_cmd.append('-j200' if sys.platform == 'darwin' else '-j1000')
     subprocess.check_call(build_cmd)
 
     # Test.
