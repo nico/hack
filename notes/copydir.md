@@ -42,9 +42,7 @@ That's kind of slow. From `man cp`:
 The output directory is 2 GiB, in addition to the 1 GiB input directory.
 That explains the slowdown.
 
-Timestamps got almost preserved (they're 
-
-It also chops off the nanoseconds off the timestamps (note trailing zeros):
+It also chops off the nanoseconds of the timestamps (note trailing zeros):
 
     % stat -f '%N %Fm' bar
     bar 1609297230.485880000
