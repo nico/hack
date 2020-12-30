@@ -30,8 +30,8 @@ APFS added high-res time stamps, which can be queried with `stat -f %Fm`:
 
 Let's try the obvious thing:
 
-% time (rm -rf bar && cp -aR foo bar)
-0.720 total
+    % time (rm -rf bar && cp -aR foo bar)
+    0.720 total
 
 That's kind of slow. From `man cp`:
 
