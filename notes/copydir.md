@@ -163,3 +163,9 @@ There's no single best way to copy a directory on macOS as far as I can tell.
 
 If `pax` set the timestamp on the output directory correctly, it'd be the clear
 winner.
+
+Bugs filed:
+
+* [FB8957219 `cp -p` doesn't correctly copy mtime](https://openradar.appspot.com/radar?id=4946596567449600)
+* [FB8957230 `pax -rwl` doesn't correctly set mtime on directories](https://openradar.appspot.com/radar?id=5032029741645824)
+* [FB8957277 Please add a `-l` flag to `cp`](https://openradar.appspot.com/radar?id=5017815211835392)
