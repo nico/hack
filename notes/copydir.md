@@ -83,6 +83,35 @@ But, alas, the timestamp on the directory itself is truncated:
 So this is unusable for build system use too.
 (And when not using `-l`, the timestamps for all output files are truncated.)
 
+If relax the requirement to preserve timestamps and just require that the
+output files have timestamps that are not older than the input timestamps, then
+we can pass `-p m` to not preserve mtimes. With that, pax updates the mtime
+on the directory (and, without `-l`, on all files) to the current time --
+but only with second granularity:
+
+    % time (rm -rf bar && mkdir bar && cd foo && pax -rwl -p m . ../bar)
+    0.009 total
+    % stat -f '%N %Fm' bar
+    bar 1609693043.000000000
+    % stat -f '%N %Fm' bar/*
+    bar/hardlink 1609294944.907726636
+    bar/large 1609294944.907726636
+    bar/symlink 1609693043.832774972
+
+This should be workable in most situations. If we do need higher-resolution
+timestamps, we could run `touch ../bar` at the end. But:
+
+* `touch` only sets milliseconds and microseconds, not nanoseconds (like `cp`,
+  but unlike most other methods for creating files). This isn't a problem in
+  practice, but it's strange.
+
+* If the directory contains subdirectories that also need timestamps that are
+  more granual than seconds, something like `find ../bar -type d | xargs touch`
+  is needed, and at that point `cpio` doesn't look much worse.
+
+But most of the time, seconds-granularity is sufficient. So if preserving
+mtimes isn't needed, this is an ok approach.
+
 ## cpio
 
 Also has a `-l` switch, but takes lists on stdio so it's a bit weird to use:
@@ -146,9 +175,9 @@ itself:
     bar/large 1609294944.907726636
     bar/symlink 1609294960.193255000
 
-Maybe we can relax the requirement to preserve timestamps and just require
-that the output files have timestamps that just are not older than the input
-timestamps. Then we can use `cp -cR` and this method works.
+If relax the requirement to preserve timestamps and just require that the
+output files have timestamps that are not older than the input timestamps, then
+we can use `cp -cR` and this method works.
 
 Another drawback is that if this method is used as part of a build and something
 writes the input directory on the next build, the OS has to copy-on-write
@@ -159,10 +188,14 @@ some of the speed is a time debt that needs to be repaid in the future.
 
 There's no single best way to copy a directory on macOS as far as I can tell.
 
-`cpio` seems like the least bad current option.
+If mtimes need to be preserved in the output directory, `cpio -pdlm` seems like
+the least bad current option.  If `pax` set the timestamp on the output
+directory correctly, it'd be the clear winner.
 
-If `pax` set the timestamp on the output directory correctly, it'd be the clear
-winner.
+If mtimes don't need to be preserved, `pax -rwl -p m` seems best if mtime
+doesn't need sub-second granularity. Else, `cpio -pdlm` seems best again
+(or, if we don't _want_ mimes to be preserved, just `cpio -pdl`). If `pax` set
+timestamps with sub-second granularity, it'd be the clear winner again.
 
 Bugs filed:
 
