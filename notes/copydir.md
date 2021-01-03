@@ -202,3 +202,5 @@ Bugs filed:
 * [FB8957219 `cp -p` doesn't correctly copy mtime](https://openradar.appspot.com/radar?id=4946596567449600)
 * [FB8957230 `pax -rwl` doesn't correctly set mtime on directories](https://openradar.appspot.com/radar?id=5032029741645824)
 * [FB8957277 Please add a `-l` flag to `cp`](https://openradar.appspot.com/radar?id=5017815211835392)
+* [FB8960643 `pax -rw -p m` sets mtimes with only seconds granularity](https://openradar.appspot.com/radar?id=5046181155569664)
+* [FB8960652 `touch` doesn't fill in nanoseconds for already-existing files](https://openradar.appspot.com/radar?id=4954148596350976)
