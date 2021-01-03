@@ -3,7 +3,7 @@
 Let's say we have a directory containing a large file:
 
     mkdir foo
-    touch foo/large && shred --iterations=1 --size=1G foo/large
+    dd if=/dev/urandom of=foo/large bs=1m count=1k
 
 For good measure, let's also throw in a hard link and a symlink:
 
