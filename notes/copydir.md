@@ -87,7 +87,7 @@ So this is unusable for build system use too.
 
 Also has a `-l` switch, but takes lists on stdio so it's a bit weird to use:
 
-    % time (rm -rf bar && cd foo && find . | cpio -pdl ../bar)
+    % time (rm -rf bar && cd foo && find . | cpio -pdlm ../bar)
     0 blocks
     0.012 total
 
