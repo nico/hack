@@ -25,6 +25,8 @@ APFS added high-res time stamps, which can be queried with `stat -f %Fm`:
     foo/hardlink 1609294944.907726636
     foo/large 1609294944.907726636
     foo/symlink 1609294960.193255375
+    
+(On Linux, use `stat -c %.Y` instead.)
 
 ## cp
 
