@@ -17,6 +17,10 @@ umask 022
 
 THIS_DIR=$(dirname "$0")
 
+# coreutils's `timeout` doesn't exist on macOS, so reinvent it.
+# Takes a timeout in seconds and a command to run.
+function run_for_s () { perl -e 'alarm shift; exec @ARGV' "$@"; }
+
 while true; do
   last_exit=
   prev_log=buildlogs/$((build_num-1)).meta.json
@@ -28,10 +32,10 @@ while true; do
   if [[ "$OSTYPE" == "msys" ]]; then
     # The `tee` and the `/usr/bin/env python` both
     # seem to not work well in `git bash`.
-    python $THIS_DIR/syncbot.py $last_exit >curbuild.txt 2>&1
+    run_for_s 3600 python $THIS_DIR/syncbot.py $last_exit >curbuild.txt 2>&1
     EXIT_CODE=$?
   else
-    $THIS_DIR/syncbot.py $last_exit 2>&1 | tee curbuild.txt
+    run_for_s 3600 $THIS_DIR/syncbot.py $last_exit 2>&1 | tee curbuild.txt
     EXIT_CODE=${PIPESTATUS[0]}
   fi
   echo '{ "elapsed_s":' $SECONDS', "exit_code":' $EXIT_CODE '}' \
