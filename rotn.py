@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# Takes n from argv, then rot-n encodes stdin.
 import sys
 n = int(sys.argv[1])
 for line in sys.stdin:
