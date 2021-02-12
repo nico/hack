@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdnoreturn.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -10,31 +11,34 @@
 
 struct termios g_initial_termios;
 
+static noreturn void die(const char* s) {
+  write(STDOUT_FILENO, "\e[2J", 4);
+  write(STDOUT_FILENO, "\e[H", 3);
+  perror(s);
+  exit(1);
+}
+
 static void restoreInitialTermios() {
   if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &g_initial_termios) < 0)
-    perror("reset tcsetattr");
+    die("reset tcsetattr");
 }
 
 static void enterRawMode() {
-  if (tcgetattr(STDIN_FILENO, &g_initial_termios) < 0) {
-    perror("tcgetattr");
-    return;
-  }
+  if (tcgetattr(STDIN_FILENO, &g_initial_termios) < 0)
+    die("tcgetattr");
   struct termios t = g_initial_termios;
   t.c_iflag &= (tcflag_t)~(ICRNL | IXON);
   // FIXME: IEXTEN for Ctrl-V / Ctrl-O on macOS?
   t.c_lflag &= (tcflag_t)~(ECHO | ICANON | ISIG); // Not sure I want ISIG.
-  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &t) < 0) {
-    perror("tcsetattr");
-    return;
-  }
+  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &t) < 0)
+    die("tcsetattr");
   atexit(restoreInitialTermios);
 }
 
 static char readKey() {
   char c = 0;
   if (read(STDIN_FILENO, &c, 1) < 0)
-    perror("read");
+    die("read");
   return c;
 }
 
