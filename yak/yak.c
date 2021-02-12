@@ -7,27 +7,27 @@
 
 struct termios g_initial_termios;
 
-static void resetEcho() {
+static void restoreInitialTermios() {
   if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &g_initial_termios) < 0)
     perror("reset tcsetattr");
 }
 
-static void disableEcho() {
+static void enterRawMode() {
   if (tcgetattr(STDIN_FILENO, &g_initial_termios) < 0) {
     perror("tcgetattr");
     return;
   }
   struct termios t = g_initial_termios;
-  t.c_lflag &= (tcflag_t)~ECHO;
+  t.c_lflag &= (tcflag_t)~(ECHO | ICANON);
   if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &t) < 0) {
     perror("tcsetattr");
     return;
   }
-  atexit(resetEcho);
+  atexit(restoreInitialTermios);
 }
 
 int main() {
-  disableEcho();
+  enterRawMode();
 
   char c;
   while (read(STDIN_FILENO, &c, 1) == 1 && c != 'q')
