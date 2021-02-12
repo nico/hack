@@ -1,5 +1,6 @@
 // yet another https://viewsourcecode.org/snaptoken/kilo/index.html
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <termios.h>
@@ -30,6 +31,10 @@ int main() {
   enterRawMode();
 
   char c;
-  while (read(STDIN_FILENO, &c, 1) == 1 && c != 'q')
-    ;
+  while (read(STDIN_FILENO, &c, 1) == 1 && c != 'q') {
+    if (iscntrl(c))
+      printf("%d\n", c);
+    else
+      printf("%d (%c)\n", c, c);
+  }
 }
