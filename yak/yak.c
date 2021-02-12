@@ -20,6 +20,7 @@ static void enterRawMode() {
   }
   struct termios t = g_initial_termios;
   t.c_iflag &= (tcflag_t)~(ICRNL | IXON);
+  // FIXME: IEXTEN for Ctrl-V / Ctrl-O on macOS?
   t.c_lflag &= (tcflag_t)~(ECHO | ICANON | ISIG); // Not sure I want ISIG.
   if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &t) < 0) {
     perror("tcsetattr");
