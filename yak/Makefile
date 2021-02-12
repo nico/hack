@@ -1,6 +1,6 @@
 .POSIX:
 CC     = cc
-CFLAGS = -Wall -O2 -std=c17
+CFLAGS = -Wall -Wextra -Wconversion -O2 -std=c17
 
 all: yak
 yak: yak.o
