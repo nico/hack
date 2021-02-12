@@ -19,6 +19,7 @@ static void enterRawMode() {
     return;
   }
   struct termios t = g_initial_termios;
+  t.c_iflag &= (tcflag_t)~IXON;
   t.c_lflag &= (tcflag_t)~(ECHO | ICANON);
   if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &t) < 0) {
     perror("tcsetattr");
