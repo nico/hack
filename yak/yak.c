@@ -38,12 +38,15 @@ static char readKey() {
   return c;
 }
 
+void drawScreen() {
+  // https://vt100.net/docs/vt100-ug/chapter3.html#ED
+  write(STDOUT_FILENO, "\e[2J", 4);
+  // https://vt100.net/docs/vt100-ug/chapter3.html#CUP
+  write(STDOUT_FILENO, "\e[H", 3);
+}
+
 static void processKey() {
   char c = readKey();
-  if (iscntrl(c))
-    printf("%d\n", c);
-  else
-    printf("%d (%c)\n", c, c);
   switch (c) {
     case CTRL('q'):
       exit(0);
@@ -53,6 +56,8 @@ static void processKey() {
 
 int main() {
   enterRawMode();
-  while (1)
+  while (1) {
+    drawScreen();
     processKey();
+  }
 }
