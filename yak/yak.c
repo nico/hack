@@ -20,7 +20,7 @@ static void enterRawMode() {
   }
   struct termios t = g_initial_termios;
   t.c_iflag &= (tcflag_t)~(ICRNL | IXON);
-  t.c_lflag &= (tcflag_t)~(ECHO | ICANON);
+  t.c_lflag &= (tcflag_t)~(ECHO | ICANON | ISIG); // Not sure I want ISIG.
   if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &t) < 0) {
     perror("tcsetattr");
     return;
