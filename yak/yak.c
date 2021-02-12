@@ -6,6 +6,8 @@
 #include <termios.h>
 #include <unistd.h>
 
+#define CTRL(q) ((q) & 0x1f)
+
 struct termios g_initial_termios;
 
 static void restoreInitialTermios() {
@@ -29,14 +31,28 @@ static void enterRawMode() {
   atexit(restoreInitialTermios);
 }
 
+static char readKey() {
+  char c = 0;
+  if (read(STDIN_FILENO, &c, 1) < 0)
+    perror("read");
+  return c;
+}
+
+static void processKey() {
+  char c = readKey();
+  if (iscntrl(c))
+    printf("%d\n", c);
+  else
+    printf("%d (%c)\n", c, c);
+  switch (c) {
+    case CTRL('q'):
+      exit(0);
+      break;
+  }
+}
+
 int main() {
   enterRawMode();
-
-  char c;
-  while (read(STDIN_FILENO, &c, 1) == 1 && c != 'q') {
-    if (iscntrl(c))
-      printf("%d\n", c);
-    else
-      printf("%d (%c)\n", c, c);
-  }
+  while (1)
+    processKey();
 }
