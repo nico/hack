@@ -35,9 +35,7 @@ static void enterRawMode() {
   if (tcgetattr(STDIN_FILENO, &g.initial_termios) < 0)
     die("tcgetattr");
   struct termios t = g.initial_termios;
-  t.c_iflag &= (tcflag_t)~(ICRNL | IXON);
-  // FIXME: IEXTEN for Ctrl-V / Ctrl-O on macOS?
-  t.c_lflag &= (tcflag_t)~(ECHO | ICANON | ISIG); // Not sure I want ISIG.
+  cfmakeraw(&t);
   if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &t) < 0)
     die("tcsetattr");
   atexit(restoreInitialTermios);
