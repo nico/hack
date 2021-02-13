@@ -53,6 +53,8 @@ static void processKey() {
   char c = readKey();
   switch (c) {
     case CTRL('q'):
+      write(STDOUT_FILENO, "\e[2J", 4);
+      write(STDOUT_FILENO, "\e[H", 3);
       exit(0);
       break;
   }
