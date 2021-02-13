@@ -42,10 +42,22 @@ static char readKey() {
   return c;
 }
 
-void drawScreen() {
+static void drawRows() {
+  for (int y = 0; y < 24; ++y) {
+    for (int x = 0; x < 80; ++x)
+      write(STDOUT_FILENO, u8"░", 3);
+    write(STDOUT_FILENO, "\r\n", 2);
+  }
+}
+
+static void drawScreen() {
   // https://vt100.net/docs/vt100-ug/chapter3.html#ED
   write(STDOUT_FILENO, "\e[2J", 4);
   // https://vt100.net/docs/vt100-ug/chapter3.html#CUP
+  write(STDOUT_FILENO, "\e[H", 3);
+
+  drawRows();
+
   write(STDOUT_FILENO, "\e[H", 3);
 }
 
