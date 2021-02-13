@@ -67,7 +67,8 @@ static void drawRows() {
   for (int y = 0; y < g.term_rows; ++y) {
     for (int x = 0; x < g.term_cols; ++x)
       write(STDOUT_FILENO, u8"░", 3);
-    write(STDOUT_FILENO, "\r\n", 2);
+    if (y != g.term_rows - 1)
+      write(STDOUT_FILENO, "\r\n", 2);
   }
 }
 
