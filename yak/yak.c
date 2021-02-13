@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdnoreturn.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
@@ -48,6 +49,26 @@ static char readKey() {
   return c;
 }
 
+struct abuf {
+  size_t len;
+  char* b;
+};
+
+#define ABUF_INIT {0, NULL}
+
+void abAppend(struct abuf* ab, const char* s, size_t len) {
+  char* newbuf = realloc(ab->b, ab->len + len);
+  if (!newbuf)
+    return;
+  memcpy(&newbuf[ab->len], s, len);
+  ab->b = newbuf;
+  ab->len += len;
+}
+
+void abFree(struct abuf* ab) {
+  free(ab->b);
+}
+
 static int getTerminalSize(int* rows, int* cols) {
   struct winsize ws;
   if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) < 0)
@@ -61,24 +82,29 @@ static int getTerminalSize(int* rows, int* cols) {
   return 0;
 }
 
-static void drawRows() {
+static void drawRows(struct abuf* ab) {
   for (int y = 0; y < g.term_rows; ++y) {
     for (int x = 0; x < g.term_cols; ++x)
-      write(STDOUT_FILENO, u8"░", 3);
+      abAppend(ab, u8"░", 3);
     if (y != g.term_rows - 1)
-      write(STDOUT_FILENO, "\r\n", 2);
+      abAppend(ab, "\r\n", 2);
   }
 }
 
 static void drawScreen() {
+  struct abuf ab = ABUF_INIT;
+
   // https://vt100.net/docs/vt100-ug/chapter3.html#ED
-  write(STDOUT_FILENO, "\e[2J", 4);
+  abAppend(&ab, "\e[2J", 4);
   // https://vt100.net/docs/vt100-ug/chapter3.html#CUP
-  write(STDOUT_FILENO, "\e[H", 3);
+  abAppend(&ab, "\e[H", 3);
 
-  drawRows();
+  drawRows(&ab);
 
-  write(STDOUT_FILENO, "\e[H", 3);
+  abAppend(&ab, "\e[H", 3);
+
+  write(STDOUT_FILENO, ab.b, ab.len);
+  abFree(&ab);
 }
 
 static void processKey() {
