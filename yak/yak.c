@@ -12,6 +12,13 @@
 
 #define CTRL_(q) ((q) & 0x1f)
 
+enum editorKey {
+  ARROW_UP = 1000,
+  ARROW_DOWN,
+  ARROW_RIGHT,
+  ARROW_LEFT,
+};
+
 struct GlobalState {
   int cx, cy;
   int term_rows;
@@ -50,8 +57,8 @@ static void enterRawMode() {
   atexit(restoreInitialTermios);
 }
 
-static char readKey() {
-  char c = 0;
+static int readKey() {
+  int c = 0;
   if (read(STDIN_FILENO, &c, 1) < 0)
     die("read");
 
@@ -74,10 +81,10 @@ static char readKey() {
 
     if (nseq == 2 && seq[0] == '[') {
       switch (seq[1]) {
-        case 'D': c = 'h'; break;
-        case 'B': c = 'j'; break;
-        case 'A': c = 'k'; break;
-        case 'C': c = 'l'; break;
+        case 'A': c = ARROW_UP; break;
+        case 'B': c = ARROW_DOWN; break;
+        case 'C': c = ARROW_RIGHT; break;
+        case 'D': c = ARROW_LEFT; break;
       }
     }
 
@@ -183,7 +190,7 @@ static void moveCursor(char key) {
 }
 
 static void processKey() {
-  char c = readKey();
+  int c = readKey();
   switch (c) {
     case CTRL_('q'):
       write(STDOUT_FILENO, "\e[2J", 4);
@@ -192,10 +199,20 @@ static void processKey() {
       break;
 
     case 'h':
+    case ARROW_LEFT:
+      moveCursor('h');
+      break;
     case 'j':
+    case ARROW_DOWN:
+      moveCursor('j');
+      break;
     case 'k':
+    case ARROW_UP:
+      moveCursor('k');
+      break;
     case 'l':
-      moveCursor(c);
+    case ARROW_RIGHT:
+      moveCursor('l');
       break;
   }
 }
