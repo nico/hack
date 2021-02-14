@@ -266,6 +266,15 @@ static void processKey() {
       exit(0);
       break;
 
+    case 'g':
+      g.cy = 0;
+      g.topmost_line = 0;
+      break;
+    case 'G':
+      g.cy = g.term_rows - 1;
+      g.topmost_line = g.num_rows - g.term_rows;
+      break;
+
     case 'h':
     case ARROW_LEFT:
       moveCursor('h');
