@@ -293,6 +293,14 @@ static void processKey() {
       g.cx = 0;
       g.leftmost_column = 0;
       break;
+    case '$':
+      if (g.rows[g.topmost_line + g.cy].size > g.term_cols) {
+        g.cx = g.term_cols - 1;
+        g.leftmost_column = g.rows[g.topmost_line + g.cy].size - g.term_cols;
+      } else {
+        g.cx = g.rows[g.topmost_line + g.cy].size - 1;
+      }
+      break;
 
     case 'h':
     case ARROW_LEFT:
