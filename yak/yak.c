@@ -26,7 +26,13 @@ struct Row {
 };
 
 struct GlobalState {
+  // Cursor position in screen space. (0, 0) is always the upper left corner
+  // of what's visible on screen, independent of scrolling.
   size_t cx, cy;
+
+  // Index of the first line drawn to the screen.
+  size_t topmost_line;
+
   size_t term_rows;
   size_t term_cols;
   size_t num_rows;
@@ -178,11 +184,12 @@ static void editorOpen(const char* filename) {
 
 static void drawRows(struct abuf* ab) {
   for (size_t y = 0; y < g.term_rows; ++y) {
-    if (y < g.num_rows) {
-      if (g.rows[y].size >= g.term_cols)
-        abAppend(ab, g.rows[y].chars, g.term_cols);
+    size_t file_row = y + g.topmost_line;
+    if (file_row < g.num_rows) {
+      if (g.rows[file_row].size >= g.term_cols)
+        abAppend(ab, g.rows[file_row].chars, g.term_cols);
       else {
-        abAppend(ab, g.rows[y].chars, g.rows[y].size);
+        abAppend(ab, g.rows[file_row].chars, g.rows[file_row].size);
         // \e[K to clear rest of line if not drawing whole line
         // https://vt100.net/docs/vt100-ug/chapter3.html#EL
         abAppend(ab, "\e[K", 3);
@@ -234,10 +241,14 @@ static void moveCursor(char key) {
     case 'j':
       if (g.cy  + 1 < g.term_rows)
         g.cy++;
+      else if (g.topmost_line + g.term_rows < g.num_rows)
+        g.topmost_line++;
       break;
     case 'k':
       if (g.cy > 0)
         g.cy--;
+      else if (g.topmost_line > 0)
+        g.topmost_line--;
       break;
     case 'l':
       if (g.cx + 1 < g.term_cols)
@@ -280,6 +291,7 @@ static void processKey() {
 static void init() {
   g.cx = 0;
   g.cy = 0;
+  g.topmost_line = 0;
   g.num_rows = 0;
   g.rows = NULL;
 
