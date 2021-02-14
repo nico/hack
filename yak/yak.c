@@ -30,7 +30,7 @@ struct GlobalState {
   size_t term_rows;
   size_t term_cols;
   size_t num_rows;
-  struct Row row;
+  struct Row* rows;
   struct termios initial_termios;
 };
 
@@ -145,6 +145,17 @@ static int getTerminalSize(size_t* rows, size_t* cols) {
   return 0;
 }
 
+static void editorAppendRow(const char* line, size_t line_len) {
+  g.rows = realloc(g.rows, sizeof(struct Row) * (g.num_rows + 1));
+
+  size_t i = g.num_rows;
+  g.rows[i].size = (size_t)line_len;
+  g.rows[i].chars = malloc((size_t)line_len + 1);
+  memcpy(g.rows[i].chars, line, line_len);
+  g.rows[i].chars[line_len] = '\0';
+  g.num_rows++;
+}
+
 static void editorOpen(const char* filename) {
   FILE* f = fopen(filename, "r");
   if (!f)
@@ -153,16 +164,12 @@ static void editorOpen(const char* filename) {
   char *line = NULL;
   size_t line_cap = 0;
   ssize_t line_len;
-  if ((line_len = getline(&line, &line_cap, f)) > 0) {
+  while ((line_len = getline(&line, &line_cap, f)) > 0) {
     // FIXME: This should be handled at display time, not at load time.
     while (line_len > 0 && (line[line_len - 1] == '\n' ||
                             line[line_len - 1] == '\r'))
       --line_len;
-    g.row.size = (size_t)line_len;
-    g.row.chars = malloc((size_t)line_len + 1);
-    memcpy(g.row.chars, line, line_len);
-    g.row.chars[line_len] = '\0';
-    g.num_rows = 1;
+    editorAppendRow(line, (size_t)line_len);
   }
   if (line)
     free(line);
@@ -172,10 +179,10 @@ static void editorOpen(const char* filename) {
 static void drawRows(struct abuf* ab) {
   for (size_t y = 0; y < g.term_rows; ++y) {
     if (y < g.num_rows) {
-      if (g.row.size >= g.term_cols)
-        abAppend(ab, g.row.chars, g.term_cols);
+      if (g.rows[y].size >= g.term_cols)
+        abAppend(ab, g.rows[y].chars, g.term_cols);
       else {
-        abAppend(ab, g.row.chars, g.row.size);
+        abAppend(ab, g.rows[y].chars, g.rows[y].size);
         // \e[K to clear rest of line if not drawing whole line
         // https://vt100.net/docs/vt100-ug/chapter3.html#EL
         abAppend(ab, "\e[K", 3);
@@ -274,6 +281,7 @@ static void init() {
   g.cx = 0;
   g.cy = 0;
   g.num_rows = 0;
+  g.rows = NULL;
 
   if (getTerminalSize(&g.term_rows, &g.term_cols) < 0)
     die("getTerminalSize");
