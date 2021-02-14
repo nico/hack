@@ -264,6 +264,9 @@ static void processKey() {
     case ARROW_RIGHT:
       moveCursor('l');
       break;
+    case '0':
+      g.cx = 0;
+      break;
   }
 }
 
