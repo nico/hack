@@ -54,6 +54,37 @@ static char readKey() {
   char c = 0;
   if (read(STDIN_FILENO, &c, 1) < 0)
     die("read");
+
+  if (c == '\e') {
+    // Might be start of an esc sequence, or might just be the esc key.
+    // Set input to nonblocking and see if there are more characters.
+    struct termios cur_termios;
+    if (tcgetattr(STDIN_FILENO, &cur_termios) < 0)
+      die("tcgetattr");
+    struct termios t = cur_termios;
+    t.c_cc[VMIN] = 0;
+    t.c_cc[VTIME] = 0;
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &t) < 0)
+      die("tcsetattr");
+
+    int nseq = 0;
+    char seq[3];
+    if (read(STDIN_FILENO, &seq[nseq], 1) == 1) ++nseq;
+    if (read(STDIN_FILENO, &seq[nseq], 1) == 1) ++nseq;
+
+    if (nseq == 2 && seq[0] == '[') {
+      switch (seq[1]) {
+        case 'D': c = 'h'; break;
+        case 'B': c = 'j'; break;
+        case 'A': c = 'k'; break;
+        case 'C': c = 'l'; break;
+      }
+    }
+
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &cur_termios) < 0)
+      die("tcsetattr");
+  }
+
   return c;
 }
 
