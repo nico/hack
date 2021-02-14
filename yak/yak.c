@@ -37,6 +37,13 @@ static void enterRawMode() {
     die("tcgetattr");
   struct termios t = g.initial_termios;
   cfmakeraw(&t);
+
+#if 0
+  // Make read timeout every 10 ms.
+  t.c_cc[VMIN] = 0;
+  t.c_cc[VTIME] = 1;
+#endif
+
   if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &t) < 0)
     die("tcsetattr");
   atexit(restoreInitialTermios);
@@ -86,6 +93,8 @@ static void drawRows(struct abuf* ab) {
   for (int y = 0; y < g.term_rows; ++y) {
     for (int x = 0; x < g.term_cols; ++x)
       abAppend(ab, u8"░", 3);
+    // FIXME: \e[K to clear rest of line if not drawing whole line
+    // https://vt100.net/docs/vt100-ug/chapter3.html#EL
     if (y != g.term_rows - 1)
       abAppend(ab, "\r\n", 2);
   }
@@ -94,14 +103,15 @@ static void drawRows(struct abuf* ab) {
 static void drawScreen() {
   struct abuf ab = ABUF_INIT;
 
-  // https://vt100.net/docs/vt100-ug/chapter3.html#ED
-  abAppend(&ab, "\e[2J", 4);
+  // https://vt100.net/docs/vt510-rm/DECTCEM.html
+  abAppend(&ab, "\e[?25l", 6);
   // https://vt100.net/docs/vt100-ug/chapter3.html#CUP
   abAppend(&ab, "\e[H", 3);
 
   drawRows(&ab);
 
   abAppend(&ab, "\e[H", 3);
+  abAppend(&ab, "\e[?25h", 6);
 
   write(STDOUT_FILENO, ab.b, ab.len);
   abFree(&ab);
