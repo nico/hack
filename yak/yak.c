@@ -187,17 +187,14 @@ static void drawRows(struct abuf* ab) {
   for (size_t y = 0; y < g.term_rows; ++y) {
     size_t file_row = y + g.topmost_line;
     if (file_row < g.num_rows) {
-      if (g.rows[file_row].size >= g.term_cols + g.leftmost_column)
-        abAppend(ab, g.rows[file_row].chars + g.leftmost_column, g.term_cols);
-      else {
-        if (g.rows[file_row].size > g.leftmost_column) {
-          abAppend(ab, g.rows[file_row].chars + g.leftmost_column,
-                   g.rows[file_row].size - g.leftmost_column);
-        }
-        // \e[K to clear rest of line if not drawing whole line
-        // https://vt100.net/docs/vt100-ug/chapter3.html#EL
+      ssize_t len = (ssize_t)g.rows[file_row].size - (ssize_t)g.leftmost_column;
+      if (len < 0) len = 0;
+      if (len > (ssize_t)g.term_cols) len = (ssize_t)g.term_cols;
+      abAppend(ab, g.rows[file_row].chars + g.leftmost_column, (size_t)len);
+      // \e[K to clear rest of line if not drawing whole line
+      // https://vt100.net/docs/vt100-ug/chapter3.html#EL
+      if ((size_t)len < g.term_cols)
         abAppend(ab, "\e[K", 3);
-      }
     } else {
       for (size_t x = 0; x < g.term_cols; ++x)
         abAppend(ab, u8"░", 3);
