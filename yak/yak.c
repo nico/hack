@@ -20,10 +20,17 @@ enum editorKey {
   DELETE,
 };
 
+struct Row {
+  size_t size;
+  char* chars;
+};
+
 struct GlobalState {
-  int cx, cy;
-  int term_rows;
-  int term_cols;
+  size_t cx, cy;
+  size_t term_rows;
+  size_t term_cols;
+  size_t num_rows;
+  struct Row row;
   struct termios initial_termios;
 };
 
@@ -125,7 +132,7 @@ void abFree(struct abuf* ab) {
   free(ab->b);
 }
 
-static int getTerminalSize(int* rows, int* cols) {
+static int getTerminalSize(size_t* rows, size_t* cols) {
   struct winsize ws;
   if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) < 0)
     return -1;
@@ -138,25 +145,45 @@ static int getTerminalSize(int* rows, int* cols) {
   return 0;
 }
 
+static void editorOpen() {
+  const char line[] = "Hello, world";
+  size_t line_len = strlen(line);
+
+  g.row.size = line_len;
+  g.row.chars = malloc(line_len + 1);
+  memcpy(g.row.chars, line, line_len);
+  g.row.chars[line_len] = '\0';
+  g.num_rows = 1;
+}
+
 static void drawRows(struct abuf* ab) {
-  for (int y = 0; y < g.term_rows; ++y) {
-    for (int x = 0; x < g.term_cols; ++x)
-      abAppend(ab, u8"░", 3);
-    // FIXME: \e[K to clear rest of line if not drawing whole line
-    // https://vt100.net/docs/vt100-ug/chapter3.html#EL
+  for (size_t y = 0; y < g.term_rows; ++y) {
+    if (y < g.num_rows) {
+      if (g.row.size >= g.term_cols)
+        abAppend(ab, g.row.chars, g.term_cols);
+      else {
+        abAppend(ab, g.row.chars, g.row.size);
+        // \e[K to clear rest of line if not drawing whole line
+        // https://vt100.net/docs/vt100-ug/chapter3.html#EL
+        abAppend(ab, "\e[K", 3);
+      }
+    } else {
+      for (size_t x = 0; x < g.term_cols; ++x)
+        abAppend(ab, u8"░", 3);
+    }
     if (y != g.term_rows - 1)
       abAppend(ab, "\r\n", 2);
   }
 }
 
-static void positionCursor(struct abuf* ab, int x, int y) {
+static void positionCursor(struct abuf* ab, size_t x, size_t y) {
   // https://vt100.net/docs/vt100-ug/chapter3.html#CUP
   if (x == 0 && y == 0) {
     abAppend(ab, "\e[H", 3);
     return;
   }
   char buf[32];
-  snprintf(buf, sizeof(buf), "\e[%d;%dH", y + 1, x + 1);
+  snprintf(buf, sizeof(buf), "\e[%zu;%zuH", y + 1, x + 1);
   abAppend(ab, buf, strlen(buf));
 }
 
@@ -230,6 +257,7 @@ static void processKey() {
 static void init() {
   g.cx = 0;
   g.cy = 0;
+  g.num_rows = 0;
 
   if (getTerminalSize(&g.term_rows, &g.term_cols) < 0)
     die("getTerminalSize");
@@ -238,6 +266,7 @@ static void init() {
 int main() {
   enterRawMode();
   init();
+  editorOpen();
   while (1) {
     drawScreen();
     processKey();
