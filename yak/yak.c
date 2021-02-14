@@ -17,6 +17,7 @@ enum editorKey {
   ARROW_DOWN,
   ARROW_RIGHT,
   ARROW_LEFT,
+  DELETE,
 };
 
 struct GlobalState {
@@ -80,11 +81,20 @@ static int readKey() {
     if (read(STDIN_FILENO, &seq[nseq], 1) == 1) ++nseq;
 
     if (nseq == 2 && seq[0] == '[') {
-      switch (seq[1]) {
-        case 'A': c = ARROW_UP; break;
-        case 'B': c = ARROW_DOWN; break;
-        case 'C': c = ARROW_RIGHT; break;
-        case 'D': c = ARROW_LEFT; break;
+      if (seq[1] >= '0' && seq[1] <= '9') {
+        if (read(STDIN_FILENO, &seq[nseq], 1) == 1) ++nseq;
+        if (nseq == 3 && seq[2] == '~') {
+          switch (seq[1]) {
+            case '3': c = DELETE; break;
+          }
+        }
+      } else {
+        switch (seq[1]) {
+          case 'A': c = ARROW_UP; break;
+          case 'B': c = ARROW_DOWN; break;
+          case 'C': c = ARROW_RIGHT; break;
+          case 'D': c = ARROW_LEFT; break;
+        }
       }
     }
 
