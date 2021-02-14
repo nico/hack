@@ -145,15 +145,28 @@ static int getTerminalSize(size_t* rows, size_t* cols) {
   return 0;
 }
 
-static void editorOpen() {
-  const char line[] = "Hello, world";
-  size_t line_len = strlen(line);
+static void editorOpen(const char* filename) {
+  FILE* f = fopen(filename, "r");
+  if (!f)
+    die("fopen");
 
-  g.row.size = line_len;
-  g.row.chars = malloc(line_len + 1);
-  memcpy(g.row.chars, line, line_len);
-  g.row.chars[line_len] = '\0';
-  g.num_rows = 1;
+  char *line = NULL;
+  size_t line_cap = 0;
+  ssize_t line_len;
+  if ((line_len = getline(&line, &line_cap, f)) > 0) {
+    // FIXME: This should be handled at display time, not at load time.
+    while (line_len > 0 && (line[line_len - 1] == '\n' ||
+                            line[line_len - 1] == '\r'))
+      --line_len;
+    g.row.size = (size_t)line_len;
+    g.row.chars = malloc((size_t)line_len + 1);
+    memcpy(g.row.chars, line, line_len);
+    g.row.chars[line_len] = '\0';
+    g.num_rows = 1;
+  }
+  if (line)
+    free(line);
+  fclose(f);
 }
 
 static void drawRows(struct abuf* ab) {
@@ -263,10 +276,12 @@ static void init() {
     die("getTerminalSize");
 }
 
-int main() {
+int main(int argc, char* argv[]) {
   enterRawMode();
   init();
-  editorOpen();
+  if (argc >= 2)
+    editorOpen(argv[1]);
+
   while (1) {
     drawScreen();
     processKey();
