@@ -13,6 +13,7 @@
 #define CTRL_(q) ((q) & 0x1f)
 
 struct GlobalState {
+  int cx, cy;
   int term_rows;
   int term_cols;
   struct termios initial_termios;
@@ -100,21 +101,54 @@ static void drawRows(struct abuf* ab) {
   }
 }
 
+static void positionCursor(struct abuf* ab, int x, int y) {
+  // https://vt100.net/docs/vt100-ug/chapter3.html#CUP
+  if (x == 0 && y == 0) {
+    abAppend(ab, "\e[H", 3);
+    return;
+  }
+  char buf[32];
+  snprintf(buf, sizeof(buf), "\e[%d;%dH", y + 1, x + 1);
+  abAppend(ab, buf, strlen(buf));
+}
+
+// https://vt100.net/docs/vt510-rm/DECTCEM.html
+static void hideCursor(struct abuf* ab) { abAppend(ab, "\e[?25l", 6); }
+static void showCursor(struct abuf* ab) { abAppend(ab, "\e[?25h", 6); }
+
 static void drawScreen() {
   struct abuf ab = ABUF_INIT;
 
-  // https://vt100.net/docs/vt510-rm/DECTCEM.html
-  abAppend(&ab, "\e[?25l", 6);
-  // https://vt100.net/docs/vt100-ug/chapter3.html#CUP
-  abAppend(&ab, "\e[H", 3);
-
+  hideCursor(&ab);
+  positionCursor(&ab, 0, 0);
   drawRows(&ab);
 
-  abAppend(&ab, "\e[H", 3);
-  abAppend(&ab, "\e[?25h", 6);
+  positionCursor(&ab, g.cx, g.cy);
+  showCursor(&ab);
 
   write(STDOUT_FILENO, ab.b, ab.len);
   abFree(&ab);
+}
+
+static void moveCursor(char key) {
+  switch (key) {
+    case 'h':
+      if (g.cx > 0)
+        g.cx--;
+      break;
+    case 'j':
+      if (g.cy  + 1 < g.term_rows)
+        g.cy++;
+      break;
+    case 'k':
+      if (g.cy > 0)
+        g.cy--;
+      break;
+    case 'l':
+      if (g.cx + 1 < g.term_cols)
+        g.cx++;
+      break;
+  }
 }
 
 static void processKey() {
@@ -125,10 +159,20 @@ static void processKey() {
       write(STDOUT_FILENO, "\e[H", 3);
       exit(0);
       break;
+
+    case 'h':
+    case 'j':
+    case 'k':
+    case 'l':
+      moveCursor(c);
+      break;
   }
 }
 
 static void init() {
+  g.cx = 0;
+  g.cy = 0;
+
   if (getTerminalSize(&g.term_rows, &g.term_cols) < 0)
     die("getTerminalSize");
 }
