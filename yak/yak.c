@@ -30,8 +30,9 @@ struct GlobalState {
   // of what's visible on screen, independent of scrolling.
   size_t cx, cy;
 
-  // Index of the first line drawn to the screen.
+  // Index of the top-left cell drawn on the screen.
   size_t topmost_line;
+  size_t leftmost_column;
 
   size_t term_rows;
   size_t term_cols;
@@ -186,10 +187,13 @@ static void drawRows(struct abuf* ab) {
   for (size_t y = 0; y < g.term_rows; ++y) {
     size_t file_row = y + g.topmost_line;
     if (file_row < g.num_rows) {
-      if (g.rows[file_row].size >= g.term_cols)
-        abAppend(ab, g.rows[file_row].chars, g.term_cols);
+      if (g.rows[file_row].size >= g.term_cols + g.leftmost_column)
+        abAppend(ab, g.rows[file_row].chars + g.leftmost_column, g.term_cols);
       else {
-        abAppend(ab, g.rows[file_row].chars, g.rows[file_row].size);
+        if (g.rows[file_row].size > g.leftmost_column) {
+          abAppend(ab, g.rows[file_row].chars + g.leftmost_column,
+                   g.rows[file_row].size - g.leftmost_column);
+        }
         // \e[K to clear rest of line if not drawing whole line
         // https://vt100.net/docs/vt100-ug/chapter3.html#EL
         abAppend(ab, "\e[K", 3);
@@ -237,6 +241,8 @@ static void moveCursor(char key) {
     case 'h':
       if (g.cx > 0)
         g.cx--;
+      else if (g.leftmost_column > 0)
+        g.leftmost_column--;
       break;
     case 'j':
       if (g.cy  + 1 < g.term_rows)
@@ -253,6 +259,9 @@ static void moveCursor(char key) {
     case 'l':
       if (g.cx + 1 < g.term_cols)
         g.cx++;
+      else if (g.leftmost_column + g.term_cols <
+               g.rows[g.topmost_line + g.cy].size)
+        g.leftmost_column++;
       break;
   }
 }
@@ -274,6 +283,10 @@ static void processKey() {
       g.cy = g.term_rows - 1;
       g.topmost_line = g.num_rows - g.term_rows;
       break;
+    case '0':
+      g.cx = 0;
+      g.leftmost_column = 0;
+      break;
 
     case 'h':
     case ARROW_LEFT:
@@ -291,9 +304,6 @@ static void processKey() {
     case ARROW_RIGHT:
       moveCursor('l');
       break;
-    case '0':
-      g.cx = 0;
-      break;
   }
 }
 
@@ -301,6 +311,7 @@ static void init() {
   g.cx = 0;
   g.cy = 0;
   g.topmost_line = 0;
+  g.leftmost_column = 0;
   g.num_rows = 0;
   g.rows = NULL;
 
