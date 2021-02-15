@@ -1,5 +1,8 @@
 // yet another https://viewsourcecode.org/snaptoken/kilo/index.html
 
+#define _DEFAULT_SOURCE // For cfmakeraw() in termios.h
+#define _POSIX_C_SOURCE 200809L  // For getline() in stdio.h
+
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
