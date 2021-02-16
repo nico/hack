@@ -244,6 +244,7 @@ static void put_cursor_at_end_of_line() {
 }
 
 static void moveCursor(char key) {
+  size_t line = g.topmost_line + g.cy;
   switch (key) {
     case 'h':
       if (g.cx > 0)
@@ -266,12 +267,21 @@ static void moveCursor(char key) {
       break;
     case 'l':
       if (g.cx + 1 < g.term_cols) {
-        if (g.cx + 1 < g.rows[g.topmost_line + g.cy].size)
+        if (g.cx + 1 < g.rows[line].size)
           g.cx++;
-      } else if (g.leftmost_column + g.term_cols <
-               g.rows[g.topmost_line + g.cy].size)
+      } else if (g.leftmost_column + g.term_cols < g.rows[line].size)
         g.leftmost_column++;
       break;
+  }
+
+  if (g.topmost_line + g.cy != line &&
+      g.cx + g.leftmost_column >= g.rows[g.topmost_line + g.cy].size) {
+    if (g.leftmost_column > g.rows[g.topmost_line + g.cy].size) {
+      g.leftmost_column = g.rows[g.topmost_line + g.cy].size;
+      if (g.leftmost_column)
+        --g.leftmost_column;
+    }
+    put_cursor_at_end_of_line();
   }
 }
 
