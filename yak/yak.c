@@ -1,7 +1,12 @@
 // yet another https://viewsourcecode.org/snaptoken/kilo/index.html
 
 #define _DEFAULT_SOURCE // For cfmakeraw() in termios.h
-#define _POSIX_C_SOURCE 200809L  // For getline() in stdio.h
+
+#if defined(__linux__)
+// For getline() in stdio.h.
+// Defining this on macOS makes termios.h not declare cfmakeraw().
+#define _POSIX_C_SOURCE 200809L
+#endif
 
 #include <ctype.h>
 #include <errno.h>
