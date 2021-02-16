@@ -38,6 +38,7 @@ struct GlobalState {
   size_t term_cols;
   size_t num_rows;
   struct Row* rows;
+  char* filename;
   struct termios initial_termios;
 };
 
@@ -168,6 +169,9 @@ static void editorOpen(const char* filename) {
   if (!f)
     die("fopen");
 
+  free(g.filename);
+  g.filename = strdup(filename);
+
   char *line = NULL;
   size_t line_cap = 0;
   ssize_t line_len;
@@ -199,9 +203,30 @@ static void drawRows(struct abuf* ab) {
       for (size_t x = 0; x < g.term_cols; ++x)
         abAppend(ab, u8"░", 3);
     }
-    if (y != g.term_rows - 1)
-      abAppend(ab, "\r\n", 2);
+    abAppend(ab, "\r\n", 2);
   }
+}
+
+static void drawStatusBar(struct abuf* ab) {
+  abAppend(ab, "\e[7m", 4);
+  char status[256], rstatus[80];
+  snprintf(status, sizeof(status), "%.20s",
+      g.filename ? g.filename : "[unnamed]");
+  snprintf(rstatus, sizeof(rstatus), "%zu/%zu", g.cy + g.topmost_line + 1,
+      g.num_rows);
+  size_t x = strlen(status);
+  if (x > g.term_cols)
+    x = g.term_cols;
+  abAppend(ab, status, x);
+  for (; x < g.term_cols; ++x) {
+    size_t rlen = strlen(rstatus);
+    if (x + rlen == g.term_cols) {
+      abAppend(ab, rstatus, rlen);
+      break;
+    }
+    abAppend(ab, " ", 1);
+  }
+  abAppend(ab, "\e[m", 4);
 }
 
 static void positionCursor(struct abuf* ab, size_t x, size_t y) {
@@ -225,6 +250,7 @@ static void drawScreen() {
   hideCursor(&ab);
   positionCursor(&ab, 0, 0);
   drawRows(&ab);
+  drawStatusBar(&ab);
 
   positionCursor(&ab, g.cx, g.cy);
   showCursor(&ab);
@@ -343,9 +369,11 @@ static void init() {
   g.leftmost_column = 0;
   g.num_rows = 0;
   g.rows = NULL;
+  g.filename = NULL;
 
   if (getTerminalSize(&g.term_rows, &g.term_cols) < 0)
     die("getTerminalSize");
+  g.term_rows--;
 }
 
 int main(int argc, char* argv[]) {
