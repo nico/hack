@@ -300,6 +300,27 @@ static void moveCursor(char key) {
           g.leftmost_column++;
       }
       break;
+
+    case 'g':
+      g.cy = 0;
+      g.topmost_line = 0;
+      break;
+    case 'G':
+      if (g.num_rows > g.term_rows) {
+        g.cy = g.term_rows - 1;
+        g.topmost_line = g.num_rows - g.term_rows;
+      } else if (g.num_rows) {
+        g.cy = g.num_rows - 1;
+      }
+      break;
+    case '0':
+      g.cx = 0;
+      g.leftmost_column = 0;
+      break;
+    case '$':
+      if (g.num_rows)
+        put_cursor_at_end_of_line();
+      break;
   }
 
   if (g.topmost_line + g.cy != line &&
@@ -323,24 +344,10 @@ static void processKey() {
       break;
 
     case 'g':
-      g.cy = 0;
-      g.topmost_line = 0;
-      break;
     case 'G':
-      if (g.num_rows > g.term_rows) {
-        g.cy = g.term_rows - 1;
-        g.topmost_line = g.num_rows - g.term_rows;
-      } else if (g.num_rows) {
-        g.cy = g.num_rows - 1;
-      }
-      break;
     case '0':
-      g.cx = 0;
-      g.leftmost_column = 0;
-      break;
     case '$':
-      if (g.num_rows)
-        put_cursor_at_end_of_line();
+      moveCursor((char)c);
       break;
 
     case 'h':
