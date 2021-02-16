@@ -233,6 +233,16 @@ static void drawScreen() {
   abFree(&ab);
 }
 
+static void put_cursor_at_end_of_line() {
+  g.cx = g.rows[g.topmost_line + g.cy].size - g.leftmost_column;
+  if (g.cx >= g.term_cols) {
+    g.cx = g.term_cols;
+    g.leftmost_column = g.rows[g.topmost_line + g.cy].size - g.term_cols;
+  }
+  if (g.cx)
+    g.cx--;
+}
+
 static void moveCursor(char key) {
   switch (key) {
     case 'h':
@@ -291,13 +301,7 @@ static void processKey() {
       g.leftmost_column = 0;
       break;
     case '$':
-      g.cx = g.rows[g.topmost_line + g.cy].size - g.leftmost_column;
-      if (g.cx >= g.term_cols) {
-        g.cx = g.term_cols;
-        g.leftmost_column = g.rows[g.topmost_line + g.cy].size - g.term_cols;
-      }
-      if (g.cx)
-        g.cx--;
+      put_cursor_at_end_of_line();
       break;
 
     case 'h':
