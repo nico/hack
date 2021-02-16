@@ -10,6 +10,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdnoreturn.h>
@@ -52,6 +53,9 @@ struct GlobalState {
 
 static struct GlobalState g;
 
+static volatile sig_atomic_t g_is_window_size_stale = 0;
+static void handle_sigwinch() { g_is_window_size_stale = 1; }
+
 static noreturn void die(const char* s) {
   write(STDOUT_FILENO, "\e[2J", 4);
   write(STDOUT_FILENO, "\e[H", 3);
@@ -83,8 +87,12 @@ static void enterRawMode() {
 
 static int readKey() {
   int c = 0;
-  if (read(STDIN_FILENO, &c, 1) < 0)
+  if (read(STDIN_FILENO, &c, 1) < 0) {
+    // Happens e.g. if the window is resized, due to the SIGWINCH handler.
+    if (errno == EINTR)
+      return -1;
     die("read");
+  }
 
   if (c == '\e') {
     // Might be start of an esc sequence, or might just be the esc key.
@@ -377,6 +385,15 @@ static void processKey() {
   }
 }
 
+static void refreshWindowSize() {
+  if (!g_is_window_size_stale)
+    return;
+  g_is_window_size_stale = 0;
+  if (getTerminalSize(&g.term_rows, &g.term_cols) < 0)
+    die("getTerminalSize");
+  g.term_rows--;
+}
+
 static void init() {
   g.cx = 0;
   g.cy = 0;
@@ -386,9 +403,13 @@ static void init() {
   g.rows = NULL;
   g.filename = NULL;
 
-  if (getTerminalSize(&g.term_rows, &g.term_cols) < 0)
-    die("getTerminalSize");
-  g.term_rows--;
+  struct sigaction act;
+  memset(&act, 0, sizeof(act));
+  act.sa_handler = handle_sigwinch;
+  if (sigaction(SIGWINCH, &act, NULL) < 0)
+    die("sigaction");
+
+  raise(SIGWINCH);  // Get initial window size.
 }
 
 int main(int argc, char* argv[]) {
@@ -398,6 +419,7 @@ int main(int argc, char* argv[]) {
     editorOpen(argv[1]);
 
   while (1) {
+    refreshWindowSize();
     drawScreen();
     processKey();
   }
