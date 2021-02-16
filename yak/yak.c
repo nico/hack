@@ -266,11 +266,13 @@ static void moveCursor(char key) {
         g.topmost_line--;
       break;
     case 'l':
-      if (g.cx + 1 < g.term_cols) {
-        if (g.cx + 1 < g.rows[line].size)
-          g.cx++;
-      } else if (g.leftmost_column + g.term_cols < g.rows[line].size)
-        g.leftmost_column++;
+      if (g.num_rows) {
+        if (g.cx + 1 < g.term_cols) {
+          if (g.cx + 1 < g.rows[line].size)
+            g.cx++;
+        } else if (g.leftmost_column + g.term_cols < g.rows[line].size)
+          g.leftmost_column++;
+      }
       break;
   }
 
@@ -302,7 +304,7 @@ static void processKey() {
       if (g.num_rows > g.term_rows) {
         g.cy = g.term_rows - 1;
         g.topmost_line = g.num_rows - g.term_rows;
-      } else {
+      } else if (g.num_rows) {
         g.cy = g.num_rows - 1;
       }
       break;
@@ -311,7 +313,8 @@ static void processKey() {
       g.leftmost_column = 0;
       break;
     case '$':
-      put_cursor_at_end_of_line();
+      if (g.num_rows)
+        put_cursor_at_end_of_line();
       break;
 
     case 'h':
