@@ -86,7 +86,7 @@ def run(last_exit_code):
     use_goma = not (sys.platform == 'darwin' and os.uname()[4] == 'arm64')
     if use_goma:
         logging.info('restart goma')
-        if sys.platform == 'win32':
+        if sys.platform == 'win32' or sys.platform.startswith('linux'):
             goma_ctl = 'goma_ctl'
         else:
             goma_ctl = os.path.expanduser('~/goma/goma_ctl.py')
