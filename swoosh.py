@@ -10,7 +10,7 @@
 # OSC Ps ; Pt ST
 # OSC Ps ; Pt BEL
 #         Set Text Parameters. Both ST or BEL terminators work.
-#         BEL is considered preferred but BEL is one byte less and less typing,
+#         ST is considered preferred but BEL is one byte less and less typing,
 #         so this uses BEL.
 # Ps = 1 0  ⇒  Change VT100 text foreground color to Pt.
 # Ps = 1 1  ⇒  Change VT100 text background color to Pt.
