@@ -87,10 +87,11 @@ def run(last_exit_code):
     if use_goma:
         logging.info('restart goma')
         if sys.platform == 'win32':
-            goma_ctl = r'c:\src\goma\goma-win64\goma_ctl.py'
+            goma_ctl = 'goma_ctl'
         else:
             goma_ctl = os.path.expanduser('~/goma/goma_ctl.py')
-        subprocess.check_call([sys.executable, goma_ctl, 'restart'])
+        subprocess.check_call([goma_ctl, 'restart'],
+                              shell=sys.platform == 'win32')
 
     logging.info('building')
     build_cmd = ['ninja', '-C', 'out/gn']
