@@ -27,11 +27,11 @@ produces a .o file that's 400 bytes large (the zeros don't
 have to be stored), while `int a[10000] = {1};` (a single int
 that's 1 followed by 9999 ints that are zero) produces an
 object file that's 40 kiB -- not all of the initial data is 0,
-so it needs to be stored in the .o file. (At runtime, both
+so it needs to be stored in the .o file. At runtime, both
 arrays need the same virtual memory size, but the zero-initialized data can be
 mapped to a copy-on-write zero page so it'll only need actual physical memory
 when parts of it are filled with non-zeros at runtime. So it's not just a disk
-space optmization.)
+space optimization.
 
 All global variables end up in a single big chunk of memory
 (well, two: One for zero-initialized globals, and one for
@@ -39,7 +39,7 @@ non-zero variables). If you have a global `int a = 4;` in one cc file and
 `int b = 5;` in another, it's possible that they'll end up right next to each
 other in memory.
 
-You can add `thread_local` to the variable to make them, well,
+You can add `thread_local` to the variable to make them
 thread-local. This means every thread has its own copy of these
 variables:
 
@@ -50,9 +50,9 @@ Conceptually, this is similar to globals -- except the loader
 (technically, the dynamic linker dyld) conceptually now has to initialize these
 variables every time a thread is started.
 
-I say "conceptually" because this is lazily done by the time a thread refers to
+I say "conceptually" because this is lazily done at the time a thread refers to
 any thread\_local for the first time. When that happens, the thread checks if
-it's thread-local memory has been initialized, and if not, it creates a region
+its thread-local memory has been initialized, and if not, it creates a region
 of memory just for that particlar thread that has enough room for all
 thread-local variables in the program, and copies the right initial values for
 all thread-local variables into that region.
@@ -107,8 +107,8 @@ return the pointer at the variable's offset.
 That's then dereferenced by the last of the three lines above
 (`movl (%rax), %r14d`).
 
-This design makes taking the address of a thread-local variable trivial (just
-don't dereference the returned pointer).
+This design makes taking the address of a thread-local variable trivial: just
+don't dereference the returned pointer.
 
 What if you have something like `thread_local int a = getpid();`? When is
 `getpid()` called?
