@@ -47,19 +47,23 @@ Each builder needs some amount of one-time manual setup.
 
 1. Check out this repository here to some other directory, e.g. `~/src/hack`.
 
-1. Set up the goma client in `~/goma` on non-Windows, and in `c:\src\goma`
-   on Windows.
+1. Set up the goma client somewhere on PATH, so that `goma_ctl` is runnable.
+   (For example, by having depot\_tools on PATH.)
 
 1. Use `out/gn` as build directory, containing this `args.gn`:
 
        llvm_targets_to_build = "all"
        clang_base_path =
            getenv("HOME") + "/src/chrome/src/third_party/llvm-build/Release+Asserts"
+
+       # This should contain the output of `goma_ctl goma_dir`.
+       goma_dir = getenv("HOME") + "/src/depot_tools/.cipd_bin"
        use_goma = true
 
-   On Windows, use this for `clang_base_path` instead:
+   On Windows, use this for `clang_base_path` and `goma_dir` instead:
 
-       clang_base_path = "c:/src/chrome/src/third_party/llvm-build/Release+Asserts"
+       clang_base_path = "C:/src/chrome/src/third_party/llvm-build/Release+Asserts"
+       goma_dir = "C:/src/depot_tools/.cipd_bin"
 
 1. On Windows, most of the build runs natively, but rsync needs a cygwin-like
    environment, and since it's needed for that anyways, syncbot.sh runs in it
@@ -94,6 +98,27 @@ Each builder needs some amount of one-time manual setup.
 
 1. In a tmux or screen session, or a CRD window, run `../hack/llvmgnsyncbot/syncbot.sh`
    while in the LLVM checkout. Then disconnect from the builder.
+
+1. To automatically start the sync script after reboots on linux, create a file
+   in your home directory containing this script (with paths adjusted), run
+   `chmod +x` on it, and add it to `crontab -e` as described in the script:
+
+       #!/bin/bash
+
+       # Put this in your `crontab -e`:
+       #
+       #     @reboot /home/botusername/syncbotcron.sh
+
+       /bin/sleep 4  # Wait a bit for the network to come up.
+
+       /usr/bin/tmux new-session -d -s gnsyncbot
+       /usr/bin/tmux send-keys -t gnsyncbot "cd /home/botusername" C-m
+
+       # Get depot_tools on path (for goma_ctl, ninja, ...)
+       /usr/bin/tmux send-keys -t gnsyncbot "source ./.bashrc" C-m
+
+       /usr/bin/tmux send-keys -t gnsyncbot "cd src/llvm-project" C-m
+       /usr/bin/tmux send-keys -t gnsyncbot "../hack/llvmgnsyncbot/syncbot.sh" C-m
 
 [1]: https://docs.google.com/document/d/1rRL-rWDyL0Nwr6SdQTkh1tf5kYcjDoJwKhHs8WJHQSc/
 [rsync]: http://repo.msys2.org/msys/x86_64/rsync-3.1.2-2-x86_64.pkg.tar.xz
