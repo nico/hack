@@ -53,7 +53,7 @@ variables every time a thread is started.
 I say "conceptually" because this is lazily done at the time a thread refers to
 any thread\_local for the first time. When that happens, the thread checks if
 its thread-local memory has been initialized, and if not, it creates a region
-of memory just for that particlar thread that has enough room for all
+of memory just for that particular thread that has enough room for all
 thread-local variables in the program, and copies the right initial values for
 all thread-local variables into that region.
 
@@ -78,7 +78,7 @@ a call to the function returning the variable's address. The dynamic linker
 sets this function to `tlv_get_addr` (a dyld-internal function) for every
 thread-local variable.
 
-Let's say we read `a` in some way. This gets compiled to:
+Let's say we read `a`. This gets compiled to:
 
 	movq	_i@TLVP(%rip), %rdi
 	callq	*(%rdi)
@@ -87,9 +87,9 @@ Let's say we read `a` in some way. This gets compiled to:
 `_i@TLVP(%rip)` refers to that 3-tuple mentioned above, and the first element
 of it is set to `tlv_get_addr` (and the 2nd element is a pointer to the
 thread's TLS memory region, and the third is the offset), which gets called
-(which means every TLS access is an indirect call, which is generally bad for
-the branch predictor.) tlv\_get\_addr does the following (only the happy fast
-path is shown):
+(which means every TLS access is an indirect call, which is bad for the branch
+predictor.) tlv\_get\_addr does the following (only the happy fast path is
+shown):
 
     movq	8(%rdi),%rax
     movq	%gs:0x0(,%rax,8),%rax
@@ -110,8 +110,7 @@ That's then dereferenced by the last of the three lines above
 This design makes taking the address of a thread-local variable trivial: just
 don't dereference the returned pointer.
 
-What if you have something like `thread_local int a = getpid();`? When is
-`getpid()` called?
+What if you have `thread_local int a = getpid();`? When is `getpid()` called?
 
 This is compiled similarly to a function-local static: The compiler generates
 a thread-local guard variable, checks if it's set every time `a` is accessed,
@@ -119,10 +118,10 @@ and if not, sets it and sets a to the result of `getpid()`. That way, the
 dynamic linker doesn't have to be able to call code to initialize thread-locals,
 the machinery described above is sufficient.
 
-(dyld does actually have a feature to call an array of per-thread function
+(dyld does have a feature to call an array of per-thread function
 pointers after it sets up the per-thread data section. However, clang doesn't
 use it and goes with the TLS guard variables instead. I'm guessing that's so
-that each thread-local that's initalized with a call can be intialized lazily
+that each thread-local that's initialized with a call can be initialized lazily
 on first access, and in access order, instead of running all thread-local
 initializers eagerly on TLS initialization.)
 
