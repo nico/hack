@@ -5,13 +5,13 @@ Let's say we have a directory containing a large file:
     mkdir foo
     dd if=/dev/urandom of=foo/large bs=1m count=1k
 
-For good measure, let's also throw in a hard link and a symlink:
+Let's throw in a hard link and a symlink:
 
     ln -s large foo/symlink
     ln foo/large foo/hardlink
 
 We want to copy this directory quickly, and preserve symlinks.
-We want to exactly preserve timestamps on the copied files and directory.
+We want to preserve timestamps on the copied files and directory.
 
 We want to only use tools that are part of a macOS default install.
 
@@ -35,7 +35,7 @@ Let's try the obvious thing:
     % time (rm -rf bar && cp -aR foo bar)
     0.720 total
 
-That's kind of slow. From `man cp`:
+That's slow. From `man cp`:
 
     -R ...
        Note that cp copies hard-linked files as separate files.  If you need to
@@ -67,7 +67,7 @@ Has a `-l` switch that tells it to hardlink the outputs to the inputs:
     0.008 total
 
 The hardlinks mean that this is fast! It also means that the output directory
-needs basically no additional storage space in addition to the 1 GiB needed for
+needs almost no additional storage space in addition to the 1 GiB needed for
 the input directory.
 
 And the timestamps at first sight look good (no wonder, these are hardlinks):
@@ -85,7 +85,7 @@ But, alas, the timestamp on the directory itself is truncated:
 So this is unusable for build system use too.
 (And when not using `-l`, the timestamps for all output files are truncated.)
 
-If relax the requirement to preserve timestamps and just require that the
+If we relax the requirement to preserve timestamps and just require that the
 output files have timestamps that are not older than the input timestamps, then
 we can pass `-p m` to not preserve mtimes. With that, pax updates the mtime
 on the directory (and, without `-l`, on all files) to the current time --
@@ -108,7 +108,7 @@ timestamps, we could run `touch ../bar` at the end. But:
   practice, but it's strange.
 
 * If the directory contains subdirectories that also need timestamps that are
-  more granual than seconds, something like `find ../bar -type d | xargs touch`
+  more granular than seconds, something like `find ../bar -type d | xargs touch`
   is needed, and at that point `cpio` doesn't look much worse.
 
 But most of the time, seconds-granularity is sufficient. So if preserving
