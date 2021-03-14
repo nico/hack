@@ -4,7 +4,6 @@ import base64
 import collections
 
 
-key = 'YELLOW SUBMARINE'
 counters = []
 for i, l in enumerate(open('8.txt')):
     l = base64.b64decode(l.rstrip())
@@ -12,7 +11,7 @@ for i, l in enumerate(open('8.txt')):
 
     c = collections.Counter(chunks)
     counters.append(c)
-    if len(c) < 15:
+    if len(c) < len(chunks):
         print(i, chunks, c)
 
 #print(min(len(c) for c in counters))
