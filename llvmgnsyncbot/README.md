@@ -99,9 +99,11 @@ Each builder needs some amount of one-time manual setup.
 1. In a tmux or screen session, or a CRD window, run `../hack/llvmgnsyncbot/syncbot.sh`
    while in the LLVM checkout. Then disconnect from the builder.
 
-1. To automatically start the sync script after reboots on linux, create a file
-   in your home directory containing this script (with paths adjusted), run
-   `chmod +x` on it, and add it to `crontab -e` as described in the script:
+1. To automatically start the sync script after reboots:
+
+   On linux, create a file    in your home directory containing this script
+   (with paths adjusted), run `chmod +x` on it, and add it to `crontab -e`
+   as described in the script:
 
        #!/bin/bash
 
@@ -119,6 +121,32 @@ Each builder needs some amount of one-time manual setup.
 
        /usr/bin/tmux send-keys -t gnsyncbot "cd src/llvm-project" C-m
        /usr/bin/tmux send-keys -t gnsyncbot "../hack/llvmgnsyncbot/syncbot.sh" C-m
+       
+   On macOS, the default shell is `zsh` and `tmux` isn't preinstalled but `screen` is.
+   Use this script instead (with paths adjusted), run `chmod +x` on it, and add it to
+   `crontab -e` as described in the script:
+
+       #!/bin/bash
+         
+       # Put this in your `crontab -e`:
+       #
+       #     @reboot /Users/botusername/syncbotcron.sh
+     
+       /bin/sleep 4  # Wait a bit for the network to come up.
+     
+       /usr/bin/screen -dmS gnsyncbot
+       /usr/bin/screen -S gnsyncbot -X stuff "cd /Users/botusername
+       " 
+     
+       # Get depot_tools on path (for goma_ctl, ninja, ...)
+       /usr/bin/screen -S gnsyncbot -X stuff "source ./.zshrc
+       "
+     
+       /usr/bin/screen -S gnsyncbot -X stuff "cd src/llvm-project
+       " 
+       /usr/bin/screen -S gnsyncbot -X stuff "../hack/llvmgnsyncbot/syncbot.sh
+       "
+
 
 [1]: https://docs.google.com/document/d/1rRL-rWDyL0Nwr6SdQTkh1tf5kYcjDoJwKhHs8WJHQSc/
 [rsync]: http://repo.msys2.org/msys/x86_64/rsync-3.1.2-2-x86_64.pkg.tar.xz
