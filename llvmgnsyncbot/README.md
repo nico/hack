@@ -123,8 +123,8 @@ Each builder needs some amount of one-time manual setup.
        /usr/bin/tmux send-keys -t gnsyncbot "../hack/llvmgnsyncbot/syncbot.sh" C-m
        
    On macOS, the default shell is `zsh` and `tmux` isn't preinstalled but `screen` is.
-   Use this script instead (with paths adjusted), run `chmod +x` on it, and add it to
-   `crontab -e` as described in the script:
+   Use this script instead (with paths adjusted), run `chmod +x` on it, and
+   _start it via launchd_ (see below for how):
 
        #!/bin/bash
          
@@ -146,6 +146,25 @@ Each builder needs some amount of one-time manual setup.
        " 
        /usr/bin/screen -S gnsyncbot -X stuff "../hack/llvmgnsyncbot/syncbot.sh
        "
+
+   Things started with `@reboot` from crontab end up in some scheduling class
+   where they don't get access to performance cores on Apple Silicon, so start it
+   via launchd (see below):
+
+       % cat ~/Library/LaunchAgents/start-gnbot.plist 
+       <?xml version="1.0" encoding="UTF-8"?>
+       <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+       <plist version="1.0">
+       <dict>
+          <key>Label</key>
+          <string>start-gnbot</string>
+          <key>ProgramArguments</key>
+          <array><string>/Users/thakis/syncbotcron.sh</string></array>
+          <key>RunAtLoad</key>
+          <true/>
+       </dict>
+       </plist>
+
 
 
 [1]: https://docs.google.com/document/d/1rRL-rWDyL0Nwr6SdQTkh1tf5kYcjDoJwKhHs8WJHQSc/
