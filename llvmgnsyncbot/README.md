@@ -128,10 +128,8 @@ Each builder needs some amount of one-time manual setup.
 
        #!/bin/bash
          
-       # Put this in your `crontab -e`:
-       #
-       #     @reboot /Users/botusername/syncbotcron.sh
-     
+       # Start via ~/Library/LaunchAgents/start-gnbot.plist, see below.
+       
        /bin/sleep 4  # Wait a bit for the network to come up.
      
        /usr/bin/screen -dmS gnsyncbot
@@ -164,8 +162,6 @@ Each builder needs some amount of one-time manual setup.
           <true/>
        </dict>
        </plist>
-
-
 
 [1]: https://docs.google.com/document/d/1rRL-rWDyL0Nwr6SdQTkh1tf5kYcjDoJwKhHs8WJHQSc/
 [rsync]: http://repo.msys2.org/msys/x86_64/rsync-3.1.2-2-x86_64.pkg.tar.xz
