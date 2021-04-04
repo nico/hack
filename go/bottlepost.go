@@ -3,6 +3,13 @@ package main
 // This program joins an IRC channel and then listens to POST requests
 // and posts messages posted to it to the channel.
 // curl -d "msg=say&msg=foo&msg=and" -X POST 'localhost:8080/?msg=bar'
+//
+// To restart it after reboots and after IRC servers are rebooted, put
+// something like this in your crontab (which just runs every two minutes
+// and starts the program if it isn't running; run `go build bottlepost.go`
+// to create `bottlepost`):
+//
+//     */2 * * * * if ! pidof bottlepost; then /home/bottle/hack/go/bottlepost -irc_nick SerenityBot -irc_channel "#serenityos" ; fi
 
 import (
 	"bufio"
