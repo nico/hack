@@ -40,7 +40,8 @@ def check_git(args):
     return subprocess.check_call(['git'] + args)
 
 def git_output(args):
-    return subprocess.check_output(['git'] + args).rstrip()
+    return subprocess.check_output(
+               ['git'] + args, universal_newlines=True).rstrip()
 
 
 def step_output(*args, **kwargs):
@@ -124,7 +125,7 @@ def run(last_exit_code):
             # We don't use this, but GN insists:
             'additional_compile_targets': [],
         }
-        with open('analyze_in.json', 'wb') as f:
+        with open('analyze_in.json', 'w') as f:
             json.dump(analyze_in, f)
         subprocess.check_call([
                 sys.executable,
@@ -133,7 +134,7 @@ def run(last_exit_code):
                 'out/gn',
                 'analyze_in.json',
                 'analyze_out.json'])
-        with open('analyze_out.json', 'rb') as f:
+        with open('analyze_out.json', 'r') as f:
             analyze_out = json.load(f)
         step_output('gn analyze output:\n' + json.dumps(analyze_out, indent=2))
         step_output('gn analyze input:\n' + json.dumps(analyze_in, indent=2))
