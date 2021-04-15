@@ -84,18 +84,15 @@ def run(last_exit_code):
             '--write'])
 
     # Build.
-    use_goma = not (sys.platform == 'darwin' and os.uname()[4] == 'arm64')
-    if use_goma:
-        logging.info('restart goma')
-        subprocess.check_call(['goma_ctl', 'restart'],
-                              shell=sys.platform == 'win32')
+    logging.info('restart goma')
+    subprocess.check_call(['goma_ctl', 'restart'],
+                          shell=sys.platform == 'win32')
 
     logging.info('building')
     build_cmd = ['ninja', '-C', 'out/gn']
-    if use_goma:
-        # `ninja: fatal: pipe: Too many open files` with -j1000 and default
-        # ulimit on macOS.
-        build_cmd.append('-j200' if sys.platform == 'darwin' else '-j1000')
+    # `ninja: fatal: pipe: Too many open files` with -j1000 and default
+    # ulimit on macOS.
+    build_cmd.append('-j200' if sys.platform == 'darwin' else '-j1000')
     subprocess.check_call(build_cmd)
 
     # Test.
