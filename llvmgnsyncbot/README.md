@@ -147,7 +147,7 @@ Each builder needs some amount of one-time manual setup.
 
    Things started with `@reboot` from crontab end up in some scheduling class
    where they don't get access to performance cores on Apple Silicon, so start it
-   via launchd (see below):
+   via launchd:
 
        % cat ~/Library/LaunchAgents/start-gnbot.plist 
        <?xml version="1.0" encoding="UTF-8"?>
