@@ -7,6 +7,7 @@
 #     llvmgnsyncbot/annotate.py buildlog html
 #     llvmgnsyncbot/stats/stats.py buildlog_cache
 
+import argparse
 import json
 import os
 import sys
@@ -28,6 +29,15 @@ def json_dir_to_dataframe(json_dir):
 
 
 def main():
+    parser = argparse.ArgumentParser(
+                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('-P', '--platforms',
+                        help='comma-delimited list of platforms',
+                        type=lambda s:s.split(','),
+                        default='linux,mac,macm1,win')
+    parser.add_argument('buildlog_cache')
+    args = parser.parse_args()
+
     # Register datetime converter for matplotlib plotting.
     pd.plotting.register_matplotlib_converters()
 
@@ -35,8 +45,8 @@ def main():
     min_x = pd.to_datetime(pd.Timestamp.max, utc=True)
     max_x = pd.to_datetime(pd.Timestamp.min, utc=True)
 
-    for platform in ('linux', 'mac', 'macm1', 'win',):
-        df = json_dir_to_dataframe(os.path.join(sys.argv[1], platform))
+    for platform in args.platforms:
+        df = json_dir_to_dataframe(os.path.join(args.buildlog_cache, platform))
 
         # Only keep successful builds.
         df = df[df.exit_code == 0]
