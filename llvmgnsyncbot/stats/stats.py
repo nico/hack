@@ -34,7 +34,7 @@ max_y = 0
 min_x = pd.to_datetime(pd.Timestamp.max, utc=True)
 max_x = pd.to_datetime(pd.Timestamp.min, utc=True)
 
-for platform in ('linux', 'mac', 'win',):
+for platform in ('linux', 'mac', 'macm1', 'win',):
     df = json_dir_to_dataframe(os.path.join(sys.argv[1], platform))
 
     # Only keep successful builds.
