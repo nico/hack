@@ -24,7 +24,7 @@ def json_dir_to_dataframe(json_dir):
             d.pop('git_revision', None)
             d.pop('prev_git_revision', None)
             return d
-    return pd.io.json.json_normalize([load(f) for f in files])
+    return pd.json_normalize([load(f) for f in files])
 
 
 # Register datetime converter for matplotlib plotting.
