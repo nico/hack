@@ -27,11 +27,18 @@ def json_dir_to_dataframe(json_dir):
             d.pop('git_revision', None)
             d.pop('prev_git_revision', None)
             return d
-    return pd.io.json.json_normalize([load(f) for f in files])
+    return pd.json_normalize([load(f) for f in files])
 
 
-for platform in ('linux', 'mac', 'win',):
+for platform in ('linux', 'mac', 'macm1', 'win',):
     df = json_dir_to_dataframe(os.path.join(sys.argv[1], platform))
     df = df[df.exit_code == 0]  # Only keep successful builds.
     print(platform, 'average compile time', df.elapsed_compile_s.mean(),
           ', max', df.elapsed_compile_s.max())
+
+    if platform == 'macm1':
+        # macm1 didn't use goma until build 7476.
+        df = df[df.build_nr >= 7476]
+        print('macm1 average compile time post goma',
+              df.elapsed_compile_s.mean(),
+              ', max', df.elapsed_compile_s.max())
