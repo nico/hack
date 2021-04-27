@@ -1,5 +1,15 @@
 #!/bin/bash
 
+case "$OSTYPE" in
+  darwin*)
+    case "$HOSTTYPE" in
+      arm64)  bot_name=macm1 ;;
+      x86_64) bot_name=mac ;;
+    esac ;;
+  linux*)     bot_name=linux ;;
+  msys)       bot_name=win ;;
+esac
+
 if [ -e syncbot.state ]; then
   build_num=$(cat syncbot.state)
 else
@@ -18,6 +28,8 @@ umask 022
 THIS_DIR=$(dirname "$0")
 
 while true; do
+  export AUTONINJA_BUILD_ID="llvmgn-$bot_name-$build_num"  # For goma logs.
+
   last_exit=
   prev_log=buildlogs/$((build_num-1)).meta.json
   if [[ -e $prev_log ]]; then
@@ -47,16 +59,7 @@ while true; do
   fi
 
   # Upload buildlogs.
-  case "$OSTYPE" in
-    darwin*)
-      case "$HOSTTYPE" in
-        arm64) rsync -az buildlogs/ llvm@45.33.8.238:~/buildlog/macm1 ;;
-        x86_64) rsync -az buildlogs/ llvm@45.33.8.238:~/buildlog/mac ;;
-      esac
-      ;;
-    linux*)  rsync -az buildlogs/ llvm@45.33.8.238:~/buildlog/linux ;;
-    # msys2.org's rsync binary doesn't support old-style --compress / -z
-    # due to its external zlib. Use --new-compress / -zz to get compression.
-    msys)    rsync -azz buildlogs/ llvm@45.33.8.238:~/buildlog/win ;;
-  esac
+  # msys2.org's rsync binary doesn't support old-style --compress / -z
+  # due to its external zlib. Use --new-compress / -zz to get compression.
+  rsync -azz buildlogs/ llvm@45.33.8.238:~/buildlog/$bot_name
 done
