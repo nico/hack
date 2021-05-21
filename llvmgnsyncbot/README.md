@@ -190,6 +190,7 @@ as `/`, and currently a fallback to serve `~llvm/buildlog` at `/buildlog`:
     server {
         listen 80 default_server;
         listen [::]:80 default_server;
+        charset: utf-8;
 
         root /var/www/html/html;
 
