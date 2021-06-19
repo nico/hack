@@ -59,7 +59,7 @@ all thread-local variables into that region.
 
 The way this works is that the executable stores the initial values of all
 thread-local variables in a memory area (namely, the `__DATA,__thread_data`
-section, immediately followed by the `__DATA,_thread_bss` section -- the former
+section, immediately followed by the `__DATA,__thread_bss` section -- the former
 stores all the non-zero thread-local variables, while
 the second just stores the size of all zero-initalized thread-local variables).
 
