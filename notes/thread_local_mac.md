@@ -63,6 +63,11 @@ section, immediately followed by the `__DATA,__thread_bss` section -- the former
 stores all the non-zero thread-local variables, while
 the second just stores the size of all zero-initalized thread-local variables).
 
+`__DATA,__thread_data` stores initialization data. `__DATA,__thread_bss`
+doesn't need to store anything (it's used to initialize variables to 0),
+but it needs to point somewhere valid in the file, so it points at
+file offset 0.
+
 The executable also stores metadata for each thread-local variable in the
 `__DATA,__thread_vars` section. This stores, for every thread-local function, a
 3-tuple consisting of:
@@ -162,12 +167,20 @@ that other TUs that access `i` via `extern thread_local int i;` would call.
 Look at
 
     % otool -s __DATA __thread_vars a.out
+    % otool -s __DATA __thread_data a.out
+    % otool -lv a.out | grep -A10 __thread
     % ~/src/llvm-project/out/gn/bin/llvm-objdump --macho --bind a.out
     % otool -tV a.out
 
 to get the executable view.
 
-(`__tlv_bootstrap` is replaced with `tlv_get_addr` by dyld at load time.)
+Note how `__thread_bss` has an `addr` in `otool -l` output right after
+`__thread_data`.
+
+(`__tlv_bootstrap` is replaced with `tlv_get_addr` by dyld at load time.
+If you run `otool -s __DATA __thread_bss a.out`, remember that `__thread_bss`
+points at the start of the file instead of at actual initialization data
+since it's used for zero-initialized memory. But )
 
 Exercise: Change the thread-locals to either `static thread_local....` or
 `extern thread_local` -- in the latter case, don't forget to delete the
