@@ -180,7 +180,10 @@ Note how `__thread_bss` has an `addr` in `otool -l` output right after
 (`__tlv_bootstrap` is replaced with `tlv_get_addr` by dyld at load time.
 If you run `otool -s __DATA __thread_bss a.out`, remember that `__thread_bss`
 points at the start of the file instead of at actual initialization data
-since it's used for zero-initialized memory. But )
+since it's used for zero-initialized memory. But when dyld maps the executable,
+it'll map the tail of segments that have a bigger memory size than file size
+as `VM_PROT_ZF`, so the offset doesn't matter. That's also why zerofill sections
+are always at the end of their segment.)
 
 Exercise: Change the thread-locals to either `static thread_local....` or
 `extern thread_local` -- in the latter case, don't forget to delete the
