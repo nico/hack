@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-r"""Small tool to produce input data for https://github.com/thorduri/ministat
+r"""Small tool to produce input data for https://github.com/nico/ministat
+(which was originally at https://github.com/thorduri/ministat)
 
 Example:
     bench.py -o before.txt out/gn/bin/ld64.lld.darwinnew @response.txt
