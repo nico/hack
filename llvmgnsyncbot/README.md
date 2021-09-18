@@ -89,6 +89,10 @@ Each builder needs some amount of one-time manual setup.
    and need to be rerun on every build. This setting fixes this.
    [More information][1].
 
+1. On macOS, in System Preferences→Energy Saver, make sure
+   "Prevent computer from sleeping automatically when the display is off" is
+   checked.
+
 1. Create `~/.ssh/id_rsa.pub` if necessary by running `ssh-keygen -t rsa`, then
    copy it to the buildlog server with
    `cat ~/.ssh/id_rsa.pub | ssh llvm@45.33.8.238 'cat >> .ssh/authorized_keys'`
