@@ -50,7 +50,14 @@ Each builder needs some amount of one-time manual setup.
 1. Set up the goma client somewhere on PATH, so that `goma_ctl` is runnable.
    (For example, by having depot\_tools on PATH.)
 
-1. Use `out/gn` as build directory, containing this `args.gn`:
+1. `cd ~/src/llvm-project`
+
+1. Run `llvm/utils/sysroot.py make-fake --out-dir=sysroot` to create a sysroot
+   for goma (on macOS, this requires a full Xcode installation).
+
+1. `python3 llvm/utils/gn/get.py` to download a gn binary.
+
+1. Create `out/gn` as build directory, put this in `args.gn`:
 
        llvm_targets_to_build = "all"
        clang_base_path =
@@ -59,11 +66,14 @@ Each builder needs some amount of one-time manual setup.
        # This should contain the output of `goma_ctl goma_dir`.
        goma_dir = getenv("HOME") + "/src/depot_tools/.cipd_bin"
        use_goma = true
+       sysroot = "//sysroot"
 
    On Windows, use this for `clang_base_path` and `goma_dir` instead:
 
        clang_base_path = "C:/src/chrome/src/third_party/llvm-build/Release+Asserts"
        goma_dir = "C:/src/depot_tools/.cipd_bin"
+
+1. Run `llvm/utils/gn/gn.py gen out/gn` to create the initial build files.
 
 1. On Windows, most of the build runs natively, but rsync needs a cygwin-like
    environment, and since it's needed for that anyways, syncbot.sh runs in it
