@@ -55,19 +55,37 @@ def main():
         #df.start_utc = df.start_utc.dt.tz_convert('US/Eastern')
         df = df.set_index('start_utc')
 
+        # Filter out outlier slow builds that blow out the scale.
         if platform == 'win':
             # Builds before 137 had lots of security software enabled which
-            # caused cycle times of 45+ mins. That blows out the scale, so omit
-            # them.
-            df = df[df.build_nr >= 137]
+            # caused cycle times of 45+ mins.
+            df = df[~(df.build_nr < 137) &
+                    ~((df.build_nr >= 45010) & (df.build_nr < 45050)) &
+                    ~((df.build_nr >= 45081) & (df.build_nr < 45099)) &
+                    ~((df.build_nr >= 45200) & (df.build_nr < 45220))]
             # Filter out shark fin, for clearer trend lines.
             fin_start = pd.Timestamp('2019-11-08').tz_localize('UTC')
             fin_end = pd.Timestamp('2019-12-05').tz_localize('UTC')
-            df = df[(df.elapsed_s <= 8 * 60) |
+            df = df[(df.elapsed_s <= 8 * 60 * 60) |
                     (df.index < fin_start) | (df.index > fin_end)]
+            # Filter out 80x slowdown due to security software problem
+            # around 2021/9/5, 2021/9/8, 2021/9/14.
+            noel_start = pd.Timestamp('2021-09-04').tz_localize('UTC')
+            noel_end = pd.Timestamp('2021-09-16').tz_localize('UTC')
+            df = df[(df.elapsed_s <= 60 * 60) |
+                    (df.index < noel_start) | (df.index > noel_end)]
+        elif platform == 'mac':
+            # Filter out a stray build where compile took 1.5h for some reason.
+            df = df[df.build_nr != 34788]
+        elif platform == 'macm1':
+            # First few M1 builds missed "prevent sleep with no monitor" toggle.
+            df = df[df.build_nr > 10]
 
-        max_x = max(max_x, df.index.max())
+        print(platform)
+        print(df[df.elapsed_s > 2 * 60 * 60])
+
         min_x = min(min_x, df.index.min())
+        max_x = max(max_x, df.index.max())
 
         df['elapsed_m'] = df.elapsed_s / 60.
         max_y = max(max_y, df.elapsed_m.max())
