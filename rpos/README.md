@@ -6,6 +6,9 @@ raspberry pi os notes
 <https://github.com/bztsrc/raspi3-tutorial.git>
 <https://github.com/isometimes/rpi4-osdev>
 
+<https://www.youtube.com/playlist?list=PLVxiWMqQvhg9FCteL7I0aohj1_YiUx1x8>
+<https://github.com/rockytriton/LLD/tree/main/rpi_bm>
+
 <https://s-matyukevich.github.io/raspberry-pi-os/docs/lesson01/rpi-os.html>
 
 <https://www.cl.cam.ac.uk/projects/raspberrypi/tutorials/os/screen01.html>
