@@ -177,6 +177,9 @@ Each builder needs some amount of one-time manual setup.
        </dict>
        </plist>
 
+   Open System Preferences→Users & Groups→Login Options and make sure
+   "Automatic login:" is enabled for that user.
+
 [1]: https://docs.google.com/document/d/1rRL-rWDyL0Nwr6SdQTkh1tf5kYcjDoJwKhHs8WJHQSc/
 [rsync]: http://repo.msys2.org/msys/x86_64/rsync-3.1.2-2-x86_64.pkg.tar.xz
 
