@@ -141,11 +141,11 @@ Each builder needs some amount of one-time manual setup.
    _start it via launchd_ (see below for how):
 
        #!/bin/bash
-         
+
        # Start via ~/Library/LaunchAgents/start-gnbot.plist, see below.
-       
+
        /bin/sleep 4  # Wait a bit for the network to come up.
-       
+
        /usr/bin/screen -dmS gnsyncbot
        /usr/bin/screen -S gnsyncbot -X stuff $'cd /Users/botusername\n'
 
