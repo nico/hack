@@ -145,19 +145,15 @@ Each builder needs some amount of one-time manual setup.
        # Start via ~/Library/LaunchAgents/start-gnbot.plist, see below.
        
        /bin/sleep 4  # Wait a bit for the network to come up.
-     
+       
        /usr/bin/screen -dmS gnsyncbot
-       /usr/bin/screen -S gnsyncbot -X stuff "cd /Users/botusername
-       " 
-     
+       /usr/bin/screen -S gnsyncbot -X stuff $'cd /Users/botusername\n'
+
        # Get depot_tools on path (for goma_ctl, ninja, ...)
-       /usr/bin/screen -S gnsyncbot -X stuff "source ./.zshrc
-       "
-     
-       /usr/bin/screen -S gnsyncbot -X stuff "cd src/llvm-project
-       " 
-       /usr/bin/screen -S gnsyncbot -X stuff "../hack/llvmgnsyncbot/syncbot.sh
-       "
+       /usr/bin/screen -S gnsyncbot -X stuff $'source ./.zshrc\n'
+
+       /usr/bin/screen -S gnsyncbot -X stuff $'cd src/llvm-project\n'
+       /usr/bin/screen -S gnsyncbot -X stuff $'../hack/llvmgnsyncbot/syncbot.sh\n'
 
    Things started with `@reboot` from crontab end up in some scheduling class
    where they don't get access to performance cores on Apple Silicon, so start it
