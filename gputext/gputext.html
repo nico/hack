@@ -32,6 +32,11 @@ class MyBinaryStream {
     this.offset += 2;
     return result;
   }
+  readI16() {
+    const result = this.data.getInt16(this.offset);
+    this.offset += 2;
+    return result;
+  }
   readU32() {
     const result = this.data.getUint32(this.offset);
     this.offset += 4;
@@ -45,11 +50,17 @@ class MyBinaryStream {
   }
 }
 
+const SFNT_VERSION_TTF = 0x00010000;
+const SFNT_VERSION_TTF_APPLE = 0x74727565; // 'true'
+const SFNT_VERSION_POSTSCRIPT_APPLE = 0x74797031; // 'typ1'
+const SFNT_VERSION_OPENTYPE = 0x4F54544F; // 'OTTO'
+
 class TTFReader {
   constructor(data) {
     this.stream = new MyBinaryStream(data);
     this.readHeader();
     this.readTableHeaders();
+    this.readCmap();
   }
   readHeader() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/otff
@@ -71,6 +82,129 @@ class TTFReader {
       //log(`${tableTag}\n`);
     }
   }
+  readCmap() {
+    // https://docs.microsoft.com/en-us/typography/opentype/spec/cmap
+    const cmapPos = this.tableHeaders['cmap']
+    if (cmapPos === undefined)
+      throw new Error('Missing required "cmap" header')
+    this.stream.offset = cmapPos.offset;
+    this.cmapVersion = this.stream.readU16();
+    this.cmapNumTables = this.stream.readU16();
+
+    this.cmapEntries = {};
+    for (let i = 0; i < this.cmapNumTables; ++i) {
+      const platformId = this.stream.readU16();
+      const encodingId = this.stream.readU16();
+      const subtableOffset = this.stream.readU32();
+      (this.cmapEntries[platformId] ??= {})[encodingId] = subtableOffset;
+      //log(`cmap entry: ${platformId} ${encodingId}\n`);
+    }
+
+    const CMAP_PLATFORM_UNICODE = 0;
+    const CMAP_PLATFORM_APPLE_LEGACY = 1;
+    const CMAP_PLATFORM_ISO_LEGACY = 2;
+    const CMAP_PLATFORM_MICROSOFT = 3;
+
+    const CMAP_UNICODE_ENCODING_1_0_DEPRECATED = 0;
+    const CMAP_UNICODE_ENCODING_1_1_DEPRECATED = 1;
+    const CMAP_UNICODE_ENCODING_ISO_IEC_10646_DEPRECATED = 2;
+    const CMAP_UNICODE_ENCODING_2_0_BMP = 3;
+    const CMAP_UNICODE_ENCODING_2_0_FULL = 4;
+    const CMAP_UNICODE_ENCODING_VARIATION_SEQUENCES = 5;
+    const CMAP_UNICODE_ENCODING_FULL = 6;
+
+    const unicodeEntries = this.cmapEntries[CMAP_PLATFORM_UNICODE];
+    if (unicodeEntries !== undefined) {
+      // FIXME: non-BMP tables should have precedence when present.
+      const unicode20Bmp = unicodeEntries[CMAP_UNICODE_ENCODING_2_0_BMP];
+      if (unicode20Bmp !== undefined) {
+        log('using unicode BMP cmap (0, 3)\n');
+        this.readCmapSubtable(cmapPos.offset + unicode20Bmp);
+        return;
+      }
+    }
+
+    throw new Error(
+        `no implemented cmap type, cmap: ${JSON.stringify(this.cmapEntries)}`);
+  }
+  readCmapSubtable(offset) {
+    this.stream.offset = offset;
+    const subtableFormat = this.stream.readU16();
+    const subtableLength = this.stream.readU16();
+
+    // Only non-0 for CMAP_PLATFORM_APPLE_LEGACY.
+    const subtableLanguage = this.stream.readU16();
+
+    if (subtableFormat === 4) {
+      this.readCmapSubtable4();
+      return;
+    }
+
+    log(`cmap subtable format ${subtableFormat}\n`)
+  }
+  readCmapSubtable4() {
+    const segCountX2 = this.stream.readU16();
+    const segCount = Math.trunc(segCountX2 / 2);
+    const searchRangeFromFile = this.stream.readU16();
+    const entrySelectorFromFile = this.stream.readU16();
+    const rangeShiftFromFile = this.stream.readU16();
+
+    let endCode = Array(segCount);
+    for (let i = 0; i < segCount; ++i)
+      endCode[i] = this.stream.readU16();
+
+    const reservedPad = this.stream.readU16();
+
+    let startCode = Array(segCount);
+    for (let i = 0; i < segCount; ++i)
+      startCode[i] = this.stream.readU16();
+
+    let idDelta = Array(segCount);
+    for (let i = 0; i < segCount; ++i)
+      idDelta[i] = this.stream.readI16();
+
+    const idRangeOffsetsOffset = this.stream.offset;
+    let idRangeOffsets = Array(segCount);
+    for (let i = 0; i < segCount; ++i)
+      idRangeOffsets[i] = this.stream.readU16();
+
+    if (endCode[endCode.length - 1] != 0xffff) {
+      throw new Error('invalid cmap subtable 4: endCode array has wrong end ' +
+                      endCode[endCode.length - 1]);
+    }
+
+    this.glphyIndexForChar = function(c) {
+      const code = c.codePointAt();
+      if (code > 0xffff)
+        return 0;
+
+      let l = 0, r = endCode.length - 1;
+      while (l < r) {
+        let mid = l + Math.trunc((r - l) / 2);
+        if (code <= endCode[mid]) {
+          r = mid;
+        } else {
+          l = mid + 1;
+        }
+      }
+
+      if (startCode[l] > code)
+        return 0;
+
+      if (idRangeOffsets[l] === 0)
+        return (code + idDelta[l]) & 0xffff;
+
+      // idRangeOffsets are relative to the idRangeOffsets entry.
+      const glyphIdArrayIndex = (idRangeOffsetsOffset + l*2) +
+                                 idRangeOffsets[l] +
+                                 (code - startCode[l]) * 2;
+      this.stream.offset = glyphIdArrayIndex;
+      const glyphIndex = this.stream.readU16();
+      if (glyphIndex === 0)
+        return 0;
+      return (glyphIndex + idDelta[l]) & 0xffff;
+    }
+  }
 }
 
 async function go(font_url) {
@@ -81,7 +215,8 @@ async function go(font_url) {
   const buffer = await response.arrayBuffer();
   const ttf = new TTFReader(buffer);
   log(`sfntVersion: ${ttf.sfntVersion}\n`);
-  log(`numTables: ${ttf.numTables}\n`);
+  log(`glyph index for a: ${ttf.glphyIndexForChar('a')}\n`);
+  log(`glyph index for Å: ${ttf.glphyIndexForChar('Å')}\n`);
 }
 
 let url = 'https://fonts.gstatic.com/s/roboto/v29/KFOmCnqEu92Fr1Me5Q.ttf';
