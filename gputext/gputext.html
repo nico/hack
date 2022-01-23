@@ -1,0 +1,91 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GPU Text</title>
+
+<style>
+@media(prefers-color-scheme:dark) {
+  body {
+    color:#E8EAED;
+    background:#202124;
+  }
+}
+</style>
+
+<h1>Log</h1>
+<pre id="log"></pre>
+<script>
+function log(a) {
+  document.getElementById('log').textContent += a;
+}
+</script>
+
+<script>
+class MyBinaryStream {
+  constructor(data) {
+    // DataView returns big-endian numbers by default, which is what TTF needs.
+    this.data = new DataView(data);
+    this.offset = 0;
+  }
+  readU8() { return this.data.getUint8(this.offset++); }
+  readU16() {
+    const result = this.data.getUint16(this.offset);
+    this.offset += 2;
+    return result;
+  }
+  readU32() {
+    const result = this.data.getUint32(this.offset);
+    this.offset += 4;
+    return result;
+  }
+  readTag() {
+    let tag = '';
+    for (let i = 0; i < 4; ++i)
+      tag += String.fromCharCode(this.readU8());
+    return tag;
+  }
+}
+
+class TTFReader {
+  constructor(data) {
+    this.stream = new MyBinaryStream(data);
+    this.readHeader();
+    this.readTableHeaders();
+  }
+  readHeader() {
+    // https://docs.microsoft.com/en-us/typography/opentype/spec/otff
+    this.sfntVersion = this.stream.readU32();
+    this.numTables = this.stream.readU16();
+    this.searchRange = this.stream.readU16();
+    this.entrySelector = this.stream.readU16();
+    this.rangeShift = this.stream.readU16();
+  }
+  readTableHeaders() {
+    this.tableHeaders = {};
+    for (let i = 0; i < this.numTables; ++i) {
+      const tableTag = this.stream.readTag();
+      this.tableHeaders[tableTag] = {
+        checksum: this.stream.readU32(),
+        offset: this.stream.readU32(),
+        length: this.stream.readU32(),
+      };
+      //log(`${tableTag}\n`);
+    }
+  }
+}
+
+async function go(font_url) {
+  const response = await fetch(font_url);
+  if (!response.ok)
+    throw new Error(`fetch failed: ${response.status}`);
+
+  const buffer = await response.arrayBuffer();
+  const ttf = new TTFReader(buffer);
+  log(`sfntVersion: ${ttf.sfntVersion}\n`);
+  log(`numTables: ${ttf.numTables}\n`);
+}
+
+let url = 'https://fonts.gstatic.com/s/roboto/v29/KFOmCnqEu92Fr1Me5Q.ttf';
+go(url).catch(e => log(e));
+</script>
+
+
