@@ -42,6 +42,15 @@ class MyBinaryStream {
     this.offset += 4;
     return result;
   }
+  readI64() {
+    const result = this.data.getBigInt64(this.offset);
+    this.offset += 8;
+    return result;
+  }
+  readDATETIME() {
+    return new Date(
+        Date.parse("1904-01-01T00:00Z") + Number(this.readI64()) * 1000);
+  }
   readTag() {
     let tag = '';
     for (let i = 0; i < 4; ++i)
@@ -63,6 +72,7 @@ class TTFReader {
     this.readHeader();
     this.readTableHeaders();
     this.readCmap();
+    this.readHead();
   }
   readHeader() {
     // Required headers for ttf files:
@@ -213,6 +223,33 @@ class TTFReader {
       return (glyphIndex + idDelta[l]) & 0xffff;
     }
   }
+  readHead() {
+    // https://docs.microsoft.com/en-us/typography/opentype/spec/head
+    const headPos = this.tableHeaders['head']
+    if (headPos === undefined)
+      throw new Error('Missing required "head" header')
+    this.stream.offset = headPos.offset;
+    this.head = {
+      majorVersion: this.stream.readU16(), // 1
+      minorVersion: this.stream.readU16(), // 0
+      fontRevision: this.stream.readU32(),
+      checksumAdjustment: this.stream.readU32(),
+      magicNumber: this.stream.readU32(), // 0x5F0F3CF5.
+      flags: this.stream.readU16(),
+      unitsPerEm: this.stream.readU16(),
+      created: this.stream.readDATETIME(),
+      modified: this.stream.readDATETIME(),
+      xMin: this.stream.readI16(),
+      yMin: this.stream.readI16(),
+      xMax: this.stream.readI16(),
+      yMax: this.stream.readI16(),
+      macStyle: this.stream.readU16(),
+      lowestRecPPEM: this.stream.readU16(),
+      fontDirectionHint_Deprecated: this.stream.readI16(), // 2
+      indexToLocFormat: this.stream.readI16(),
+      glypDataFormat: this.stream.readI16(),
+    };
+  }
 }
 
 async function go(font_url) {
@@ -225,6 +262,7 @@ async function go(font_url) {
   log(`sfntVersion: ${ttf.sfntVersion}\n`);
   log(`glyph index for a: ${ttf.glphyIndexForChar('a')}\n`);
   log(`glyph index for Å: ${ttf.glphyIndexForChar('Å')}\n`);
+  log(`head: ${JSON.stringify(ttf.head, null, 2)}\n`);
 }
 
 let url = 'https://fonts.gstatic.com/s/roboto/v29/KFOmCnqEu92Fr1Me5Q.ttf';
