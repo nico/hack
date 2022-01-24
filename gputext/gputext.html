@@ -73,6 +73,7 @@ class TTFReader {
     this.readTableHeaders();
     this.readCmap();
     this.readHead();
+    this.readLoca();
   }
   readHeader() {
     // Required headers for ttf files:
@@ -249,6 +250,28 @@ class TTFReader {
       indexToLocFormat: this.stream.readI16(),
       glypDataFormat: this.stream.readI16(),
     };
+  }
+  readLoca() {
+    // https://docs.microsoft.com/en-us/typography/opentype/spec/loca
+    const locaPos = this.tableHeaders['loca']
+    if (locaPos === undefined)
+      throw new Error('Missing required "loca" header')
+    this.stream.offset = locaPos.offset;
+
+    if (this.head.indexToLocFormat === 0) {
+      const n = locaPos.length / 2;
+      this.glyphOffsets = Array(n);
+      for (let i = 0; i < n; ++i)
+        this.glyphOffsets[i] = this.stream.readU16();
+    } else if (this.head.indexToLocFormat === 1) {
+      const n = locaPos.length / 4;
+      this.glyphOffsets = Array(n);
+      for (let i = 0; i < n; ++i)
+        this.glyphOffsets[i] = this.stream.readU32();
+    } else {
+      throw new Error(`invalid loca format ${this.head.indexToLocFormat}`);
+    }
+    log(`${this.glyphOffsets.length} glyphs\n`);
   }
 }
 
