@@ -55,6 +55,8 @@ const SFNT_VERSION_TTF_APPLE = 0x74727565; // 'true'
 const SFNT_VERSION_POSTSCRIPT_APPLE = 0x74797031; // 'typ1'
 const SFNT_VERSION_OPENTYPE = 0x4F54544F; // 'OTTO'
 
+// https://docs.microsoft.com/en-us/typography/opentype/spec/otff
+// https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6.html
 class TTFReader {
   constructor(data) {
     this.stream = new MyBinaryStream(data);
@@ -63,7 +65,13 @@ class TTFReader {
     this.readCmap();
   }
   readHeader() {
-    // https://docs.microsoft.com/en-us/typography/opentype/spec/otff
+    // Required headers for ttf files:
+    // 'cmap', 'glyf', 'head', 'hhea', 'hmtx', 'loca', 'maxp', 'name', 'post'.
+    // 'cmap' maps characters (nowadays, unicode code points) to glyph indices.
+    // 'glyf' contains raw gyph data.
+    // 'head' contains global font information, e.g. if 'loca' is 16- or 32-bit.
+    // 'loca' maps glyph indices to glyph data offsets.
+    // 'maxp' contains number of glyphs (and other limits).
     this.sfntVersion = this.stream.readU32();
     this.numTables = this.stream.readU16();
     this.searchRange = this.stream.readU16();
