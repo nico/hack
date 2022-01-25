@@ -192,7 +192,7 @@ class TTFReader {
                       endCode[endCode.length - 1]);
     }
 
-    this.glphyIndexForChar = function(c) {
+    this.glyphIndexForChar = function(c) {
       const code = c.codePointAt();
       if (code > 0xffff)
         return 0;
@@ -283,8 +283,8 @@ async function go(font_url) {
   const buffer = await response.arrayBuffer();
   const ttf = new TTFReader(buffer);
   log(`sfntVersion: ${ttf.sfntVersion}\n`);
-  log(`glyph index for a: ${ttf.glphyIndexForChar('a')}\n`);
-  log(`glyph index for Å: ${ttf.glphyIndexForChar('Å')}\n`);
+  log(`glyph index for a: ${ttf.glyphIndexForChar('a')}\n`);
+  log(`glyph index for Å: ${ttf.glyphIndexForChar('Å')}\n`);
   log(`head: ${JSON.stringify(ttf.head, null, 2)}\n`);
 }
 
