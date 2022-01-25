@@ -74,6 +74,7 @@ class TTFReader {
     this.readTableHeaders();
     this.readCmap();
     this.readHead();
+    this.readHhea();
     this.readLoca();
   }
   readHeader() {
@@ -250,6 +251,33 @@ class TTFReader {
       fontDirectionHint_Deprecated: this.stream.readI16(), // 2
       indexToLocFormat: this.stream.readI16(),
       glypDataFormat: this.stream.readI16(),
+    };
+  }
+  readHhea() {
+    // https://docs.microsoft.com/en-us/typography/opentype/spec/hhea
+    const hheaPos = this.tableHeaders['hhea']
+    if (hheaPos === undefined)
+      throw new Error('Missing required "hhea" header')
+    this.stream.offset = hheaPos.offset;
+    this.hhea = {
+      majorVersion: this.stream.readU16(), // 1
+      minorVersion: this.stream.readU16(), // 0
+      ascender: this.stream.readI16(),
+      descender: this.stream.readI16(),
+      lineGap: this.stream.readI16(),
+      advanceWidthMax: this.stream.readU16(),
+      minLeftSideBearing: this.stream.readI16(),
+      minRightSideBearing: this.stream.readI16(),
+      xMaxExtent: this.stream.readI16(),
+      caretSlopeRise: this.stream.readI16(),
+      caretSlopeRun: this.stream.readI16(),
+      caretOffset: this.stream.readI16(),
+      reserved0: this.stream.readI16(),
+      reserved1: this.stream.readI16(),
+      reserved2: this.stream.readI16(),
+      reserved3: this.stream.readI16(),
+      metricDataFormat: this.stream.readI16(),
+      numberOfHMetrics: this.stream.readU16(),
     };
   }
   readLoca() {
@@ -446,7 +474,8 @@ async function go(font_url) {
   log(`sfntVersion: ${ttf.sfntVersion}\n`);
   log(`glyph index for a: ${ttf.glyphIndexForChar('a')}\n`);
   log(`glyph index for Å: ${ttf.glyphIndexForChar('Å')}\n`);
-  log(`head: ${JSON.stringify(ttf.head, null, 2)}\n`);
+  //log(`head: ${JSON.stringify(ttf.head, null, 2)}\n`);
+  log(`hhea: ${JSON.stringify(ttf.hhea, null, 2)}\n`);
   const glyph = ttf.glyphForChar('c');
 
   const canvas = document.getElementById('canvas');
