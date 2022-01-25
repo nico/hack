@@ -258,11 +258,12 @@ class TTFReader {
       throw new Error('Missing required "loca" header')
     this.stream.offset = locaPos.offset;
 
+    // u16 offsets store offsets divided by 2. u32 offsets store actual offsets.
     if (this.head.indexToLocFormat === 0) {
       const n = locaPos.length / 2;
       this.glyphOffsets = Array(n);
       for (let i = 0; i < n; ++i)
-        this.glyphOffsets[i] = this.stream.readU16();
+        this.glyphOffsets[i] = this.stream.readU16() * 2;
     } else if (this.head.indexToLocFormat === 1) {
       const n = locaPos.length / 4;
       this.glyphOffsets = Array(n);
