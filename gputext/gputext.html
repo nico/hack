@@ -389,7 +389,6 @@ class TTFReader {
 }
 
 function drawContour(ctx, points) {
-  ctx.beginPath();
   for (let i = 0; i < points.length; ++i) {
     const point = points[i];
     const x = point.x;
@@ -447,7 +446,9 @@ async function go(font_url) {
   ctx.translate(-glyph.xMin, -glyph.yMin);
 
   ctx.fillStyle = 'rgb(0, 0, 0)';
-  drawContour(ctx, glyph.contours[0]);
+  ctx.beginPath();
+  for (let i = 0; i < glyph.contours.length; ++i)
+    drawContour(ctx, glyph.contours[i]);
   ctx.fill();
 }
 
