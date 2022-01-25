@@ -417,6 +417,25 @@ function drawContour(ctx, points) {
   }
 }
 
+function adjustCanvasForHighDPI(canvas) {
+  // This intentionally doesn't handle non-fractional zoom so that the canvas
+  // pixel size is always an integer multiple of the display size.
+  // FIXME: Since this doesn't `ctx.scale()` (see below), fractional sizes
+  // might not be a problem. Then again, if I ever add line drawing (for
+  // glyph metrics or what), it will become one and I'll have to add the
+  // scale factor on the context anyways.
+  const scale = Math.trunc(window.devicePixelRatio);
+  if (scale === 1)
+    return;
+  canvas.style.width = canvas.width + 'px';
+  canvas.style.height = canvas.height + 'px';
+  canvas.width *= scale;
+  canvas.height *= scale;
+  // Most pages recommend `ctx.scale(scale, scale)` here, but the drawing code
+  // below normalizes everything to canvas.{width,height} (i.e. using pixels,
+  // not view units). So no need for this here.
+}
+
 async function go(font_url) {
   const response = await fetch(font_url);
   if (!response.ok)
@@ -432,6 +451,14 @@ async function go(font_url) {
 
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
+
+  // FIXME: Consider installing a change eventlistener for resolution changes,
+  // so that the backing is updated on page zoom change, or when the window
+  // is moved from a highdpi screen to a normal one and back. See
+  // https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio,
+  // "Monitoring screen resolution or zoom level changes".
+  adjustCanvasForHighDPI(canvas);
+
   ctx.fillStyle = 'rgb(255, 255, 255)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
