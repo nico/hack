@@ -406,6 +406,11 @@ async function go(font_url) {
   ctx.fillStyle = 'rgb(255, 255, 255)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  // Put origin in lower-left corner.
+  ctx.translate(0, canvas.height);
+  ctx.scale(1, -1);
+
+  // Make glyph fit in canvas.
   const s = Math.min(canvas.width / (glyph.xMax - glyph.xMin),
                      canvas.height / (glyph.yMax - glyph.yMin));
   ctx.scale(s, s);
