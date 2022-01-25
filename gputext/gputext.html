@@ -318,13 +318,13 @@ class TTFReader {
       const Reserved = 0x80;
 
       let flags = Array(numPoints);
-      for (let i = 0; i < numPoints; ++i) {
+      for (let i = 0; i < numPoints;) {
         const flag = this.stream.readU8();
-        flags[i] = flag;
+        flags[i++] = flag;
         if (flag & REPEAT_FLAG) {
           const numRepetitions = this.stream.readU8();
-          for (let j = 0; j < numRepetitions; ++j, ++i)
-            flags[i] = flag;
+          for (let j = 0; j < numRepetitions; ++j)
+            flags[i++] = flag;
         }
       }
 
@@ -428,7 +428,7 @@ async function go(font_url) {
   log(`glyph index for a: ${ttf.glyphIndexForChar('a')}\n`);
   log(`glyph index for Å: ${ttf.glyphIndexForChar('Å')}\n`);
   log(`head: ${JSON.stringify(ttf.head, null, 2)}\n`);
-  const glyph = ttf.glyphForChar('a');
+  const glyph = ttf.glyphForChar('c');
 
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
