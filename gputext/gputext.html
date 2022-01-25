@@ -274,6 +274,96 @@ class TTFReader {
     }
     log(`${this.glyphOffsets.length} glyphs\n`);
   }
+  glyphOffsetForGlyphIndex(index) { return this.glyphOffsets[index]; }
+  glyphOffsetForChar(c) {
+    const glyphIndex = this.glyphIndexForChar(c);
+    return this.glyphOffsetForGlyphIndex(glyphIndex);
+  }
+  glyphForChar(c) {
+    return this.glyphForGlyphOffset(this.glyphOffsetForChar(c));
+  }
+  glyphForGlyphOffset(glyphOffset) {
+    // https://docs.microsoft.com/en-us/typography/opentype/spec/glyf
+    const glyfPos = this.tableHeaders['glyf']
+    if (glyfPos === undefined)
+      throw new Error('Missing required "glyf" header')
+    this.stream.offset = glyfPos.offset + glyphOffset;
+
+    const numberOfContours = this.stream.readI16();
+    const xMin = this.stream.readI16();
+    const yMin = this.stream.readI16();
+    const xMax = this.stream.readI16();
+    const yMax = this.stream.readI16();
+
+    if (numberOfContours >= 0) {
+      // Simple glyph.
+      let endPtsOfContours = Array(numberOfContours);
+      for (let i = 0; i < numberOfContours; ++i)
+        endPtsOfContours[i] = this.stream.readU16();
+      const numPoints = endPtsOfContours[endPtsOfContours.length - 1] + 1;
+
+      const instructionLength = this.stream.readU16();
+      let instructions = Array(instructionLength);
+      for (let i = 0; i < instructionLength; ++i)
+        instructions[i] = this.stream.readU8();
+
+      const ON_CURVE_POINT = 1;
+      const X_SHORT_VECTOR = 2;
+      const Y_SHORT_VECTOR = 4;
+      const REPEAT_FLAG = 8;
+      const X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR = 0x10;
+      const Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR = 0x20;
+      const OVERLAP_SIMPLE = 0x40;
+      const Reserved = 0x80;
+
+      let flags = Array(numPoints);
+      for (let i = 0; i < numPoints; ++i) {
+        const flag = this.stream.readU8();
+        flags[i] = flag;
+        if (flag & REPEAT_FLAG) {
+          const numRepetitions = this.stream.readU8();
+          for (let j = 0; j < numRepetitions; ++j, ++i)
+            flags[i] = flag;
+        }
+      }
+
+      let xCoords = Array(numPoints);
+      let x = 0;
+      for (let i = 0; i < numPoints; ++i) {
+        const flag = flags[i];
+        if (flag & X_SHORT_VECTOR) {
+          if ((flag & X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR) === 0)
+            x -= this.stream.readU8();
+          else
+            x += this.stream.readU8();
+        } else if ((flag & X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR) === 0)
+          x += this.stream.readI16();
+        xCoords[i] = x;
+      }
+
+      let yCoords = Array(numPoints);
+      let y = 0;
+      for (let i = 0; i < numPoints; ++i) {
+        const flag = flags[i];
+        if (flag & Y_SHORT_VECTOR) {
+          if ((flag & Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR) === 0)
+            y -= this.stream.readU8();
+          else
+            y += this.stream.readU8();
+        } else if ((flag & Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR) === 0)
+          y += this.stream.readI16();
+        yCoords[i] = y;
+      }
+
+      // XXX ON_CURVE_POINT.
+      for (let i = 0; i < numPoints; ++i)
+        log(`x, y: ${xCoords[i]} ${yCoords[i]}\n`);
+
+    } else {
+      // Compound glyph.
+      throw new Error('Support for compound glyphs not yet implemented');
+    }
+  }
 }
 
 async function go(font_url) {
@@ -287,6 +377,7 @@ async function go(font_url) {
   log(`glyph index for a: ${ttf.glyphIndexForChar('a')}\n`);
   log(`glyph index for Å: ${ttf.glyphIndexForChar('Å')}\n`);
   log(`head: ${JSON.stringify(ttf.head, null, 2)}\n`);
+  ttf.glyphForChar('a');
 }
 
 let url = 'https://fonts.gstatic.com/s/roboto/v29/KFOmCnqEu92Fr1Me5Q.ttf';
