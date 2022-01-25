@@ -11,6 +11,7 @@
 }
 </style>
 
+<canvas id="canvas"></canvas>
 <h1>Log</h1>
 <pre id="log"></pre>
 <script>
@@ -355,10 +356,31 @@ class TTFReader {
         yCoords[i] = y;
       }
 
-      // XXX ON_CURVE_POINT.
-      for (let i = 0; i < numPoints; ++i)
-        log(`x, y: ${xCoords[i]} ${yCoords[i]}\n`);
+      let contours = Array(numberOfContours);
+      for (let i = 0, k = 0; i < numberOfContours; ++i) {
+        const numPointsOnContour = endPtsOfContours[i] + 1 - k;
+        let points = Array(numPointsOnContour);
+        for (let j = 0; j < numPointsOnContour; ++j, ++k) {
+          points[j] = {
+            x: xCoords[k],
+            y: yCoords[k],
+            isOnCurve: (flags[k] & ON_CURVE_POINT) !== 0,
+          };
+        }
+        contours[i] = points;
+      }
 
+      //for (let i = 0; i < numberOfContours; ++i)
+      //  for (let j = 0; j < contours[i].length; ++j)
+      //    log(`${i} ${j} ${JSON.stringify(contours[i][j])}\n`);
+
+      return {
+        contours: contours,
+        xMin: xMin,
+        yMin: yMin,
+        xMax: xMax,
+        yMax: yMax,
+      };
     } else {
       // Compound glyph.
       throw new Error('Support for compound glyphs not yet implemented');
@@ -377,7 +399,49 @@ async function go(font_url) {
   log(`glyph index for a: ${ttf.glyphIndexForChar('a')}\n`);
   log(`glyph index for Å: ${ttf.glyphIndexForChar('Å')}\n`);
   log(`head: ${JSON.stringify(ttf.head, null, 2)}\n`);
-  ttf.glyphForChar('a');
+  const glyph = ttf.glyphForChar('a');
+
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'rgb(255, 255, 255)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const s = Math.min(canvas.width / (glyph.xMax - glyph.xMin),
+                     canvas.height / (glyph.yMax - glyph.yMin));
+
+  ctx.fillStyle = 'rgb(0, 0, 0)';
+  ctx.beginPath();
+  for (let i = 0; i < glyph.contours[0].length; ++i) {
+    const point = glyph.contours[0][i];
+    const x = (point.x - glyph.xMin) * s;
+    const y = (point.y - glyph.yMin) * s;
+    if (i === 0) {
+      // The first point should always be isOnCurve.
+      // FIXME: I think this is wrong, see leftmost glyph in figure 13 at
+      // https://developer.apple.com/fonts/TrueType-Reference-Manual/RM01/Chap1.html
+      ctx.moveTo(x, y)
+      continue;
+    }
+
+    if (point.isOnCurve) {
+      ctx.lineTo(x, y);
+      continue;
+    }
+
+    const next = glyph.contours[0][i + 1];
+    if (next.isOnCurve) {
+      const nx = (next.x - glyph.xMin) * s;
+      const ny = (next.y - glyph.yMin) * s;
+      ctx.quadraticCurveTo(x, y, nx, ny);
+      ++i;
+    } else {
+      // https://stackoverflow.com/questions/20733790/truetype-fonts-glyph-are-made-of-quadratic-bezier-why-do-more-than-one-consecu
+      const nx = (next.x - glyph.xMin) * s;
+      const ny = (next.y - glyph.yMin) * s;
+      ctx.quadraticCurveTo(x, y, (x + nx) / 2, (y + ny) / 2);
+    }
+  }
+  ctx.fill();
 }
 
 let url = 'https://fonts.gstatic.com/s/roboto/v29/KFOmCnqEu92Fr1Me5Q.ttf';
