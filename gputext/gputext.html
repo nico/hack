@@ -303,15 +303,24 @@ class TTFReader {
     }
     log(`${this.glyphOffsets.length} glyphs\n`);
   }
-  glyphOffsetForGlyphIndex(index) { return this.glyphOffsets[index]; }
-  glyphOffsetForChar(c) {
-    const glyphIndex = this.glyphIndexForChar(c);
-    return this.glyphOffsetForGlyphIndex(glyphIndex);
-  }
   glyphForChar(c) {
-    return this.glyphForGlyphOffset(this.glyphOffsetForChar(c));
+    return this.glyphForGlyphIndex(this.glyphIndexForChar(c));
   }
-  glyphForGlyphOffset(glyphOffset) {
+  glyphForGlyphIndex(index) {
+    // https://docs.microsoft.com/en-us/typography/opentype/spec/loca
+    // "In order to compute the length of the last glyph element,
+    // there is an extra entry after the last valid index [...]
+    // This also applies to any other characters without an outline,
+    // such as the space character. If a glyph has no outline, then
+    // loca[n] = loca[n+1]".
+    const glyphOffset = this.glyphOffsets[index];
+    const glyphSize = this.glyphOffsets[index + 1] - this.glyphOffsets[index];
+    return this.glyphForGlyphOffsetAndSize(glyphOffset, glyphSize);
+  }
+  glyphForGlyphOffsetAndSize(glyphOffset, glyphSize) {
+    if (glyphSize === 0) // Space character and such.
+      return null;
+
     // https://docs.microsoft.com/en-us/typography/opentype/spec/glyf
     const glyfPos = this.tableHeaders['glyf']
     if (glyfPos === undefined)
@@ -484,7 +493,7 @@ async function go(font_url) {
   const buffer = await response.arrayBuffer();
   const ttf = new TTFReader(buffer);
   log(`sfntVersion: ${ttf.sfntVersion}\n`);
-  log(`glyph index for !: ${ttf.glyphIndexForChar('!')}\n`);
+  log(`glyph index for a: ${ttf.glyphIndexForChar('a')}\n`);
   log(`glyph index for Å: ${ttf.glyphIndexForChar('Å')}\n`);
   //log(`head: ${JSON.stringify(ttf.head, null, 2)}\n`);
   log(`hhea: ${JSON.stringify(ttf.hhea, null, 2)}\n`);
@@ -516,10 +525,12 @@ async function go(font_url) {
 
   for (let c of 'Hello, World!') {
     const glyph = ttf.glyphForChar(c);
-    ctx.beginPath();
-    for (let i = 0; i < glyph.contours.length; ++i)
-      drawContour(ctx, glyph.contours[i]);
-    ctx.fill();
+    if (glyph !== null) {
+      ctx.beginPath();
+      for (let i = 0; i < glyph.contours.length; ++i)
+        drawContour(ctx, glyph.contours[i]);
+      ctx.fill();
+    }
     ctx.translate(ttf.advanceWidthForChar(c), 0);
   }
 }
