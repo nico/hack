@@ -419,8 +419,7 @@ class TTFReader {
 function drawContour(ctx, points) {
   for (let i = 0; i < points.length; ++i) {
     const point = points[i];
-    const x = point.x;
-    const y = point.y;
+    const {x, y} = point;
     if (i === 0) {
       // The first point should always be isOnCurve.
       // FIXME: I think this is wrong, see leftmost glyph in figure 13 at
