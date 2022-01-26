@@ -495,10 +495,10 @@ async function go(font_url) {
   ctx.scale(1, -1);
 
   // Make glyph fit in canvas.
-  const s = Math.min(canvas.width / (glyph.xMax - glyph.xMin),
-                     canvas.height / (glyph.yMax - glyph.yMin));
+  const s = Math.min(canvas.width / (ttf.head.xMax - ttf.head.xMin),
+                     canvas.height / (ttf.head.yMax - ttf.head.yMin));
   ctx.scale(s, s);
-  ctx.translate(-glyph.xMin, -glyph.yMin);
+  ctx.translate(-ttf.head.xMin, -ttf.head.yMin);
 
   ctx.fillStyle = 'rgb(0, 0, 0)';
   ctx.beginPath();
