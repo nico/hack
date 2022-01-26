@@ -11,7 +11,7 @@
 }
 </style>
 
-<canvas id="canvas"></canvas>
+<canvas id="canvas" width="700" height="150"></canvas>
 <h1>Log</h1>
 <pre id="log"></pre>
 <script>
@@ -414,6 +414,19 @@ class TTFReader {
       throw new Error('Support for compound glyphs not yet implemented');
     }
   }
+  advanceWidthForChar(c) {
+    return this.advanceWidthForGlyphIndex(this.glyphIndexForChar(c));
+  }
+  advanceWidthForGlyphIndex(glyphIndex) {
+    // https://docs.microsoft.com/en-us/typography/opentype/spec/hmtx
+    const hmtxPos = this.tableHeaders['hmtx']
+    if (hmtxPos === undefined)
+      throw new Error('Missing required "hmtx" header')
+
+    glyphIndex = Math.min(this.hhea.numberOfHMetrics - 1, glyphIndex);
+    this.stream.offset = hmtxPos.offset + 4 * glyphIndex;
+    return this.stream.readU16();
+  }
 }
 
 function drawContour(ctx, points) {
@@ -471,11 +484,10 @@ async function go(font_url) {
   const buffer = await response.arrayBuffer();
   const ttf = new TTFReader(buffer);
   log(`sfntVersion: ${ttf.sfntVersion}\n`);
-  log(`glyph index for a: ${ttf.glyphIndexForChar('a')}\n`);
+  log(`glyph index for !: ${ttf.glyphIndexForChar('!')}\n`);
   log(`glyph index for Å: ${ttf.glyphIndexForChar('Å')}\n`);
   //log(`head: ${JSON.stringify(ttf.head, null, 2)}\n`);
   log(`hhea: ${JSON.stringify(ttf.hhea, null, 2)}\n`);
-  const glyph = ttf.glyphForChar('c');
 
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d', {alpha: false});
@@ -494,17 +506,22 @@ async function go(font_url) {
   ctx.translate(0, canvas.height);
   ctx.scale(1, -1);
 
-  // Make glyph fit in canvas.
+  // Make glyphs fit in canvas.
   const s = Math.min(canvas.width / (ttf.head.xMax - ttf.head.xMin),
                      canvas.height / (ttf.head.yMax - ttf.head.yMin));
   ctx.scale(s, s);
-  ctx.translate(-ttf.head.xMin, -ttf.head.yMin);
+  ctx.translate(0 /*-ttf.head.xMin*/, -ttf.head.yMin);
 
   ctx.fillStyle = 'rgb(0, 0, 0)';
-  ctx.beginPath();
-  for (let i = 0; i < glyph.contours.length; ++i)
-    drawContour(ctx, glyph.contours[i]);
-  ctx.fill();
+
+  for (let c of 'Hello, World!') {
+    const glyph = ttf.glyphForChar(c);
+    ctx.beginPath();
+    for (let i = 0; i < glyph.contours.length; ++i)
+      drawContour(ctx, glyph.contours[i]);
+    ctx.fill();
+    ctx.translate(ttf.advanceWidthForChar(c), 0);
+  }
 }
 
 let url = 'https://fonts.gstatic.com/s/roboto/v29/KFOmCnqEu92Fr1Me5Q.ttf';
