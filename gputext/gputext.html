@@ -100,7 +100,6 @@ class TTFReader {
         offset: this.stream.readU32(),
         length: this.stream.readU32(),
       };
-      //log(`${tableTag}\n`);
     }
   }
   readCmap() {
@@ -118,7 +117,6 @@ class TTFReader {
       const encodingId = this.stream.readU16();
       const subtableOffset = this.stream.readU32();
       (this.cmapEntries[platformId] ??= {})[encodingId] = subtableOffset;
-      //log(`cmap entry: ${platformId} ${encodingId}\n`);
     }
 
     const CMAP_PLATFORM_UNICODE = 0;
@@ -407,10 +405,6 @@ class TTFReader {
         contours[i] = points;
       }
 
-      //for (let i = 0; i < numberOfContours; ++i)
-      //  for (let j = 0; j < contours[i].length; ++j)
-      //    log(`${i} ${j} ${JSON.stringify(contours[i][j])}\n`);
-
       return {
         contours: contours,
         xMin: xMin,
@@ -492,11 +486,6 @@ async function go(font_url) {
 
   const buffer = await response.arrayBuffer();
   const ttf = new TTFReader(buffer);
-  log(`sfntVersion: ${ttf.sfntVersion}\n`);
-  log(`glyph index for a: ${ttf.glyphIndexForChar('a')}\n`);
-  log(`glyph index for Å: ${ttf.glyphIndexForChar('Å')}\n`);
-  //log(`head: ${JSON.stringify(ttf.head, null, 2)}\n`);
-  log(`hhea: ${JSON.stringify(ttf.hhea, null, 2)}\n`);
 
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d', {alpha: false});
