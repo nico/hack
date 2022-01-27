@@ -468,10 +468,6 @@ class TTFReader {
         throw new Error(
             'Support for SCALED_COMPONENT_OFFSET not yet implemented');
 
-      log(`comp ${componentGlyphIndex}\n`);
-      log(`[${m00} ${m01} ${m02}]\n`);
-      log(`[${m10} ${m11} ${m12}]\n`);
-
       glyphRefs.push({componentGlyphIndex, m00, m01, m02, m10, m11, m12});
     } while (flags & MORE_COMPONENTS);
 
