@@ -28,6 +28,7 @@ class MyBinaryStream {
     this.offset = 0;
   }
   readU8() { return this.data.getUint8(this.offset++); }
+  readI8() { return this.data.getInt8(this.offset++); }
   readU16() {
     const result = this.data.getUint16(this.offset);
     this.offset += 2;
@@ -38,6 +39,7 @@ class MyBinaryStream {
     this.offset += 2;
     return result;
   }
+  readFixed2_14() { return readI16() / (1 << 14); }
   readU32() {
     const result = this.data.getUint32(this.offset);
     this.offset += 4;
@@ -319,6 +321,8 @@ class TTFReader {
     if (glyphSize === 0) // Space character and such.
       return null;
 
+    // FIXME: Might make sense to have a cache indexed by arguments.
+
     // https://docs.microsoft.com/en-us/typography/opentype/spec/glyf
     const glyfPos = this.tableHeaders['glyf']
     if (glyfPos === undefined)
@@ -406,10 +410,79 @@ class TTFReader {
       }
 
       return { contours, xMin, yMin, xMax, yMax };
-    } else {
-      // Compound glyph.
-      throw new Error('Support for compound glyphs not yet implemented');
     }
+
+    // Compound glyph.
+    const ARG_1_AND_2_ARE_WORDS = 1;
+    const ARGS_ARE_XY_VALUES = 2;
+    const ROUND_XY_TO_GRID = 4;
+    const WE_HAVE_A_SCALE = 8;
+    const MORE_COMPONENTS = 0x20;
+    const WE_HAVE_AN_X_AND_Y_SCALE = 0x40;
+    const WE_HAVE_A_TWO_BY_TWO = 0x80;
+    const WE_HAVE_INSTRUCTIONS = 0x100
+    const USE_MY_METRICS = 0x200;
+    const OVERLAP_COMPOUND = 0x400;
+    const SCALED_COMPONENT_OFFSET = 0x800;
+    const UNSCALED_COMPONENT_OFFSET = 0x1000;
+
+    let flags;
+    let glyphRefs = [];
+    do {
+      flags = this.stream.readU16();
+      const componentGlyphIndex = this.stream.readU16();
+
+      // The transformation code is explained better in Apple's docs:
+      // https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6glyf.html
+      let m00 = 1, m01 = 0, m02 = 0;
+      let m10 = 0, m11 = 1, m12 = 0;
+
+      // FIXME: Support this. The two args are indices into composite glyph
+      // so far, and into the new glyph, and the points at those two indices
+      // are supposed to match when this is not set.
+      if ((flags & ARGS_ARE_XY_VALUES) === 0)
+        throw new Error('Support for !ARGS_ARE_XY_VALUES not yet implemented');
+
+      if (flags & ARG_1_AND_2_ARE_WORDS) {
+        m02 = this.stream.readI16();
+        m12 = this.stream.readI16();
+      } else {
+        m02 = this.stream.readI8();
+        m12 = this.stream.readI8();
+      }
+
+      if (flags & WE_HAVE_A_SCALE) {
+        m00 = m11 = this.stream.readFixed2_14();
+      } else if (flags & WE_HAVE_AN_X_AND_Y_SCALE) {
+        m00 = this.stream.readFixed2_14();
+        m11 = this.stream.readFixed2_14();
+      } else if (flags & WE_HAVE_A_TWO_BY_TWO) {
+        m00 = this.stream.readFixed2_14();
+        m01 = this.stream.readFixed2_14();
+        m01 = this.stream.readFixed2_14();
+        m11 = this.stream.readFixed2_14();
+      }
+
+      // FIXME: Implement.
+      if (flags & SCALED_COMPONENT_OFFSET)
+        throw new Error(
+            'Support for SCALED_COMPONENT_OFFSET not yet implemented');
+
+      log(`comp ${componentGlyphIndex}\n`);
+      log(`[${m00} ${m01} ${m02}]\n`);
+      log(`[${m10} ${m11} ${m12}]\n`);
+
+      glyphRefs.push({componentGlyphIndex, m00, m01, m02, m10, m11, m12});
+    } while (flags & MORE_COMPONENTS);
+
+    if (flags & WE_HAVE_INSTRUCTIONS) {
+      const instructionLength = this.stream.readU16();
+      let instructions = Array(instructionLength);
+      for (let i = 0; i < instructionLength; ++i)
+        instructions[i] = this.stream.readU8();
+    }
+
+    return { glyphRefs };
   }
   advanceWidthForChar(c) {
     return this.advanceWidthForGlyphIndex(this.glyphIndexForChar(c));
@@ -452,6 +525,32 @@ function drawContour(ctx, points) {
       ctx.quadraticCurveTo(x, y, (x + next.x) / 2, (y + next.y) / 2);
     }
   }
+}
+
+function drawSimpleGlyph(ctx, glyph) {
+  ctx.beginPath();
+  for (let i = 0; i < glyph.contours.length; ++i)
+    drawContour(ctx, glyph.contours[i]);
+  ctx.fill();
+}
+
+function drawCompoundGlyph(ttf, ctx, glyph) {
+  for (let glyphRef of glyph.glyphRefs) {
+    const glyph = ttf.glyphForGlyphIndex(glyphRef.componentGlyphIndex);
+    ctx.save();
+    ctx.transform(glyphRef.m00, glyphRef.m10,
+                  glyphRef.m01, glyphRef.m11,
+                  glyphRef.m02, glyphRef.m12);
+    drawGlyph(ttf, ctx, glyph);
+    ctx.restore();
+  }
+}
+
+function drawGlyph(ttf, ctx, glyph) {
+  if (glyph.hasOwnProperty('glyphRefs'))
+    drawCompoundGlyph(ttf, ctx, glyph);
+  else
+    drawSimpleGlyph(ctx, glyph);
 }
 
 function adjustCanvasForHighDPI(canvas) {
@@ -506,14 +605,10 @@ async function go(font_url) {
 
   ctx.fillStyle = 'rgb(0, 0, 0)';
 
-  for (let c of 'Hello, World!') {
+  for (let c of 'Hello, Wörld!') {
     const glyph = ttf.glyphForChar(c);
-    if (glyph !== null) {
-      ctx.beginPath();
-      for (let i = 0; i < glyph.contours.length; ++i)
-        drawContour(ctx, glyph.contours[i]);
-      ctx.fill();
-    }
+    if (glyph !== null)
+      drawGlyph(ttf, ctx, glyph);
     ctx.translate(ttf.advanceWidthForChar(c), 0);
   }
 }
