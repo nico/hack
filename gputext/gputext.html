@@ -405,13 +405,7 @@ class TTFReader {
         contours[i] = points;
       }
 
-      return {
-        contours: contours,
-        xMin: xMin,
-        yMin: yMin,
-        xMax: xMax,
-        yMax: yMax,
-      };
+      return { contours, xMin, yMin, xMax, yMax };
     } else {
       // Compound glyph.
       throw new Error('Support for compound glyphs not yet implemented');
