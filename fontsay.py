@@ -21,9 +21,6 @@ class Struct:
     return struct.calcsize(self.fmt)
 
 
-def count_bits(n): return bin(n).count('1') # lol
-
-
 def main():
   font = sys.argv[2]
   with open(font, 'rb') as f:
@@ -61,9 +58,16 @@ def main():
   # There are at most 0x10ffff + 1 glyphs, so there are at most 544 bytes.
   range_mask = font_data[Header.size():Header.size() + header.range_mask_size]
 
-  glyph_count = 0
+  range_index = []
+  current_page = 0
   for mask in range_mask:
-    glyph_count += count_bits(mask) * 256
+    for i in range(8):
+      if mask & (1 << i):
+        range_index.append(current_page)
+        current_page += 1
+      else:
+        range_index.append(None)
+  glyph_count = current_page * 256
 
   # 3. Glyph bitmap data
 
@@ -82,7 +86,14 @@ def main():
   # Do something with the data!
   for y in range(header.glyph_height):
     for c in sys.argv[1]:
-      glyph_index = ord(c)  # FIXME: Should look at range_mask.
+      codepoint = ord(c)  # FIXME: Should look at range_mask.
+
+      has_page = range_index[codepoint // 256] is not None
+      if has_page:
+        glyph_index = range_index[codepoint // 256] * 256 + codepoint % 256
+      if not has_page or glyph_widths[glyph_index] == 0:
+        codepoint = glyph_index = ord('?') # Assume every font has latin.
+
       row_index = glyph_index * header.glyph_height + y
       for x in range(glyph_widths[glyph_index]):
         if glyph_rows[row_index] & (1 << x):
