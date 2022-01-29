@@ -86,7 +86,7 @@ def main():
       row_index = glyph_index * header.glyph_height + y
       for x in range(glyph_widths[glyph_index]):
         if glyph_rows[row_index] & (1 << x):
-          print('X', end='')
+          print('░', end='')
         else:
           print(' ', end='')
       for s in range(header.glyph_spacing):
