@@ -146,8 +146,8 @@ Per-function, we have:
    For `c1`, there are two counters: one for each branch of
    `i % 2 == 0` is true.
 
-4. The values of those counters. In this case, the function is called 113+65
-   times total, and the value passed to c1 is even more often than it is odd.
+4. The values of those counters. In this case, the function is called `113+65`
+   times total, and the value passed to `c1` is even more often than it is odd.
 
 When optimizing a function, how can LLVM map these counters to branches in
 the code?
@@ -161,10 +161,10 @@ now when the profiling data is used: LLVM can associate the counter values
 with the IR locations by index. (Here's a [PDF of the "Optimal measurement of
 points for program frequency counts" paper cited in that file][2]).
 
-That also means you can use slightly older profiling data with newer code --
-maybe you only regenerate profiling data once per day or so. For all functions
-that have matching hashes, the profiling data can be used. As long as most
-of the codebase doesn't change in a day, this will work ok.
+That also means you can use slightly older profiling data with newer
+code—maybe you only regenerate profiling data once per day or so. For all
+functions that have matching hashes, the profiling data can be used. As long as
+most of the codebase doesn't change in a day, this will work ok.
 
 You can run `clang c.c -fprofile-use=c.profdata -O2 -S -emit-llvm -o -`
 to see LLVM IR annotated with profiling data. Look for `!prof`, `!PGOFuncName`,
