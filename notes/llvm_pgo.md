@@ -94,7 +94,7 @@ You can then open `c.proftext` in a text editor, modify it, and then convert
 it back to binary (for PGO'ing with it, for example):
 
 ```sh
-% llvm-profdata merge text c.proftext -o c.profdata2
+% llvm-profdata merge c.proftext -o c.profdata2
 ```
 
 If you don't edit the text file, `c.profdata` and `c.profdata2` are identical.
