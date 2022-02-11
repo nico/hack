@@ -166,7 +166,7 @@ maybe you only regenerate profiling data once per day or so. For all functions
 that have matching hashes, the profiling data can be used. As long as most
 of the codebase doesn't change in a day, this will work ok.
 
-You can run `clang c.c -fprofile-use=c.profdata` -O2 -S -emit-llvm -o -`
+You can run `clang c.c -fprofile-use=c.profdata -O2 -S -emit-llvm -o -`
 to see LLVM IR annotated with profiling data. Look for `!prof`, `!PGOFuncName`,
 and the corresponding metadata at the bottom. Here's an excerpt for `c1`:
 
