@@ -138,7 +138,7 @@ Per-function, we have:
    is identical to what was originally instrumented.
 
    Exercise: Build the example with
-   `-O2 -fprofile-generate=profiledata.dir -S -o -` and find that function's
+   `-O2 -fprofile-generate=profiledata.dir -S -o -` and find `c1`'s
    hash in the _instrumented_ compiler output.
 
 3. The number of counters per function. Handwavingly, for every branch, the
