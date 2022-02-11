@@ -157,4 +157,4 @@ the counter locations are the same when the instrumentation was inserted and
 now when the profiling data is used: LLVM can associate the counter values
 with the IR locations by index.
 
-1: https://github.com/llvm/llvm-project/blob/main/llvm/lib/Transforms/Instrumentation/PGOInstrumentation.cpp
+[1]: https://github.com/llvm/llvm-project/blob/main/llvm/lib/Transforms/Instrumentation/PGOInstrumentation.cpp
