@@ -100,7 +100,10 @@ it back to binary (for PGO'ing with it, for example):
 If you don't edit the text file, `c.profdata` and `c.profdata2` are identical.
 If you want to be explicit, you can pass `--binary`, but it's the default.
 
-Here's what the start of `c.proftext` looks like:
+How does PGO instrumentation work?
+----------------------------------
+
+Here's what the start of `c.proftext` (see above) looks like:
 
 ```
 # IR level Instrumentation Flag
@@ -155,6 +158,48 @@ in each function the edges between basic blocks should have a counter. Since
 the function IR is exactly identical (because the function hashes match),
 the counter locations are the same when the instrumentation was inserted and
 now when the profiling data is used: LLVM can associate the counter values
-with the IR locations by index.
+with the IR locations by index. (Here's a [PDF of the "Optimal measurement of
+points for program frequency counts" paper cited in that file][2]).
+
+That also means you can use slightly older profiling data with newer code --
+maybe you only regenerate profiling data once per day or so. For all functions
+that have matching hashes, the profiling data can be used. As long as most
+of the codebase doesn't change in a day, this will work ok.
+
+You can run `clang c.c -fprofile-use=c.profdata` -O2 -S -emit-llvm -o -`
+to see LLVM IR annotated with profiling data. Look for `!prof`, `!PGOFuncName`,
+and the corresponding metadata at the bottom. Here's an excerpt for `c1`:
+
+```
+define internal fastcc i32 @c1(i32 noundef %i) unnamed_addr #3 !prof !54 !PGOFuncName !55 {
+entry:
+  %0 = and i32 %i, 1
+  %cmp = icmp eq i32 %0, 0
+  br i1 %cmp, label %cond.true, label %cond.false, !prof !56
+
+cond.true:                                        ; preds = %entry
+  %div = sdiv i32 %i, 2
+  br label %cond.end
+
+cond.false:                                       ; preds = %entry
+  %mul = mul nsw i32 %i, 3
+  %add = add nsw i32 %mul, 1
+  br label %cond.end
+
+cond.end:                                         ; preds = %cond.false, %cond.true
+  %cond = phi i32 [ %div, %cond.true ], [ %add, %cond.false ]
+  ret i32 %cond
+}
+[...]
+!54 = !{!"function_entry_count", i64 178}
+!55 = !{!"c.c:c1"}
+!56 = !{!"branch_weights", i32 113, i32 65}
+```
+
+The function signature references `!prof !54 !PGOFuncName !55`, and the branch
+is annotated with `!prof !56`. The metadata at the bottom has the same branch
+weights we saw in the `.proftext` file.
 
 [1]: https://github.com/llvm/llvm-project/blob/main/llvm/lib/Transforms/Instrumentation/PGOInstrumentation.cpp
+
+[2]: https://zh.booksc.eu/book/6775578/7bcec5
