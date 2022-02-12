@@ -102,8 +102,7 @@ def main():
           print('█', end='')
         else:
           print(' ', end='')
-      for s in range(header.glyph_spacing):
-        print(' ', end='')
+      print(' ' * header.glyph_spacing, end='')
     print()
 
 
