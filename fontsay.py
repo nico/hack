@@ -29,12 +29,14 @@ def main():
   # Serenity bitmap font format:
   # 1. File header
   # 2. Bitmap that stores which 256-blocks of glyphs are present in the font
+  #    ("range mask")
   # 3. Glyph bitmap data, one uint32_t per row
   # 4. The width of each glyph
+  # Ref: https://github.com/SerenityOS/serenity/blob/96895cd22c0/Userland/Libraries/LibGfx/BitmapFont.cpp#L220
 
   # 1. File header
   Header = Struct('Header',
-                  '4s', 'magic',
+                  '4s', 'magic', # '!Fnt'
                   'B', 'glyph_width',
                   'B', 'glyph_height',
                   'H', 'range_mask_size',
