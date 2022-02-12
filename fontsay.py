@@ -86,7 +86,7 @@ def main():
   # Do something with the data!
   for y in range(header.glyph_height):
     for c in sys.argv[1]:
-      codepoint = ord(c)  # FIXME: Should look at range_mask.
+      codepoint = ord(c)
 
       has_page = range_index[codepoint // 256] is not None
       if has_page:
