@@ -6,7 +6,7 @@ Example program
 
 Here's a program:
 
-```c++
+```cpp
 #include <stdlib.h>
 
 __attribute__((noinline))
