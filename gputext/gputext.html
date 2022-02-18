@@ -225,19 +225,27 @@ async function go(font_url) {
 
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuf);
 
-  const glyph = ttf.glyphForChar('W');
-  const [fan, tris] = contourToTriangles(glyph.contours[0]);
-  console.log(fan);
+  const glyph = ttf.glyphForChar('D');
+  let allFans = [];
+  let fanStarts = [];
+  let fanLengths = [];
   const s2 = Math.min(1 / (ttf.head.xMax - ttf.head.xMin),
                       1 / (ttf.head.yMax - ttf.head.yMin));
-  for (let i = 0; i < fan.length; i += 2) {
-    fan[i] *= s2;
-    fan[i + 1] *= s2 * (canvas.width / canvas.height);
-    fan[i + 1] -= 0.9;
+  for (let i = 0; i < glyph.contours.length; ++i) {
+    const [fan, tris] = contourToTriangles(glyph.contours[i]);
+    //console.log(fan);
+    for (let i = 0; i < fan.length; i += 2) {
+      fan[i] *= s2;
+      fan[i + 1] *= s2 * (canvas.width / canvas.height);
+      fan[i + 1] -= 0.9;
+    }
+    //console.log(fan);
+    fanStarts.push(allFans.length / 2);
+    fanLengths.push(fan.length / 2);
+    allFans.push(...fan);
   }
-  console.log(fan);
 
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(fan), gl.STATIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(allFans), gl.STATIC_DRAW);
 
   const vao = gl.createVertexArray();
   gl.bindVertexArray(vao);
@@ -258,7 +266,9 @@ async function go(font_url) {
 
   gl.useProgram(program);
   gl.bindVertexArray(vao);
-  gl.drawArrays(gl.TRIANGLE_FAN, /*offset=*/0, /*count=*/fan.length / 2);
+  for (let i = 0; i < fanStarts.length; ++i)
+    gl.drawArrays(gl.TRIANGLE_FAN,
+                  /*offset=*/fanStarts[i], /*count=*/fanLengths[i]);
 
   // 2. Draw shape covering glyph only where stencil test passes.
   gl.stencilFunc(gl.NOTEQUAL, /*ref=*/0, /*mask=*/0xff);
@@ -270,7 +280,9 @@ async function go(font_url) {
 
   // FIXME: draw something guaranteed to cover the whole glyph
   //        (this won't work once curves are rendered too)
-  gl.drawArrays(gl.TRIANGLE_FAN, /*offset=*/0, /*count=*/fan.length / 2);
+  for (let i = 0; i < fanStarts.length; ++i)
+    gl.drawArrays(gl.TRIANGLE_FAN,
+                  /*offset=*/fanStarts[i], /*count=*/fanLengths[i]);
 }
 
 let url = 'https://fonts.gstatic.com/s/roboto/v29/KFOmCnqEu92Fr1Me5Q.ttf';
