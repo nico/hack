@@ -155,7 +155,7 @@ function contourToTriangles(points) {
   return [fanPoints, curvePoints];
 }
 
-function drawGlphGPU(gl, positionAttributeLoc, glyph, ttf) {
+function drawGlphGPU(gl, positionAttributeLoc, glyph, ttf, tx) {
   const positionBuf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuf);
 
@@ -173,7 +173,7 @@ function drawGlphGPU(gl, positionAttributeLoc, glyph, ttf) {
   const s2 = Math.min(1 / (ttf.head.xMax - ttf.head.xMin),
                       1 / (ttf.head.yMax - ttf.head.yMin));
   for (let i = 0; i < allFans.length; i += 2) {
-    allFans[i] *= s2;
+    allFans[i] = (allFans[i] + tx) * s2;
     allFans[i + 1] *= s2 * (canvas.width / canvas.height);
     allFans[i + 1] -= 0.9;
   }
@@ -188,9 +188,6 @@ function drawGlphGPU(gl, positionAttributeLoc, glyph, ttf) {
   gl.vertexAttribPointer(
       positionAttributeLoc, /*size=*/2, gl.FLOAT, /*normalize=*/false,
       /*stride=*/0, /*offset=*/0)
-
-  gl.clearColor(1, 1, 1, 1);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
 
   // 1. Draw glyphs to stencil buffer.
   gl.enable(gl.STENCIL_TEST);
@@ -285,9 +282,16 @@ async function go(font_url) {
   const positionAttributeLoc = gl.getAttribLocation(program, "position");
   gl.useProgram(program);
 
-  const glyph = ttf.glyphForChar('W');
+  gl.clearColor(1, 1, 1, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
 
-  drawGlphGPU(gl, positionAttributeLoc, glyph, ttf);
+  let tx = -canvas.width * 2.8;
+  for (let c of 'HELLO!') {
+    const glyph = ttf.glyphForChar(c);
+    if (glyph !== null)
+      drawGlphGPU(gl, positionAttributeLoc, glyph, ttf, tx);
+    tx += ttf.advanceWidthForChar(c);
+  }
 }
 
 let url = 'https://fonts.gstatic.com/s/roboto/v29/KFOmCnqEu92Fr1Me5Q.ttf';
