@@ -155,11 +155,12 @@ function contourToTriangles(points) {
   return [fanPoints, curvePoints];
 }
 
-function drawGlphGPU(gl, positionAttributeLoc, glyph, ttf, tx) {
+function drawGlphGPU(gl, positionAttributeLoc, glyph, ttf, tx, colorLoc) {
   const positionBuf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuf);
 
   let allFans = [];
+  let allCurveTris = [];
   let fanStarts = [];
   let fanLengths = [];
   for (let i = 0; i < glyph.contours.length; ++i) {
@@ -167,19 +168,24 @@ function drawGlphGPU(gl, positionAttributeLoc, glyph, ttf, tx) {
     fanStarts.push(allFans.length / 2);
     fanLengths.push(fan.length / 2);
     allFans.push(...fan);
+    allCurveTris.push(...tris);
   }
+
+  let allCoords = allFans.concat(allCurveTris);
+  const curveTrisStart = allFans.length / 2;
+  const curveTrisLength = allCurveTris.length / 2;
 
   // Scale glyph to viewport coords. FIXME: actual transform matrix instead.
   const s2 = Math.min(1 / (ttf.head.xMax - ttf.head.xMin),
                       1 / (ttf.head.yMax - ttf.head.yMin));
-  for (let i = 0; i < allFans.length; i += 2) {
-    allFans[i] = (allFans[i] + tx) * s2;
-    allFans[i + 1] *= s2 * (canvas.width / canvas.height);
-    allFans[i + 1] -= 0.9;
+  for (let i = 0; i < allCoords.length; i += 2) {
+    allCoords[i] = (allCoords[i] + tx) * s2;
+    allCoords[i + 1] *= s2 * (canvas.width / canvas.height);
+    allCoords[i + 1] -= 0.9;
   }
   // FIXME: This should prepare buffers just once and then use the existing
   // buffers at draw time.
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(allFans), gl.STATIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(allCoords), gl.STATIC_DRAW);
 
   const vao = gl.createVertexArray();
   gl.bindVertexArray(vao);
@@ -199,6 +205,8 @@ function drawGlphGPU(gl, positionAttributeLoc, glyph, ttf, tx) {
   for (let i = 0; i < fanStarts.length; ++i)
     gl.drawArrays(gl.TRIANGLE_FAN,
                   /*offset=*/fanStarts[i], /*count=*/fanLengths[i]);
+  gl.drawArrays(gl.TRIANGLES,
+                /*offset=*/curveTrisStart, /*count=*/curveTrisLength);
 
   // 2. Draw shape covering glyph only where stencil test passes.
   gl.stencilFunc(gl.NOTEQUAL, /*ref=*/0, /*mask=*/0xff);
@@ -210,9 +218,15 @@ function drawGlphGPU(gl, positionAttributeLoc, glyph, ttf, tx) {
 
   // FIXME: draw something guaranteed to cover the whole glyph
   //        (this won't work once curves are rendered too)
+  gl.uniform4f(colorLoc, 0, 0, 0, 0.1);
   for (let i = 0; i < fanStarts.length; ++i)
     gl.drawArrays(gl.TRIANGLE_FAN,
                   /*offset=*/fanStarts[i], /*count=*/fanLengths[i]);
+  gl.uniform4f(colorLoc, 0.4, 0.2, 0.2, 0.1);
+
+  gl.disable(gl.STENCIL_TEST);
+  gl.drawArrays(gl.TRIANGLES,
+                /*offset=*/curveTrisStart, /*count=*/curveTrisLength);
 }
 
 async function go(font_url) {
@@ -272,8 +286,9 @@ async function go(font_url) {
 
   const fragmentShaderSource = `#version 300 es
     precision highp float;
+    uniform vec4 u_color;
     out vec4 outColor;
-    void main() { outColor = vec4(0, 0, 0, 0.1); }
+    void main() { outColor = u_color; }
   `;
   const fragmentShader =
       compileShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
@@ -282,6 +297,8 @@ async function go(font_url) {
   const positionAttributeLoc = gl.getAttribLocation(program, "position");
   gl.useProgram(program);
 
+  var colorLoc = gl.getUniformLocation(program, "u_color");
+
   gl.clearColor(1, 1, 1, 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
 
@@ -289,7 +306,7 @@ async function go(font_url) {
   for (let c of 'Hellodh!') {
     const glyph = ttf.glyphForChar(c);
     if (glyph !== null)
-      drawGlphGPU(gl, positionAttributeLoc, glyph, ttf, tx);
+      drawGlphGPU(gl, positionAttributeLoc, glyph, ttf, tx, colorLoc);
     tx += ttf.advanceWidthForChar(c);
   }
 }
