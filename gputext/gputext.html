@@ -119,6 +119,42 @@ function linkProgram(gl, vertexShader, fragmentShader) {
   gl.deleteProgram(program);
 }
 
+function contourToTriangles(points) {
+  let stripPoints = [];
+  let curvePoints = [];
+  for (let i = 0; i < points.length; ++i) {
+    const point = points[i];
+    const {x, y} = point;
+    if (i === 0) {
+      // The first point should always be isOnCurve.
+      // FIXME: I think this is wrong, see leftmost glyph in figure 13 at
+      // https://developer.apple.com/fonts/TrueType-Reference-Manual/RM01/Chap1.html
+      stripPoints.push(x, y)
+      continue;
+    }
+
+    if (point.isOnCurve) {
+      stripPoints.push(x, y)
+      continue;
+    }
+
+    const next = points[i < points.length - 1 ? i + 1 : 0];
+    curvePoints.push(stripPoints[stripPoints.length - 2],
+                     stripPoints[stripPoints.length - 1]);
+    curvePoints.push(x, y);
+    if (next.isOnCurve) {
+      curvePoints.push(next.x, next.y);
+      ++i;
+    } else {
+      // https://stackoverflow.com/questions/20733790/truetype-fonts-glyph-are-made-of-quadratic-bezier-why-do-more-than-one-consecu
+      curvePoints.push((x + next.x) / 2, (y + next.y) / 2);
+      stripPoints.push((x + next.x) / 2, (y + next.y) / 2);
+    }
+  }
+  return [stripPoints, curvePoints];
+}
+
+
 async function go(font_url) {
   const response = await fetch(font_url);
   if (!response.ok)
@@ -154,7 +190,6 @@ async function go(font_url) {
 
   for (let c of 'Hållお, Wörld!') {
     const glyph = ttf.glyphForChar(c);
-    console.log(c, glyph);
     if (glyph !== null)
       drawGlyph(ttf, ctx, glyph);
     ctx.translate(ttf.advanceWidthForChar(c), 0);
@@ -178,7 +213,7 @@ async function go(font_url) {
   const fragmentShaderSource = `#version 300 es
     precision highp float;
     out vec4 outColor;
-    void main() { outColor = vec4(1, 0, 0.5, 1); }
+    void main() { outColor = vec4(0, 0, 0, 0.1); }
   `;
   const fragmentShader =
       compileShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
@@ -190,12 +225,19 @@ async function go(font_url) {
 
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuf);
 
-  const positions = [
-    0, 0,
-    0, 0.5,
-    0.7, 0,
-  ];
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+  const glyph = ttf.glyphForChar('K');
+  const [strip, tris] = contourToTriangles(glyph.contours[0]);
+  console.log(strip);
+  const s2 = Math.min(1 / (ttf.head.xMax - ttf.head.xMin),
+                      1 / (ttf.head.yMax - ttf.head.yMin));
+  for (let i = 0; i < strip.length; i += 2) {
+    strip[i] *= s2;
+    strip[i + 1] *= s2 * (canvas.width / canvas.height);
+    strip[i + 1] -= 0.9;
+  }
+  console.log(strip);
+
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(strip), gl.STATIC_DRAW);
 
   const vao = gl.createVertexArray();
   gl.bindVertexArray(vao);
@@ -208,9 +250,12 @@ async function go(font_url) {
   gl.clearColor(1, 1, 1, 1);
   gl.clear(gl.COLOR_BUFFER_BIT);
 
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.enable(gl.BLEND);
+
   gl.useProgram(program);
   gl.bindVertexArray(vao);
-  gl.drawArrays(gl.TRIANGLES, /*offset=*/0, /*count=*/3);
+  gl.drawArrays(gl.TRIANGLE_FAN, /*offset=*/0, /*count=*/strip.length / 2);
 }
 
 let url = 'https://fonts.gstatic.com/s/roboto/v29/KFOmCnqEu92Fr1Me5Q.ttf';
