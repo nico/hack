@@ -229,22 +229,20 @@ async function go(font_url) {
   let allFans = [];
   let fanStarts = [];
   let fanLengths = [];
-  const s2 = Math.min(1 / (ttf.head.xMax - ttf.head.xMin),
-                      1 / (ttf.head.yMax - ttf.head.yMin));
   for (let i = 0; i < glyph.contours.length; ++i) {
     const [fan, tris] = contourToTriangles(glyph.contours[i]);
-    //console.log(fan);
-    for (let i = 0; i < fan.length; i += 2) {
-      fan[i] *= s2;
-      fan[i + 1] *= s2 * (canvas.width / canvas.height);
-      fan[i + 1] -= 0.9;
-    }
-    //console.log(fan);
     fanStarts.push(allFans.length / 2);
     fanLengths.push(fan.length / 2);
     allFans.push(...fan);
   }
 
+  const s2 = Math.min(1 / (ttf.head.xMax - ttf.head.xMin),
+                      1 / (ttf.head.yMax - ttf.head.yMin));
+  for (let i = 0; i < allFans.length; i += 2) {
+    allFans[i] *= s2;
+    allFans[i + 1] *= s2 * (canvas.width / canvas.height);
+    allFans[i + 1] -= 0.9;
+  }
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(allFans), gl.STATIC_DRAW);
 
   const vao = gl.createVertexArray();
