@@ -198,7 +198,7 @@ async function go(font_url) {
   const glcanvas = document.getElementById('glcanvas');
   adjustCanvasForHighDPI(glcanvas);
 
-  const gl = glcanvas.getContext('webgl2', {alpha: false});
+  const gl = glcanvas.getContext('webgl2', {alpha: false, stencil: true});
   if (gl === null) {
     log('failed to create webgl context\n');
     return;
@@ -225,7 +225,7 @@ async function go(font_url) {
 
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuf);
 
-  const glyph = ttf.glyphForChar('K');
+  const glyph = ttf.glyphForChar('W');
   const [strip, tris] = contourToTriangles(glyph.contours[0]);
   console.log(strip);
   const s2 = Math.min(1 / (ttf.head.xMax - ttf.head.xMin),
@@ -248,13 +248,28 @@ async function go(font_url) {
       /*stride=*/0, /*offset=*/0)
 
   gl.clearColor(1, 1, 1, 1);
-  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
 
-  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-  gl.enable(gl.BLEND);
+  // 1. Draw glyphs to stencil buffer.
+  gl.enable(gl.STENCIL_TEST);
+  gl.stencilFunc(gl.ALWAYS, /*ref=*/0, /*mask=*/0xff);
+  gl.stencilOp(/*fail=*/gl.KEEP, /*zfail=*/gl.INVERT, /*zpass=*/gl.INVERT);
+  gl.colorMask(false, false, false, false);
 
   gl.useProgram(program);
   gl.bindVertexArray(vao);
+  gl.drawArrays(gl.TRIANGLE_FAN, /*offset=*/0, /*count=*/strip.length / 2);
+
+  // 2. Draw shape covering glyph only where stencil test passes.
+  gl.stencilFunc(gl.NOTEQUAL, /*ref=*/0, /*mask=*/0xff);
+  gl.stencilOp(/*fail=*/gl.KEEP, /*zfail=*/gl.KEEP, /*zpass=*/gl.KEEP);
+  gl.colorMask(true, true, true, true);
+
+  //gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  //gl.enable(gl.BLEND);
+
+  // FIXME: draw something guaranteed to cover the whole glyph
+  //        (this won't work once curves are rendered too)
   gl.drawArrays(gl.TRIANGLE_FAN, /*offset=*/0, /*count=*/strip.length / 2);
 }
 
