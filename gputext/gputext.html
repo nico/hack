@@ -144,6 +144,7 @@ function contourToTriangles(points) {
     curvePoints.push(x, y);
     if (next.isOnCurve) {
       curvePoints.push(next.x, next.y);
+      fanPoints.push(next.x, next.y);
       ++i;
     } else {
       // https://stackoverflow.com/questions/20733790/truetype-fonts-glyph-are-made-of-quadratic-bezier-why-do-more-than-one-consecu
