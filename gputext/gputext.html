@@ -286,7 +286,7 @@ async function go(font_url) {
   gl.clear(gl.COLOR_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
 
   let tx = -canvas.width * 2.8;
-  for (let c of 'HELLO!') {
+  for (let c of 'Hellodh!') {
     const glyph = ttf.glyphForChar(c);
     if (glyph !== null)
       drawGlphGPU(gl, positionAttributeLoc, glyph, ttf, tx);
@@ -294,6 +294,8 @@ async function go(font_url) {
   }
 }
 
-let url = 'https://fonts.gstatic.com/s/roboto/v29/KFOmCnqEu92Fr1Me5Q.ttf';
-go(url).catch(e => log(e));
+window.addEventListener('DOMContentLoaded',function () {
+  let url = 'https://fonts.gstatic.com/s/roboto/v29/KFOmCnqEu92Fr1Me5Q.ttf';
+  go(url).catch(e => log(e));
+});
 </script>
