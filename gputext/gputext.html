@@ -119,6 +119,13 @@ function linkProgram(gl, vertexShader, fragmentShader) {
   gl.deleteProgram(program);
 }
 
+function compileProgram(gl, vertexShaderSource, fragmentShaderSource) {
+  const vertexShader = compileShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+  const fragmentShader =
+      compileShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+  return linkProgram(gl, vertexShader, fragmentShader);
+}
+
 function contourToTriangles(points) {
   let fanPoints = [];
   let curvePoints = [];
@@ -282,22 +289,18 @@ async function go(font_url) {
     in vec4 position;
     void main() { gl_Position = position; }
   `;
-  const vertexShader = compileShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
-
   const fragmentShaderSource = `#version 300 es
     precision highp float;
     uniform vec4 u_color;
     out vec4 outColor;
     void main() { outColor = u_color; }
   `;
-  const fragmentShader =
-      compileShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+  const program = compileProgram(gl, vertexShaderSource, fragmentShaderSource);
 
-  const program = linkProgram(gl, vertexShader, fragmentShader);
-  const positionAttributeLoc = gl.getAttribLocation(program, "position");
+  const positionAttributeLoc = gl.getAttribLocation(program, 'position');
   gl.useProgram(program);
 
-  var colorLoc = gl.getUniformLocation(program, "u_color");
+  var colorLoc = gl.getUniformLocation(program, 'u_color');
 
   gl.clearColor(1, 1, 1, 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
