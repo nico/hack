@@ -222,8 +222,8 @@ async function go(font_url) {
   }
 
   const fanVertexShaderSource = `#version 300 es
-    in vec4 position;
-    void main() { gl_Position = position; }
+    in vec2 position;
+    void main() { gl_Position = vec4(position, 0.0, 1.0); }
   `;
   const fanFragmentShaderSource = `#version 300 es
     precision highp float;
@@ -241,7 +241,7 @@ async function go(font_url) {
     out vec2 uv;
     void main() {
       uv = position.zw;
-      gl_Position = vec4(position.xy, 0, 1);
+      gl_Position = vec4(position.xy, 0.0, 1.0);
     }
   `;
   const triFragmentShaderSource = `#version 300 es
