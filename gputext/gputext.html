@@ -162,10 +162,10 @@ function contourToTriangles(points) {
   return [fanPoints, curvePoints];
 }
 
-function drawGlphGPU(gl, positionAttributeLoc, glyph, ttf, tx, colorLoc) {
-  const positionBuf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuf);
-
+function drawGlphGPU(gl,
+                     fanProgram, fanPositionAttributeLoc, fanColorLoc,
+                     triProgram, triPositionAttributeLoc, triColorLoc,
+                     glyph, ttf, tx) {
   let allFans = [];
   let allCurveTris = [];
   let fanStarts = [];
@@ -192,15 +192,24 @@ function drawGlphGPU(gl, positionAttributeLoc, glyph, ttf, tx, colorLoc) {
   }
   // FIXME: This should prepare buffers just once and then use the existing
   // buffers at draw time.
+  const positionBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuf);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(allCoords), gl.STATIC_DRAW);
 
-  const vao = gl.createVertexArray();
-  gl.bindVertexArray(vao);
-  gl.enableVertexAttribArray(positionAttributeLoc);
-
+  const fanVao = gl.createVertexArray();
+  gl.bindVertexArray(fanVao);
+  gl.enableVertexAttribArray(fanPositionAttributeLoc);
   gl.vertexAttribPointer(
-      positionAttributeLoc, /*size=*/2, gl.FLOAT, /*normalize=*/false,
+      fanPositionAttributeLoc, /*size=*/2, gl.FLOAT, /*normalize=*/false,
       /*stride=*/0, /*offset=*/0)
+
+  const triVao = gl.createVertexArray();
+  gl.bindVertexArray(triVao);
+  gl.enableVertexAttribArray(triPositionAttributeLoc);
+  gl.vertexAttribPointer(
+      triPositionAttributeLoc, /*size=*/2, gl.FLOAT, /*normalize=*/false,
+      /*stride=*/0,
+      /*offset=*/curveTrisStart * /*floats per vertex*/ 2 * /*sizeof float*/ 4);
 
   // 1. Draw glyphs to stencil buffer.
   gl.enable(gl.STENCIL_TEST);
@@ -208,12 +217,15 @@ function drawGlphGPU(gl, positionAttributeLoc, glyph, ttf, tx, colorLoc) {
   gl.stencilOp(/*fail=*/gl.KEEP, /*zfail=*/gl.INVERT, /*zpass=*/gl.INVERT);
   gl.colorMask(false, false, false, false);
 
-  gl.bindVertexArray(vao);
+  gl.useProgram(fanProgram);
+  gl.bindVertexArray(fanVao);
   for (let i = 0; i < fanStarts.length; ++i)
     gl.drawArrays(gl.TRIANGLE_FAN,
                   /*offset=*/fanStarts[i], /*count=*/fanLengths[i]);
+  gl.useProgram(triProgram);
+  gl.bindVertexArray(triVao);
   gl.drawArrays(gl.TRIANGLES,
-                /*offset=*/curveTrisStart, /*count=*/curveTrisLength);
+                /*offset=*/0, /*count=*/curveTrisLength);
 
   // 2. Draw shape covering glyph only where stencil test passes.
   gl.stencilFunc(gl.NOTEQUAL, /*ref=*/0, /*mask=*/0xff);
@@ -225,15 +237,20 @@ function drawGlphGPU(gl, positionAttributeLoc, glyph, ttf, tx, colorLoc) {
 
   // FIXME: draw something guaranteed to cover the whole glyph
   //        (this won't work once curves are rendered too)
-  gl.uniform4f(colorLoc, 0, 0, 0, 0.1);
+  gl.useProgram(fanProgram);
+  gl.uniform4f(fanColorLoc, 0, 0, 0, 0.1);
+  gl.bindVertexArray(fanVao);
   for (let i = 0; i < fanStarts.length; ++i)
     gl.drawArrays(gl.TRIANGLE_FAN,
                   /*offset=*/fanStarts[i], /*count=*/fanLengths[i]);
-  gl.uniform4f(colorLoc, 0.4, 0.2, 0.2, 0.1);
+
 
   gl.disable(gl.STENCIL_TEST);
+  gl.useProgram(triProgram);
+  gl.uniform4f(triColorLoc, 0.4, 0.2, 0.2, 0.1);
+  gl.bindVertexArray(triVao);
   gl.drawArrays(gl.TRIANGLES,
-                /*offset=*/curveTrisStart, /*count=*/curveTrisLength);
+                /*offset=*/0, /*count=*/curveTrisLength);
 }
 
 async function go(font_url) {
@@ -285,22 +302,35 @@ async function go(font_url) {
     return;
   }
 
-  const vertexShaderSource = `#version 300 es
+  const fanVertexShaderSource = `#version 300 es
     in vec4 position;
     void main() { gl_Position = position; }
   `;
-  const fragmentShaderSource = `#version 300 es
+  const fanFragmentShaderSource = `#version 300 es
     precision highp float;
     uniform vec4 u_color;
     out vec4 outColor;
     void main() { outColor = u_color; }
   `;
-  const program = compileProgram(gl, vertexShaderSource, fragmentShaderSource);
+  const fanProgram =
+      compileProgram(gl, fanVertexShaderSource, fanFragmentShaderSource);
+  const fanPositionAttributeLoc = gl.getAttribLocation(fanProgram, 'position');
+  const fanColorLoc = gl.getUniformLocation(fanProgram, 'u_color');
 
-  const positionAttributeLoc = gl.getAttribLocation(program, 'position');
-  gl.useProgram(program);
-
-  var colorLoc = gl.getUniformLocation(program, 'u_color');
+  const triVertexShaderSource = `#version 300 es
+    in vec4 position;
+    void main() { gl_Position = position; }
+  `;
+  const triFragmentShaderSource = `#version 300 es
+    precision highp float;
+    uniform vec4 u_color;
+    out vec4 outColor;
+    void main() { outColor = u_color; }
+  `;
+  const triProgram =
+      compileProgram(gl, triVertexShaderSource, triFragmentShaderSource);
+  const triPositionAttributeLoc = gl.getAttribLocation(triProgram, 'position');
+  const triColorLoc = gl.getUniformLocation(triProgram, 'u_color');
 
   gl.clearColor(1, 1, 1, 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
@@ -309,7 +339,10 @@ async function go(font_url) {
   for (let c of 'Hellodh!') {
     const glyph = ttf.glyphForChar(c);
     if (glyph !== null)
-      drawGlphGPU(gl, positionAttributeLoc, glyph, ttf, tx, colorLoc);
+      drawGlphGPU(gl,
+                  fanProgram, fanPositionAttributeLoc, fanColorLoc,
+                  triProgram, triPositionAttributeLoc, triColorLoc,
+                  glyph, ttf, tx);
     tx += ttf.advanceWidthForChar(c);
   }
 }
