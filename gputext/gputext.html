@@ -12,7 +12,6 @@
 }
 </style>
 
-<canvas id="canvas" width="700" height="150"></canvas>
 <canvas id="glcanvas" width="700" height="150"></canvas>
 <h1>Log</h1>
 <pre id="log"></pre>
@@ -23,60 +22,6 @@ function log(a) {
 </script>
 <script src="ttf_reader.js"></script>
 <script>
-function drawContour(ctx, points) {
-  for (let i = 0; i < points.length; ++i) {
-    const point = points[i];
-    const {x, y} = point;
-    if (i === 0) {
-      // The first point should always be isOnCurve.
-      // FIXME: I think this is wrong, see leftmost glyph in figure 13 at
-      // https://developer.apple.com/fonts/TrueType-Reference-Manual/RM01/Chap1.html
-      ctx.moveTo(x, y)
-      continue;
-    }
-
-    if (point.isOnCurve) {
-      ctx.lineTo(x, y);
-      continue;
-    }
-
-    const next = points[i < points.length - 1 ? i + 1 : 0];
-    if (next.isOnCurve) {
-      ctx.quadraticCurveTo(x, y, next.x, next.y);
-      ++i;
-    } else {
-      // https://stackoverflow.com/questions/20733790/truetype-fonts-glyph-are-made-of-quadratic-bezier-why-do-more-than-one-consecu
-      ctx.quadraticCurveTo(x, y, (x + next.x) / 2, (y + next.y) / 2);
-    }
-  }
-}
-
-function drawSimpleGlyph(ctx, glyph) {
-  ctx.beginPath();
-  for (let i = 0; i < glyph.contours.length; ++i)
-    drawContour(ctx, glyph.contours[i]);
-  ctx.fill();
-}
-
-function drawCompoundGlyph(ttf, ctx, glyph) {
-  for (let glyphRef of glyph.glyphRefs) {
-    const glyph = ttf.glyphForGlyphIndex(glyphRef.componentGlyphIndex);
-    ctx.save();
-    ctx.transform(glyphRef.m00, glyphRef.m10,
-                  glyphRef.m01, glyphRef.m11,
-                  glyphRef.m02, glyphRef.m12);
-    drawGlyph(ttf, ctx, glyph);
-    ctx.restore();
-  }
-}
-
-function drawGlyph(ttf, ctx, glyph) {
-  if (glyph.hasOwnProperty('glyphRefs'))
-    drawCompoundGlyph(ttf, ctx, glyph);
-  else
-    drawSimpleGlyph(ctx, glyph);
-}
-
 function adjustCanvasForHighDPI(canvas) {
   // This intentionally doesn't handle non-fractional zoom so that the canvas
   // pixel size is always an integer multiple of the display size.
@@ -162,7 +107,7 @@ function contourToTriangles(points) {
   return [fanPoints, curvePoints];
 }
 
-function drawGlphGPU(gl,
+function drawGlphGPU(gl, glcanvas,
                      fanProgram, fanPositionAttributeLoc, fanColorLoc,
                      triProgram, triPositionAttributeLoc, triColorLoc,
                      glyph, ttf, tx) {
@@ -186,12 +131,12 @@ function drawGlphGPU(gl,
                       1 / (ttf.head.yMax - ttf.head.yMin));
   for (let i = 0; i < allFans.length; i += 2) {
     allFans[i] = (allFans[i] + tx) * s2;
-    allFans[i + 1] *= s2 * (canvas.width / canvas.height);
+    allFans[i + 1] *= s2 * (glcanvas.width / glcanvas.height);
     allFans[i + 1] -= 0.9;
   }
   for (let i = 0; i < allCurveTris.length; i += 4) {
     allCurveTris[i] = (allCurveTris[i] + tx) * s2;
-    allCurveTris[i + 1] *= s2 * (canvas.width / canvas.height);
+    allCurveTris[i + 1] *= s2 * (glcanvas.width / glcanvas.height);
     allCurveTris[i + 1] -= 0.9;
   }
   let allCoords = allFans.concat(allCurveTris);
@@ -267,38 +212,6 @@ async function go(font_url) {
   const buffer = await response.arrayBuffer();
   const ttf = new TTFReader(buffer);
 
-  const canvas = document.getElementById('canvas');
-  const ctx = canvas.getContext('2d', {alpha: false});
-
-  // FIXME: Consider installing a change eventlistener for resolution changes,
-  // so that the backing is updated on page zoom change, or when the window
-  // is moved from a highdpi screen to a normal one and back. See
-  // https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio,
-  // "Monitoring screen resolution or zoom level changes".
-  adjustCanvasForHighDPI(canvas);
-
-  ctx.fillStyle = 'rgb(255, 255, 255)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // Put origin in lower-left corner.
-  ctx.translate(0, canvas.height);
-  ctx.scale(1, -1);
-
-  // Make glyphs fit in canvas.
-  const s = Math.min(canvas.width / (ttf.head.xMax - ttf.head.xMin),
-                     canvas.height / (ttf.head.yMax - ttf.head.yMin));
-  ctx.scale(s, s);
-  ctx.translate(0 /*-ttf.head.xMin*/, -ttf.head.yMin);
-
-  ctx.fillStyle = 'rgb(0, 0, 0)';
-
-  for (let c of 'Hållお, Wörld!') {
-    const glyph = ttf.glyphForChar(c);
-    if (glyph !== null)
-      drawGlyph(ttf, ctx, glyph);
-    ctx.translate(ttf.advanceWidthForChar(c), 0);
-  }
-
   const glcanvas = document.getElementById('glcanvas');
   adjustCanvasForHighDPI(glcanvas);
 
@@ -350,11 +263,11 @@ async function go(font_url) {
   gl.clearColor(1, 1, 1, 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
 
-  let tx = -canvas.width * 2.8;
+  let tx = -glcanvas.width * 2.8;
   for (let c of 'Hellodh!') {
     const glyph = ttf.glyphForChar(c);
     if (glyph !== null)
-      drawGlphGPU(gl,
+      drawGlphGPU(gl, glcanvas,
                   fanProgram, fanPositionAttributeLoc, fanColorLoc,
                   triProgram, triPositionAttributeLoc, triColorLoc,
                   glyph, ttf, tx);
