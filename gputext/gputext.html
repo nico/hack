@@ -147,15 +147,15 @@ function contourToTriangles(points) {
 
     const next = points[i < points.length - 1 ? i + 1 : 0];
     curvePoints.push(fanPoints[fanPoints.length - 2],
-                     fanPoints[fanPoints.length - 1]);
-    curvePoints.push(x, y);
+                     fanPoints[fanPoints.length - 1], 0, 0);
+    curvePoints.push(x, y, 0.5, 0);
     if (next.isOnCurve) {
-      curvePoints.push(next.x, next.y);
+      curvePoints.push(next.x, next.y, 1, 1);
       fanPoints.push(next.x, next.y);
       ++i;
     } else {
       // https://stackoverflow.com/questions/20733790/truetype-fonts-glyph-are-made-of-quadratic-bezier-why-do-more-than-one-consecu
-      curvePoints.push((x + next.x) / 2, (y + next.y) / 2);
+      curvePoints.push((x + next.x) / 2, (y + next.y) / 2, 1, 1);
       fanPoints.push((x + next.x) / 2, (y + next.y) / 2);
     }
   }
@@ -178,18 +178,24 @@ function drawGlphGPU(gl,
     allCurveTris.push(...tris);
   }
 
-  let allCoords = allFans.concat(allCurveTris);
   const curveTrisStart = allFans.length / 2;
-  const curveTrisLength = allCurveTris.length / 2;
+  const curveTrisLength = allCurveTris.length / 4;
 
   // Scale glyph to viewport coords. FIXME: actual transform matrix instead.
   const s2 = Math.min(1 / (ttf.head.xMax - ttf.head.xMin),
                       1 / (ttf.head.yMax - ttf.head.yMin));
-  for (let i = 0; i < allCoords.length; i += 2) {
-    allCoords[i] = (allCoords[i] + tx) * s2;
-    allCoords[i + 1] *= s2 * (canvas.width / canvas.height);
-    allCoords[i + 1] -= 0.9;
+  for (let i = 0; i < allFans.length; i += 2) {
+    allFans[i] = (allFans[i] + tx) * s2;
+    allFans[i + 1] *= s2 * (canvas.width / canvas.height);
+    allFans[i + 1] -= 0.9;
   }
+  for (let i = 0; i < allCurveTris.length; i += 4) {
+    allCurveTris[i] = (allCurveTris[i] + tx) * s2;
+    allCurveTris[i + 1] *= s2 * (canvas.width / canvas.height);
+    allCurveTris[i + 1] -= 0.9;
+  }
+  let allCoords = allFans.concat(allCurveTris);
+
   // FIXME: This should prepare buffers just once and then use the existing
   // buffers at draw time.
   const positionBuf = gl.createBuffer();
@@ -207,7 +213,7 @@ function drawGlphGPU(gl,
   gl.bindVertexArray(triVao);
   gl.enableVertexAttribArray(triPositionAttributeLoc);
   gl.vertexAttribPointer(
-      triPositionAttributeLoc, /*size=*/2, gl.FLOAT, /*normalize=*/false,
+      triPositionAttributeLoc, /*size=*/4, gl.FLOAT, /*normalize=*/false,
       /*stride=*/0,
       /*offset=*/curveTrisStart * /*floats per vertex*/ 2 * /*sizeof float*/ 4);
 
@@ -245,7 +251,7 @@ function drawGlphGPU(gl,
                   /*offset=*/fanStarts[i], /*count=*/fanLengths[i]);
 
 
-  gl.disable(gl.STENCIL_TEST);
+  //gl.disable(gl.STENCIL_TEST);
   gl.useProgram(triProgram);
   gl.uniform4f(triColorLoc, 0.4, 0.2, 0.2, 0.1);
   gl.bindVertexArray(triVao);
@@ -319,13 +325,22 @@ async function go(font_url) {
 
   const triVertexShaderSource = `#version 300 es
     in vec4 position;
-    void main() { gl_Position = position; }
+    out vec2 uv;
+    void main() {
+      uv = position.zw;
+      gl_Position = vec4(position.xy, 0, 1);
+    }
   `;
   const triFragmentShaderSource = `#version 300 es
     precision highp float;
     uniform vec4 u_color;
+    in vec2 uv;
     out vec4 outColor;
-    void main() { outColor = u_color; }
+    void main() {
+      if (uv.x*uv.x - uv.y > 0.0)
+        discard;
+      outColor = u_color;
+    }
   `;
   const triProgram =
       compileProgram(gl, triVertexShaderSource, triFragmentShaderSource);
