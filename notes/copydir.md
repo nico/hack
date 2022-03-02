@@ -193,7 +193,10 @@ some of the speed is a time debt that needs to be repaid in the future.
 
 ## Conclusions
 
-There's no single best way to copy a directory on macOS as far as I can tell.
+If you can require macOS 12+, use `pax`. Filing bugs sometimes helps!
+
+Else, there's no single best way to copy a directory on macOS as far as I can
+tell.
 
 If mtimes need to be preserved in the output directory, `cpio -pdlm` seems like
 the least bad current option.  If `pax` set the timestamp on the output
