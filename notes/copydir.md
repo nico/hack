@@ -44,7 +44,8 @@ That's slow. From `man cp`:
 The output directory is 2 GiB, in addition to the 1 GiB input directory.
 That explains the slowdown.
 
-It also chops off the nanoseconds of the timestamps (note trailing zeros):
+It also chops off the nanoseconds of the timestamps (note trailing zeros)
+(update: Fixed in macOS 11.3):
 
     % stat -f '%N %Fm' bar
     bar 1609297230.485880000
@@ -56,8 +57,8 @@ It also chops off the nanoseconds of the timestamps (note trailing zeros):
 This means that this method can't be used with mtime-tracking build systems
 that read high-resolution timestamps.
 
-Slow and buggy! But the man page at least tells us which alternatives to look
-at.
+Slow and (before macOS 11.3) buggy! But the man page at least tells us which
+alternatives to look at.
 
 ## pax
 
@@ -77,13 +78,17 @@ And the timestamps at first sight look good (no wonder, these are hardlinks):
     bar/large 1609294944.907726636
     bar/symlink 1609302462.687747817
 
-But, alas, the timestamp on the directory itself is truncated:
+But, alas, the timestamp on the directory itself is truncated
+(update: fixed in macOS 12):
 
     % stat -f '%N %Fm' bar
     bar 1609297230.000000000
 
 So this is unusable for build system use too.
-(And when not using `-l`, the timestamps for all output files are truncated.)
+(And when not using `-l`, the timestamps for all output files are truncated.
+(Update: Also fixed in macOS 12.))
+
+If you can require macOS 12+, this works!
 
 If we relax the requirement to preserve timestamps and just require that the
 output files have timestamps that are not older than the input timestamps, then
@@ -177,7 +182,7 @@ itself:
     bar/large 1609294944.907726636
     bar/symlink 1609294960.193255000
 
-If relax the requirement to preserve timestamps and just require that the
+If we relax the requirement to preserve timestamps and just require that the
 output files have timestamps that are not older than the input timestamps, then
 we can use `cp -cR` and this method works.
 
@@ -201,8 +206,8 @@ timestamps with sub-second granularity, it'd be the clear winner again.
 
 Bugs filed:
 
-* [FB8957219 `cp -p` doesn't correctly copy mtime](https://openradar.appspot.com/radar?id=4946596567449600)
-* [FB8957230 `pax -rwl` doesn't correctly set mtime on directories](https://openradar.appspot.com/radar?id=5032029741645824)
+* [FB8957219 `cp -p` doesn't correctly copy mtime](https://openradar.appspot.com/radar?id=4946596567449600) (fixed in macOS 11.3)
+* [FB8957230 `pax -rwl` doesn't correctly set mtime on directories](https://openradar.appspot.com/radar?id=5032029741645824) (fixed in macOS 12)
 * [FB8957277 Please add a `-l` flag to `cp`](https://openradar.appspot.com/radar?id=5017815211835392)
-* [FB8960643 `pax -rw -p m` sets mtimes with only seconds granularity](https://openradar.appspot.com/radar?id=5046181155569664)
+* [FB8960643 `pax -rw -p m` sets mtimes with only seconds granularity](https://openradar.appspot.com/radar?id=5046181155569664) (fixed in macOS 12)
 * [FB8960652 `touch` doesn't fill in nanoseconds for already-existing files](https://openradar.appspot.com/radar?id=4954148596350976)
