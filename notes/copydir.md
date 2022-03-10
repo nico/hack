@@ -19,9 +19,8 @@ On Linux, we could use `cp -alR`, but that's not supported on macOS.
 
 APFS added high-res time stamps, which can be queried with `stat -f %Fm`:
 
-    % stat -f '%N %Fm' foo
-    foo 1609297230.485880489
-    % stat -f '%N %Fm' foo/*
+    % stat -f '%N %Fm' foo/{,*}
+    foo/ 1609297230.485880489
     foo/hardlink 1609294944.907726636
     foo/large 1609294944.907726636
     foo/symlink 1609294960.193255375
@@ -47,9 +46,8 @@ That explains the slowdown.
 It also chops off the nanoseconds of the timestamps (note trailing zeros)
 (update: Fixed in macOS 11.3):
 
-    % stat -f '%N %Fm' bar
-    bar 1609297230.485880000
-    % stat -f '%N %Fm' bar/*
+    % stat -f '%N %Fm' bar/{,*}
+    bar/ 1609297230.485880000
     bar/hardlink 1609294944.907726000
     bar/large 1609294944.907726000
     bar/symlink 1609294960.193255000
@@ -98,9 +96,8 @@ but only with second granularity:
 
     % time (rm -rf bar && mkdir bar && cd foo && pax -rwl -p m . ../bar)
     0.009 total
-    % stat -f '%N %Fm' bar
-    bar 1609693043.000000000
-    % stat -f '%N %Fm' bar/*
+    % stat -f '%N %Fm' bar/{,*}
+    bar/ 1609693043.000000000
     bar/hardlink 1609294944.907726636
     bar/large 1609294944.907726636
     bar/symlink 1609693043.832774972
@@ -133,9 +130,8 @@ would be more noticeable.
 
 It sets all timestamps correctly, even on the output directory itself!
 
-    % stat -f '%N %Fm' bar
-    bar 1609297230.485880489
-    % stat -f '%N %Fm' bar/*
+    % stat -f '%N %Fm' bar/{,*}
+    bar/ 1609297230.485880489
     bar/hardlink 1609294944.907726636
     bar/large 1609294944.907726636
     bar/symlink 1609294960.193255375
@@ -175,9 +171,8 @@ Also very fast. It also mysteriously fixes the timestamps on the large
 files, but it still truncates nanoseconds for the symlink and the directory
 itself:
 
-    % stat -f '%N %Fm' bar
-    bar 1609297230.485880000
-    % stat -f '%N %Fm' bar/*
+    % stat -f '%N %Fm' bar/{,*}
+    bar/ 1609297230.485880000
     bar/hardlink 1609294944.907726636
     bar/large 1609294944.907726636
     bar/symlink 1609294960.193255000
