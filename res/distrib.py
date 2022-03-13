@@ -43,11 +43,11 @@ subprocess.check_call(
 # Win.
 win_sysroot = glob.glob(
     crsrc + '/third_party/depot_tools/win_toolchain/vs_files/*')[0]
-win_bindir = win_sysroot + '/win_sdk/bin'
+win_bindir = win_sysroot + '/Windows Kits/10/bin'
 # This json file looks like http://codepad.org/kmfgf0UL
 winenv = json.load(open(win_bindir + '/SetEnv.x64.json'))['env']
 for k in ['INCLUDE', 'LIB']:
-  winenv[k] = [os.path.join(*([win_bindir] + e)) for e in winenv[k]]
+  winenv[k] = [os.path.join(*([win_sysroot] + e)) for e in winenv[k]]
 # FIXME: why does this work? I thought I added -imsvc 'cause this didn't work.
 win_include = ['-isystem' + i for i in winenv['INCLUDE']]
 win_lib = ['-Wl,/libpath:' + i for i in winenv['LIB']]
