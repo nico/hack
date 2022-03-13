@@ -54,6 +54,6 @@ win_lib = ['-Wl,/libpath:' + i for i in winenv['LIB']]
 subprocess.check_call(
     common + ['-o', 'rc-win.exe', '-fuse-ld=lld',
      '-target', 'x86_64-windows-msvc',
-     '-D_CRT_SECURE_NO_WARNINGS', '-Wno-msvc-not-found',
+     '-D_CRT_SECURE_NO_WARNINGS',
      '-lShlwapi.lib', '-Wl,/ignore:4217'
     ] + win_include + win_lib)
