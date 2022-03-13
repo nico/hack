@@ -5,7 +5,7 @@ Let's say we have a directory containing a large file:
     mkdir foo
     dd if=/dev/urandom of=foo/large bs=1m count=1k
 
-Let's throw in a hard link and a symlink:
+Let's throw in a hardlink and a symlink:
 
     ln -s large foo/symlink
     ln foo/large foo/hardlink
@@ -26,6 +26,19 @@ APFS added high-res time stamps, which can be queried with `stat -f %Fm`:
     foo/symlink 1609294960.193255375
     
 (On Linux, use `stat -c %.Y` instead.)
+
+To check if hardlinks are preserved, you can check:
+
+* `ls -i` output to print each file's inode (all hardlinks to a file should
+  print the same inode)
+
+* `ls -l` output, which contains the number of links to a file after the
+  permission bits and before the owner's name. In this example, it's the `2`:
+
+  ```
+  % ls -l foo/hardlink
+  -rw-r--r--  2 thakis ...
+  ```
 
 ## cp
 
