@@ -36,7 +36,8 @@ mac_sysroot = subprocess.check_output(['xcrun', '-show-sdk-path']).strip()
 subprocess.check_call(
     common + ['-o', 'rc-mac',
      '-mmacosx-version-min=10.9',
-     '-target', 'x86_64-apple-darwin',
+     '-arch', 'arm64',
+     '-arch', 'x86_64',
      '-isysroot', mac_sysroot,
     ])
 
