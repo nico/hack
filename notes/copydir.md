@@ -204,8 +204,6 @@ writes the input directory on the next build, the OS has to copy-on-write
 all pages when `foo/large` is written on the next build. So while this is fast,
 some of the speed is a time debt that needs to be repaid in the future.
 
-## ditto
-
 ## Conclusions
 
 If you can require macOS 12+, use `pax`. Filing bugs sometimes helps!
