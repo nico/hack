@@ -24,7 +24,7 @@ common = [
     '-O2', '-fno-rtti', '-fno-exceptions', '-DNDEBUG', ]
 
 # Linux.
-linux_sysroot = crsrc + '/build/linux/debian_jessie_amd64-sysroot'
+linux_sysroot = crsrc + '/build/linux/debian_sid_amd64-sysroot'
 subprocess.check_call(
     common + ['-o', 'rc-linux64', '-fuse-ld=lld',
      '-target', 'x86_64-unknown-linux-gnu',

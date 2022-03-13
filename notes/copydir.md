@@ -58,6 +58,11 @@ that read high-resolution timestamps.
 Slow and (before macOS 11.3) buggy! But the man page at least tells us which
 alternatives to look at.
 
+## ditto
+
+This is not among the alternatives listed in `man cp`. But it also copies
+directories, so let's try it for completeness.
+
 ## pax
 
 Has a `-l` switch that tells it to hardlink the outputs to the inputs:
@@ -185,6 +190,8 @@ Another drawback is that if this method is used as part of a build and something
 writes the input directory on the next build, the OS has to copy-on-write
 all pages when `foo/large` is written on the next build. So while this is fast,
 some of the speed is a time debt that needs to be repaid in the future.
+
+## ditto
 
 ## Conclusions
 
