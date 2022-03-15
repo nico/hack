@@ -14,8 +14,11 @@ raspberry pi os notes
 <https://www.cl.cam.ac.uk/projects/raspberrypi/tutorials/os/screen01.html>
 
 <https://github.com/dwelch67/raspberrypi>
+<https://github.com/rsta2/circle>
 
 <https://jsandler18.github.io/>
+
+<https://github.com/gingold-adacore/rpi3-fosdem17/blob/master/smp/start-ram.S>
 
 <https://wiki.osdev.org/Raspberry_Pi_Bare_Bones>
 
@@ -27,6 +30,10 @@ raspberry pi os notes
 <https://www.raspberrypi.org/documentation/configuration/config-txt/boot.md>
 
 <https://sourceware.org/binutils/docs/ld/Scripts.html#Scripts>
+
+<https://github.com/raspberrypi/tools/blob/master/armstubs/armstub8.S>
+<https://www.raspberrypi.org/documentation/computers/config_txt.html> "armstub"
+
 
 kernel7.img is executed in ARMv7 mode, kernel8.img in AArch64 mode.
 64-bit image must be uncompressed.
