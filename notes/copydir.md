@@ -117,13 +117,18 @@ So this is unusable for build system use too.
 (And when not using `-l`, the timestamps for all output files are truncated.
 (Update: Also fixed in macOS 12.))
 
-If you can require macOS 12+, this works!
+Finally, `pax` doesn't copy the mtime on the output symlink (but it does copy
+it correctly on all other files, trivially with `-l` but also without it).
+That's unfortunate, but not a big problem in practice. (TODO: file bug anyways.)
 
 If we relax the requirement to preserve timestamps and just require that the
 output files have timestamps that are not older than the input timestamps, then
 we can pass `-p m` to not preserve mtimes. With that, pax updates the mtime
 on the directory (and, without `-l`, on all files) to the current time --
-but only with second granularity:
+but only with second granularity (Update: Fixed in macOS 12, now sets a
+high-res timestamp. But in macOS 12, the bug that makes us look at `-p m`
+in the first place is fixed too, so if you're on macOS 12+, you shouldn't
+be reading this section):
 
     % time (rm -rf bar && mkdir bar && cd foo && pax -rwl -p m . ../bar)
     0.009 total
@@ -219,14 +224,16 @@ some of the speed is a time debt that needs to be repaid in the future.
 
 ## Conclusions
 
-If you can require macOS 12+, use `pax`. Filing bugs sometimes helps!
+If you can require macOS 12+ and don't mind mtimes on symlinks being
+preserved, use `pax`. Filing bugs sometimes helps!
 
 Else, there's no single best way to copy a directory on macOS as far as I can
 tell.
 
 If mtimes need to be preserved in the output directory, `cpio -pdlm` seems like
 the least bad current option.  If `pax` set the timestamp on the output
-directory correctly, it'd be the clear winner.
+directory (which it does on macOS 12+) and on symlinks correctly, it'd be the
+clear winner.
 
 If mtimes don't need to be preserved, `pax -rwl -p m` seems best if mtime
 doesn't need sub-second granularity. Else, `cpio -pdlm` seems best again
