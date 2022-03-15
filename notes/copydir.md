@@ -80,7 +80,14 @@ directories, so let's try it for completeness.
     0.493 total
 
 Faster, but still not fast. It copies `large` instead of hardlinking it, but it
-XXX
+makes `bar/hardlink` a hardlink to `bar/large`, so at least it copies the file
+just once, not twice like `cp`.
+
+`ditto` also makes an effort to copy mtimes from the source directory to the
+output directory, but it chops off the subsecond part of the timestamp which
+makes this unusable fro build system use, and it gives the symlink in the
+output dir the current time as mtime instead of the mtime of the symlink in the
+source directory.  (TODO: file bugs for these.)
 
 ## pax
 
