@@ -76,6 +76,12 @@ alternatives to look at.
 This is not among the alternatives listed in `man cp`. But it also copies
 directories, so let's try it for completeness.
 
+    % time (rm -rf bar && ditto foo bar)
+    0.493 total
+
+Faster, but still not fast. It copies `large` instead of hardlinking it, but it
+XXX
+
 ## pax
 
 Has a `-l` switch that tells it to hardlink the outputs to the inputs:
