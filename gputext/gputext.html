@@ -107,12 +107,8 @@ function contourToTriangles(points) {
   return [fanPoints, curvePoints];
 }
 
-function drawGlphGPU(gl, glcanvas,
-                     fanProgram,
-                     fanMatrixLoc, fanPositionAttributeLoc, fanColorLoc,
-                     triProgram,
-                     triMatrixLoc, triPositionAttributeLoc, triColorLoc,
-                     glyph, matrix) {
+function glyphToVaos(gl, glyph,
+                     fanPositionAttributeLoc, triPositionAttributeLoc) {
   let allFans = [];
   let allCurveTris = [];
   let fanStarts = [];
@@ -129,8 +125,6 @@ function drawGlphGPU(gl, glcanvas,
   const curveTrisLength = allCurveTris.length / 4;
   let allCoords = allFans.concat(allCurveTris);
 
-  // FIXME: This should prepare buffers just once and then use the existing
-  // buffers at draw time.
   const positionBuf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuf);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(allCoords), gl.STATIC_DRAW);
@@ -149,6 +143,20 @@ function drawGlphGPU(gl, glcanvas,
       triPositionAttributeLoc, /*size=*/4, gl.FLOAT, /*normalize=*/false,
       /*stride=*/0,
       /*offset=*/curveTrisStart * /*floats per vertex*/ 2 * /*sizeof float*/ 4);
+
+  return {fanVao, fanStarts, fanLengths, triVao, curveTrisLength};
+}
+
+function drawGlphGPU(gl, glcanvas,
+                     fanProgram,
+                     fanMatrixLoc, fanPositionAttributeLoc, fanColorLoc,
+                     triProgram,
+                     triMatrixLoc, triPositionAttributeLoc, triColorLoc,
+                     glyph, matrix) {
+  // FIXME: This should prepare buffers just once and then use the existing
+  // buffers at draw time.
+  const {fanVao, fanStarts, fanLengths, triVao, curveTrisLength} =
+      glyphToVaos(gl, glyph, fanPositionAttributeLoc, triPositionAttributeLoc);
 
   // 1. Draw glyphs to stencil buffer.
   gl.enable(gl.STENCIL_TEST);
