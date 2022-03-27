@@ -148,15 +148,11 @@ function glyphToVaos(gl, glyph,
 }
 
 function drawGlphGPU(gl, glcanvas,
-                     fanProgram,
-                     fanMatrixLoc, fanPositionAttributeLoc, fanColorLoc,
-                     triProgram,
-                     triMatrixLoc, triPositionAttributeLoc, triColorLoc,
-                     glyph, matrix) {
-  // FIXME: This should prepare buffers just once and then use the existing
-  // buffers at draw time.
+                     fanProgram, fanMatrixLoc, fanColorLoc,
+                     triProgram, triMatrixLoc, triColorLoc,
+                     vaos, matrix) {
   const {fanVao, fanStarts, fanLengths, triVao, curveTrisLength} =
-      glyphToVaos(gl, glyph, fanPositionAttributeLoc, triPositionAttributeLoc);
+      vaos;
 
   // 1. Draw glyphs to stencil buffer.
   gl.enable(gl.STENCIL_TEST);
@@ -262,6 +258,21 @@ async function go(font_url) {
   const triPositionAttributeLoc = gl.getAttribLocation(triProgram, 'position');
   const triColorLoc = gl.getUniformLocation(triProgram, 'u_color');
 
+  const text = 'Hellodh!';
+
+  // Convert glyphs to vertex attribute objects.
+  const vaosForGlyph = {};
+  for (let c of text) {
+    if (vaosForGlyph.hasOwnProperty(c))
+      continue;
+    const glyph = ttf.glyphForChar(c);
+    if (glyph === null)
+      continue;
+    vaosForGlyph[c] = glyphToVaos(gl, glyph,
+                  fanPositionAttributeLoc, triPositionAttributeLoc);
+  }
+
+  // Draw.
   gl.clearColor(1, 1, 1, 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
 
@@ -277,16 +288,14 @@ async function go(font_url) {
   ];
 
   let tx = -glcanvas.width * 2.8;
-  for (let c of 'Hellodh!') {
-    const glyph = ttf.glyphForChar(c);
-    if (glyph !== null) {
+  for (let c of text) {
+    const vaos = vaosForGlyph[c];
+    if (vaos !== undefined) {
       matrix[3] = tx * sx;
       drawGlphGPU(gl, glcanvas,
-                  fanProgram,
-                  fanMatrixLoc, fanPositionAttributeLoc, fanColorLoc,
-                  triProgram,
-                  triMatrixLoc, triPositionAttributeLoc, triColorLoc,
-                  glyph, matrix);
+                  fanProgram, fanMatrixLoc, fanColorLoc,
+                  triProgram, triMatrixLoc, triColorLoc,
+                  vaos, matrix);
     }
     tx += ttf.advanceWidthForChar(c);
   }
