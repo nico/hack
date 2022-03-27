@@ -110,7 +110,7 @@ function contourToTriangles(points) {
 function drawGlphGPU(gl, glcanvas,
                      fanProgram, fanPositionAttributeLoc, fanColorLoc,
                      triProgram, triPositionAttributeLoc, triColorLoc,
-                     glyph, ttf, tx) {
+                     glyph, tx) {
   let allFans = [];
   let allCurveTris = [];
   let fanStarts = [];
@@ -126,19 +126,11 @@ function drawGlphGPU(gl, glcanvas,
   const curveTrisStart = allFans.length / 2;
   const curveTrisLength = allCurveTris.length / 4;
 
-  // Scale glyph to viewport coords. FIXME: actual transform matrix instead.
-  const s2 = Math.min(1 / (ttf.head.xMax - ttf.head.xMin),
-                      1 / (ttf.head.yMax - ttf.head.yMin));
-  for (let i = 0; i < allFans.length; i += 2) {
-    allFans[i] = (allFans[i] + tx) * s2;
-    allFans[i + 1] *= s2 * (glcanvas.width / glcanvas.height);
-    allFans[i + 1] -= 0.9;
-  }
-  for (let i = 0; i < allCurveTris.length; i += 4) {
-    allCurveTris[i] = (allCurveTris[i] + tx) * s2;
-    allCurveTris[i + 1] *= s2 * (glcanvas.width / glcanvas.height);
-    allCurveTris[i + 1] -= 0.9;
-  }
+  // Offset glyph. FIXME: Use uniform (or put in matrix?).
+  for (let i = 0; i < allFans.length; i += 2)
+    allFans[i] += tx;
+  for (let i = 0; i < allCurveTris.length; i += 4)
+    allCurveTris[i] += tx;
   let allCoords = allFans.concat(allCurveTris);
 
   // FIXME: This should prepare buffers just once and then use the existing
@@ -222,8 +214,9 @@ async function go(font_url) {
   }
 
   const fanVertexShaderSource = `#version 300 es
+    uniform mat4 u_matrix;
     in vec2 position;
-    void main() { gl_Position = vec4(position, 0.0, 1.0); }
+    void main() { gl_Position = u_matrix * vec4(position, 0.0, 1.0); }
   `;
   const fanFragmentShaderSource = `#version 300 es
     precision highp float;
@@ -233,15 +226,17 @@ async function go(font_url) {
   `;
   const fanProgram =
       compileProgram(gl, fanVertexShaderSource, fanFragmentShaderSource);
+  const fanMatrixLoc = gl.getUniformLocation(fanProgram, 'u_matrix');
   const fanPositionAttributeLoc = gl.getAttribLocation(fanProgram, 'position');
   const fanColorLoc = gl.getUniformLocation(fanProgram, 'u_color');
 
   const triVertexShaderSource = `#version 300 es
+    uniform mat4 u_matrix;
     in vec4 position;
     out vec2 uv;
     void main() {
       uv = position.zw;
-      gl_Position = vec4(position.xy, 0.0, 1.0);
+      gl_Position = u_matrix * vec4(position.xy, 0.0, 1.0);
     }
   `;
   const triFragmentShaderSource = `#version 300 es
@@ -257,11 +252,27 @@ async function go(font_url) {
   `;
   const triProgram =
       compileProgram(gl, triVertexShaderSource, triFragmentShaderSource);
+  const triMatrixLoc = gl.getUniformLocation(triProgram, 'u_matrix');
   const triPositionAttributeLoc = gl.getAttribLocation(triProgram, 'position');
   const triColorLoc = gl.getUniformLocation(triProgram, 'u_color');
 
   gl.clearColor(1, 1, 1, 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
+
+  // Scale glyph to viewport coords.
+  const sx = Math.min(1 / (ttf.head.xMax - ttf.head.xMin),
+                      1 / (ttf.head.yMax - ttf.head.yMin));
+  const sy = sx * (glcanvas.width / glcanvas.height);
+  const mat = [
+    sx, 0 , 0, 0,
+    0 , sy, 0, -0.9,
+    0 , 0 , 1, 0,
+    0 , 0 , 0, 1,
+  ];
+  gl.useProgram(fanProgram);
+  gl.uniformMatrix4fv(fanMatrixLoc, /*transpose=*/true, mat);
+  gl.useProgram(triProgram);
+  gl.uniformMatrix4fv(triMatrixLoc, /*transpose=*/true, mat);
 
   let tx = -glcanvas.width * 2.8;
   for (let c of 'Hellodh!') {
@@ -270,7 +281,7 @@ async function go(font_url) {
       drawGlphGPU(gl, glcanvas,
                   fanProgram, fanPositionAttributeLoc, fanColorLoc,
                   triProgram, triPositionAttributeLoc, triColorLoc,
-                  glyph, ttf, tx);
+                  glyph, tx);
     tx += ttf.advanceWidthForChar(c);
   }
 }
