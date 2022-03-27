@@ -108,9 +108,11 @@ function contourToTriangles(points) {
 }
 
 function drawGlphGPU(gl, glcanvas,
-                     fanProgram, fanPositionAttributeLoc, fanColorLoc,
-                     triProgram, triPositionAttributeLoc, triColorLoc,
-                     glyph, tx) {
+                     fanProgram,
+                     fanMatrixLoc, fanPositionAttributeLoc, fanColorLoc,
+                     triProgram,
+                     triMatrixLoc, triPositionAttributeLoc, triColorLoc,
+                     glyph, matrix) {
   let allFans = [];
   let allCurveTris = [];
   let fanStarts = [];
@@ -125,12 +127,6 @@ function drawGlphGPU(gl, glcanvas,
 
   const curveTrisStart = allFans.length / 2;
   const curveTrisLength = allCurveTris.length / 4;
-
-  // Offset glyph. FIXME: Use uniform (or put in matrix?).
-  for (let i = 0; i < allFans.length; i += 2)
-    allFans[i] += tx;
-  for (let i = 0; i < allCurveTris.length; i += 4)
-    allCurveTris[i] += tx;
   let allCoords = allFans.concat(allCurveTris);
 
   // FIXME: This should prepare buffers just once and then use the existing
@@ -161,11 +157,13 @@ function drawGlphGPU(gl, glcanvas,
   gl.colorMask(false, false, false, false);
 
   gl.useProgram(fanProgram);
+  gl.uniformMatrix4fv(fanMatrixLoc, /*transpose=*/true, matrix);
   gl.bindVertexArray(fanVao);
   for (let i = 0; i < fanStarts.length; ++i)
     gl.drawArrays(gl.TRIANGLE_FAN,
                   /*offset=*/fanStarts[i], /*count=*/fanLengths[i]);
   gl.useProgram(triProgram);
+  gl.uniformMatrix4fv(triMatrixLoc, /*transpose=*/true, matrix);
   gl.bindVertexArray(triVao);
   gl.drawArrays(gl.TRIANGLES,
                 /*offset=*/0, /*count=*/curveTrisLength);
@@ -263,25 +261,25 @@ async function go(font_url) {
   const sx = Math.min(1 / (ttf.head.xMax - ttf.head.xMin),
                       1 / (ttf.head.yMax - ttf.head.yMin));
   const sy = sx * (glcanvas.width / glcanvas.height);
-  const mat = [
+  const matrix = [
     sx, 0 , 0, 0,
     0 , sy, 0, -0.9,
     0 , 0 , 1, 0,
     0 , 0 , 0, 1,
   ];
-  gl.useProgram(fanProgram);
-  gl.uniformMatrix4fv(fanMatrixLoc, /*transpose=*/true, mat);
-  gl.useProgram(triProgram);
-  gl.uniformMatrix4fv(triMatrixLoc, /*transpose=*/true, mat);
 
   let tx = -glcanvas.width * 2.8;
   for (let c of 'Hellodh!') {
     const glyph = ttf.glyphForChar(c);
-    if (glyph !== null)
+    if (glyph !== null) {
+      matrix[3] = tx * sx;
       drawGlphGPU(gl, glcanvas,
-                  fanProgram, fanPositionAttributeLoc, fanColorLoc,
-                  triProgram, triPositionAttributeLoc, triColorLoc,
-                  glyph, tx);
+                  fanProgram,
+                  fanMatrixLoc, fanPositionAttributeLoc, fanColorLoc,
+                  triProgram,
+                  triMatrixLoc, triPositionAttributeLoc, triColorLoc,
+                  glyph, matrix);
+    }
     tx += ttf.advanceWidthForChar(c);
   }
 }
