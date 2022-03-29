@@ -284,7 +284,8 @@ async function go(font_url) {
 
     // Scale glyph to viewport coords.
     const sx = Math.min(1 / (ttf.head.xMax - ttf.head.xMin),
-                        1 / (ttf.head.yMax - ttf.head.yMin));
+                        1 / (ttf.head.yMax - ttf.head.yMin)) *
+                        (1 + 0.05*Math.sin(timestamp/100));
     const sy = sx * (glcanvas.width / glcanvas.height);
     const matrix = [
       sx, 0 , 0, 0,
@@ -293,7 +294,7 @@ async function go(font_url) {
       0 , 0 , 0, 1,
     ];
 
-    let tx = -glcanvas.width * 2.8 + timestamp;
+    let tx = -glcanvas.width * 2.8 + 100*Math.sin(timestamp/100)**2;
     for (let c of text) {
       const vaos = vaosForGlyph[c];
       if (vaos !== undefined) {
