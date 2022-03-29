@@ -323,7 +323,6 @@ window.addEventListener('DOMContentLoaded',function () {
 
   animateCheckbox = document.getElementById('animate');
   animateCheckbox.addEventListener('change', () => {
-    console.log('hi', animateCheckbox.checked);
     if (animateCheckbox.checked)
       requestAnimationFrame(animation_frame);
   });
