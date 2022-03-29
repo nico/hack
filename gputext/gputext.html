@@ -13,6 +13,8 @@
 </style>
 
 <canvas id="glcanvas" width="700" height="150"></canvas>
+<br>
+<label><input type="checkbox" id="animate" disabled></input>Animate</label>
 <h1>Log</h1>
 <pre id="log"></pre>
 <script>
@@ -198,6 +200,9 @@ function drawGlphGPU(gl, glcanvas,
                 /*offset=*/0, /*count=*/curveTrisLength);
 }
 
+let draw;
+let animateCheckbox;
+
 async function go(font_url) {
   const response = await fetch(font_url);
   if (!response.ok)
@@ -273,36 +278,53 @@ async function go(font_url) {
   }
 
   // Draw.
-  gl.clearColor(1, 1, 1, 1);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
+  draw = function(timestamp) {
+    gl.clearColor(1, 1, 1, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
 
-  // Scale glyph to viewport coords.
-  const sx = Math.min(1 / (ttf.head.xMax - ttf.head.xMin),
-                      1 / (ttf.head.yMax - ttf.head.yMin));
-  const sy = sx * (glcanvas.width / glcanvas.height);
-  const matrix = [
-    sx, 0 , 0, 0,
-    0 , sy, 0, -0.9,
-    0 , 0 , 1, 0,
-    0 , 0 , 0, 1,
-  ];
+    // Scale glyph to viewport coords.
+    const sx = Math.min(1 / (ttf.head.xMax - ttf.head.xMin),
+                        1 / (ttf.head.yMax - ttf.head.yMin));
+    const sy = sx * (glcanvas.width / glcanvas.height);
+    const matrix = [
+      sx, 0 , 0, 0,
+      0 , sy, 0, -0.9,
+      0 , 0 , 1, 0,
+      0 , 0 , 0, 1,
+    ];
 
-  let tx = -glcanvas.width * 2.8;
-  for (let c of text) {
-    const vaos = vaosForGlyph[c];
-    if (vaos !== undefined) {
-      matrix[3] = tx * sx;
-      drawGlphGPU(gl, glcanvas,
-                  fanProgram, fanMatrixLoc, fanColorLoc,
-                  triProgram, triMatrixLoc, triColorLoc,
-                  vaos, matrix);
+    let tx = -glcanvas.width * 2.8 + timestamp;
+    for (let c of text) {
+      const vaos = vaosForGlyph[c];
+      if (vaos !== undefined) {
+        matrix[3] = tx * sx;
+        drawGlphGPU(gl, glcanvas,
+                    fanProgram, fanMatrixLoc, fanColorLoc,
+                    triProgram, triMatrixLoc, triColorLoc,
+                    vaos, matrix);
+      }
+      tx += ttf.advanceWidthForChar(c);
     }
-    tx += ttf.advanceWidthForChar(c);
-  }
+  };
+  draw(0);
+  animateCheckbox.disabled = false;
+}
+
+function animation_frame(timestamp) {
+  draw(timestamp);
+  if (animateCheckbox.checked)
+    requestAnimationFrame(animation_frame);
 }
 
 window.addEventListener('DOMContentLoaded',function () {
   let url = 'https://fonts.gstatic.com/s/roboto/v29/KFOmCnqEu92Fr1Me5Q.ttf';
   go(url).catch(e => log(e));
+
+  animateCheckbox = document.getElementById('animate');
+  animateCheckbox.addEventListener('change', () => {
+    console.log('hi', animateCheckbox.checked);
+    if (animateCheckbox.checked)
+      requestAnimationFrame(animation_frame);
+  });
 });
 </script>
