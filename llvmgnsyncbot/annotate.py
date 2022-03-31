@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 """Reads N.txt / N.meta.json produced by syncbot.sh writes processed output."""
 
