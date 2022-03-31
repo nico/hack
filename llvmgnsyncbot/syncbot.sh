@@ -38,9 +38,9 @@ while true; do
 
   SECONDS=0
   if [[ "$OSTYPE" == "msys" ]]; then
-    # The `tee` and the `/usr/bin/env python` both
+    # The `tee` and the `/usr/bin/env python3` both
     # seem to not work well in `git bash`.
-    python $THIS_DIR/syncbot.py $last_exit >curbuild.txt 2>&1
+    python3 $THIS_DIR/syncbot.py $last_exit >curbuild.txt 2>&1
     EXIT_CODE=$?
   else
     $THIS_DIR/syncbot.py $last_exit 2>&1 | tee curbuild.txt

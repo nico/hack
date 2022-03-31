@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """A script that tries to auto-merge CMake changes.
 
@@ -20,8 +20,6 @@ necessary.
 Use through syncbot.sh wrapper script:
 ./syncbot.sh
 """
-
-from __future__ import print_function
 
 import argparse
 import logging
