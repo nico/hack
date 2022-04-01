@@ -390,6 +390,14 @@ async function go(font_url) {
   animateCheckbox.disabled = false;
 }
 
+/*
+Possible display modes:
+- contenteditable div (no animations)
+- 2d canvas api with manual animations
+- gputext with stencil buffer method
+- gputext with offscreen framebuffer for antialiasing
+- vector texture signed distance field renderer
+*/
 function animation_frame(timestamp) {
   draw(timestamp);
   if (animateCheckbox.checked)
