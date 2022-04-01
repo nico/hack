@@ -109,8 +109,8 @@ function contourToTriangles(points) {
   return [fanPoints, curvePoints];
 }
 
-function glyphToVaos(gl, glyph,
-                     fanPositionAttributeLoc, triPositionAttributeLoc) {
+function simpleGlyphToVaos(gl, glyph,
+                           fanPositionAttributeLoc, triPositionAttributeLoc) {
   let allFans = [];
   let allCurveTris = [];
   let fanStarts = [];
@@ -149,10 +149,40 @@ function glyphToVaos(gl, glyph,
   return {fanVao, fanStarts, fanLengths, triVao, curveTrisLength};
 }
 
-function drawGlphGPU(gl, glcanvas,
-                     fanProgram, fanMatrixLoc, fanColorLoc,
-                     triProgram, triMatrixLoc, triColorLoc,
-                     vaos, matrix) {
+function compoundGlyphToVaos(gl, glyph, ttf,
+                             fanPositionAttributeLoc, triPositionAttributeLoc) {
+  let subvaos = [];
+  for (let glyphRef of glyph.glyphRefs) {
+    const glyph = ttf.glyphForGlyphIndex(glyphRef.componentGlyphIndex);
+    subvaos.push({
+      transform: [glyphRef.m00, glyphRef.m01, 0, glyphRef.m02,
+                  glyphRef.m10, glyphRef.m11, 0, glyphRef.m12,
+                  0,            0,            1, 0,
+                  0,            0,            0, 1,
+                ],
+      // FIXME: Have vaoForGlyphIndex cache so that 'a' and 'ä' share the
+      // same VAO for the 'a' base.
+      vaos: glyphToVaos(gl, glyph, ttf,
+                       fanPositionAttributeLoc, triPositionAttributeLoc),
+    });
+  }
+  return {subvaos: subvaos};
+}
+
+function glyphToVaos(gl, glyph, ttf,
+                     fanPositionAttributeLoc, triPositionAttributeLoc) {
+  if (glyph.hasOwnProperty('glyphRefs'))
+    return compoundGlyphToVaos(
+        gl, glyph, ttf, fanPositionAttributeLoc, triPositionAttributeLoc);
+  return simpleGlyphToVaos(
+      gl, glyph, fanPositionAttributeLoc, triPositionAttributeLoc);
+}
+
+
+function drawSimpleGlyphGPU(gl, glcanvas,
+                            fanProgram, fanMatrixLoc, fanColorLoc,
+                            triProgram, triMatrixLoc, triColorLoc,
+                            vaos, matrix) {
   const {fanVao, fanStarts, fanLengths, triVao, curveTrisLength} =
       vaos;
 
@@ -198,6 +228,43 @@ function drawGlphGPU(gl, glcanvas,
   gl.bindVertexArray(triVao);
   gl.drawArrays(gl.TRIANGLES,
                 /*offset=*/0, /*count=*/curveTrisLength);
+}
+
+function matMul(a, b) {
+  let m = [0, 0, 0, 0,   0, 0, 0, 0,   0, 0, 0, 0,   0, 0, 0, 0];
+  for (let i = 0; i < 4; ++i)
+    for (let j = 0; j < 4; ++j)
+      for (let k = 0; k < 4; ++k)
+        m[i*4 + j] += a[i*4 + k] * b[k*4 + j];
+  return m;
+}
+
+function drawCompoundGlyphGPU(gl, glcanvas,
+                              fanProgram, fanMatrixLoc, fanColorLoc,
+                              triProgram, triMatrixLoc, triColorLoc,
+                              vaos, matrix) {
+  for (let subvaos of vaos.subvaos) {
+    drawGlyphGPU(gl, glcanvas,
+                 fanProgram, fanMatrixLoc, fanColorLoc,
+                 triProgram, triMatrixLoc, triColorLoc,
+                 subvaos.vaos, matMul(matrix, subvaos.transform));
+  }
+}
+
+function drawGlyphGPU(gl, glcanvas,
+                      fanProgram, fanMatrixLoc, fanColorLoc,
+                      triProgram, triMatrixLoc, triColorLoc,
+                      vaos, matrix) {
+  if (vaos.hasOwnProperty('subvaos'))
+    drawCompoundGlyphGPU(gl, glcanvas,
+                         fanProgram, fanMatrixLoc, fanColorLoc,
+                         triProgram, triMatrixLoc, triColorLoc,
+                         vaos, matrix);
+  else
+    drawSimpleGlyphGPU(gl, glcanvas,
+                       fanProgram, fanMatrixLoc, fanColorLoc,
+                       triProgram, triMatrixLoc, triColorLoc,
+                       vaos, matrix);
 }
 
 let draw;
@@ -263,7 +330,7 @@ async function go(font_url) {
   const triPositionAttributeLoc = gl.getAttribLocation(triProgram, 'position');
   const triColorLoc = gl.getUniformLocation(triProgram, 'u_color');
 
-  const text = 'Hellodh!';
+  const text = 'Hellödh!';
 
   // Convert glyphs to vertex attribute objects.
   const vaosForGlyph = {};
@@ -273,7 +340,7 @@ async function go(font_url) {
     const glyph = ttf.glyphForChar(c);
     if (glyph === null)
       continue;
-    vaosForGlyph[c] = glyphToVaos(gl, glyph,
+    vaosForGlyph[c] = glyphToVaos(gl, glyph, ttf,
                   fanPositionAttributeLoc, triPositionAttributeLoc);
   }
 
@@ -299,10 +366,10 @@ async function go(font_url) {
       const vaos = vaosForGlyph[c];
       if (vaos !== undefined) {
         matrix[3] = tx * sx;
-        drawGlphGPU(gl, glcanvas,
-                    fanProgram, fanMatrixLoc, fanColorLoc,
-                    triProgram, triMatrixLoc, triColorLoc,
-                    vaos, matrix);
+        drawGlyphGPU(gl, glcanvas,
+                     fanProgram, fanMatrixLoc, fanColorLoc,
+                     triProgram, triMatrixLoc, triColorLoc,
+                     vaos, matrix);
       }
       tx += ttf.advanceWidthForChar(c);
     }
