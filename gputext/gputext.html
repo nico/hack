@@ -149,33 +149,46 @@ function simpleGlyphToVaos(gl, glyph,
   return {fanVao, fanStarts, fanLengths, triVao, curveTrisLength};
 }
 
-function compoundGlyphToVaos(gl, glyph, ttf,
+function compoundGlyphToVaos(gl, glyph, ttf, vaosForGlyphIndex,
                              fanPositionAttributeLoc, triPositionAttributeLoc) {
   let subvaos = [];
   for (let glyphRef of glyph.glyphRefs) {
-    const glyph = ttf.glyphForGlyphIndex(glyphRef.componentGlyphIndex);
     subvaos.push({
       transform: [glyphRef.m00, glyphRef.m01, 0, glyphRef.m02,
                   glyphRef.m10, glyphRef.m11, 0, glyphRef.m12,
                   0,            0,            1, 0,
                   0,            0,            0, 1,
                 ],
-      // FIXME: Have vaoForGlyphIndex cache so that 'a' and 'ä' share the
-      // same VAO for the 'a' base.
-      vaos: glyphToVaos(gl, glyph, ttf,
-                       fanPositionAttributeLoc, triPositionAttributeLoc),
+      vaos: glyphIndexToVaos(
+          gl, glyphRef.componentGlyphIndex, ttf, vaosForGlyphIndex,
+          fanPositionAttributeLoc, triPositionAttributeLoc),
     });
   }
   return {subvaos: subvaos};
 }
 
-function glyphToVaos(gl, glyph, ttf,
-                     fanPositionAttributeLoc, triPositionAttributeLoc) {
-  if (glyph.hasOwnProperty('glyphRefs'))
-    return compoundGlyphToVaos(
-        gl, glyph, ttf, fanPositionAttributeLoc, triPositionAttributeLoc);
-  return simpleGlyphToVaos(
-      gl, glyph, fanPositionAttributeLoc, triPositionAttributeLoc);
+function glyphIndexToVaos(gl, glyphIndex, ttf, vaosForGlyphIndex,
+                          fanPositionAttributeLoc, triPositionAttributeLoc) {
+  if (vaosForGlyphIndex.hasOwnProperty(glyphIndex)) {
+    console.log('hit for', glyphIndex);
+    return vaosForGlyphIndex[glyphIndex];
+  }
+
+  let vaos = undefined;
+  const glyph = ttf.glyphForGlyphIndex(glyphIndex);
+  if (glyph !== null) {
+    if (glyph.hasOwnProperty('glyphRefs')) {
+      vaos = compoundGlyphToVaos(
+          gl, glyph, ttf, vaosForGlyphIndex,
+          fanPositionAttributeLoc, triPositionAttributeLoc);
+    } else {
+      vaos = simpleGlyphToVaos(
+          gl, glyph, fanPositionAttributeLoc, triPositionAttributeLoc);
+    }
+  }
+
+  vaosForGlyphIndex[glyphIndex] = vaos;
+  return vaos;
 }
 
 
@@ -334,13 +347,12 @@ async function go(font_url) {
 
   // Convert glyphs to vertex attribute objects.
   const vaosForGlyph = {};
+  const vaosForGlyphIndex = {};
   for (let c of text) {
     if (vaosForGlyph.hasOwnProperty(c))
       continue;
-    const glyph = ttf.glyphForChar(c);
-    if (glyph === null)
-      continue;
-    vaosForGlyph[c] = glyphToVaos(gl, glyph, ttf,
+    const glyphIndex = ttf.glyphIndexForChar(c);
+    vaosForGlyph[c] = glyphIndexToVaos(gl, glyphIndex, ttf, vaosForGlyphIndex,
                   fanPositionAttributeLoc, triPositionAttributeLoc);
   }
 
