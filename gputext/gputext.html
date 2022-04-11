@@ -76,36 +76,17 @@ function compileProgram(gl, vertexShaderSource, fragmentShaderSource) {
 function contourToTriangles(points) {
   let fanPoints = [];
   let curvePoints = [];
-  for (let i = 0; i < points.length; ++i) {
-    const point = points[i];
-    const {x, y} = point;
-    if (i === 0) {
-      // The first point should always be isOnCurve.
-      // FIXME: I think this is wrong, see leftmost glyph in figure 13 at
-      // https://developer.apple.com/fonts/TrueType-Reference-Manual/RM01/Chap1.html
-      fanPoints.push(x, y)
-      continue;
-    }
-
-    if (point.isOnCurve) {
-      fanPoints.push(x, y)
-      continue;
-    }
-
-    const next = points[i < points.length - 1 ? i + 1 : 0];
-    curvePoints.push(fanPoints[fanPoints.length - 2],
-                     fanPoints[fanPoints.length - 1], 0, 0);
-    curvePoints.push(x, y, 0.5, 0);
-    if (next.isOnCurve) {
-      curvePoints.push(next.x, next.y, 1, 1);
-      fanPoints.push(next.x, next.y);
-      ++i;
-    } else {
-      // https://stackoverflow.com/questions/20733790/truetype-fonts-glyph-are-made-of-quadratic-bezier-why-do-more-than-one-consecu
-      curvePoints.push((x + next.x) / 2, (y + next.y) / 2, 1, 1);
-      fanPoints.push((x + next.x) / 2, (y + next.y) / 2);
-    }
-  }
+  iterateContour(points,
+     (x, y) => fanPoints.push(x, y),
+     (x, y) => fanPoints.push(x, y),
+     (cpx, cpy, x, y) => {
+       curvePoints.push(fanPoints[fanPoints.length - 2],
+                        fanPoints[fanPoints.length - 1], 0, 0);
+       curvePoints.push(cpx, cpy, 0.5, 0);
+       curvePoints.push(x, y, 1, 1);
+       fanPoints.push(x, y);
+     },
+   );
   return [fanPoints, curvePoints];
 }
 

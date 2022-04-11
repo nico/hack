@@ -472,3 +472,30 @@ class TTFReader {
   }
 }
 
+function iterateContour(points, firstPoint, lineTo, quadraticCurveTo) {
+  for (let i = 0; i < points.length; ++i) {
+    const point = points[i];
+    const {x, y} = point;
+    if (i === 0) {
+      // The first point should always be isOnCurve.
+      // FIXME: I think this is wrong, see leftmost glyph in figure 13 at
+      // https://developer.apple.com/fonts/TrueType-Reference-Manual/RM01/Chap1.html
+      firstPoint(x, y)
+      continue;
+    }
+
+    if (point.isOnCurve) {
+      lineTo(x, y);
+      continue;
+    }
+
+    const next = points[i < points.length - 1 ? i + 1 : 0];
+    if (next.isOnCurve) {
+      quadraticCurveTo(x, y, next.x, next.y);
+      ++i;
+    } else {
+      // https://stackoverflow.com/questions/20733790/truetype-fonts-glyph-are-made-of-quadratic-bezier-why-do-more-than-one-consecu
+      quadraticCurveTo(x, y, (x + next.x) / 2, (y + next.y) / 2);
+    }
+  }
+}
