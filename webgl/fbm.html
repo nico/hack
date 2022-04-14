@@ -241,7 +241,7 @@ function fillGrid(m, ctx, t) {
       p2d[iy*nx + ix] = [p0[0]*s, p0[1]*s];
 
       // Our texture mapper doesn't support negative coords :-)
-      uvs[iy*nx + ix] = [10 + 4*x/sx, 4*y/sy + 0.25*t];
+      uvs[iy*nx + ix] = [10 + 4*x/sx, 10 + 4*y/sy + 0.25*t];
     }
   }
 
@@ -264,13 +264,9 @@ function fillGrid(m, ctx, t) {
   }
 }
 
-function ticks() {
-  return new Date().getTime()/1000;
-}
 
 //var m = identity();
 var m = matMult(rotX(Math.PI/2 + 0.5), trans(0, 12, -5));
-var t0;
 var ctx;
 var texture;
 
@@ -279,12 +275,11 @@ function init() {
   var canvas = document.getElementById('can');
   if (!canvas || !canvas.getContext) return;
   ctx = canvas.getContext('2d');
-  t0 = ticks();
   if (ctx)
-    setTimeout(function() { draw(); }, 100);
+    requestAnimationFrame(draw);
 }
 
-function draw() {
+function draw(ticks) {
   if (!ctx) return;
 
   // Fill background
@@ -298,14 +293,13 @@ function draw() {
   ctx.save();
   ctx.translate(200, 150);  // center origin
 
-  var t = ticks();
-
-  initGrid(0.2*(t - t0));
+  var t = ticks/1000;
+  initGrid(0.2*t);
   fillGrid(m, ctx, t);
 
   ctx.restore();
 
-  setTimeout(function() { draw(); }, 100);
+  requestAnimationFrame(draw);
 }
 
   </script>
