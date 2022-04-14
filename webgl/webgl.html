@@ -187,16 +187,17 @@ function imgLoaded(gl) {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
   draw(gl);
-  setInterval(updateFrame, 50);
+  requestAnimationFrame(updateFrame);
 }
 
-function updateFrame() {
-  var s = (1 + Math.sin(new Date().getTime()/500)) * 0.5;
+function updateFrame(timestamp) {
+  var s = (1 + Math.sin(timestamp/500)) * 0.5;
   jimmys[0].x = -0.4*s
   jimmys[0].z = (1 - s)*-0.4;
   jimmys[1].x = 0.4*(1 - s)
   jimmys[1].z = s*-0.3;
   draw(gl);
+  requestAnimationFrame(updateFrame);
 }
 
 function drawJimmy(sx, sy, tx, ty, uni) {
