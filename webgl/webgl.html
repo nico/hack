@@ -251,7 +251,6 @@ function drawJimmys() {
 
     gl.useProgram(blendProgram);
 
-    gl.enable(gl.TEXTURE_2D);
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.uniform1i(blendTexImgUniform, 0);
 
@@ -306,7 +305,6 @@ function draw(gl) {
 
   gl.useProgram(program);
 
-  gl.enable(gl.TEXTURE_2D);
   gl.bindTexture(gl.TEXTURE_2D, tex);
   gl.uniform1i(texImgUniform, 0);
 
