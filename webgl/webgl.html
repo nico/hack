@@ -322,7 +322,7 @@ function draw(gl) {
 <body>
 <div id="container">
 <canvas id="canvas" width="800" height="600">
-Go away, your browser doesn't even support the canvas element.
+Canvas element not supported.
 </canvas>
 </div>
 
@@ -340,7 +340,7 @@ Go away, your browser doesn't even support the canvas element.
 var canvas = document.getElementById('canvas');
 var gl = canvas && canvas.getContext('experimental-webgl');
 if (!gl) {
-  document.getElementById('container').innerHTML = 'Your browser kinda sucks.';
+  document.getElementById('container').innerHTML = 'WebGL not supported.';
 } else {
   init(gl);
   draw(gl);
