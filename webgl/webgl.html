@@ -338,7 +338,7 @@ Canvas element not supported.
 
 <script>
 var canvas = document.getElementById('canvas');
-var gl = canvas && canvas.getContext('experimental-webgl');
+var gl = canvas && canvas.getContext('webgl');
 if (!gl) {
   document.getElementById('container').innerHTML = 'WebGL not supported.';
 } else {
