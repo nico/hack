@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang=en>
+<html lang="en">
 <meta charset="utf-8">
 <style>
 img {
@@ -21,7 +21,7 @@ img {
 window.addEventListener('paste', event => {
   let file_input = document.querySelector('#file');
   file_input.files = event.clipboardData.files;
-  file_input.dispatchEvent(new Event("change"))
+  file_input.dispatchEvent(new Event('change'))
 });
 
 // https://developer.mozilla.org/en-US/docs/Web/API/File/Using_files_from_web_applications
@@ -32,12 +32,12 @@ document.querySelector('#file').addEventListener('change', (event) => {
   // No `multiple` attribute on the file input, so there's exactly one file.
   const file = event.target.files[0];
   if (!file.type.startsWith('image/')) {
-    const err = 'Error: expected image, got ' + file.type + '. Try again.';
+    const err = `Error: expected image, got ${file.type}. Try again.`;
     div.textContent = err;
     return;
   }
 
-  const img = document.createElement("img");
+  const img = document.createElement('img');
   div.appendChild(img);
 
   const reader = new FileReader();
