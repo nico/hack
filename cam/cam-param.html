@@ -42,6 +42,15 @@ window.addEventListener('drop', event => {
 // Also called programmatically after image drops or pastes.
 // https://developer.mozilla.org/en-US/docs/Web/API/File/Using_files_from_web_applications
 document.querySelector('#file').addEventListener('change', (event) => {
+  // Revoke last image's object URL if a new image is loaded.
+  // (Doing this in img.onload below is too early: That breaks
+  // "open image in new tab" in the image's context menu. Even doing it here
+  // breaks reloading the blob urls of previously-opened-in-new-tab images
+  // when a new image is loaded, but that seems ok.)
+  const old_img = document.querySelector('img');
+  if (old_img)
+    URL.revokeObjectURL(old_img.src);
+
   const div = document.querySelector('div');
   div.textContent = '';
 
@@ -54,10 +63,7 @@ document.querySelector('#file').addEventListener('change', (event) => {
   }
 
   const img = document.createElement('img');
+  img.src = URL.createObjectURL(file);
   div.appendChild(img);
-
-  const reader = new FileReader();
-  reader.onload = (e) => { img.src = e.target.result; };
-  reader.readAsDataURL(file);
 });
 </script>
