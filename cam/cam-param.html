@@ -9,13 +9,19 @@ img {
 </style>
 <form>
   <label>
-      Choose an image file from your computer:<br>
+      Choose an image file from your computer, or paste an image:<br>
       <input type="file" id="file" name="file" accept="image/*">
   </label>
 </form>
 <div></div>
 
 <script>
+window.addEventListener('paste', event => {
+  let file_input = document.querySelector('#file');
+  file_input.files = event.clipboardData.files;
+  file_input.dispatchEvent(new Event("change"))
+});
+
 // https://developer.mozilla.org/en-US/docs/Web/API/File/Using_files_from_web_applications
 document.querySelector('#file').addEventListener('change', (event) => {
   const div = document.querySelector('div');
