@@ -16,6 +16,8 @@ img {
 <div></div>
 
 <script>
+'use strict';
+
 window.addEventListener('paste', event => {
   let file_input = document.querySelector('#file');
   file_input.files = event.clipboardData.files;
