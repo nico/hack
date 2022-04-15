@@ -9,7 +9,7 @@ img {
 </style>
 <form>
   <label>
-      Choose an image file from your computer, or paste an image:<br>
+      Choose an image file from your computer, or drop or paste an image:<br>
       <input type="file" id="file" name="file" accept="image/*">
   </label>
 </form>
@@ -21,6 +21,18 @@ img {
 window.addEventListener('paste', event => {
   let file_input = document.querySelector('#file');
   file_input.files = event.clipboardData.files;
+  file_input.dispatchEvent(new Event('change'))
+});
+
+// https://developer.mozilla.org/en-US/docs/Web/API/HTML_Drag_and_Drop_API
+window.addEventListener('dragover', event => {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'copy';
+});
+window.addEventListener('drop', event => {
+  event.preventDefault();
+  let file_input = document.querySelector('#file');
+  file_input.files = event.dataTransfer.files;
   file_input.dispatchEvent(new Event('change'))
 });
 
