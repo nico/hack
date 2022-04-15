@@ -18,12 +18,14 @@ img {
 <script>
 'use strict';
 
+// Support pasting images.
 window.addEventListener('paste', event => {
   let file_input = document.querySelector('#file');
   file_input.files = event.clipboardData.files;
   file_input.dispatchEvent(new Event('change'))
 });
 
+// Support dragging in images.
 // https://developer.mozilla.org/en-US/docs/Web/API/HTML_Drag_and_Drop_API
 window.addEventListener('dragover', event => {
   event.preventDefault();
@@ -36,6 +38,8 @@ window.addEventListener('drop', event => {
   file_input.dispatchEvent(new Event('change'))
 });
 
+// Change handler of form. Called when user clicks the "Choose File" button.
+// Also called programmatically after image drops or pastes.
 // https://developer.mozilla.org/en-US/docs/Web/API/File/Using_files_from_web_applications
 document.querySelector('#file').addEventListener('change', (event) => {
   const div = document.querySelector('div');
