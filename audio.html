@@ -7,12 +7,46 @@
 src="https://p.scdn.co/mp3-preview/89df4a520247a8f35f19ad2ba565a7f086c8c07d?cid=2afca98576b4421595a2802803d0b92a">
 </audio>
 
+<canvas width=640 height=480></canvas>
+
 <script>
 const audioElement = document.querySelector('audio');
+
+let analyzer;
+let spectrum;
 audioElement.addEventListener('play', () => {
   let audioContext = new AudioContext();
   const track = audioContext.createMediaElementSource(audioElement);
   track.connect(audioContext.destination);
+
+  analyzer = audioContext.createAnalyser();
+  spectrum = new Uint8Array(analyzer.frequencyBinCount);
+  track.connect(analyzer);
+  requestAnimationFrame(frame);
 });
+
+const canvas = document.querySelector('canvas');
+const ctx = canvas.getContext('2d');
+
+function frame(t) {
+  // FFT
+  analyzer.getByteFrequencyData(spectrum);
+
+  // Clear background
+  ctx.fillStyle = '#FFFFFF10';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Draw curve
+  const sx = (canvas.width - 1) / (spectrum.length - 1);
+  const sy = (canvas.height - 1) / 255.0;
+  ctx.beginPath();
+  ctx.moveTo(0, sy * spectrum[0]);
+  for (let i = 1; i < spectrum.length; ++i) {
+    ctx.lineTo(sx * i, sy * spectrum[i])
+  }
+  ctx.stroke();
+
+  requestAnimationFrame(frame);
+}
 
 </script>
