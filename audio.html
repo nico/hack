@@ -15,6 +15,9 @@ const audioElement = document.querySelector('audio');
 let analyzer;
 let spectrum;
 audioElement.addEventListener('play', () => {
+  if (analyzer)
+    return;
+
   let audioContext = new AudioContext();
   const track = audioContext.createMediaElementSource(audioElement);
   track.connect(audioContext.destination);
