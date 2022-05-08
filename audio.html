@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang=en>
+<meta charset="utf-8">
+
+<!--must use some src served with `Access-Control-Allow-Origin: *`-->
+<audio controls crossorigin="anonymous"
+src="https://p.scdn.co/mp3-preview/89df4a520247a8f35f19ad2ba565a7f086c8c07d?cid=2afca98576b4421595a2802803d0b92a">
+</audio>
+
+<script>
+const audioElement = document.querySelector('audio');
+audioElement.addEventListener('play', () => {
+  let audioContext = new AudioContext();
+  const track = audioContext.createMediaElementSource(audioElement);
+  track.connect(audioContext.destination);
+});
+
+</script>
