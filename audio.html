@@ -27,6 +27,7 @@ audioElement.addEventListener('play', () => {
   track.connect(analyzer);
   requestAnimationFrame(frame);
 });
+audioElement.addEventListener('playing', () => requestAnimationFrame(frame));
 
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
@@ -49,7 +50,8 @@ function frame(t) {
   }
   ctx.stroke();
 
-  requestAnimationFrame(frame);
+  if (!audioElement.paused)
+    requestAnimationFrame(frame);
 }
 
 </script>
