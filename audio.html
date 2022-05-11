@@ -44,9 +44,9 @@ function frame(t) {
   const sx = (canvas.width - 1) / (spectrum.length - 1);
   const sy = (canvas.height - 1) / 255.0;
   ctx.beginPath();
-  ctx.moveTo(0, sy * spectrum[0]);
+  ctx.moveTo(0, canvas.height - 1 - sy * spectrum[0]);
   for (let i = 1; i < spectrum.length; ++i) {
-    ctx.lineTo(sx * i, sy * spectrum[i])
+    ctx.lineTo(sx * i, canvas.height - 1 - sy * spectrum[i])
   }
   ctx.stroke();
 
