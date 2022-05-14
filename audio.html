@@ -20,11 +20,21 @@ audioElement.addEventListener('play', () => {
 
   let audioContext = new AudioContext();
   const track = audioContext.createMediaElementSource(audioElement);
-  track.connect(audioContext.destination);
+
+  const filter = audioContext.createBiquadFilter();
+  filter.type = 'lowpass';
+  //filter.frequency.linearRampToValueAtTime(20000, 20);
+  filter.frequency.value = 100;
+
+  track.connect(filter);
+  //track.connect(audioContext.destination);
+  filter.connect(audioContext.destination);
+
 
   analyzer = audioContext.createAnalyser();
   spectrum = new Uint8Array(analyzer.frequencyBinCount);
-  track.connect(analyzer);
+  //track.connect(analyzer);
+  filter.connect(analyzer);
   requestAnimationFrame(frame);
 });
 audioElement.addEventListener('playing', () => requestAnimationFrame(frame));
