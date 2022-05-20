@@ -46,6 +46,11 @@ audioElement.addEventListener('playing', () => requestAnimationFrame(frame));
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
 
+// FIXME: having a fixed size but updating it at varying paint times is bad.
+const history = a = new Array(60).fill(0);
+let history_index = 0;
+let history_sum = 0;
+
 function frame(t) {
   // FFT
   analyzer.getByteFrequencyData(spectrum);
@@ -69,7 +74,6 @@ function frame(t) {
   ctx.stroke();
 
   // Draw sum
-  ctx.strokeStyle = '#00A000FF';
   //ctx.shadowColor = '#006000FF';
   //ctx.shadowBlur = 4;
   const sum = spectrum.reduce((a, b) => a + b, 0);
@@ -78,9 +82,15 @@ function frame(t) {
   // The 4 is a made-up tweak factor. It doesn't work great for low frequencies.
   const num_samples =  4 * relative_frequency * spectrum.length;
   const relative_sum = sum / (num_samples * 255);
+
+  history_sum -= history[history_index];
+  history[history_index] = relative_sum;
+  history_sum += relative_sum;
+  history_index = (history_index + 1) % history.length;
   //const relative_sum = sum / (spectrum.length * 255);
 
   let x = 3*canvas.width / 4;
+  ctx.strokeStyle = '#00A000FF';
   let y = (1 - relative_sum) * canvas.height;
   ctx.beginPath()
   ctx.moveTo(0, y);
