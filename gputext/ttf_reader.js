@@ -47,6 +47,7 @@ const SFNT_VERSION_OPENTYPE = 0x4F54544F; // 'OTTO'
 // https://docs.microsoft.com/en-us/typography/opentype/spec/otff
 // https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6.html
 class TTFReader {
+  /** @param {ArrayBuffer} data */
   constructor(data) {
     this.stream = new MyBinaryStream(data);
     this.readHeader();
