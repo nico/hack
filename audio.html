@@ -51,6 +51,13 @@ const history = a = new Array(60).fill(0);
 let history_index = 0;
 let history_sum = 0;
 
+function horizontal_line(y) {
+  ctx.beginPath();
+  ctx.moveTo(0, y);
+  ctx.lineTo(canvas.width - 1, y);
+  ctx.stroke();
+}
+
 function frame(t) {
   // FFT
   analyzer.getByteFrequencyData(spectrum);
@@ -89,13 +96,10 @@ function frame(t) {
   history_index = (history_index + 1) % history.length;
   //const relative_sum = sum / (spectrum.length * 255);
 
-  let x = 3*canvas.width / 4;
   ctx.strokeStyle = '#00A000FF';
-  let y = (1 - relative_sum) * canvas.height;
-  ctx.beginPath()
-  ctx.moveTo(0, y);
-  ctx.lineTo(canvas.width - 1, y);
-  ctx.stroke();
+  horizontal_line((1 - relative_sum) * canvas.height);
+  ctx.strokeStyle = '#003000FF';
+  horizontal_line((1 - history_sum / history.length) * canvas.height);
 
   if (!audioElement.paused)
     requestAnimationFrame(frame);
