@@ -53,6 +53,8 @@ let history_index = 0;
 let history_size = 0;
 let history_sum = 0;
 
+let last_beat_time_ms = 0;
+
 function horizontal_line(y) {
   ctx.beginPath();
   ctx.moveTo(0, y);
@@ -60,7 +62,7 @@ function horizontal_line(y) {
   ctx.stroke();
 }
 
-function frame(t) {
+function frame(t_ms) {
   // FFT
   analyzer.getByteFrequencyData(spectrum);
 
@@ -107,9 +109,10 @@ function frame(t) {
   horizontal_line((1 - reference) * canvas.height);
 
   const C = 1.05;
-  if (relative_sum > C * reference) {
+  if (relative_sum > C * reference && (t_ms - last_beat_time_ms) > 300) {
     ctx.fillStyle = '#FF000020';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    last_beat_time_ms = t_ms;
   }
 
   if (!audioElement.paused)
