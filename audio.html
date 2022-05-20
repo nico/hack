@@ -47,8 +47,10 @@ const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
 
 // FIXME: having a fixed size but updating it at varying paint times is bad.
+// FIXME: need to reset this on seek.
 const history = a = new Array(60).fill(0);
 let history_index = 0;
+let history_size = 0;
 let history_sum = 0;
 
 function horizontal_line(y) {
@@ -94,12 +96,21 @@ function frame(t) {
   history[history_index] = relative_sum;
   history_sum += relative_sum;
   history_index = (history_index + 1) % history.length;
+  if (history_size < history.length)
+    history_size++;
   //const relative_sum = sum / (spectrum.length * 255);
 
   ctx.strokeStyle = '#00A000FF';
   horizontal_line((1 - relative_sum) * canvas.height);
   ctx.strokeStyle = '#003000FF';
-  horizontal_line((1 - history_sum / history.length) * canvas.height);
+  const reference = history_sum / history_size;
+  horizontal_line((1 - reference) * canvas.height);
+
+  const C = 1.05;
+  if (relative_sum > C * reference) {
+    ctx.fillStyle = '#FF000020';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
 
   if (!audioElement.paused)
     requestAnimationFrame(frame);
