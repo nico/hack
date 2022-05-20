@@ -51,10 +51,14 @@ function frame(t) {
   analyzer.getByteFrequencyData(spectrum);
 
   // Clear background
-  ctx.fillStyle = '#FFFFFF10';
+  ctx.fillStyle = '#FFFFFF20';
+  ctx.shadowBlur = 0;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // Draw curve
+  ctx.strokeStyle = '#600060FF';
+  //ctx.shadowColor = '#600060FF';
+  //ctx.shadowBlur = 2;
   const sx = (canvas.width - 1) / (spectrum.length - 1);
   const sy = (canvas.height - 1) / 255.0;
   ctx.beginPath();
@@ -65,7 +69,9 @@ function frame(t) {
   ctx.stroke();
 
   // Draw sum
-  ctx.fillStyle = '#000000FF';
+  ctx.strokeStyle = '#00A000FF';
+  //ctx.shadowColor = '#006000FF';
+  //ctx.shadowBlur = 4;
   const sum = spectrum.reduce((a, b) => a + b, 0);
   const relative_frequency = low_pass_frequency / (sample_rate/2);
 
