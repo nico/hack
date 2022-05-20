@@ -14,6 +14,8 @@ const audioElement = document.querySelector('audio');
 
 let analyzer;
 let spectrum;
+const low_pass_frequency = 10000;
+let sample_rate;
 audioElement.addEventListener('play', () => {
   if (analyzer)
     return;
@@ -21,10 +23,12 @@ audioElement.addEventListener('play', () => {
   let audioContext = new AudioContext();
   const track = audioContext.createMediaElementSource(audioElement);
 
+  sample_rate = audioContext.sampleRate;
+
   const filter = audioContext.createBiquadFilter();
   filter.type = 'lowpass';
   //filter.frequency.linearRampToValueAtTime(20000, 20);
-  filter.frequency.value = 100;
+  filter.frequency.value = low_pass_frequency;
 
   track.connect(filter);
   //track.connect(audioContext.destination);
@@ -58,6 +62,23 @@ function frame(t) {
   for (let i = 1; i < spectrum.length; ++i) {
     ctx.lineTo(sx * i, canvas.height - 1 - sy * spectrum[i])
   }
+  ctx.stroke();
+
+  // Draw sum
+  ctx.fillStyle = '#000000FF';
+  const sum = spectrum.reduce((a, b) => a + b, 0);
+  const relative_frequency = low_pass_frequency / (sample_rate/2);
+
+  // The 4 is a made-up tweak factor. It doesn't work great for low frequencies.
+  const num_samples =  4 * relative_frequency * spectrum.length;
+  const relative_sum = sum / (num_samples * 255);
+  //const relative_sum = sum / (spectrum.length * 255);
+
+  let x = 3*canvas.width / 4;
+  let y = (1 - relative_sum) * canvas.height;
+  ctx.beginPath()
+  ctx.moveTo(0, y);
+  ctx.lineTo(canvas.width - 1, y);
   ctx.stroke();
 
   if (!audioElement.paused)
