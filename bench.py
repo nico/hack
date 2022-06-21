@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 r"""Small tool to produce input data for https://github.com/nico/ministat
 (which was originally at https://github.com/thorduri/ministat)
@@ -11,7 +11,6 @@ Example:
     ministat before.txt after.txt
 """
 
-from __future__ import print_function
 import argparse, subprocess, sys, time
 
 parser = argparse.ArgumentParser(
