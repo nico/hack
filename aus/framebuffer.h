@@ -1,7 +1,7 @@
 #pragma once
 
-#include <memory>
 #include <stddef.h>
+#include <memory>
 
 // Premultiplied ARGB
 using Pixel = uint32_t;
@@ -33,4 +33,3 @@ struct Framebuffer {
   Surface surface() { return surfaceForRect(0, 0, width, height); }
   Surface surfaceForRect(size_t x, size_t y, size_t w, size_t h);
 };
-
