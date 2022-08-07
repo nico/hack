@@ -1,3 +1,4 @@
+#include "draw_line.h"
 #include "framebuffer.h"
 
 // pix: bgra in memory, bottom-most scanline first
@@ -11,8 +12,7 @@ void wtga(uint16_t w, uint16_t h, const uint8_t* pix, FILE* f) {
 
 void write_tga(const char* name, Framebuffer& fb) {
   FILE* f = fopen(name, "wb");
-  if (!f)
-    return;
+  if (!f) return;
 
   // FIXME: un-premultiply alpha.
   wtga(fb.width, fb.height, reinterpret_cast<uint8_t*>(fb.pixels.get()), f);
@@ -22,5 +22,19 @@ void write_tga(const char* name, Framebuffer& fb) {
 
 int main() {
   Framebuffer fb{1200, 800};
+
+  Surface s = fb.surface();
+  draw_line(s, 400, 300, 400 + 100, 300 + 200, rgb(255, 0, 0));
+  draw_line(s, 400, 300, 400 + 200, 300 + 100, rgb(0, 255, 0));
+
+  draw_line(s, 400, 300, 400 + 100, 300 - 200, rgb(255, 255, 0));
+  draw_line(s, 400, 300, 400 + 200, 300 - 100, rgb(255, 0, 255));
+
+  draw_line(s, 400, 300, 400 - 100, 300 + 200, rgb(0, 255, 255));
+  draw_line(s, 400, 300, 400 - 200, 300 + 100, rgb(0, 0, 255));
+
+  draw_line(s, 400, 300, 400 - 100, 300 - 200, rgb(128, 0, 0));
+  draw_line(s, 400, 300, 400 - 200, 300 - 100, rgb(255, 255, 255));
+
   write_tga("out.tga", fb);
 }
