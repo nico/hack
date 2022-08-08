@@ -13,27 +13,27 @@ void draw_line(const Surface& s, size_t x1, size_t y1, size_t x2, size_t y2,
   assert(x2 < s.width);
   assert(y2 < s.height);
 
-  ssize_t dx = x2 - x1;
-  ssize_t dy = y2 - y1;
+  ssize_t dx = x2 - x1, ix = 1;
+  if (dx < 0) {
+    dx = -dx;
+    ix = -1;
+  }
 
-  if (abs(dy) < abs(dx)) {
-    int iy = s.pitch;
-    if (dx < 0) {
-      std::swap(x1, x2);
-      std::swap(y1, y2);
-      dx = -dx;
-      dy = -dy;
-    }
-    if (dy < 0) {
-      iy = -iy;
-      dy = -dy;
-    }
+  ssize_t dy = y2 - y1, iy = s.pitch;
+  if (dy < 0) {
+    dy = -dy;
+    iy = -iy;
+  }
 
+  size_t x = x1;
+  Pixel* dst = s.scanline(y1);
+
+  if (dy < dx) {
     ssize_t D = 2 * dy - dx;
-    Pixel* dst = s.scanline(y1);
 
-    for (size_t x = x1; x < x2; ++x) {
+    for (int i = 0; i < dx; ++i) {
       dst[x] = color;
+      x += ix;
 
       if (D > 0) {
         dst += iy;
@@ -42,23 +42,11 @@ void draw_line(const Surface& s, size_t x1, size_t y1, size_t x2, size_t y2,
       D += 2 * dy;
     }
   } else {
-    int ix = 1;
-    if (dy < 0) {
-      std::swap(x1, x2);
-      std::swap(y1, y2);
-      dx = -dx;
-      dy = -dy;
-    }
-    if (dx < 0) {
-      ix = -ix;
-      dx = -dx;
-    }
-
     ssize_t D = 2 * dx - dy;
-    size_t x = x1;
 
-    for (size_t y = y1; y < y2; ++y) {
-      s.scanline(y)[x] = color;
+    for (int i = 0; i < dy; ++i) {
+      dst[x] = color;
+      dst += iy;
 
       if (D > 0) {
         x += ix;
