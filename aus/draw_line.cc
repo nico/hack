@@ -31,7 +31,7 @@ void draw_line(const Surface& s, size_t x1, size_t y1, size_t x2, size_t y2,
   if (dy < dx) {
     ssize_t D = 2 * dy - dx;
 
-    for (int i = 0; i < dx; ++i) {
+    for (int i = 0; i <= dx; ++i) {
       dst[x] = color;
       x += ix;
 
@@ -44,7 +44,7 @@ void draw_line(const Surface& s, size_t x1, size_t y1, size_t x2, size_t y2,
   } else {
     ssize_t D = 2 * dx - dy;
 
-    for (int i = 0; i < dy; ++i) {
+    for (int i = 0; i <= dy; ++i) {
       dst[x] = color;
       dst += iy;
 
