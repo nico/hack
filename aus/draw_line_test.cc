@@ -19,6 +19,12 @@ private:
 };
 
 int main() {
+  TestSurface(3, 3, "single").
+    draw_line(1, 1, 1, 1).
+    should_be(R"(...
+                 .#.
+                 ...)");
+
   TestSurface(9, 3, "horizontal").
     draw_line(0, 1, 8, 1).
     should_be(R"(.........
