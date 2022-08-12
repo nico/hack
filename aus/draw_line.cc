@@ -6,8 +6,21 @@
 
 #include "framebuffer.h"
 
+void draw_horizontal_line(const Surface& s, size_t x1, size_t y1, size_t x2,
+               Pixel color) {
+  assert(x1 < s.width);
+  assert(y1 < s.height);
+  assert(x2 < s.width);
+
+  Pixel* dst = s.scanline(y1);
+  std::fill(dst + std::min(x1, x2), dst + std::max(x1, x2) + 1, color);
+}
+
 void draw_line(const Surface& s, size_t x1, size_t y1, size_t x2, size_t y2,
                Pixel color) {
+  if (y1 == y2)
+    return draw_horizontal_line(s, x1, y1, x2, color);
+
   assert(x1 < s.width);
   assert(y1 < s.height);
   assert(x2 < s.width);

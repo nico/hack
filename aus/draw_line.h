@@ -11,3 +11,6 @@ struct Surface;
 // Integer coordinates are in each pixel's center.
 void draw_line(const Surface& s, size_t x1, size_t y1, size_t x2, size_t y2,
                Pixel color);
+
+void draw_horizontal_line(const Surface& s, size_t x1, size_t y1, size_t x2,
+               Pixel color);

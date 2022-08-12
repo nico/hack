@@ -33,17 +33,33 @@ static void draw_line_bench(int seed) {
   std::uniform_int_distribution<int> y(0, fb.height - 1);
   std::uniform_int_distribution<Pixel> col(0, UINT_MAX);
 
-  const int N = 1'000'000;
+  {
+    const int N = 1'000'000;
 
-  auto start = std::chrono::steady_clock::now();
-  for (int i = 0; i < N; ++i)
-    draw_line(s, x(r), y(r), x(r), y(r), col(r));
-  auto end = std::chrono::steady_clock::now();
+    auto start = std::chrono::steady_clock::now();
+    for (int i = 0; i < N; ++i)
+      draw_line(s, x(r), y(r), x(r), y(r), col(r));
+    auto end = std::chrono::steady_clock::now();
 
-  std::chrono::duration<double, std::milli> ms = end - start;
-  printf("%d draw_line calls took %.2f ms\n", N, ms.count());
+    std::chrono::duration<double, std::milli> ms = end - start;
+    printf("%d draw_line calls took %.2f ms\n", N, ms.count());
+  }
 
   //write_tga("bench.tga", fb);
+
+  {
+    const int N = 1'000'000;
+
+    auto start = std::chrono::steady_clock::now();
+    for (int i = 0; i < N; ++i) {
+      int y0 = y(r);
+      draw_line(s, x(r), y0, x(r), y0, col(r));
+    }
+    auto end = std::chrono::steady_clock::now();
+
+    std::chrono::duration<double, std::milli> ms = end - start;
+    printf("%d horizontal draw_line calls took %.2f ms\n", N, ms.count());
+  }
 }
 
 int main(int argc, char* argv[]) {
