@@ -22,6 +22,10 @@ void draw_vertical_line(const Surface& s, size_t x1, size_t y1, size_t y2,
   assert(y1 < s.height);
   assert(y2 < s.height);
 
+  // clang's auto-vectorizer gets all excited and adds vector code for the
+  // rare occurence that the surface has a width <= 8 or even 1. This could
+  // be disabled with
+  // `#pragma clang loop vectorize(disable) interleave(disable)`.
   for (size_t y = std::min(y1, y2), e = std::max(y1, y2); y <= e; ++y)
     s.scanline(y)[x1] = color;
 }
