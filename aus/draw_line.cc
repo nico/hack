@@ -35,15 +35,10 @@ void draw_line(const Surface& s, size_t x1, size_t y1, size_t x2, size_t y2,
       dst[x] = color;
       x += ix;
 
-      // Putting `if (D > 0 || (D == 0 && i < dx/2))` here instead will produce
-      // the more pleasing
-      //   #....
-      //   .###.
-      //   ....#
-      // instead of the unsymmetric
-      //   ##...
-      //   ..##.
-      //   ....#
+      // Using `if (D > 0 || (D == 0 && i < dx/2))` here instead would produce
+      // the more pleasing  #....  instead of the current unsymmetric  ##...
+      //                    .###.                                      ..##.
+      //                    ....#                                      ....#
       if (D > 0) {
         dst += iy;
         D -= 2 * dx;
