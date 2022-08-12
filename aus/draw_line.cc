@@ -16,10 +16,22 @@ void draw_horizontal_line(const Surface& s, size_t x1, size_t y1, size_t x2,
   std::fill(dst + std::min(x1, x2), dst + std::max(x1, x2) + 1, color);
 }
 
+void draw_vertical_line(const Surface& s, size_t x1, size_t y1, size_t y2,
+               Pixel color) {
+  assert(x1 < s.width);
+  assert(y1 < s.height);
+  assert(y2 < s.height);
+
+  for (size_t y = std::min(y1, y2), e = std::max(y1, y2); y <= e; ++y)
+    s.scanline(y)[x1] = color;
+}
+
 void draw_line(const Surface& s, size_t x1, size_t y1, size_t x2, size_t y2,
                Pixel color) {
   if (y1 == y2)
     return draw_horizontal_line(s, x1, y1, x2, color);
+  if (x1 == x2)
+    return draw_vertical_line(s, x1, y1, y2, color);
 
   assert(x1 < s.width);
   assert(y1 < s.height);

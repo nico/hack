@@ -14,3 +14,5 @@ void draw_line(const Surface& s, size_t x1, size_t y1, size_t x2, size_t y2,
 
 void draw_horizontal_line(const Surface& s, size_t x1, size_t y1, size_t x2,
                Pixel color);
+void draw_vertical_line(const Surface& s, size_t x1, size_t y1, size_t y2,
+               Pixel color);

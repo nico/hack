@@ -60,6 +60,20 @@ static void draw_line_bench(int seed) {
     std::chrono::duration<double, std::milli> ms = end - start;
     printf("%d horizontal draw_line calls took %.2f ms\n", N, ms.count());
   }
+
+  {
+    const int N = 1'000'000;
+
+    auto start = std::chrono::steady_clock::now();
+    for (int i = 0; i < N; ++i) {
+      int x0 = x(r);
+      draw_line(s, x0, y(r), x0, y(r), col(r));
+    }
+    auto end = std::chrono::steady_clock::now();
+
+    std::chrono::duration<double, std::milli> ms = end - start;
+    printf("%d vertical draw_line calls took %.2f ms\n", N, ms.count());
+  }
 }
 
 int main(int argc, char* argv[]) {
