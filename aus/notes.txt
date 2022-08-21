@@ -1,0 +1,57 @@
+Bresenham
+---------
+
+http://members.chello.at/easyfilter/bresenham.html
+
+very complete: http://members.chello.at/~easyfilter/Bresenham.pdf
+
+http://rosettacode.org/wiki/Bitmap/Bresenham%27s_line_algorithm#C
+
+https://github.com/ssloy/tinyrenderer/wiki/Lesson-1:-Bresenham%E2%80%99s-Line-Drawing-Algorithm
+
+### Thick lines
+
+http://kt8216.unixcab.org/murphy/index.html (also antialiasing)
+http://homepages.enterprise.net/murphy/thickline/index.html
+
+https://github.com/ArminJo/STMF3-Discovery-Demos/blob/master/lib/graphics/src/thickLine.cpp
+
+### Antialiasing
+
+http://algo2.iti.kit.edu/wassenberg/LineAA/LineAA.pdf
+https://www.inf.ed.ac.uk/teaching/courses/cg/lectures/cg4_2012.pdf
+
+https://en.wikipedia.org/wiki/Xiaolin_Wu%27s_line_algorithm
+
+### SIMD
+
+https://litchie.com/2020/04/line
+http://beaugg.blogspot.com/2013/03/beyond-bresenham-new-algorithms-for.html
+
+Filled Triangles
+---------------
+
+https://github.com/ssloy/tinyrenderer/wiki/Lesson-2:-Triangle-rasterization-and-back-face-culling
+
+https://stackoverflow.com/questions/7870533/c-triangle-rasterization/7870925#7870925
+
+Rotated rectangle
+-----------------
+
+https://stackoverflow.com/questions/10061146/how-to-rasterize-rotated-rectangle-in-2d-by-setpixel
+
+Blurring
+--------
+
+https://zingl.github.io/blurring.html
+https://zingl.github.io/blurring.pdf
+
+Gradients
+---------
+
+https://aras-p.info/blog/2022/03/11/Optimizing-Oklab-gradients/
+
+Alpha, Coverage, Premultiply
+----------------------------
+
+https://ciechanow.ski/alpha-compositing/
