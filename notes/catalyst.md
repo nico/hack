@@ -158,3 +158,73 @@ hello world foo
 % otool -lv a.out | grep platform
  platform MACCATALYST
 ```
+
+SDK, and unzippered twins
+-------------------------
+
+Catalyst apps are built against the normal macOS SDK. That SDK is usually
+at this path:
+
+```
+% xcrun -show-sdk-path
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
+```
+
+Xcode's clang automatically uses that path as default sysroot.
+
+(If you want to use an SDK at some other path for some reason, use `-isysroot`.
+Open-source clang doesn't automatically add the path above as default sysroot,
+so there you have to pass `-isysroot $(xcrun -show-sdk-path)` to clang.)
+
+
+Catalyst apps link against three kinds of libraries:
+1. Zippered, normal mac libraries.
+2. Catalyst-only libraries, which are available for Catalyst apps,
+   but not for non-catalyst apps (e.g. UIKit.framework)
+3. Libraries that are available to both mac and Catalyst apps,
+   but that are slightly different for mac and Catalyst
+   (e.g. PDFKit.framework).
+
+Let's look at each of them.
+
+For the first category, libSystem is an example. The example programs further
+up called `printf()`, which lives in libSystem. Let's look at it:
+
+```
+% head -4 $(xcrun -show-sdk-path)/usr/lib/libSystem.tbd
+--- !tapi-tbd
+tbd-version:     4
+targets:         [ x86_64-macos, x86_64-maccatalyst, arm64-macos, arm64-maccatalyst,
+                   arm64e-macos, arm64e-maccatalyst ]
+```
+
+This is the text description of libSystem.dylib's interface, and that library
+supports linking against it for both macOS and Catalyst. The actual .dylib
+can't be seen as it's part of the
+[dyld shared cache](https://github.com/keith/dyld-shared-cache-extractor)).
+But if you extract it, indeed:
+
+```
+ % otool -lv /tmp/libraries/usr/lib/libSystem.B.dylib | grep platform
+ platform MACOS
+ platform MACCATALYST
+```
+
+(A small minority of libraries is _not_ marked as usable in Catalyst apps,
+but ld64 still tolerates them if they're only linked implicitly by other
+shared libraries. In the macOS 12.0 SDK, CarbonCore.tbd in
+CoreServices.framework is an example of such a library.)
+
+For the second category, these are libraries that are below
+`/System/iOSSupport` in the SDK. For example,
+`$(xcrun -show-sdk-path)/System/iOSSupport/System/Library/Frameworks/UIKit.framework`.
+
+For the third category, these are libraries that exist both in the regular
+mac SDK _and_ below `/System/iOSSupport`, but that are different in both
+locations, for example:
+
+* `$(xcrun -show-sdk-path)/System/Library/Frameworks/PDFKit.framework`
+* `$(xcrun -show-sdk-path)/System/iOSSupport/System/Library/Frameworks/PDFKit.framework`
+
+It's interesting to compare `PDFKit.tbd` in both of these directories.
+Libraries in the third category are called "unzippered twins".
