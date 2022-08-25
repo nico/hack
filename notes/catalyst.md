@@ -187,6 +187,8 @@ Catalyst apps link against three kinds of libraries:
 
 Let's look at each of them.
 
+### 1
+
 For the first category, libSystem is an example. The example programs further
 up called `printf()`, which lives in libSystem. Let's look at it:
 
@@ -215,9 +217,13 @@ but ld64 still tolerates them if they're only linked implicitly by other
 shared libraries. In the macOS 12.0 SDK, CarbonCore.tbd in
 CoreServices.framework is an example of such a library.)
 
+### 2
+
 For the second category, these are libraries that are below
 `/System/iOSSupport` in the SDK. For example,
 `$(xcrun -show-sdk-path)/System/iOSSupport/System/Library/Frameworks/UIKit.framework`.
+
+### 3
 
 For the third category, these are libraries that exist both in the regular
 mac SDK _and_ below `/System/iOSSupport`, but that are different in both
