@@ -13,6 +13,13 @@ It consists of several parts:
 
 Catalyst apps are built against the macOS SDK.
 
+Normally, Xcode handles the mechanics of building Catalyst apps for you.
+
+This document describes some things that happen under the hood. If you just
+want to build a Catalyst app, use Xcode and stop reading. But if you work
+on compilers and linkers, or are just interested in what happens under the hood,
+this document might be interesting to you.
+
 Building a catalyst commandline tool
 ------------------------------------
 
@@ -76,6 +83,10 @@ And it's indeed a binary built for Catalyst:
  platform MACCATALYST
 ```
 
+From a `<TargetConditionals.h>` point of view, Catalyst binaries are built as
+`TARGET_OS_IOS`. This makes sense, as Catalyst is for taking existing iOS
+apps mostly as they are, and running them on macOS.
+
 Building a zippered dylib
 -------------------------
 
@@ -113,8 +124,8 @@ spelled `-darwin-target-variant` instead.
 From a `<TargetConditionals.h>` point of view, zippered dylibs are built as
 `TARGET_OS_OSX`, _not_ as `TARGET_OS_IOS`.
 
-Apple uses zippered dylibs for most of its system libraries, so that it doesn't
-have to ship them twice.
+Apple uses zippered dylibs for most of its macOS system libraries, so that it
+doesn't have to ship them twice.
 
 A zippered dylib can be linked into a normal mac binary:
 
