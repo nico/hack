@@ -20,17 +20,16 @@ want to build a Catalyst app, use Xcode and stop reading. But if you work
 on compilers and linkers, or are just interested in what happens under the hood,
 this document might be interesting to you.
 
-Building a catalyst commandline tool
+Building a Catalyst commandline tool
 ------------------------------------
 
-It's possible to write a commandline program that uses catalyst. That's not
+It's possible to write a commandline program that uses Catalyst. That's not
 something you'd want to do in real life (just write a normal mac commandline
 tool), but it's useful for testing.
 
 ```
 % cat hello.c
 #include <stdio.h>
-
 int main() { printf("hello world\n"); }
 ```
 
@@ -127,14 +126,18 @@ From a `<TargetConditionals.h>` point of view, zippered dylibs are built as
 Apple uses zippered dylibs for most of its macOS system libraries, so that it
 doesn't have to ship them twice.
 
-A zippered dylib can be linked into a normal mac binary:
+Here's a program that uses this dylib:
 
 ```
 % cat hello2.c
 #include <stdio.h>
 const char* foo();
 int main() { printf("hello world %s\n", foo()); }
+```
 
+A zippered dylib can be linked into a normal mac binary:
+
+```
 % clang -rpath @executable_path hello2.c libfoo.dylib
 
 % ./a.out                                            
@@ -180,7 +183,7 @@ so there you have to pass `-isysroot $(xcrun -show-sdk-path)` to clang.)
 Catalyst apps link against three kinds of libraries:
 1. Zippered, normal mac libraries.
 2. Catalyst-only libraries, which are available for Catalyst apps,
-   but not for non-catalyst apps (e.g. UIKit.framework)
+   but not for non-Catalyst apps (e.g. UIKit.framework)
 3. Libraries that are available to both mac and Catalyst apps,
    but that are slightly different for mac and Catalyst
    (e.g. PDFKit.framework).
