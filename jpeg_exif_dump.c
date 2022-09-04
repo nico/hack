@@ -18,10 +18,25 @@ static void fatal(const char* msg, ...) {
 }
 
 static void dump(uint8_t* begin, uint8_t* end) {
+  uint8_t* cur = begin;
+  while (cur < end) {
+    uint8_t b0 = *cur++;
+    if (b0 != 0xff)
+      continue;
+
+    if (cur >= end)
+      break;
+
+    uint8_t b1 = *cur++;
+    if (b1 == 0)
+      continue;
+
+    printf("%02x%02x at offset %ld\n", b0, b1, cur - begin - 2);
+  }
 }
 
 int main(int argc, char* argv[]) {
-  const char* in_name = argv[0];
+  const char* in_name = argv[1];
 
   // Read input.
   int in_file = open(in_name, O_RDONLY);
@@ -32,7 +47,6 @@ int main(int argc, char* argv[]) {
   if (fstat(in_file, &in_stat))
     fatal("Failed to stat \'%s\'\n", in_name);
 
-  // Casting memory like this is not portable.
   void* contents = mmap(
       /*addr=*/0, in_stat.st_size,
       PROT_READ, MAP_SHARED, in_file, /*offset=*/0);
