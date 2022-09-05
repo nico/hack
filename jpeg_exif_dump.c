@@ -67,6 +67,7 @@ static void dump(uint8_t* begin, uint8_t* end) {
       printf(", size %u", size);
     }
 
+    // https://www.disktuna.com/list-of-jpeg-markers/
     switch (b1) {
       case 0xc0:
         printf(": Start Of Frame, baseline DCT (SOF0)\n");
