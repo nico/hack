@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,6 +37,14 @@ static void dump(uint8_t* begin, uint8_t* end) {
       continue;
 
     printf("%02x%02x at offset %ld", b0, b1, cur - begin - 2);
+
+    bool has_size = b1 != 0xd8 && b1 != 0xd9 && end - cur >= 2;
+    uint16_t size = 0;
+    if (has_size) {
+      size = cur[0] << 8 | cur[1];
+      printf(", size %u", size);
+    }
+
     switch (b1) {
       case 0xc0:
         printf(": Start Of Frame, baseline DCT (SOF0)");
@@ -66,7 +75,7 @@ static void dump(uint8_t* begin, uint8_t* end) {
         printf(": Start Of Scan (SOS)");
         break;
       case 0xdb:
-        printf(": Define Quanitization Table(s) (DQT)");
+        printf(": Define Quantization Table(s) (DQT)");
         break;
       case 0xdd:
         printf(": Define Restart Interval (DRI)");
