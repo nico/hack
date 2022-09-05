@@ -150,8 +150,11 @@ static void dump(struct Options* options, uint8_t* begin, uint8_t* end) {
         printf("\n");
     }
 
-    if (!options->scan && has_size)
+    if (!options->scan && has_size) {
       cur += size;
+      if (cur >= end)
+        printf("marker length went %zu bytes past data end\n", cur - end + 1);
+    }
   }
 }
 
