@@ -27,7 +27,11 @@ static void dump(uint8_t* begin, uint8_t* end) {
     if (cur >= end)
       break;
 
-    uint8_t b1 = *cur++;
+    uint8_t b1 = *cur;
+    if (b1 == 0xff)
+      continue;
+    cur++;
+
     if (b1 == 0)
       continue;
 
