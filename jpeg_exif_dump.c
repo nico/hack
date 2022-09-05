@@ -18,6 +18,27 @@ static void fatal(const char* msg, ...) {
   exit(1);
 }
 
+static void dump_app_id(uint8_t* begin, uint8_t* end, bool has_size,
+                        uint16_t size) {
+  if (!has_size) {
+    printf("  no size?!\n");
+    return;
+  }
+
+  if (end - begin < size) {
+    printf("  size is %u, but only %zu bytes left\n", size, end - begin);
+    return;
+  }
+
+  char app_id[80];
+  if (snprintf(app_id, sizeof(app_id), "%s", begin + 2) >= sizeof(app_id)) {
+    printf("  app id longer than %zu bytes, ignoring\n", sizeof(app_id));
+    return;
+  }
+
+  printf("  app id: '%s'\n", app_id);
+}
+
 static void dump(uint8_t* begin, uint8_t* end) {
   uint8_t* cur = begin;
   while (cur < end) {
@@ -47,13 +68,13 @@ static void dump(uint8_t* begin, uint8_t* end) {
 
     switch (b1) {
       case 0xc0:
-        printf(": Start Of Frame, baseline DCT (SOF0)");
+        printf(": Start Of Frame, baseline DCT (SOF0)\n");
         break;
       case 0xc2:
-        printf(": Start Of Frame, progressive DCT (SOF2)");
+        printf(": Start Of Frame, progressive DCT (SOF2)\n");
         break;
       case 0xc4:
-        printf(": Define Huffman Tables (DHT)");
+        printf(": Define Huffman Tables (DHT)\n");
         break;
       case 0xd0:
       case 0xd1:
@@ -63,28 +84,30 @@ static void dump(uint8_t* begin, uint8_t* end) {
       case 0xd5:
       case 0xd6:
       case 0xd7:
-        printf(": Restart (RST%d)", b1 - 0xd0);
+        printf(": Restart (RST%d)\n", b1 - 0xd0);
         break;
       case 0xd8:
-        printf(": Start Of Image (SOI)");
+        printf(": Start Of Image (SOI)\n");
         break;
       case 0xd9:
-        printf(": End Of Image (EOI)");
+        printf(": End Of Image (EOI)\n");
         break;
       case 0xda:
-        printf(": Start Of Scan (SOS)");
+        printf(": Start Of Scan (SOS)\n");
         break;
       case 0xdb:
-        printf(": Define Quantization Table(s) (DQT)");
+        printf(": Define Quantization Table(s) (DQT)\n");
         break;
       case 0xdd:
-        printf(": Define Restart Interval (DRI)");
+        printf(": Define Restart Interval (DRI)\n");
         break;
       case 0xe0:
-        printf(": JPEG/JFIF Image segment (APP0)");
+        printf(": JPEG/JFIF Image segment (APP0)\n");
+        dump_app_id(cur, end, has_size, size);
         break;
       case 0xe1:
-        printf(": EXIF Image segment (APP1)");
+        printf(": EXIF Image segment (APP1)\n");
+        dump_app_id(cur, end, has_size, size);
         break;
       case 0xe2:
       case 0xe3:
@@ -100,13 +123,15 @@ static void dump(uint8_t* begin, uint8_t* end) {
       case 0xed:
       case 0xee:
       case 0xef:
-        printf(": Application Segment (APP%d)", b1 - 0xe0);
+        printf(": Application Segment (APP%d)\n", b1 - 0xe0);
+        dump_app_id(cur, end, has_size, size);
         break;
       case 0xfe:
-        printf(": Comment (COM)");
+        printf(": Comment (COM)\n");
         break;
+      default:
+        printf("\n");
     }
-    printf("\n");
   }
 }
 
