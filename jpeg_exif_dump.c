@@ -91,8 +91,8 @@ int main(int argc, char* argv[]) {
     fatal("Failed to stat \'%s\'\n", in_name);
 
   void* contents = mmap(
-      /*addr=*/0, in_stat.st_size,
-      PROT_READ, MAP_SHARED, in_file, /*offset=*/0);
+      /*addr=*/0, in_stat.st_size, PROT_READ, MAP_SHARED, in_file,
+      /*offset=*/0);
   if (contents == MAP_FAILED)
     fatal("Failed to mmap: %d (%s)\n", errno, strerror(errno));
 
