@@ -31,7 +31,50 @@ static void dump(uint8_t* begin, uint8_t* end) {
     if (b1 == 0)
       continue;
 
-    printf("%02x%02x at offset %ld\n", b0, b1, cur - begin - 2);
+    printf("%02x%02x at offset %ld", b0, b1, cur - begin - 2);
+    switch (b1) {
+      case 0xc0:
+        printf(": Start Of Frame, baseline DCT (SOF0)");
+        break;
+      case 0xc2:
+        printf(": Start Of Frame, progressive DCT (SOF2)");
+        break;
+      case 0xc4:
+        printf(": Define Huffman Tables (DHT)");
+        break;
+      case 0xd0:
+      case 0xd1:
+      case 0xd2:
+      case 0xd3:
+      case 0xd4:
+      case 0xd5:
+      case 0xd6:
+      case 0xd7:
+        printf(": Restart (RST%d)", b1 - 0xd0);
+        break;
+      case 0xd8:
+        printf(": Start Of Image (SOI)");
+        break;
+      case 0xd9:
+        printf(": End Of Image (EOI)");
+        break;
+      case 0xda:
+        printf(": Start Of Scan (SOS)");
+        break;
+      case 0xdb:
+        printf(": Define Quanitization Table(s) (DQT)");
+        break;
+      case 0xdd:
+        printf(": Define Restart Interval (DRI)");
+        break;
+      case 0xe0:
+        printf(": JPEG/JFIF Image segment (APP-0)");
+        break;
+      case 0xfe:
+        printf(": Comment (COM)");
+        break;
+    }
+    printf("\n");
   }
 }
 
