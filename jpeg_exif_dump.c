@@ -68,7 +68,26 @@ static void dump(uint8_t* begin, uint8_t* end) {
         printf(": Define Restart Interval (DRI)");
         break;
       case 0xe0:
-        printf(": JPEG/JFIF Image segment (APP-0)");
+        printf(": JPEG/JFIF Image segment (APP0)");
+        break;
+      case 0xe1:
+        printf(": EXIF Image segment (APP1)");
+        break;
+      case 0xe2:
+      case 0xe3:
+      case 0xe4:
+      case 0xe5:
+      case 0xe6:
+      case 0xe7:
+      case 0xe8:
+      case 0xe9:
+      case 0xea:
+      case 0xeb:
+      case 0xec:
+      case 0xed:
+      case 0xee:
+      case 0xef:
+        printf(": Application Segment (APP%d)", b1 - 0xe0);
         break;
       case 0xfe:
         printf(": Comment (COM)");
