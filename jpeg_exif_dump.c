@@ -59,7 +59,8 @@ static void dump(uint8_t* begin, uint8_t* end) {
 
     printf("%02x%02x at offset %ld", b0, b1, cur - begin - 2);
 
-    bool has_size = b1 != 0xd8 && b1 != 0xd9 && end - cur >= 2;
+    bool has_size = b1 != 0xd8 && b1 != 0xd9 && (b1 & 0xf8) != 0xd0 &&
+                    end - cur >= 2;
     uint16_t size = 0;
     if (has_size) {
       size = cur[0] << 8 | cur[1];
