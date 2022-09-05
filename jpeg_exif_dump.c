@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <fcntl.h>
+#include <getopt.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -43,7 +44,11 @@ static void dump_app_id(uint8_t* begin, uint8_t* end, bool has_size,
   printf("  app id: '%s'\n", app_id);
 }
 
-static void dump(uint8_t* begin, uint8_t* end) {
+struct Options {
+  bool scan;
+};
+
+static void dump(struct Options* options, uint8_t* begin, uint8_t* end) {
   uint8_t* cur = begin;
   while (cur < end) {
     uint8_t b0 = *cur++;
@@ -144,11 +149,34 @@ static void dump(uint8_t* begin, uint8_t* end) {
       default:
         printf("\n");
     }
+
+    if (!options->scan && has_size)
+      cur += size;
   }
 }
 
 int main(int argc, char* argv[]) {
-  const char* in_name = argv[1];
+  // Parse options.
+  struct Options options = {};
+  struct option getopt_options[] = {
+    { "scan", no_argument, NULL, 's' },
+    { },
+  };
+  int opt;
+  while ((opt = getopt_long(argc, argv, "s", getopt_options, NULL)) != -1) {
+    switch (opt) {
+      case 's':
+        options.scan = true;
+        break;
+    }
+  }
+  argv += optind;
+  argc -= optind;
+
+  if (argc != 1)
+    fatal("expected args == 1, got %d\n", argc);
+
+  const char* in_name = argv[0];
 
   // Read input.
   int in_file = open(in_name, O_RDONLY);
@@ -165,7 +193,7 @@ int main(int argc, char* argv[]) {
   if (contents == MAP_FAILED)
     fatal("Failed to mmap: %d (%s)\n", errno, strerror(errno));
 
-  dump(contents, contents + in_stat.st_size);
+  dump(&options, contents, contents + in_stat.st_size);
 
   munmap(contents, in_stat.st_size);
   close(in_file);
