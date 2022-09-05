@@ -18,6 +18,10 @@ static void fatal(const char* msg, ...) {
   exit(1);
 }
 
+static uint16_t be_uint16(uint8_t *p) {
+  return p[0]  << 8 | p[1];
+}
+
 static void dump_app_id(uint8_t* begin, uint8_t* end, bool has_size,
                         uint16_t size) {
   if (!has_size) {
@@ -63,7 +67,7 @@ static void dump(uint8_t* begin, uint8_t* end) {
                     end - cur >= 2;
     uint16_t size = 0;
     if (has_size) {
-      size = cur[0] << 8 | cur[1];
+      size = be_uint16(cur);
       printf(", size %u", size);
     }
 
@@ -102,6 +106,12 @@ static void dump(uint8_t* begin, uint8_t* end) {
         break;
       case 0xdd:
         printf(": Define Restart Interval (DRI)\n");
+        if (!has_size)
+          printf("  missing size\n");
+        else if (size != 4)
+          printf("  expected size 4, got %d\n", size);
+        else
+          printf("  %d macroblocks\n", be_uint16(cur + 2));
         break;
       case 0xe0:
         printf(": JPEG/JFIF Image segment (APP0)\n");
