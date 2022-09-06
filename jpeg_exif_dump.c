@@ -23,31 +23,42 @@ static uint16_t be_uint16(uint8_t *p) {
   return p[0]  << 8 | p[1];
 }
 
-static void dump_app_id(uint8_t* begin, uint8_t* end, bool has_size,
-                        uint16_t size) {
+static void dump_exif(uint8_t* begin, uint16_t size) {
+  // https://www.cipa.jp/std/documents/e/DC-X008-Translation-2019-E.pdf
+  // TODO
+}
+
+static void dump_xmp(uint8_t* begin, uint16_t size) {
+  // http://www.npes.org/pdf/xmpspecification-Jun05.pdf
+  // TODO
+}
+
+static const char* dump_app_id(uint8_t* begin, uint8_t* end, bool has_size,
+                               uint16_t size) {
   if (!has_size) {
     printf("  no size?!\n");
-    return;
+    return NULL;
   }
 
   if (size < 2) {
     printf("  invalid size, must be at least 2, but was %u\n", size);
-    return;
+    return NULL;
   }
 
   if (end - begin < size) {
     printf("  size is %u, but only %zu bytes left\n", size, end - begin);
-    return;
+    return NULL;
   }
 
   const char* app_id = (const char*)(begin + 2);
   size_t id_len = strnlen(app_id, size - 2);
   if (begin[2 + id_len] != '\0') {
     printf("  no zero-terminated id found\n");
-    return;
+    return NULL;
   }
 
   printf("  app id: '%s'\n", app_id);
+  return app_id;
 }
 
 struct Options {
@@ -128,10 +139,16 @@ static void dump(struct Options* options, uint8_t* begin, uint8_t* end) {
         printf(": JPEG/JFIF Image segment (APP0)\n");
         dump_app_id(cur, end, has_size, size);
         break;
-      case 0xe1:
+      case 0xe1: {
         printf(": EXIF Image segment (APP1)\n");
-        dump_app_id(cur, end, has_size, size);
+
+        const char* app_id = dump_app_id(cur, end, has_size, size);
+        if (strcmp(app_id, "Exif") == 0)
+          dump_exif(cur, size);
+        else if (strcmp(app_id, "http://ns.adobe.com/xap/1.0/") == 0)
+          dump_xmp(cur, size);
         break;
+      }
       case 0xe2:
       case 0xe3:
       case 0xe4:
