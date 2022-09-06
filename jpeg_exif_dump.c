@@ -19,8 +19,8 @@ static void fatal(const char* msg, ...) {
   exit(1);
 }
 
-static uint16_t be_uint16(uint8_t *p) {
-  return p[0]  << 8 | p[1];
+static uint16_t be_uint16(uint8_t* p) {
+  return p[0] << 8 | p[1];
 }
 
 static void dump_exif(uint8_t* begin, uint16_t size) {
@@ -33,7 +33,9 @@ static void dump_xmp(uint8_t* begin, uint16_t size) {
   // TODO
 }
 
-static const char* dump_app_id(uint8_t* begin, uint8_t* end, bool has_size,
+static const char* dump_app_id(uint8_t* begin,
+                               uint8_t* end,
+                               bool has_size,
                                uint16_t size) {
   if (!has_size) {
     printf("  no size?!\n");
@@ -85,8 +87,8 @@ static void dump(struct Options* options, uint8_t* begin, uint8_t* end) {
 
     printf("%02x%02x at offset %ld", b0, b1, cur - begin - 2);
 
-    bool has_size = b1 != 0xd8 && b1 != 0xd9 && (b1 & 0xf8) != 0xd0 &&
-                    end - cur >= 2;
+    bool has_size =
+        b1 != 0xd8 && b1 != 0xd9 && (b1 & 0xf8) != 0xd0 && end - cur >= 2;
     uint16_t size = 0;
     if (has_size) {
       size = be_uint16(cur);
@@ -185,8 +187,8 @@ int main(int argc, char* argv[]) {
   // Parse options.
   struct Options options = {};
   struct option getopt_options[] = {
-    { "scan", no_argument, NULL, 's' },
-    { },
+      {"scan", no_argument, NULL, 's'},
+      {},
   };
   int opt;
   while ((opt = getopt_long(argc, argv, "s", getopt_options, NULL)) != -1) {
