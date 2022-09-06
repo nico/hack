@@ -28,6 +28,14 @@ static void dump_exif(uint8_t* begin, uint16_t size) {
   // TODO
 }
 
+static void dump_icc(uint8_t* begin, uint16_t size) {
+  // https://www.color.org/technotes/ICC-Technote-ProfileEmbedding.pdf
+  //   (In particular, an ICC profile can be split across several APP2 marker
+  //   chunks: "...a mechanism is required to break the profile into chunks...")
+  // https://www.color.org/specification/ICC.1-2022-05.pdf
+  // TODO
+}
+
 static void dump_xmp(uint8_t* begin, uint16_t size) {
   // http://www.npes.org/pdf/xmpspecification-Jun05.pdf
   // TODO
@@ -164,10 +172,14 @@ static void dump(struct Options* options, uint8_t* begin, uint8_t* end) {
       case 0xec:
       case 0xed:
       case 0xee:
-      case 0xef:
+      case 0xef: {
         printf(": Application Segment (APP%d)\n", b1 - 0xe0);
-        dump_app_id(cur, end, has_size, size);
+
+        const char* app_id = dump_app_id(cur, end, has_size, size);
+        if (b1 == 0xe2 && strcmp(app_id, "ICC_PROFILE") == 0)
+          dump_icc(cur, size);
         break;
+      }
       case 0xfe:
         printf(": Comment (COM)\n");
         break;
