@@ -30,14 +30,20 @@ static void dump_app_id(uint8_t* begin, uint8_t* end, bool has_size,
     return;
   }
 
+  if (size < 2) {
+    printf("  invalid size, must be at least 2, but was %u\n", size);
+    return;
+  }
+
   if (end - begin < size) {
     printf("  size is %u, but only %zu bytes left\n", size, end - begin);
     return;
   }
 
-  char app_id[80];
-  if (snprintf(app_id, sizeof(app_id), "%s", begin + 2) >= sizeof(app_id)) {
-    printf("  app id longer than %zu bytes, ignoring\n", sizeof(app_id));
+  const char* app_id = (const char*)(begin + 2);
+  size_t id_len = strnlen(app_id, size - 2);
+  if (begin[2 + id_len] != '\0') {
+    printf("  no zero-terminated id found\n");
     return;
   }
 
