@@ -85,6 +85,19 @@ static const char* TiffDataFormatNames[] = {
     "double",
 };
 
+const char* tiff_tag_name(uint16_t tag) {
+  switch (tag) {
+    case 271:
+      return "Make";
+    case 272:
+      return "Model";
+    case 305:
+      return "Software";
+    default:
+      return NULL;
+  }
+}
+
 static void tiff_dump(uint8_t* begin, uint8_t* end) {
   ssize_t size = end - begin;
   if (size < 8) {
@@ -153,8 +166,23 @@ static void tiff_dump(uint8_t* begin, uint8_t* end) {
       }
 
       size_t total_size = count * TiffDataFormatSizes[format];
-      fprintf(stderr, "  tag %d format %d (%s): data size %zu\n", tag, format,
+      uint32_t data_offset = total_size <= 4
+                                 ? this_ifd_offset + 8
+                                 : uint32(begin + this_ifd_offset + 8);
+      void* data = begin + data_offset;
+      fprintf(stderr, "  tag %d", tag);
+      const char* tag_name;
+      if ((tag_name = tiff_tag_name(tag)))
+        fprintf(stderr, " (%s)", tag_name);
+      fprintf(stderr, " format %d (%s): data size %zu", format,
               TiffDataFormatNames[format], total_size);
+
+      // FIXME: print other formats
+      if (format == kAscii) {
+        fprintf(stderr, ": '%.*s'", count, (char*)data);
+      }
+
+      fprintf(stderr, "\n");
     }
 
     uint32_t next_ifd_offset =
