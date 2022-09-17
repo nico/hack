@@ -23,9 +23,83 @@ static uint16_t be_uint16(uint8_t* p) {
   return p[0] << 8 | p[1];
 }
 
+static uint32_t be_uint32(uint8_t* p) {
+  return be_uint16(p) << 16 | be_uint16(p + 2);
+}
+
+static uint16_t le_uint16(uint8_t* p) {
+  return p[1] << 8 | p[0];
+}
+
+static uint32_t le_uint32(uint8_t* p) {
+  return le_uint16(p + 2) << 16 | le_uint16(p);
+}
+
+// TIFF dumping ///////////////////////////////////////////////////////////////
+
+static void tiff_dump(uint8_t* begin, uint8_t* end) {
+  ssize_t size = end - begin;
+  if (size < 8) {
+    fprintf(stderr, "tiff data should be at least 8 bytes, is %zu\n", size);
+    return;
+  }
+
+  enum {
+    kLittle,
+    kBig,
+  } endianness;
+  if (strncmp((char*)begin, "II", 2) == 0)
+    endianness = kLittle;
+  else if (strncmp((char*)begin, "MM", 2) == 0)
+    endianness = kBig;
+  else {
+    fprintf(stderr, "unknown endianness id '%.2s'\n", begin);
+    return;
+  }
+
+  uint16_t (*uint16)(uint8_t*);
+  uint32_t (*uint32)(uint8_t*);
+  if (endianness == kBig) {
+    uint16 = be_uint16;
+    uint32 = be_uint32;
+  } else {
+    uint16 = le_uint16;
+    uint32 = le_uint32;
+  }
+
+  uint16_t check = uint16(begin + 2);
+  if (check != 0x2a) {
+    fprintf(stderr, "expected 0x2a, got 0x%x\n", check);
+    return;
+  }
+
+  // IFD is short for 'Image File Directory'.
+  uint32_t ifd_offset = uint32(begin + 4);
+  if (size - ifd_offset < 2) {
+    fprintf(stderr, "IDF needs at least 2 bytes, has %zu\n", size - ifd_offset);
+    return;
+  }
+  if (ifd_offset != 8) {
+    fprintf(stderr, "IFD offset is surprisingly not 8 but %u\n", ifd_offset);
+    fprintf(stderr, "continuing anyway\n");
+  }
+
+  uint16_t num_ifd_entries = uint16(begin + ifd_offset);
+  if (size - ifd_offset - 2 < num_ifd_entries * 12) {
+    fprintf(stderr, "%d IDF entries need least %d bytes, have %zu\n",
+            num_ifd_entries, num_ifd_entries * 12, size - ifd_offset - 2);
+    return;
+  }
+
+  // FIXME: dump IFD entries, find exif IFD, dump that.
+}
+
+// JPEG dumping ///////////////////////////////////////////////////////////////
+
 static void jpeg_dump_exif(uint8_t* begin, uint16_t size) {
   // https://www.cipa.jp/std/documents/e/DC-X008-Translation-2019-E.pdf
-  // TODO
+  tiff_dump(begin + 8, begin + size);
+
 }
 
 static void jpeg_dump_icc(uint8_t* begin, uint16_t size) {
