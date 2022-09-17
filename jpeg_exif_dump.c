@@ -116,7 +116,7 @@ static void tiff_dump(uint8_t* begin, uint8_t* end) {
   }
 
   uint16_t check = uint16(begin + 2);
-  if (check != 0x2a) {
+  if (check != 42) {
     fprintf(stderr, "expected 0x2a, got 0x%x\n", check);
     return;
   }
