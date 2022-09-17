@@ -123,41 +123,47 @@ static void tiff_dump(uint8_t* begin, uint8_t* end) {
 
   // IFD is short for 'Image File Directory'.
   uint32_t ifd_offset = uint32(begin + 4);
-  if (size - ifd_offset < 6) {
-    fprintf(stderr, "IFD needs at least 6 bytes, has %zu\n", size - ifd_offset);
-    return;
-  }
   if (ifd_offset != 8) {
     fprintf(stderr, "IFD offset is surprisingly not 8 but %u\n", ifd_offset);
     fprintf(stderr, "continuing anyway\n");
   }
 
-  uint16_t num_ifd_entries = uint16(begin + ifd_offset);
-  if (size - ifd_offset - 6 < num_ifd_entries * 12) {
-    fprintf(stderr, "%d IFD entries need least %d bytes, have %zu\n",
-            num_ifd_entries, num_ifd_entries * 12, size - ifd_offset - 2);
-    return;
-  }
-  for (int i = 0; i < num_ifd_entries; ++i) {
-    size_t this_ifd_offset = ifd_offset + 2 + i * 12;
-    uint16_t tag = uint16(begin + this_ifd_offset);
-    uint16_t format = uint16(begin + this_ifd_offset + 2);
-    uint32_t count = uint32(begin + this_ifd_offset + 4);
+  do {
+    if (size - ifd_offset < 6) {
+      fprintf(stderr, "IFD needs at least 6 bytes, has %zu\n",
+              size - ifd_offset);
+      return;
+    }
+    uint16_t num_ifd_entries = uint16(begin + ifd_offset);
+    if (size - ifd_offset - 6 < num_ifd_entries * 12) {
+      fprintf(stderr, "%d IFD entries need least %d bytes, have %zu\n",
+              num_ifd_entries, num_ifd_entries * 12, size - ifd_offset - 2);
+      return;
+    }
+    for (int i = 0; i < num_ifd_entries; ++i) {
+      size_t this_ifd_offset = ifd_offset + 2 + i * 12;
+      uint16_t tag = uint16(begin + this_ifd_offset);
+      uint16_t format = uint16(begin + this_ifd_offset + 2);
+      uint32_t count = uint32(begin + this_ifd_offset + 4);
 
-    if (format == 0 || format > kLastEntry) {
-      fprintf(stderr, "  ifd entry %i invalid format %i, ignoring\n", i,
-              format);
-      continue;
+      if (format == 0 || format > kLastEntry) {
+        fprintf(stderr, "  ifd entry %i invalid format %i, ignoring\n", i,
+                format);
+        continue;
+      }
+
+      size_t total_size = count * TiffDataFormatSizes[format];
+      fprintf(stderr, "  tag %d format %d (%s): data size %zu\n", tag, format,
+              TiffDataFormatNames[format], total_size);
     }
 
-    size_t total_size = count * TiffDataFormatSizes[format];
-    fprintf(stderr, "  tag %d format %d (%s): data size %zu\n", tag, format,
-            TiffDataFormatNames[format], total_size);
-  }
+    uint32_t next_ifd_offset =
+        uint32(begin + ifd_offset + 2 + num_ifd_entries * 12);
+    if (next_ifd_offset != 0)
+      fprintf(stderr, "  next IFD at %d\n", next_ifd_offset);
 
-  uint32_t next_ifd_offset =
-      uint32(begin + ifd_offset + 2 + num_ifd_entries * 12);
-  fprintf(stderr, "  next IFD at %d\n", next_ifd_offset);
+    ifd_offset = next_ifd_offset;
+  } while (ifd_offset != 0);
 }
 
 // JPEG dumping ///////////////////////////////////////////////////////////////
