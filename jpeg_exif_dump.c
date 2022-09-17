@@ -37,6 +37,54 @@ static uint32_t le_uint32(uint8_t* p) {
 
 // TIFF dumping ///////////////////////////////////////////////////////////////
 
+enum TiffDataFormat {
+  kUnsignedByte = 1,
+  kAscii = 2,
+  kUnsignedShort = 3,
+  kUnsignedLong = 4,
+  kUnsignedRational = 5,
+  kSignedByte = 6,
+  kUndefined = 7,
+  kSignedShort = 8,
+  kSignedLong = 9,
+  kSignedRational = 10,
+  kFloat = 11,
+  kDouble = 11,
+  kLastEntry = kDouble,
+};
+
+static int TiffDataFormatSizes[] = {
+    -1,
+    1,   // kUnsignedByte
+    1,   // kAscii
+    2,   // kUnsignedShort
+    4,   // kUnsignedLong
+    8,   // kUnsignedRational
+    1,   // kSignedByte
+    -1,  // kUndefined
+    2,   // kSignedShort
+    4,   // kSignedLong
+    8,   // kSignedRational
+    4,   // kFloat
+    8,   // kDouble
+};
+
+static const char* TiffDataFormatNames[] = {
+    "",
+    "unsigned byte",
+    "ascii",
+    "unsigned short",
+    "unsigned long",
+    "unsigned rational",
+    "signed byte",
+    "undefined",
+    "signed short",
+    "signed long",
+    "signed rational",
+    "float",
+    "double",
+};
+
 static void tiff_dump(uint8_t* begin, uint8_t* end) {
   ssize_t size = end - begin;
   if (size < 8) {
@@ -75,8 +123,8 @@ static void tiff_dump(uint8_t* begin, uint8_t* end) {
 
   // IFD is short for 'Image File Directory'.
   uint32_t ifd_offset = uint32(begin + 4);
-  if (size - ifd_offset < 2) {
-    fprintf(stderr, "IDF needs at least 2 bytes, has %zu\n", size - ifd_offset);
+  if (size - ifd_offset < 2) {  // FIXME: 4 bytes for next_ifd_offset
+    fprintf(stderr, "IFD needs at least 2 bytes, has %zu\n", size - ifd_offset);
     return;
   }
   if (ifd_offset != 8) {
@@ -85,13 +133,28 @@ static void tiff_dump(uint8_t* begin, uint8_t* end) {
   }
 
   uint16_t num_ifd_entries = uint16(begin + ifd_offset);
+  // FIXME: 4 bytes for next_ifd_offset
   if (size - ifd_offset - 2 < num_ifd_entries * 12) {
-    fprintf(stderr, "%d IDF entries need least %d bytes, have %zu\n",
+    fprintf(stderr, "%d IFD entries need least %d bytes, have %zu\n",
             num_ifd_entries, num_ifd_entries * 12, size - ifd_offset - 2);
     return;
   }
 
-  // FIXME: dump IFD entries, find exif IFD, dump that.
+  for (int i = 0; i < num_ifd_entries; ++i) {
+    size_t this_ifd_offset = ifd_offset + 2 + i * 12;
+    uint16_t tag = uint16(begin + this_ifd_offset);
+    uint16_t format = uint16(begin + this_ifd_offset + 2);
+    uint32_t count = uint32(begin + this_ifd_offset + 4);
+
+    if (format == 0 || format > kLastEntry) {
+      fprintf(stderr, "  ifd entry %i invalid format %i\n", i, format);
+      continue;
+    }
+
+    size_t total_size = count * TiffDataFormatSizes[format];
+    fprintf(stderr, "  tag %d format %d (%s): data size %zu\n", tag, format,
+            TiffDataFormatNames[format], total_size);
+  }
 }
 
 // JPEG dumping ///////////////////////////////////////////////////////////////
@@ -99,7 +162,6 @@ static void tiff_dump(uint8_t* begin, uint8_t* end) {
 static void jpeg_dump_exif(uint8_t* begin, uint16_t size) {
   // https://www.cipa.jp/std/documents/e/DC-X008-Translation-2019-E.pdf
   tiff_dump(begin + 8, begin + size);
-
 }
 
 static void jpeg_dump_icc(uint8_t* begin, uint16_t size) {
