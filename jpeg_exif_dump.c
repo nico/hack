@@ -145,7 +145,8 @@ static void tiff_dump(uint8_t* begin, uint8_t* end) {
     uint32_t count = uint32(begin + this_ifd_offset + 4);
 
     if (format == 0 || format > kLastEntry) {
-      fprintf(stderr, "  ifd entry %i invalid format %i\n", i, format);
+      fprintf(stderr, "  ifd entry %i invalid format %i, ignoring\n", i,
+              format);
       continue;
     }
 
