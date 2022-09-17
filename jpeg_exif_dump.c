@@ -85,14 +85,33 @@ static const char* TiffDataFormatNames[] = {
     "double",
 };
 
+// https://www.loc.gov/preservation/digital/formats/content/tiff_tags.shtml
 const char* tiff_tag_name(uint16_t tag) {
   switch (tag) {
+    case 259:
+      return "Compression";
+    case 270:
+      return "ImageDescription";
     case 271:
       return "Make";
     case 272:
       return "Model";
+    case 282:
+      return "XResolution";
+    case 283:
+      return "YResolution";
+    case 296:
+      return "ResolutionUnit";
     case 305:
       return "Software";
+    case 306:
+      return "DateTime";
+    case 513:
+      return "JPEGInterchangeFormat";
+    case 514:
+      return "JPEGInterchangeFormatLength";
+    case 34665:
+      return "Exif IFD";
     default:
       return NULL;
   }
