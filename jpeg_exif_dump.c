@@ -123,8 +123,8 @@ static void tiff_dump(uint8_t* begin, uint8_t* end) {
 
   // IFD is short for 'Image File Directory'.
   uint32_t ifd_offset = uint32(begin + 4);
-  if (size - ifd_offset < 2) {  // FIXME: 4 bytes for next_ifd_offset
-    fprintf(stderr, "IFD needs at least 2 bytes, has %zu\n", size - ifd_offset);
+  if (size - ifd_offset < 6) {
+    fprintf(stderr, "IFD needs at least 6 bytes, has %zu\n", size - ifd_offset);
     return;
   }
   if (ifd_offset != 8) {
@@ -133,13 +133,11 @@ static void tiff_dump(uint8_t* begin, uint8_t* end) {
   }
 
   uint16_t num_ifd_entries = uint16(begin + ifd_offset);
-  // FIXME: 4 bytes for next_ifd_offset
-  if (size - ifd_offset - 2 < num_ifd_entries * 12) {
+  if (size - ifd_offset - 6 < num_ifd_entries * 12) {
     fprintf(stderr, "%d IFD entries need least %d bytes, have %zu\n",
             num_ifd_entries, num_ifd_entries * 12, size - ifd_offset - 2);
     return;
   }
-
   for (int i = 0; i < num_ifd_entries; ++i) {
     size_t this_ifd_offset = ifd_offset + 2 + i * 12;
     uint16_t tag = uint16(begin + this_ifd_offset);
@@ -155,6 +153,10 @@ static void tiff_dump(uint8_t* begin, uint8_t* end) {
     fprintf(stderr, "  tag %d format %d (%s): data size %zu\n", tag, format,
             TiffDataFormatNames[format], total_size);
   }
+
+  uint32_t next_ifd_offset =
+      uint32(begin + ifd_offset + 2 + num_ifd_entries * 12);
+  fprintf(stderr, "  next IFD at %d\n", next_ifd_offset);
 }
 
 // JPEG dumping ///////////////////////////////////////////////////////////////
