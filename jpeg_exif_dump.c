@@ -23,12 +23,12 @@ static uint16_t be_uint16(uint8_t* p) {
   return p[0] << 8 | p[1];
 }
 
-static void dump_exif(uint8_t* begin, uint16_t size) {
+static void jpeg_dump_exif(uint8_t* begin, uint16_t size) {
   // https://www.cipa.jp/std/documents/e/DC-X008-Translation-2019-E.pdf
   // TODO
 }
 
-static void dump_icc(uint8_t* begin, uint16_t size) {
+static void jpeg_dump_icc(uint8_t* begin, uint16_t size) {
   // https://www.color.org/technotes/ICC-Technote-ProfileEmbedding.pdf
   //   (In particular, an ICC profile can be split across several APP2 marker
   //   chunks: "...a mechanism is required to break the profile into chunks...")
@@ -36,15 +36,15 @@ static void dump_icc(uint8_t* begin, uint16_t size) {
   // TODO
 }
 
-static void dump_xmp(uint8_t* begin, uint16_t size) {
+static void jpeg_dump_xmp(uint8_t* begin, uint16_t size) {
   // http://www.npes.org/pdf/xmpspecification-Jun05.pdf
   // TODO
 }
 
-static const char* dump_app_id(uint8_t* begin,
-                               uint8_t* end,
-                               bool has_size,
-                               uint16_t size) {
+static const char* jpeg_dump_app_id(uint8_t* begin,
+                                    uint8_t* end,
+                                    bool has_size,
+                                    uint16_t size) {
   if (!has_size) {
     printf("  no size?!\n");
     return NULL;
@@ -75,7 +75,7 @@ struct Options {
   bool scan;
 };
 
-static void dump(struct Options* options, uint8_t* begin, uint8_t* end) {
+static void jpeg_dump(struct Options* options, uint8_t* begin, uint8_t* end) {
   uint8_t* cur = begin;
   while (cur < end) {
     uint8_t b0 = *cur++;
@@ -147,16 +147,16 @@ static void dump(struct Options* options, uint8_t* begin, uint8_t* end) {
         break;
       case 0xe0:
         printf(": JPEG/JFIF Image segment (APP0)\n");
-        dump_app_id(cur, end, has_size, size);
+        jpeg_dump_app_id(cur, end, has_size, size);
         break;
       case 0xe1: {
         printf(": EXIF Image segment (APP1)\n");
 
-        const char* app_id = dump_app_id(cur, end, has_size, size);
+        const char* app_id = jpeg_dump_app_id(cur, end, has_size, size);
         if (strcmp(app_id, "Exif") == 0)
-          dump_exif(cur, size);
+          jpeg_dump_exif(cur, size);
         else if (strcmp(app_id, "http://ns.adobe.com/xap/1.0/") == 0)
-          dump_xmp(cur, size);
+          jpeg_dump_xmp(cur, size);
         break;
       }
       case 0xe2:
@@ -175,9 +175,9 @@ static void dump(struct Options* options, uint8_t* begin, uint8_t* end) {
       case 0xef: {
         printf(": Application Segment (APP%d)\n", b1 - 0xe0);
 
-        const char* app_id = dump_app_id(cur, end, has_size, size);
+        const char* app_id = jpeg_dump_app_id(cur, end, has_size, size);
         if (b1 == 0xe2 && strcmp(app_id, "ICC_PROFILE") == 0)
-          dump_icc(cur, size);
+          jpeg_dump_icc(cur, size);
         break;
       }
       case 0xfe:
@@ -233,7 +233,7 @@ int main(int argc, char* argv[]) {
   if (contents == MAP_FAILED)
     fatal("Failed to mmap: %d (%s)\n", errno, strerror(errno));
 
-  dump(&options, contents, contents + in_stat.st_size);
+  jpeg_dump(&options, contents, contents + in_stat.st_size);
 
   munmap(contents, in_stat.st_size);
   close(in_file);
