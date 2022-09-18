@@ -88,6 +88,10 @@ static const char* TiffDataFormatNames[] = {
 // https://www.loc.gov/preservation/digital/formats/content/tiff_tags.shtml
 const char* tiff_tag_name(uint16_t tag) {
   switch (tag) {
+    case 256:
+      return "ImageWidth";
+    case 257:
+      return "ImageHeight";
     case 259:
       return "Compression";
     case 270:
@@ -96,6 +100,8 @@ const char* tiff_tag_name(uint16_t tag) {
       return "Make";
     case 272:
       return "Model";
+    case 274:
+      return "Orientation";
     case 282:
       return "XResolution";
     case 283:
@@ -110,8 +116,12 @@ const char* tiff_tag_name(uint16_t tag) {
       return "JPEGInterchangeFormat";
     case 514:
       return "JPEGInterchangeFormatLength";
+    case 531:
+      return "YCbCrPositioning";
     case 34665:
       return "Exif IFD";
+    case 34853:
+      return "GPSInfo";
     default:
       return NULL;
   }
