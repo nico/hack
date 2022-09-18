@@ -207,9 +207,16 @@ static void tiff_dump(uint8_t* begin, uint8_t* end) {
               TiffDataFormatNames[format], total_size);
 
       // FIXME: print other formats
-      if (format == kAscii) {
+      if (format == kUnsignedByte && count == 1)
+        fprintf(stderr, ": %u", *(uint8_t*)data);
+      else if (format == kAscii)
         fprintf(stderr, ": '%.*s'", count, (char*)data);
-      }
+      else if (format == kUnsignedShort && count == 1)
+        fprintf(stderr, ": %u", uint16(data));
+      else if (format == kUnsignedLong && count == 1)
+        fprintf(stderr, ": %u", uint32(data));
+      else if (format == kUnsignedRational && count == 1)
+        fprintf(stderr, ": %u/%u", uint32(data), uint32(data + 4));
 
       fprintf(stderr, "\n");
     }
