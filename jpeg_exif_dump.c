@@ -87,46 +87,30 @@ static const char* TiffDataFormatNames[] = {
 
 // https://www.loc.gov/preservation/digital/formats/content/tiff_tags.shtml
 const char* tiff_tag_name(uint16_t tag) {
+  // clang-format off
   switch (tag) {
-    case 256:
-      return "ImageWidth";
-    case 257:
-      return "ImageHeight";
-    case 259:
-      return "Compression";
-    case 270:
-      return "ImageDescription";
-    case 271:
-      return "Make";
-    case 272:
-      return "Model";
-    case 274:
-      return "Orientation";
-    case 282:
-      return "XResolution";
-    case 283:
-      return "YResolution";
-    case 296:
-      return "ResolutionUnit";
-    case 305:
-      return "Software";
-    case 306:
-      return "DateTime";
-    case 513:
-      return "JPEGInterchangeFormat";
-    case 514:
-      return "JPEGInterchangeFormatLength";
-    case 531:
-      return "YCbCrPositioning";
+    case 256: return "ImageWidth";
+    case 257: return "ImageHeight";
+    case 259: return "Compression";
+    case 270: return "ImageDescription";
+    case 271: return "Make";
+    case 272: return "Model";
+    case 274: return "Orientation";
+    case 282: return "XResolution";
+    case 283: return "YResolution";
+    case 296: return "ResolutionUnit";
+    case 305: return "Software";
+    case 306: return "DateTime";
+    case 513: return "JPEGInterchangeFormat";
+    case 514: return "JPEGInterchangeFormatLength";
+    case 531: return "YCbCrPositioning";
 
     // EXIF Private IFD tags
     // https://exiv2.org/tags.html
-    case 33434:
-      return "ExposureTime (seconds)";
+    case 33434: return "ExposureTime (seconds)";
     case 33437: return "FNumber";
     case 34850: return "ExposureProgram";
-    case 34853:
-      return "GPSInfo";
+    case 34853: return "GPSInfo";
     case 34855: return "ISOSpeedRatings";
     case 36864: return "ExifVersion";
     case 36867: return "DateTimeOriginal";
@@ -169,11 +153,10 @@ const char* tiff_tag_name(uint16_t tag) {
     case 42080: return "CompositeImage";
 
     // Private tags
-    case 34665:
-      return "Exif IFD";
-    default:
-      return NULL;
+    case 34665: return "Exif IFD";
+    default: return NULL;
   }
+  // clang-format on
 }
 
 // Returns offset to next IFD, or 0 if none.
