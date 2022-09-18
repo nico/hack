@@ -145,6 +145,10 @@ static uint32_t tiff_dump_one_ifd(uint8_t* begin,
             num_ifd_entries, num_ifd_entries * 12, size - ifd_offset - 2);
     return 0;
   }
+
+  uint32_t exif_ifd_offset = 0;
+  uint32_t gps_info_ifd_offset = 0;
+
   for (int i = 0; i < num_ifd_entries; ++i) {
     size_t this_ifd_offset = ifd_offset + 2 + i * 12;
     uint16_t tag = uint16(begin + this_ifd_offset);
@@ -181,7 +185,21 @@ static uint32_t tiff_dump_one_ifd(uint8_t* begin,
     else if (format == kUnsignedRational && count == 1)
       fprintf(stderr, ": %u/%u", uint32(data), uint32(data + 4));
 
+    if (tag == 34665 && format == kUnsignedLong && count == 1)
+      exif_ifd_offset = uint32(data);
+    else if (tag == 34853 && format == kUnsignedLong && count == 1)
+      gps_info_ifd_offset = uint32(data);
+
     fprintf(stderr, "\n");
+  }
+
+  if (exif_ifd_offset != 0) {
+    fprintf(stderr, "  exif IFD:\n");
+    tiff_dump_one_ifd(begin, end, exif_ifd_offset, uint16, uint32);
+  }
+  if (gps_info_ifd_offset != 0) {
+    fprintf(stderr, "  GPSInfo IFD:\n");
+    tiff_dump_one_ifd(begin, end, gps_info_ifd_offset, uint16, uint32);
   }
 
   uint32_t next_ifd_offset =
