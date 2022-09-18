@@ -127,6 +127,71 @@ const char* tiff_tag_name(uint16_t tag) {
   }
 }
 
+// Returns offset to next IFD, or 0 if none.
+static uint32_t tiff_dump_one_ifd(uint8_t* begin,
+                                  uint8_t* end,
+                                  uint32_t ifd_offset,
+                                  uint16_t (*uint16)(uint8_t*),
+                                  uint32_t (*uint32)(uint8_t*)) {
+  ssize_t size = end - begin;
+
+  if (size - ifd_offset < 6) {
+    fprintf(stderr, "IFD needs at least 6 bytes, has %zu\n", size - ifd_offset);
+    return 0;
+  }
+  uint16_t num_ifd_entries = uint16(begin + ifd_offset);
+  if (size - ifd_offset - 6 < num_ifd_entries * 12) {
+    fprintf(stderr, "%d IFD entries need least %d bytes, have %zu\n",
+            num_ifd_entries, num_ifd_entries * 12, size - ifd_offset - 2);
+    return 0;
+  }
+  for (int i = 0; i < num_ifd_entries; ++i) {
+    size_t this_ifd_offset = ifd_offset + 2 + i * 12;
+    uint16_t tag = uint16(begin + this_ifd_offset);
+    uint16_t format = uint16(begin + this_ifd_offset + 2);
+    uint32_t count = uint32(begin + this_ifd_offset + 4);
+
+    if (format == 0 || format > kLastEntry) {
+      fprintf(stderr, "  ifd entry %i invalid format %i, ignoring\n", i,
+              format);
+      continue;
+    }
+
+    size_t total_size = count * TiffDataFormatSizes[format];
+    uint32_t data_offset = total_size <= 4
+                               ? this_ifd_offset + 8
+                               : uint32(begin + this_ifd_offset + 8);
+    void* data = begin + data_offset;
+    fprintf(stderr, "  tag %d", tag);
+    const char* tag_name;
+    if ((tag_name = tiff_tag_name(tag)))
+      fprintf(stderr, " (%s)", tag_name);
+    fprintf(stderr, " format %d (%s): data size %zu", format,
+            TiffDataFormatNames[format], total_size);
+
+    // FIXME: print other formats
+    if (format == kUnsignedByte && count == 1)
+      fprintf(stderr, ": %u", *(uint8_t*)data);
+    else if (format == kAscii)
+      fprintf(stderr, ": '%.*s'", count, (char*)data);
+    else if (format == kUnsignedShort && count == 1)
+      fprintf(stderr, ": %u", uint16(data));
+    else if (format == kUnsignedLong && count == 1)
+      fprintf(stderr, ": %u", uint32(data));
+    else if (format == kUnsignedRational && count == 1)
+      fprintf(stderr, ": %u/%u", uint32(data), uint32(data + 4));
+
+    fprintf(stderr, "\n");
+  }
+
+  uint32_t next_ifd_offset =
+      uint32(begin + ifd_offset + 2 + num_ifd_entries * 12);
+  if (next_ifd_offset != 0)
+    fprintf(stderr, "  next IFD at %d\n", next_ifd_offset);
+
+  return next_ifd_offset;
+}
+
 static void tiff_dump(uint8_t* begin, uint8_t* end) {
   ssize_t size = end - begin;
   if (size < 8) {
@@ -171,61 +236,8 @@ static void tiff_dump(uint8_t* begin, uint8_t* end) {
   }
 
   do {
-    if (size - ifd_offset < 6) {
-      fprintf(stderr, "IFD needs at least 6 bytes, has %zu\n",
-              size - ifd_offset);
-      return;
-    }
-    uint16_t num_ifd_entries = uint16(begin + ifd_offset);
-    if (size - ifd_offset - 6 < num_ifd_entries * 12) {
-      fprintf(stderr, "%d IFD entries need least %d bytes, have %zu\n",
-              num_ifd_entries, num_ifd_entries * 12, size - ifd_offset - 2);
-      return;
-    }
-    for (int i = 0; i < num_ifd_entries; ++i) {
-      size_t this_ifd_offset = ifd_offset + 2 + i * 12;
-      uint16_t tag = uint16(begin + this_ifd_offset);
-      uint16_t format = uint16(begin + this_ifd_offset + 2);
-      uint32_t count = uint32(begin + this_ifd_offset + 4);
-
-      if (format == 0 || format > kLastEntry) {
-        fprintf(stderr, "  ifd entry %i invalid format %i, ignoring\n", i,
-                format);
-        continue;
-      }
-
-      size_t total_size = count * TiffDataFormatSizes[format];
-      uint32_t data_offset = total_size <= 4
-                                 ? this_ifd_offset + 8
-                                 : uint32(begin + this_ifd_offset + 8);
-      void* data = begin + data_offset;
-      fprintf(stderr, "  tag %d", tag);
-      const char* tag_name;
-      if ((tag_name = tiff_tag_name(tag)))
-        fprintf(stderr, " (%s)", tag_name);
-      fprintf(stderr, " format %d (%s): data size %zu", format,
-              TiffDataFormatNames[format], total_size);
-
-      // FIXME: print other formats
-      if (format == kUnsignedByte && count == 1)
-        fprintf(stderr, ": %u", *(uint8_t*)data);
-      else if (format == kAscii)
-        fprintf(stderr, ": '%.*s'", count, (char*)data);
-      else if (format == kUnsignedShort && count == 1)
-        fprintf(stderr, ": %u", uint16(data));
-      else if (format == kUnsignedLong && count == 1)
-        fprintf(stderr, ": %u", uint32(data));
-      else if (format == kUnsignedRational && count == 1)
-        fprintf(stderr, ": %u/%u", uint32(data), uint32(data + 4));
-
-      fprintf(stderr, "\n");
-    }
-
     uint32_t next_ifd_offset =
-        uint32(begin + ifd_offset + 2 + num_ifd_entries * 12);
-    if (next_ifd_offset != 0)
-      fprintf(stderr, "  next IFD at %d\n", next_ifd_offset);
-
+        tiff_dump_one_ifd(begin, end, ifd_offset, uint16, uint32);
     ifd_offset = next_ifd_offset;
   } while (ifd_offset != 0);
 }
