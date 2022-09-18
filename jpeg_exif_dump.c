@@ -55,18 +55,18 @@ enum TiffDataFormat {
 
 static int TiffDataFormatSizes[] = {
     -1,
-    1,   // kUnsignedByte
-    1,   // kAscii
-    2,   // kUnsignedShort
-    4,   // kUnsignedLong
-    8,   // kUnsignedRational
-    1,   // kSignedByte
-    -1,  // kUndefined
-    2,   // kSignedShort
-    4,   // kSignedLong
-    8,   // kSignedRational
-    4,   // kFloat
-    8,   // kDouble
+    1,  // kUnsignedByte
+    1,  // kAscii
+    2,  // kUnsignedShort
+    4,  // kUnsignedLong
+    8,  // kUnsignedRational
+    1,  // kSignedByte
+    1,  // kUndefined
+    2,  // kSignedShort
+    4,  // kSignedLong
+    8,  // kSignedRational
+    4,  // kFloat
+    8,  // kDouble
 };
 
 static const char* TiffDataFormatNames[] = {
