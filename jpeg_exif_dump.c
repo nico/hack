@@ -119,6 +119,7 @@ const char* tiff_tag_name(uint16_t tag) {
     case 36881: return "OffsetTimeOriginal";
     case 36882: return "OffsetTimeDigitized";
     case 37121: return "ComponentsConfiguration";
+    case 37122: return "CompressedBitsPerPixel";
     case 37377: return "ShutterSpeedValue";
     case 37378: return "ApertureValue";
     case 37379: return "BrightnessValue";
@@ -126,8 +127,10 @@ const char* tiff_tag_name(uint16_t tag) {
     case 37381: return "MaxApertureValue";
     case 37382: return "SubjectDistance (meters)";
     case 37383: return "MeteringMode";
+    case 37384: return "LightSource";
     case 37385: return "Flash";
     case 37386: return "FocalLength";
+    case 37500: return "MakerNote";
     case 37520: return "SubsecTime";
     case 37521: return "SubsecTimeOriginal";
     case 37522: return "SubsecTimeDigitized";
@@ -136,7 +139,9 @@ const char* tiff_tag_name(uint16_t tag) {
     case 40962: return "PixelXDimension";
     case 40963: return "PixelYDimension";
     case 40965: return "InteroperabilityIFD";
+    case 41493: return "ExposureIndex";
     case 41495: return "SensingMethod";
+    case 41728: return "FileSource";
     case 41729: return "SceneType";
     case 41985: return "CustomRendered";
     case 41986: return "ExposureMode";
@@ -144,10 +149,13 @@ const char* tiff_tag_name(uint16_t tag) {
     case 41988: return "DigitalZoomRatio";
     case 41989: return "FocalLengthIn35mmFilm";
     case 41990: return "SceneCaptureType";
+    case 41991: return "GainControl";
     case 41992: return "Contrast";
     case 41993: return "Saturation";
     case 41994: return "Sharpness";
+    case 41995: return "DeviceSettingDescription";
     case 41996: return "SubjectDistanceRange";
+    case 42033: return "BodySerialNumber";
     case 42035: return "LensMake";
     case 42036: return "LensModel";
     case 42080: return "CompositeImage";
