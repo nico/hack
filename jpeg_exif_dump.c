@@ -230,6 +230,8 @@ static uint32_t tiff_dump_one_ifd(uint8_t* begin,
       fprintf(stderr, ": %u", uint32(data));
     else if (format == kUnsignedRational && count == 1)
       fprintf(stderr, ": %u/%u", uint32(data), uint32(data + 4));
+    else if (format == kSignedRational && count == 1)
+      fprintf(stderr, ": %d/%d", uint32(data), uint32(data + 4));
 
     if (tag == 34665 && format == kUnsignedLong && count == 1)
       exif_ifd_offset = uint32(data);
