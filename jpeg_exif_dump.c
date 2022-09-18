@@ -112,6 +112,8 @@ const char* tiff_tag_name(uint16_t tag) {
     case 34850: return "ExposureProgram";
     case 34853: return "GPSInfo";
     case 34855: return "ISOSpeedRatings";
+    case 34864: return "SensitivityType";
+    case 34866: return "RecommendedExposureIndex";
     case 36864: return "ExifVersion";
     case 36867: return "DateTimeOriginal";
     case 36868: return "DateTimeDigitized";
@@ -139,6 +141,9 @@ const char* tiff_tag_name(uint16_t tag) {
     case 40962: return "PixelXDimension";
     case 40963: return "PixelYDimension";
     case 40965: return "InteroperabilityIFD";
+    case 41486: return "FocalPlaneXResolution";
+    case 41487: return "FocalPlaneYResolution";
+    case 41488: return "FocalPlaneResolutionUnit";
     case 41493: return "ExposureIndex";
     case 41495: return "SensingMethod";
     case 41728: return "FileSource";
@@ -156,6 +161,7 @@ const char* tiff_tag_name(uint16_t tag) {
     case 41995: return "DeviceSettingDescription";
     case 41996: return "SubjectDistanceRange";
     case 42033: return "BodySerialNumber";
+    case 42034: return "LensSpecification";
     case 42035: return "LensMake";
     case 42036: return "LensModel";
     case 42080: return "CompositeImage";
