@@ -378,6 +378,43 @@ static void tiff_dump(struct Options* options,
 
 // JPEG dumping ///////////////////////////////////////////////////////////////
 
+static void jpeg_dump_jfif(struct Options* options,
+                           const uint8_t* begin,
+                           uint16_t size) {
+  // https://en.wikipedia.org/wiki/JPEG_File_Interchange_Format#JFIF_APP0_marker_segment
+  if (size < 16) {
+    printf("jfif header should be at least 18 bytes, is %u\n", size);
+    return;
+  }
+
+  begin += sizeof(uint16_t) + sizeof("JFIF");
+
+  iprintf(options, "jfif version: %d.%d\n", begin[0], begin[1]);
+
+  uint8_t units = begin[2];
+  iprintf(options, "density unit: %d", units);
+  switch (units) {
+    case 0:
+      printf(" (no units, aspect only)");
+      break;
+    case 1:
+      printf(" (pixels/inch)");
+      break;
+    case 2:
+      printf(" (pixels/cm)");
+      break;
+    default:
+      printf(" (unknown value)");
+      break;
+  }
+  printf("\n");
+
+  iprintf(options, "Xdensity: %d\n", be_uint16(begin + 3));
+  iprintf(options, "Ydensity: %d\n", be_uint16(begin + 5));
+  iprintf(options, "Xthumbnail: %d\n", begin[7]);
+  iprintf(options, "Ythumbnail: %d\n", begin[8]);
+}
+
 static void jpeg_dump_exif(struct Options* options,
                            const uint8_t* begin,
                            uint16_t size) {
@@ -505,7 +542,10 @@ static void jpeg_dump(struct Options* options,
       case 0xe0:
         printf(": JPEG/JFIF Image segment (APP0)\n");
         increase_indent(options);
-        jpeg_dump_app_id(options, cur, end, has_size, size);
+        const char* app_id =
+            jpeg_dump_app_id(options, cur, end, has_size, size);
+        if (strcmp(app_id, "JFIF") == 0)
+          jpeg_dump_jfif(options, cur, size);
         decrease_indent(options);
         break;
       case 0xe1: {
