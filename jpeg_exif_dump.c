@@ -182,13 +182,13 @@ static uint32_t tiff_dump_one_ifd(uint8_t* begin,
   ssize_t size = end - begin;
 
   if (size - ifd_offset < 6) {
-    fprintf(stderr, "IFD needs at least 6 bytes, has %zu\n", size - ifd_offset);
+    printf("IFD needs at least 6 bytes, has %zu\n", size - ifd_offset);
     return 0;
   }
   uint16_t num_ifd_entries = uint16(begin + ifd_offset);
   if (size - ifd_offset - 6 < num_ifd_entries * 12) {
-    fprintf(stderr, "%d IFD entries need least %d bytes, have %zu\n",
-            num_ifd_entries, num_ifd_entries * 12, size - ifd_offset - 2);
+    printf("%d IFD entries need least %d bytes, have %zu\n", num_ifd_entries,
+           num_ifd_entries * 12, size - ifd_offset - 2);
     return 0;
   }
 
@@ -202,8 +202,7 @@ static uint32_t tiff_dump_one_ifd(uint8_t* begin,
     uint32_t count = uint32(begin + this_ifd_offset + 4);
 
     if (format == 0 || format > kLastEntry) {
-      fprintf(stderr, "  ifd entry %i invalid format %i, ignoring\n", i,
-              format);
+      printf("  ifd entry %i invalid format %i, ignoring\n", i, format);
       continue;
     }
 
@@ -212,48 +211,48 @@ static uint32_t tiff_dump_one_ifd(uint8_t* begin,
                                ? this_ifd_offset + 8
                                : uint32(begin + this_ifd_offset + 8);
     void* data = begin + data_offset;
-    fprintf(stderr, "  tag %d", tag);
+    printf("  tag %d", tag);
     const char* tag_name;
     if ((tag_name = tiff_tag_name(tag)))
-      fprintf(stderr, " (%s)", tag_name);
-    fprintf(stderr, " format %d (%s): data size %zu", format,
-            TiffDataFormatNames[format], total_size);
+      printf(" (%s)", tag_name);
+    printf(" format %u (%s): count %u", format, TiffDataFormatNames[format],
+           count);
 
     // FIXME: print other formats
     if (format == kUnsignedByte && count == 1)
-      fprintf(stderr, ": %u", *(uint8_t*)data);
+      printf(": %u", *(uint8_t*)data);
     else if (format == kAscii)
-      fprintf(stderr, ": '%.*s'", count, (char*)data);
+      printf(": '%.*s'", count, (char*)data);
     else if (format == kUnsignedShort && count == 1)
-      fprintf(stderr, ": %u", uint16(data));
+      printf(": %u", uint16(data));
     else if (format == kUnsignedLong && count == 1)
-      fprintf(stderr, ": %u", uint32(data));
+      printf(": %u", uint32(data));
     else if (format == kUnsignedRational && count == 1)
-      fprintf(stderr, ": %u/%u", uint32(data), uint32(data + 4));
+      printf(": %u/%u", uint32(data), uint32(data + 4));
     else if (format == kSignedRational && count == 1)
-      fprintf(stderr, ": %d/%d", uint32(data), uint32(data + 4));
+      printf(": %d/%d", uint32(data), uint32(data + 4));
 
     if (tag == 34665 && format == kUnsignedLong && count == 1)
       exif_ifd_offset = uint32(data);
     else if (tag == 34853 && format == kUnsignedLong && count == 1)
       gps_info_ifd_offset = uint32(data);
 
-    fprintf(stderr, "\n");
+    printf("\n");
   }
 
   if (exif_ifd_offset != 0) {
-    fprintf(stderr, "  exif IFD:\n");
+    printf("  exif IFD:\n");
     tiff_dump_one_ifd(begin, end, exif_ifd_offset, uint16, uint32);
   }
   if (gps_info_ifd_offset != 0) {
-    fprintf(stderr, "  GPSInfo IFD:\n");
+    printf("  GPSInfo IFD:\n");
     tiff_dump_one_ifd(begin, end, gps_info_ifd_offset, uint16, uint32);
   }
 
   uint32_t next_ifd_offset =
       uint32(begin + ifd_offset + 2 + num_ifd_entries * 12);
   if (next_ifd_offset != 0)
-    fprintf(stderr, "  next IFD at %d\n", next_ifd_offset);
+    printf("  next IFD at %d\n", next_ifd_offset);
 
   return next_ifd_offset;
 }
@@ -261,7 +260,7 @@ static uint32_t tiff_dump_one_ifd(uint8_t* begin,
 static void tiff_dump(uint8_t* begin, uint8_t* end) {
   ssize_t size = end - begin;
   if (size < 8) {
-    fprintf(stderr, "tiff data should be at least 8 bytes, is %zu\n", size);
+    printf("tiff data should be at least 8 bytes, is %zu\n", size);
     return;
   }
 
@@ -274,7 +273,7 @@ static void tiff_dump(uint8_t* begin, uint8_t* end) {
   else if (strncmp((char*)begin, "MM", 2) == 0)
     endianness = kBig;
   else {
-    fprintf(stderr, "unknown endianness id '%.2s'\n", begin);
+    printf("unknown endianness id '%.2s'\n", begin);
     return;
   }
 
@@ -290,15 +289,15 @@ static void tiff_dump(uint8_t* begin, uint8_t* end) {
 
   uint16_t check = uint16(begin + 2);
   if (check != 42) {
-    fprintf(stderr, "expected 0x2a, got 0x%x\n", check);
+    printf("expected 0x2a, got 0x%x\n", check);
     return;
   }
 
   // IFD is short for 'Image File Directory'.
   uint32_t ifd_offset = uint32(begin + 4);
   if (ifd_offset != 8) {
-    fprintf(stderr, "IFD offset is surprisingly not 8 but %u\n", ifd_offset);
-    fprintf(stderr, "continuing anyway\n");
+    printf("IFD offset is surprisingly not 8 but %u\n", ifd_offset);
+    printf("continuing anyway\n");
   }
 
   do {
