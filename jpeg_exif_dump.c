@@ -36,8 +36,26 @@ static uint32_t le_uint32(const uint8_t* p) {
 }
 
 struct Options {
+  int current_indent;
   bool jpeg_scan;
 };
+
+static void increase_indent(struct Options* options) {
+  options->current_indent += 2;
+}
+
+static void decrease_indent(struct Options* options) {
+  options->current_indent -= 2;
+}
+
+static void iprintf(const struct Options* options, const char* msg, ...) {
+  for (int i = 0; i < options->current_indent; ++i)
+    printf(" ");
+  va_list args;
+  va_start(args, msg);
+  vprintf(msg, args);
+  va_end(args);
+}
 
 // TIFF dumping ///////////////////////////////////////////////////////////////
 
@@ -196,6 +214,7 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
   ssize_t size = tiff_state->size;
   uint16_t (*uint16)(const uint8_t*) = tiff_state->uint16;
   uint32_t (*uint32)(const uint8_t*) = tiff_state->uint32;
+  struct Options* options = tiff_state->options;
 
   if (size - ifd_offset < 6) {
     printf("IFD needs at least 6 bytes, has %zu\n", size - ifd_offset);
@@ -220,7 +239,7 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
     uint32_t count = uint32(begin + this_ifd_offset + 4);
 
     if (format == 0 || format > kLastEntry) {
-      printf("  ifd entry %i invalid format %i, ignoring\n", i, format);
+      iprintf(options, "ifd entry %i invalid format %i, ignoring\n", i, format);
       continue;
     }
 
@@ -229,7 +248,7 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
                                ? this_ifd_offset + 8
                                : uint32(begin + this_ifd_offset + 8);
     const void* data = begin + data_offset;
-    printf("  tag %d", tag);
+    iprintf(options, "tag %d", tag);
     const char* tag_name;
     if ((tag_name = tiff_tag_name(tag)))
       printf(" (%s)", tag_name);
@@ -272,23 +291,29 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
   }
 
   if (jpeg_offset != 0 && jpeg_length) {
-    printf("  jpeg thumbnail\n");
+    iprintf(options, "jpeg thumbnail\n");
+    increase_indent(options);
     jpeg_dump(tiff_state->options, begin + jpeg_offset,
               begin + jpeg_offset + jpeg_length);
+    decrease_indent(options);
   }
   if (exif_ifd_offset != 0) {
-    printf("  exif IFD:\n");
+    iprintf(options, "exif IFD\n");
+    increase_indent(options);
     tiff_dump_one_ifd(tiff_state, exif_ifd_offset);
+    decrease_indent(options);
   }
   if (gps_info_ifd_offset != 0) {
-    printf("  GPSInfo IFD:\n");
+    iprintf(options, "GPSInfo IFD:\n");
+    increase_indent(options);
     tiff_dump_one_ifd(tiff_state, gps_info_ifd_offset);
+    decrease_indent(options);
   }
 
   uint32_t next_ifd_offset =
       uint32(begin + ifd_offset + 2 + num_ifd_entries * 12);
   if (next_ifd_offset != 0)
-    printf("  next IFD at %d\n", next_ifd_offset);
+    iprintf(options, "next IFD at %d\n", next_ifd_offset);
 
   return next_ifd_offset;
 }
@@ -373,33 +398,35 @@ static void jpeg_dump_xmp(const uint8_t* begin, uint16_t size) {
   // TODO
 }
 
-static const char* jpeg_dump_app_id(const uint8_t* begin,
+static const char* jpeg_dump_app_id(struct Options* options,
+                                    const uint8_t* begin,
                                     const uint8_t* end,
                                     bool has_size,
                                     uint16_t size) {
   if (!has_size) {
-    printf("  no size?!\n");
+    iprintf(options, "  no size?!\n");
     return NULL;
   }
 
   if (size < 2) {
-    printf("  invalid size, must be at least 2, but was %u\n", size);
+    iprintf(options, "invalid size, must be at least 2, but was %u\n", size);
     return NULL;
   }
 
   if (end - begin < size) {
-    printf("  size is %u, but only %zu bytes left\n", size, end - begin);
+    iprintf(options, "size is %u, but only %zu bytes left\n", size,
+            end - begin);
     return NULL;
   }
 
   const char* app_id = (const char*)(begin + 2);
   size_t id_len = strnlen(app_id, size - 2);
   if (begin[2 + id_len] != '\0') {
-    printf("  no zero-terminated id found\n");
+    iprintf(options, "no zero-terminated id found\n");
     return NULL;
   }
 
-  printf("  app id: '%s'\n", app_id);
+  iprintf(options, "app id: '%s'\n", app_id);
   return app_id;
 }
 
@@ -423,7 +450,7 @@ static void jpeg_dump(struct Options* options,
     if (b1 == 0)
       continue;
 
-    printf("%02x%02x at offset %ld", b0, b1, cur - begin - 2);
+    iprintf(options, "%02x%02x at offset %ld", b0, b1, cur - begin - 2);
 
     bool has_size =
         b1 != 0xd8 && b1 != 0xd9 && (b1 & 0xf8) != 0xd0 && end - cur >= 2;
@@ -477,16 +504,21 @@ static void jpeg_dump(struct Options* options,
         break;
       case 0xe0:
         printf(": JPEG/JFIF Image segment (APP0)\n");
-        jpeg_dump_app_id(cur, end, has_size, size);
+        increase_indent(options);
+        jpeg_dump_app_id(options, cur, end, has_size, size);
+        decrease_indent(options);
         break;
       case 0xe1: {
         printf(": EXIF Image segment (APP1)\n");
 
-        const char* app_id = jpeg_dump_app_id(cur, end, has_size, size);
+        increase_indent(options);
+        const char* app_id =
+            jpeg_dump_app_id(options, cur, end, has_size, size);
         if (strcmp(app_id, "Exif") == 0)
           jpeg_dump_exif(options, cur, size);
         else if (strcmp(app_id, "http://ns.adobe.com/xap/1.0/") == 0)
           jpeg_dump_xmp(cur, size);
+        decrease_indent(options);
         break;
       }
       case 0xe2:
@@ -505,9 +537,12 @@ static void jpeg_dump(struct Options* options,
       case 0xef: {
         printf(": Application Segment (APP%d)\n", b1 - 0xe0);
 
-        const char* app_id = jpeg_dump_app_id(cur, end, has_size, size);
+        increase_indent(options);
+        const char* app_id =
+            jpeg_dump_app_id(options, cur, end, has_size, size);
         if (b1 == 0xe2 && strcmp(app_id, "ICC_PROFILE") == 0)
           jpeg_dump_icc(cur, size);
+        decrease_indent(options);
         break;
       }
       case 0xfe:
