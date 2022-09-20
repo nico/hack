@@ -35,9 +35,12 @@ static uint32_t le_uint32(const uint8_t* p) {
   return le_uint16(p + 2) << 16 | le_uint16(p);
 }
 
+struct Options {
+  bool jpeg_scan;
+};
+
 // TIFF dumping ///////////////////////////////////////////////////////////////
 
-struct Options;
 static void jpeg_dump(struct Options* options,
                       const uint8_t* begin,
                       const uint8_t* end);
@@ -183,6 +186,7 @@ struct TiffState {
   ssize_t size;
   uint16_t (*uint16)(const uint8_t*);
   uint32_t (*uint32)(const uint8_t*);
+  struct Options* options;
 };
 
 // Returns offset to next IFD, or 0 if none.
@@ -269,9 +273,8 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
 
   if (jpeg_offset != 0 && jpeg_length) {
     printf("  jpeg thumbnail\n");
-    // Options are currently only used for scan mode.  The outer scan will scan
-    // the thumbnail anyways, so maybe fine to pass NULL (?)
-    jpeg_dump(NULL, begin + jpeg_offset, begin + jpeg_offset + jpeg_length);
+    jpeg_dump(tiff_state->options, begin + jpeg_offset,
+              begin + jpeg_offset + jpeg_length);
   }
   if (exif_ifd_offset != 0) {
     printf("  exif IFD:\n");
@@ -290,7 +293,9 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
   return next_ifd_offset;
 }
 
-static void tiff_dump(const uint8_t* begin, const uint8_t* end) {
+static void tiff_dump(struct Options* options,
+                      const uint8_t* begin,
+                      const uint8_t* end) {
   ssize_t size = end - begin;
   if (size < 8) {
     printf("tiff data should be at least 8 bytes, is %zu\n", size);
@@ -338,6 +343,7 @@ static void tiff_dump(const uint8_t* begin, const uint8_t* end) {
       .size = size,
       .uint16 = uint16,
       .uint32 = uint32,
+      .options = options,
   };
   do {
     uint32_t next_ifd_offset = tiff_dump_one_ifd(&tiff_state, ifd_offset);
@@ -347,9 +353,11 @@ static void tiff_dump(const uint8_t* begin, const uint8_t* end) {
 
 // JPEG dumping ///////////////////////////////////////////////////////////////
 
-static void jpeg_dump_exif(const uint8_t* begin, uint16_t size) {
+static void jpeg_dump_exif(struct Options* options,
+                           const uint8_t* begin,
+                           uint16_t size) {
   // https://www.cipa.jp/std/documents/e/DC-X008-Translation-2019-E.pdf
-  tiff_dump(begin + 8, begin + size);
+  tiff_dump(options, begin + 8, begin + size);
 }
 
 static void jpeg_dump_icc(const uint8_t* begin, uint16_t size) {
@@ -394,10 +402,6 @@ static const char* jpeg_dump_app_id(const uint8_t* begin,
   printf("  app id: '%s'\n", app_id);
   return app_id;
 }
-
-struct Options {
-  bool scan;
-};
 
 static void jpeg_dump(struct Options* options,
                       const uint8_t* begin,
@@ -480,7 +484,7 @@ static void jpeg_dump(struct Options* options,
 
         const char* app_id = jpeg_dump_app_id(cur, end, has_size, size);
         if (strcmp(app_id, "Exif") == 0)
-          jpeg_dump_exif(cur, size);
+          jpeg_dump_exif(options, cur, size);
         else if (strcmp(app_id, "http://ns.adobe.com/xap/1.0/") == 0)
           jpeg_dump_xmp(cur, size);
         break;
@@ -513,7 +517,7 @@ static void jpeg_dump(struct Options* options,
         printf("\n");
     }
 
-    if (options && !options->scan && has_size) {
+    if (!options->jpeg_scan && has_size) {
       cur += size;
       if (cur >= end)
         printf("marker length went %zu bytes past data end\n", cur - end + 1);
@@ -532,7 +536,7 @@ int main(int argc, char* argv[]) {
   while ((opt = getopt_long(argc, argv, "s", getopt_options, NULL)) != -1) {
     switch (opt) {
       case 's':
-        options.scan = true;
+        options.jpeg_scan = true;
         break;
     }
   }
