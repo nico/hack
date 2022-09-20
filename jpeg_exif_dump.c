@@ -37,6 +37,9 @@ static uint32_t le_uint32(uint8_t* p) {
 
 // TIFF dumping ///////////////////////////////////////////////////////////////
 
+struct Options;
+static void jpeg_dump(struct Options* options, uint8_t* begin, uint8_t* end);
+
 enum TiffDataFormat {
   kUnsignedByte = 1,
   kAscii = 2,
@@ -192,6 +195,8 @@ static uint32_t tiff_dump_one_ifd(uint8_t* begin,
     return 0;
   }
 
+  uint32_t jpeg_offset = 0;
+  uint32_t jpeg_length = 0;
   uint32_t exif_ifd_offset = 0;
   uint32_t gps_info_ifd_offset = 0;
 
@@ -241,7 +246,11 @@ static uint32_t tiff_dump_one_ifd(uint8_t* begin,
         printf(" (%.3f)", numerator / (double)denominator);
     }
 
-    if (tag == 34665 && format == kUnsignedLong && count == 1)
+    if (tag == 513 && format == kUnsignedLong && count == 1)
+      jpeg_offset = uint32(data);
+    else if (tag == 514 && format == kUnsignedLong && count == 1)
+      jpeg_length = uint32(data);
+    else if (tag == 34665 && format == kUnsignedLong && count == 1)
       exif_ifd_offset = uint32(data);
     else if (tag == 34853 && format == kUnsignedLong && count == 1)
       gps_info_ifd_offset = uint32(data);
@@ -249,6 +258,12 @@ static uint32_t tiff_dump_one_ifd(uint8_t* begin,
     printf("\n");
   }
 
+  if (jpeg_offset != 0 && jpeg_length) {
+    printf("  jpeg thumbnail\n");
+    // Options are currently only used for scan mode.  The outer scan will scan
+    // the thumbnail anyways, so maybe fine to pass NULL (?)
+    jpeg_dump(NULL, begin + jpeg_offset, begin + jpeg_offset + jpeg_length);
+  }
   if (exif_ifd_offset != 0) {
     printf("  exif IFD:\n");
     tiff_dump_one_ifd(begin, end, exif_ifd_offset, uint16, uint32);
@@ -482,7 +497,7 @@ static void jpeg_dump(struct Options* options, uint8_t* begin, uint8_t* end) {
         printf("\n");
     }
 
-    if (!options->scan && has_size) {
+    if (options && !options->scan && has_size) {
       cur += size;
       if (cur >= end)
         printf("marker length went %zu bytes past data end\n", cur - end + 1);
