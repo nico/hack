@@ -227,10 +227,19 @@ static uint32_t tiff_dump_one_ifd(uint8_t* begin,
       printf(": %u", uint16(data));
     else if (format == kUnsignedLong && count == 1)
       printf(": %u", uint32(data));
-    else if (format == kUnsignedRational && count == 1)
-      printf(": %u/%u", uint32(data), uint32(data + 4));
-    else if (format == kSignedRational && count == 1)
-      printf(": %d/%d", uint32(data), uint32(data + 4));
+    else if (format == kUnsignedRational && count == 1) {
+      uint32_t numerator = uint32(data);
+      uint32_t denominator = uint32(data + 4);
+      printf(": %u/%u", numerator, denominator);
+      if (denominator != 0)
+        printf(" (%.3f)", numerator / (double)denominator);
+    } else if (format == kSignedRational && count == 1) {
+      int32_t numerator = uint32(data);
+      int32_t denominator = uint32(data + 4);
+      printf(": %d/%d", numerator, denominator);
+      if (denominator != 0)
+        printf(" (%.3f)", numerator / (double)denominator);
+    }
 
     if (tag == 34665 && format == kUnsignedLong && count == 1)
       exif_ifd_offset = uint32(data);
