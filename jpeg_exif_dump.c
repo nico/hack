@@ -176,13 +176,20 @@ const char* tiff_tag_name(uint16_t tag) {
   // clang-format on
 }
 
+struct TiffState {
+  uint8_t* begin;
+  ssize_t size;
+  uint16_t (*uint16)(uint8_t*);
+  uint32_t (*uint32)(uint8_t*);
+};
+
 // Returns offset to next IFD, or 0 if none.
-static uint32_t tiff_dump_one_ifd(uint8_t* begin,
-                                  uint8_t* end,
-                                  uint32_t ifd_offset,
-                                  uint16_t (*uint16)(uint8_t*),
-                                  uint32_t (*uint32)(uint8_t*)) {
-  ssize_t size = end - begin;
+static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
+                                  uint32_t ifd_offset) {
+  uint8_t* begin = tiff_state->begin;
+  ssize_t size = tiff_state->size;
+  uint16_t (*uint16)(uint8_t*) = tiff_state->uint16;
+  uint32_t (*uint32)(uint8_t*) = tiff_state->uint32;
 
   if (size - ifd_offset < 6) {
     printf("IFD needs at least 6 bytes, has %zu\n", size - ifd_offset);
@@ -266,11 +273,11 @@ static uint32_t tiff_dump_one_ifd(uint8_t* begin,
   }
   if (exif_ifd_offset != 0) {
     printf("  exif IFD:\n");
-    tiff_dump_one_ifd(begin, end, exif_ifd_offset, uint16, uint32);
+    tiff_dump_one_ifd(tiff_state, exif_ifd_offset);
   }
   if (gps_info_ifd_offset != 0) {
     printf("  GPSInfo IFD:\n");
-    tiff_dump_one_ifd(begin, end, gps_info_ifd_offset, uint16, uint32);
+    tiff_dump_one_ifd(tiff_state, gps_info_ifd_offset);
   }
 
   uint32_t next_ifd_offset =
@@ -324,9 +331,14 @@ static void tiff_dump(uint8_t* begin, uint8_t* end) {
     printf("continuing anyway\n");
   }
 
+  struct TiffState tiff_state = {
+      .begin = begin,
+      .size = size,
+      .uint16 = uint16,
+      .uint32 = uint32,
+  };
   do {
-    uint32_t next_ifd_offset =
-        tiff_dump_one_ifd(begin, end, ifd_offset, uint16, uint32);
+    uint32_t next_ifd_offset = tiff_dump_one_ifd(&tiff_state, ifd_offset);
     ifd_offset = next_ifd_offset;
   } while (ifd_offset != 0);
 }
