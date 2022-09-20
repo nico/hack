@@ -531,6 +531,11 @@ static void jpeg_dump(struct Options* options,
         printf(": Start Of Image (SOI)\n");
         break;
       case 0xd9:
+        // If there's an App2/"MPF" ("Multi-Picture Format") marker,
+        // it'll point to additional images past the first image's EOI.
+        // Some versions of the Pixel Pro camera app write unknown-to-me
+        // non-jpeg trailing data after the EOI marker.
+        // FIXME: In non-scan mode, this should terminate the reading loop.
         printf(": End Of Image (EOI)\n");
         break;
       case 0xda:
