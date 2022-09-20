@@ -19,26 +19,28 @@ static void fatal(const char* msg, ...) {
   exit(1);
 }
 
-static uint16_t be_uint16(uint8_t* p) {
+static uint16_t be_uint16(const uint8_t* p) {
   return p[0] << 8 | p[1];
 }
 
-static uint32_t be_uint32(uint8_t* p) {
+static uint32_t be_uint32(const uint8_t* p) {
   return be_uint16(p) << 16 | be_uint16(p + 2);
 }
 
-static uint16_t le_uint16(uint8_t* p) {
+static uint16_t le_uint16(const uint8_t* p) {
   return p[1] << 8 | p[0];
 }
 
-static uint32_t le_uint32(uint8_t* p) {
+static uint32_t le_uint32(const uint8_t* p) {
   return le_uint16(p + 2) << 16 | le_uint16(p);
 }
 
 // TIFF dumping ///////////////////////////////////////////////////////////////
 
 struct Options;
-static void jpeg_dump(struct Options* options, uint8_t* begin, uint8_t* end);
+static void jpeg_dump(struct Options* options,
+                      const uint8_t* begin,
+                      const uint8_t* end);
 
 enum TiffDataFormat {
   kUnsignedByte = 1,
@@ -177,19 +179,19 @@ const char* tiff_tag_name(uint16_t tag) {
 }
 
 struct TiffState {
-  uint8_t* begin;
+  const uint8_t* begin;
   ssize_t size;
-  uint16_t (*uint16)(uint8_t*);
-  uint32_t (*uint32)(uint8_t*);
+  uint16_t (*uint16)(const uint8_t*);
+  uint32_t (*uint32)(const uint8_t*);
 };
 
 // Returns offset to next IFD, or 0 if none.
 static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
                                   uint32_t ifd_offset) {
-  uint8_t* begin = tiff_state->begin;
+  const uint8_t* begin = tiff_state->begin;
   ssize_t size = tiff_state->size;
-  uint16_t (*uint16)(uint8_t*) = tiff_state->uint16;
-  uint32_t (*uint32)(uint8_t*) = tiff_state->uint32;
+  uint16_t (*uint16)(const uint8_t*) = tiff_state->uint16;
+  uint32_t (*uint32)(const uint8_t*) = tiff_state->uint32;
 
   if (size - ifd_offset < 6) {
     printf("IFD needs at least 6 bytes, has %zu\n", size - ifd_offset);
@@ -222,7 +224,7 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
     uint32_t data_offset = total_size <= 4
                                ? this_ifd_offset + 8
                                : uint32(begin + this_ifd_offset + 8);
-    void* data = begin + data_offset;
+    const void* data = begin + data_offset;
     printf("  tag %d", tag);
     const char* tag_name;
     if ((tag_name = tiff_tag_name(tag)))
@@ -288,7 +290,7 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
   return next_ifd_offset;
 }
 
-static void tiff_dump(uint8_t* begin, uint8_t* end) {
+static void tiff_dump(const uint8_t* begin, const uint8_t* end) {
   ssize_t size = end - begin;
   if (size < 8) {
     printf("tiff data should be at least 8 bytes, is %zu\n", size);
@@ -308,8 +310,8 @@ static void tiff_dump(uint8_t* begin, uint8_t* end) {
     return;
   }
 
-  uint16_t (*uint16)(uint8_t*);
-  uint32_t (*uint32)(uint8_t*);
+  uint16_t (*uint16)(const uint8_t*);
+  uint32_t (*uint32)(const uint8_t*);
   if (endianness == kBig) {
     uint16 = be_uint16;
     uint32 = be_uint32;
@@ -345,12 +347,12 @@ static void tiff_dump(uint8_t* begin, uint8_t* end) {
 
 // JPEG dumping ///////////////////////////////////////////////////////////////
 
-static void jpeg_dump_exif(uint8_t* begin, uint16_t size) {
+static void jpeg_dump_exif(const uint8_t* begin, uint16_t size) {
   // https://www.cipa.jp/std/documents/e/DC-X008-Translation-2019-E.pdf
   tiff_dump(begin + 8, begin + size);
 }
 
-static void jpeg_dump_icc(uint8_t* begin, uint16_t size) {
+static void jpeg_dump_icc(const uint8_t* begin, uint16_t size) {
   // https://www.color.org/technotes/ICC-Technote-ProfileEmbedding.pdf
   //   (In particular, an ICC profile can be split across several APP2 marker
   //   chunks: "...a mechanism is required to break the profile into chunks...")
@@ -358,13 +360,13 @@ static void jpeg_dump_icc(uint8_t* begin, uint16_t size) {
   // TODO
 }
 
-static void jpeg_dump_xmp(uint8_t* begin, uint16_t size) {
+static void jpeg_dump_xmp(const uint8_t* begin, uint16_t size) {
   // http://www.npes.org/pdf/xmpspecification-Jun05.pdf
   // TODO
 }
 
-static const char* jpeg_dump_app_id(uint8_t* begin,
-                                    uint8_t* end,
+static const char* jpeg_dump_app_id(const uint8_t* begin,
+                                    const uint8_t* end,
                                     bool has_size,
                                     uint16_t size) {
   if (!has_size) {
@@ -397,8 +399,10 @@ struct Options {
   bool scan;
 };
 
-static void jpeg_dump(struct Options* options, uint8_t* begin, uint8_t* end) {
-  uint8_t* cur = begin;
+static void jpeg_dump(struct Options* options,
+                      const uint8_t* begin,
+                      const uint8_t* end) {
+  const uint8_t* cur = begin;
   while (cur < end) {
     uint8_t b0 = *cur++;
     if (b0 != 0xff)
