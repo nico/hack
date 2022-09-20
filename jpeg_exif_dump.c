@@ -533,11 +533,11 @@ static void jpeg_dump(struct Options* options,
       case 0xdd:
         printf(": Define Restart Interval (DRI)\n");
         if (!has_size)
-          printf("  missing size\n");
+          iprintf(options, "  missing size\n");
         else if (size != 4)
-          printf("  expected size 4, got %d\n", size);
+          iprintf(options, "  expected size 4, got %d\n", size);
         else
-          printf("  %d macroblocks\n", be_uint16(cur + 2));
+          iprintf(options, "  %d macroblocks\n", be_uint16(cur + 2));
         break;
       case 0xe0:
         printf(": JPEG/JFIF Image segment (APP0)\n");
