@@ -387,6 +387,39 @@ static void tiff_dump(struct Options* options,
 
 // JPEG dumping ///////////////////////////////////////////////////////////////
 
+static void jpeg_dump_sof0(struct Options* options,
+                           const uint8_t* begin,
+                           uint16_t size) {
+  // https://mykb.cipindanci.com/archive/SuperKB/1294/JPEG%20File%20Layout%20and%20Format.htm
+  if (size < 8) {
+    printf("SOF0 should be at least 8 bytes, is %u\n", size);
+    return;
+  }
+
+  begin += sizeof(uint16_t);
+
+  iprintf(options, "bits per sample: %d\n", begin[0]);
+  iprintf(options, "width: %d\n", be_uint16(begin + 1));
+  iprintf(options, "height: %d\n", be_uint16(begin + 3));
+
+  uint8_t num_components = begin[5];
+  if (size - 8 < 3 * num_components) {
+    printf("SOF0 with %d components should be at least %d bytes, is %u\n",
+           num_components, 8 + 3 * num_components, size);
+    return;
+  }
+
+  for (int i = 0; i < num_components; ++i) {
+    iprintf(options, "components %d/%d\n", i + 1, num_components);
+    iprintf(options, "  component id: %d\n", begin[6 + 3 * i]);
+
+    uint8_t sampling_factors = begin[6 + 3 * i + 1];
+    iprintf(options, "  sampling factors: %d horizontal, %d vertical\n",
+            sampling_factors >> 4, sampling_factors & 0xf);
+    iprintf(options, "  quanitzation table number: %d\n", begin[6 + 3 * i + 2]);
+  }
+}
+
 static void jpeg_dump_jfif(struct Options* options,
                            const uint8_t* begin,
                            uint16_t size) {
@@ -510,6 +543,10 @@ static void jpeg_dump(struct Options* options,
     switch (b1) {
       case 0xc0:
         printf(": Start Of Frame, baseline DCT (SOF0)\n");
+        increase_indent(options);
+        // FIXME: check has_size
+        jpeg_dump_sof0(options, cur, size);
+        decrease_indent(options);
         break;
       case 0xc2:
         printf(": Start Of Frame, progressive DCT (SOF2)\n");
