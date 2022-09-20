@@ -231,6 +231,7 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
   uint32_t jpeg_length = 0;
   uint32_t exif_ifd_offset = 0;
   uint32_t gps_info_ifd_offset = 0;
+  uint32_t interopability_ifd_offset = 0;
 
   for (int i = 0; i < num_ifd_entries; ++i) {
     size_t this_ifd_offset = ifd_offset + 2 + i * 12;
@@ -286,6 +287,8 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
       exif_ifd_offset = uint32(data);
     else if (tag == 34853 && format == kUnsignedLong && count == 1)
       gps_info_ifd_offset = uint32(data);
+    else if (tag == 40965 && format == kUnsignedLong && count == 1)
+      interopability_ifd_offset = uint32(data);
 
     printf("\n");
   }
@@ -307,6 +310,12 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
     iprintf(options, "GPSInfo IFD:\n");
     increase_indent(options);
     tiff_dump_one_ifd(tiff_state, gps_info_ifd_offset);
+    decrease_indent(options);
+  }
+  if (interopability_ifd_offset != 0) {
+    iprintf(options, "Interopability IFD:\n");
+    increase_indent(options);
+    tiff_dump_one_ifd(tiff_state, interopability_ifd_offset);
     decrease_indent(options);
   }
 
