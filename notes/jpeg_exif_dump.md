@@ -99,6 +99,12 @@ EXIF thumbnail (can be jpeg, but kind of crowded segment)
 
 APP2 / 'MPF\0'
 
+GPS
+
+`ICC_PROFILE`
+
+`xmp` (`http://ns.adobe.com/xap/1.0/`, `http://ns.adobe.com/xmp/extension/`))
+
 [5]: https://en.wikipedia.org/wiki/JPEG_File_Interchange_Format#JFIF_APP0_marker_segment
 
 
