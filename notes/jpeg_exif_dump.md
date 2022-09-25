@@ -87,6 +87,8 @@ be 85 pixels high. See [here][5] for details on the encoding of this segment.
 
 XXX:
 
+'JFIF' thumbnail never used in practice
+
 JFXX thumbnail (can be jpeg)
 
 The "EXIF" standard dictates that the SOI marker is immediately followed by
