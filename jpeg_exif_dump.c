@@ -416,7 +416,7 @@ static void jpeg_dump_sof0(struct Options* options,
     uint8_t sampling_factors = begin[6 + 3 * i + 1];
     iprintf(options, "  sampling factors: %d horizontal, %d vertical\n",
             sampling_factors >> 4, sampling_factors & 0xf);
-    iprintf(options, "  quanitzation table number: %d\n", begin[6 + 3 * i + 2]);
+    iprintf(options, "  quantization table number: %d\n", begin[6 + 3 * i + 2]);
   }
 }
 
