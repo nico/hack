@@ -62,10 +62,10 @@ that part.  As a very short summary, there are a few markers to:
   data can contain embedded "Restart Markers". The next non-RST marker after
   the image data is often "EOI", but not always.
 
-1: https://www.ccoderun.ca/programming/2017-01-31_jpeg/
-2: https://koushtav.me/jpeg/tutorial/c++/decoder/2019/03/02/lets-write-a-simple-jpeg-library-part-2/
-3: https://parametric.press/issue-01/unraveling-the-jpeg/
-4: https://yasoob.me/posts/understanding-and-writing-jpeg-decoder-in-python/
+[1]: https://www.ccoderun.ca/programming/2017-01-31_jpeg/
+[2]: https://koushtav.me/jpeg/tutorial/c++/decoder/2019/03/02/lets-write-a-simple-jpeg-library-part-2/
+[3]: https://parametric.press/issue-01/unraveling-the-jpeg/
+[4]: https://yasoob.me/posts/understanding-and-writing-jpeg-decoder-in-python/
  
 Metadata, and thumbnails
 ------------------------
@@ -97,6 +97,6 @@ EXIF thumbnail (can be jpeg, but kind of crowded segment)
 
 APP2 / 'MPF\0'
 
-5: https://en.wikipedia.org/wiki/JPEG_File_Interchange_Format#JFIF_APP0_marker_segment
+[5]: https://en.wikipedia.org/wiki/JPEG_File_Interchange_Format#JFIF_APP0_marker_segment
 
 
