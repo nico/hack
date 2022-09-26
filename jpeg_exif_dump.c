@@ -218,7 +218,7 @@ static const char* tiff_tag_name(uint16_t tag) {
   // clang-format on
 }
 
-// For whatever reason, the GPS IFD has its own tag namespace.
+// The GPS IFD has its own tag namespace.
 static const char* tiff_gps_tag_name(uint16_t tag) {
   // clang-format off
   switch (tag) {
@@ -232,6 +232,17 @@ static const char* tiff_gps_tag_name(uint16_t tag) {
     case 16: return "GPSImgDirectionRef";
     case 17: return "GPSImgDirection";
     case 29: return "GPSDateStamp";
+    default: return NULL;
+  }
+  // clang-format on
+}
+
+// The Interopability IFD has its own tag namespace.
+static const char* tiff_interopability_tag_name(uint16_t tag) {
+  // clang-format off
+  switch (tag) {
+    case 1: return "InteropabilityIndex";
+    case 2: return "InteropabilityVersion";
     default: return NULL;
   }
   // clang-format on
@@ -361,7 +372,10 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
   if (interopability_ifd_offset != 0) {
     iprintf(options, "Interopability IFD:\n");
     increase_indent(options);
-    uint32_t next = tiff_dump_one_ifd(tiff_state, interopability_ifd_offset);
+    struct TiffState interopability_tiff_state = *tiff_state;
+    interopability_tiff_state.tag_name = tiff_interopability_tag_name;
+    uint32_t next = tiff_dump_one_ifd(&interopability_tiff_state,
+                                      interopability_ifd_offset);
     if (next != 0)
       iprintf(options, "unexpected next IFD at %d, skipping\n", next);
     decrease_indent(options);
