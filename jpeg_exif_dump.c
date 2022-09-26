@@ -122,7 +122,7 @@ static const char* TiffDataFormatNames[] = {
 };
 
 // https://www.loc.gov/preservation/digital/formats/content/tiff_tags.shtml
-const char* tiff_tag_name(uint16_t tag) {
+static const char* tiff_tag_name(uint16_t tag) {
   // clang-format off
   switch (tag) {
     case 256: return "ImageWidth";
@@ -218,11 +218,31 @@ const char* tiff_tag_name(uint16_t tag) {
   // clang-format on
 }
 
+// For whatever reason, the GPS IFD has its own tag namespace.
+static const char* tiff_gps_tag_name(uint16_t tag) {
+  // clang-format off
+  switch (tag) {
+    case 1: return "GPSLatitudeRef";
+    case 2: return "GPSLatitude";
+    case 3: return "GPSLongitudeRef";
+    case 4: return "GPSLongitude";
+    case 5: return "GPSAltitudeRef";
+    case 6: return "GPSAltitude";
+    case 7: return "GPSTimeStamp";
+    case 16: return "GPSImgDirectionRef";
+    case 17: return "GPSImgDirection";
+    case 29: return "GPSDateStamp";
+    default: return NULL;
+  }
+  // clang-format on
+}
+
 struct TiffState {
   const uint8_t* begin;
   ssize_t size;
   uint16_t (*uint16)(const uint8_t*);
   uint32_t (*uint32)(const uint8_t*);
+  const char* (*tag_name)(uint16_t);
   struct Options* options;
 };
 
@@ -233,6 +253,7 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
   ssize_t size = tiff_state->size;
   uint16_t (*uint16)(const uint8_t*) = tiff_state->uint16;
   uint32_t (*uint32)(const uint8_t*) = tiff_state->uint32;
+  const char* (*name_for_tag)(uint16_t) = tiff_state->tag_name;
   struct Options* options = tiff_state->options;
 
   if (size - ifd_offset < 6) {
@@ -269,8 +290,8 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
                                : uint32(begin + this_ifd_offset + 8);
     const void* data = begin + data_offset;
     iprintf(options, "tag %d", tag);
-    const char* tag_name;
-    if ((tag_name = tiff_tag_name(tag)))
+    const char* tag_name = name_for_tag(tag);
+    if (tag_name)
       printf(" (%s)", tag_name);
     printf(" format %u (%s): count %u", format, TiffDataFormatNames[format],
            count);
@@ -330,7 +351,9 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
   if (gps_info_ifd_offset != 0) {
     iprintf(options, "GPSInfo IFD:\n");
     increase_indent(options);
-    uint32_t next = tiff_dump_one_ifd(tiff_state, gps_info_ifd_offset);
+    struct TiffState gps_tiff_state = *tiff_state;
+    gps_tiff_state.tag_name = tiff_gps_tag_name;
+    uint32_t next = tiff_dump_one_ifd(&gps_tiff_state, gps_info_ifd_offset);
     if (next != 0)
       iprintf(options, "unexpected next IFD at %d, skipping\n", next);
     decrease_indent(options);
@@ -402,6 +425,7 @@ static void tiff_dump(struct Options* options,
       .size = size,
       .uint16 = uint16,
       .uint32 = uint32,
+      .tag_name = tiff_tag_name,
       .options = options,
   };
   do {
