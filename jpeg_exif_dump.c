@@ -11,6 +11,16 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+static void print_usage(FILE* stream, const char* program_name) {
+  fprintf(stream, "usage: %s [ options ] filename\n", program_name);
+  fprintf(stream,
+          "\n"
+          "options:\n"
+          "  -h  --help  print this message\n"
+          "  -s  --scan  scan for jpeg markers in entire file\n"
+          "              (by default, skips marker data)\n");
+}
+
 static void fatal(const char* msg, ...) {
   va_list args;
   va_start(args, msg);
@@ -671,15 +681,21 @@ static void jpeg_dump(struct Options* options,
 }
 
 int main(int argc, char* argv[]) {
+  const char* program_name = argv[0];
+
   // Parse options.
   struct Options options = {};
   struct option getopt_options[] = {
+      {"help", no_argument, NULL, 'h'},
       {"scan", no_argument, NULL, 's'},
       {},
   };
   int opt;
-  while ((opt = getopt_long(argc, argv, "s", getopt_options, NULL)) != -1) {
+  while ((opt = getopt_long(argc, argv, "hs", getopt_options, NULL)) != -1) {
     switch (opt) {
+      case 'h':
+        print_usage(stdout, program_name);
+        return 0;
       case 's':
         options.jpeg_scan = true;
         break;
@@ -688,8 +704,11 @@ int main(int argc, char* argv[]) {
   argv += optind;
   argc -= optind;
 
-  if (argc != 1)
-    fatal("expected args == 1, got %d\n", argc);
+  if (argc != 1) {
+    fprintf(stderr, "expected 1 arg, got %d\n", argc);
+    print_usage(stderr, program_name);
+    return 1;
+  }
 
   const char* in_name = argv[0];
 
