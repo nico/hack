@@ -461,7 +461,8 @@ static void jpeg_dump_exif(struct Options* options,
                            const uint8_t* begin,
                            uint16_t size) {
   // https://www.cipa.jp/std/documents/e/DC-X008-Translation-2019-E.pdf
-  tiff_dump(options, begin + 8, begin + size);
+  tiff_dump(options, begin + sizeof(uint16_t) + sizeof("Exif") + 1,
+            begin + size);
 }
 
 static void jpeg_dump_icc(const uint8_t* begin, uint16_t size) {
@@ -470,6 +471,13 @@ static void jpeg_dump_icc(const uint8_t* begin, uint16_t size) {
   //   chunks: "...a mechanism is required to break the profile into chunks...")
   // https://www.color.org/specification/ICC.1-2022-05.pdf
   // TODO
+}
+
+static void jpeg_dump_mpf(struct Options* options,
+                          const uint8_t* begin,
+                          uint16_t size) {
+  // https://web.archive.org/web/20190713230858/http://www.cipa.jp/std/documents/e/DC-007_E.pdf
+  tiff_dump(options, begin + sizeof(uint16_t) + sizeof("MPF"), begin + size);
 }
 
 static void jpeg_dump_xmp(const uint8_t* begin, uint16_t size) {
@@ -633,6 +641,8 @@ static void jpeg_dump(struct Options* options,
             jpeg_dump_app_id(options, cur, end, has_size, size);
         if (b1 == 0xe2 && strcmp(app_id, "ICC_PROFILE") == 0)
           jpeg_dump_icc(cur, size);
+        else if (b1 == 0xe2 && strcmp(app_id, "MPF") == 0)
+          jpeg_dump_mpf(options, cur, size);
         decrease_indent(options);
         break;
       }
