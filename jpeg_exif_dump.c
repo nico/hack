@@ -322,19 +322,25 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
   if (exif_ifd_offset != 0) {
     iprintf(options, "exif IFD\n");
     increase_indent(options);
-    tiff_dump_one_ifd(tiff_state, exif_ifd_offset);
+    uint32_t next = tiff_dump_one_ifd(tiff_state, exif_ifd_offset);
+    if (next != 0)
+      iprintf(options, "unexpected next IFD at %d, skipping\n", next);
     decrease_indent(options);
   }
   if (gps_info_ifd_offset != 0) {
     iprintf(options, "GPSInfo IFD:\n");
     increase_indent(options);
-    tiff_dump_one_ifd(tiff_state, gps_info_ifd_offset);
+    uint32_t next = tiff_dump_one_ifd(tiff_state, gps_info_ifd_offset);
+    if (next != 0)
+      iprintf(options, "unexpected next IFD at %d, skipping\n", next);
     decrease_indent(options);
   }
   if (interopability_ifd_offset != 0) {
     iprintf(options, "Interopability IFD:\n");
     increase_indent(options);
-    tiff_dump_one_ifd(tiff_state, interopability_ifd_offset);
+    uint32_t next = tiff_dump_one_ifd(tiff_state, interopability_ifd_offset);
+    if (next != 0)
+      iprintf(options, "unexpected next IFD at %d, skipping\n", next);
     decrease_indent(options);
   }
 
