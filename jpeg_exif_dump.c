@@ -192,6 +192,15 @@ const char* tiff_tag_name(uint16_t tag) {
     case 42036: return "LensModel";
     case 42080: return "CompositeImage";
 
+    // Multi-Picture Format (MPF) tags
+    // https://web.archive.org/web/20190713230858/http://www.cipa.jp/std/documents/e/DC-007_E.pdf
+    // Section 5.2.3, Table 3
+    case 45056: return "MPFVersion";
+    case 45057: return "NumberOfImages";
+    case 45058: return "MPEntry";
+    case 45059: return "ImageUIDList";
+    case 45060: return "TotalFrames";
+
     // Private tags
     case 34665: return "Exif IFD";
     default: return NULL;
