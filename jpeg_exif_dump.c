@@ -699,6 +699,9 @@ int main(int argc, char* argv[]) {
       case 's':
         options.jpeg_scan = true;
         break;
+      case '?':
+        print_usage(stderr, program_name);
+        return 1;
     }
   }
   argv += optind;
