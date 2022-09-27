@@ -462,8 +462,8 @@ static void jpeg_dump_sof0(struct Options* options,
   begin += sizeof(uint16_t);
 
   iprintf(options, "bits per sample: %d\n", begin[0]);
-  iprintf(options, "width: %d\n", be_uint16(begin + 1));
-  iprintf(options, "height: %d\n", be_uint16(begin + 3));
+  iprintf(options, "height: %d\n", be_uint16(begin + 1));
+  iprintf(options, "width: %d\n", be_uint16(begin + 3));
 
   uint8_t num_components = begin[5];
   if (size - 8 < 3 * num_components) {
