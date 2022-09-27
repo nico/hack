@@ -231,6 +231,7 @@ static const char* tiff_gps_tag_name(uint16_t tag) {
     case 7: return "GPSTimeStamp";
     case 16: return "GPSImgDirectionRef";
     case 17: return "GPSImgDirection";
+    case 27: return "GPSProcessingMethod";
     case 29: return "GPSDateStamp";
     default: return NULL;
   }
