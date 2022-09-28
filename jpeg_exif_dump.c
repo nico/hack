@@ -451,9 +451,15 @@ static void tiff_dump(struct Options* options,
 
 // JPEG dumping ///////////////////////////////////////////////////////////////
 
+// JPEG spec: https://www.w3.org/Graphics/JPEG/itu-t81.pdf
+// JFIF spec: https://www.w3.org/Graphics/JPEG/jfif3.pdf
+// EXIF spec: https://www.cipa.jp/std/documents/e/DC-008-2012_E.pdf
+//            https://www.cipa.jp/std/documents/e/DC-X008-Translation-2019-E.pdf
+
 static void jpeg_dump_sof0(struct Options* options,
                            const uint8_t* begin,
                            uint16_t size) {
+  // https://www.w3.org/Graphics/JPEG/itu-t81.pdf section B.2.2 on page 25, or
   // https://mykb.cipindanci.com/archive/SuperKB/1294/JPEG%20File%20Layout%20and%20Format.htm
   if (size < 8) {
     printf("SOF0 should be at least 8 bytes, is %u\n", size);
