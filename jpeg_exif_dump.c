@@ -555,8 +555,9 @@ static void print_elided(int max_width, const uint8_t* s, int n) {
   if (n < max_width) {
     printf("%.*s", n, s);
   } else {
-    printf("%.*s\n...\n%.*s", max_width / 2 - 1, s, max_width / 2 - 2,
-           s + n - (max_width / 2 - 2));
+    printf("%.*s\n", max_width / 2 - 1, s);
+    printf("...\n");
+    printf("%.*s", max_width / 2 - 2, s + n - (max_width / 2 - 2));
   }
   if (s[n - 1] != '\n')
     printf("\n");
