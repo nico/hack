@@ -554,12 +554,29 @@ static void jpeg_dump_mpf(struct Options* options,
   tiff_dump(options, begin + sizeof(uint16_t) + sizeof("MPF"), begin + size);
 }
 
-static void indent_each_line(struct Options* options, const uint8_t* s, int n) {
+static void indent_and_elide_each_line(struct Options* options,
+                                       const uint8_t* s,
+                                       int n) {
+  const int max_column = 80;
   print_indent(options);
+  int column = options->current_indent;
   for (int i = 0; i < n; ++i) {
     putchar(s[i]);
-    if (s[i] == '\n')
+    ++column;
+
+    if (s[i] == '\n') {
       print_indent(options);
+      column = options->current_indent;
+    }
+
+    if (column > max_column) {
+      printf("...");
+      const uint8_t* next_newline =
+          (const uint8_t*)strchr((char*)(s + i), '\n');
+      if (next_newline == NULL)
+        return;
+      i += next_newline - (s + i) - 1;
+    }
   }
 }
 
@@ -567,16 +584,16 @@ static void print_elided(struct Options* options,
                          int max_width,
                          const uint8_t* s,
                          int n) {
-  // FIXME: Elide based on line length instead of byte length.
   if (n < max_width) {
-    indent_each_line(options, s, n);
+    indent_and_elide_each_line(options, s, n);
   } else {
-    indent_each_line(options, s, max_width / 2 - 1);
-    if (s[max_width/2 - 2] != '\n')
+    indent_and_elide_each_line(options, s, max_width / 2 - 1);
+    if (s[max_width / 2 - 2] != '\n')
       printf("\n");
     print_indent(options);
     printf("...\n");
-    indent_each_line(options, s + n - (max_width / 2 - 2), max_width / 2 - 2);
+    indent_and_elide_each_line(options, s + n - (max_width / 2 - 2),
+                               max_width / 2 - 2);
   }
   if (s[n - 1] != '\n')
     printf("\n");
