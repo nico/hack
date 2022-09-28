@@ -58,9 +58,13 @@ static void decrease_indent(struct Options* options) {
   options->current_indent -= 2;
 }
 
-static void iprintf(const struct Options* options, const char* msg, ...) {
+static void print_indent(const struct Options* options) {
   for (int i = 0; i < options->current_indent; ++i)
     printf(" ");
+}
+
+static void iprintf(const struct Options* options, const char* msg, ...) {
+  print_indent(options);
   va_list args;
   va_start(args, msg);
   vprintf(msg, args);
@@ -550,14 +554,29 @@ static void jpeg_dump_mpf(struct Options* options,
   tiff_dump(options, begin + sizeof(uint16_t) + sizeof("MPF"), begin + size);
 }
 
-static void print_elided(int max_width, const uint8_t* s, int n) {
-  // FIXME: Indent start of every line.
+static void indent_each_line(struct Options* options, const uint8_t* s, int n) {
+  print_indent(options);
+  for (int i = 0; i < n; ++i) {
+    putchar(s[i]);
+    if (s[i] == '\n')
+      print_indent(options);
+  }
+}
+
+static void print_elided(struct Options* options,
+                         int max_width,
+                         const uint8_t* s,
+                         int n) {
+  // FIXME: Elide based on line length instead of byte length.
   if (n < max_width) {
-    printf("%.*s", n, s);
+    indent_each_line(options, s, n);
   } else {
-    printf("%.*s\n", max_width / 2 - 1, s);
+    indent_each_line(options, s, max_width / 2 - 1);
+    if (s[max_width/2 - 2] != '\n')
+      printf("\n");
+    print_indent(options);
     printf("...\n");
-    printf("%.*s", max_width / 2 - 2, s + n - (max_width / 2 - 2));
+    indent_each_line(options, s + n - (max_width / 2 - 2), max_width / 2 - 2);
   }
   if (s[n - 1] != '\n')
     printf("\n");
@@ -574,7 +593,7 @@ static void jpeg_dump_xmp(struct Options* options,
            size);
     return;
   }
-  print_elided(1024, begin + header_size, size - header_size);
+  print_elided(options, 1024, begin + header_size, size - header_size);
 }
 
 static void jpeg_dump_xmp_extension(struct Options* options,
@@ -598,7 +617,7 @@ static void jpeg_dump_xmp_extension(struct Options* options,
   uint16_t data_size = size - header_size;
   iprintf(options, "offset %u\n", data_offset);
   iprintf(options, "total size %u\n", total_data_size);
-  print_elided(1024, begin + header_size, data_size);
+  print_elided(options, 1024, begin + header_size, data_size);
 }
 
 static const char* jpeg_dump_app_id(struct Options* options,
