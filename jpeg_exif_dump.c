@@ -562,7 +562,9 @@ static void print_elided(int max_width, const uint8_t* s, int n) {
     printf("\n");
 }
 
-static void jpeg_dump_xmp(const uint8_t* begin, uint16_t size) {
+static void jpeg_dump_xmp(struct Options* options,
+                          const uint8_t* begin,
+                          uint16_t size) {
   // http://www.npes.org/pdf/xmpspecification-Jun05.pdf
   const size_t header_size =
       sizeof(uint16_t) + sizeof("http://ns.adobe.com/xap/1.0/");
@@ -574,7 +576,9 @@ static void jpeg_dump_xmp(const uint8_t* begin, uint16_t size) {
   print_elided(1024, begin + header_size, size - header_size);
 }
 
-static void jpeg_dump_xmp_extension(const uint8_t* begin, uint16_t size) {
+static void jpeg_dump_xmp_extension(struct Options* options,
+                                    const uint8_t* begin,
+                                    uint16_t size) {
   // See section 1.1.3.1 in:
   // https://github.com/adobe/xmp-docs/blob/master/XMPSpecifications/XMPSpecificationPart3.pdf
   const size_t guid_size = 32;
@@ -586,13 +590,13 @@ static void jpeg_dump_xmp_extension(const uint8_t* begin, uint16_t size) {
            size);
     return;
   }
-  printf("guid %.32s\n", begin + prefix_size);
+  iprintf(options, "guid %.32s\n", begin + prefix_size);
   uint32_t total_data_size = be_uint32(begin + prefix_size + guid_size);
   uint32_t data_offset =
       be_uint32(begin + prefix_size + guid_size + sizeof(uint32_t));
   uint16_t data_size = size - header_size;
-  printf("offset %u\n", data_offset);
-  printf("total size %u\n", total_data_size);
+  iprintf(options, "offset %u\n", data_offset);
+  iprintf(options, "total size %u\n", total_data_size);
   print_elided(1024, begin + header_size, data_size);
 }
 
@@ -727,9 +731,9 @@ static void jpeg_dump(struct Options* options,
         if (strcmp(app_id, "Exif") == 0)
           jpeg_dump_exif(options, cur, size);
         else if (strcmp(app_id, "http://ns.adobe.com/xap/1.0/") == 0)
-          jpeg_dump_xmp(cur, size);
+          jpeg_dump_xmp(options, cur, size);
         else if (strcmp(app_id, "http://ns.adobe.com/xmp/extension/") == 0)
-          jpeg_dump_xmp_extension(cur, size);
+          jpeg_dump_xmp_extension(options, cur, size);
         decrease_indent(options);
         break;
       }
