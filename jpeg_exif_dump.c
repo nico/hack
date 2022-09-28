@@ -565,7 +565,8 @@ static void indent_and_elide_each_line(struct Options* options,
     ++column;
 
     if (s[i] == '\n') {
-      print_indent(options);
+      if (i + 1 < n)
+        print_indent(options);
       column = options->current_indent;
     }
 
