@@ -554,12 +554,10 @@ static void print_elided(int max_width, const uint8_t* s, int n) {
   // FIXME: Indent start of every line.
   if (n < max_width) {
     printf("%.*s", n, s);
-    if (s[n - 1] != '\n')
-      printf("\n");
-    return;
+  } else {
+    printf("%.*s\n...\n%.*s", max_width / 2 - 1, s, max_width / 2 - 2,
+           s + n - (max_width / 2 - 2));
   }
-  printf("%.*s\n...\n%.*s", max_width / 2 - 1, s, max_width / 2 - 2,
-         s + n - (max_width / 2 - 2));
   if (s[n - 1] != '\n')
     printf("\n");
 }
