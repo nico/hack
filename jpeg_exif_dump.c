@@ -540,11 +540,157 @@ static void jpeg_dump_exif(struct Options* options,
             begin + size);
 }
 
-static void jpeg_dump_icc(const uint8_t* begin, uint16_t size) {
+static void jpeg_dump_icc(struct Options* options,
+                          const uint8_t* begin,
+                          uint16_t size) {
   // https://www.color.org/technotes/ICC-Technote-ProfileEmbedding.pdf
   //   (In particular, an ICC profile can be split across several APP2 marker
   //   chunks: "...a mechanism is required to break the profile into chunks...")
   // https://www.color.org/specification/ICC.1-2022-05.pdf
+  const size_t prefix_size = sizeof(uint16_t) + sizeof("ICC_PROFILE");
+  const size_t header_size = prefix_size + 1 + 1;
+  if (size < header_size) {
+    printf("ICC should be at least %zu bytes, is %u\n", header_size, size);
+    return;
+  }
+
+  uint8_t chunk_sequence_number = begin[prefix_size];  // 1-based (!)
+  uint8_t num_chunks = begin[prefix_size + 1];
+  iprintf(options, "chunk %u/%u\n", chunk_sequence_number, num_chunks);
+
+  if (chunk_sequence_number != 1 || num_chunks != 1) {
+    printf("cannot handle ICC profiles spread over several chunks yet\n");
+    return;
+  }
+
+  // 7.2 Profile header
+  const uint8_t* icc_header = begin + header_size;
+  uint32_t profile_size = be_uint32(icc_header);
+  iprintf(options, "Profile size: %u\n", profile_size);
+
+  uint32_t preferred_cmm_type = be_uint32(icc_header + 4);
+  if (preferred_cmm_type == 0)
+    iprintf(options, "Preferred CMM type: (not set)\n");
+  else {
+    iprintf(options, "Preferred CMM type: '%.4s'\n", icc_header + 4);
+  }
+
+  uint8_t profile_version_major = icc_header[8];
+  uint8_t profile_version_minor = icc_header[9] >> 4;
+  uint8_t profile_version_bugfix = icc_header[9] & 0xf;
+  uint16_t profile_version_zero = be_uint16(icc_header + 8 + 2);
+  iprintf(options, "Profile version: %d.%d.%d.%d\n", profile_version_major,
+          profile_version_minor, profile_version_bugfix, profile_version_zero);
+
+  uint32_t profile_device_class = be_uint32(icc_header + 12);
+  iprintf(options, "Profile/Device class: '%.4s'", icc_header + 12);
+  switch (profile_device_class) {
+    case 0x73636E72:  // 'scnr'
+      printf(" (Input device profile)");
+      break;
+    case 0x6D6E7472:  // 'mntr'
+      printf(" (Display device profile)");
+      break;
+    case 0x70727472:  // 'prtr'
+      printf(" (Output device profile)");
+      break;
+    case 0x6C696E6B:  // 'link'
+      printf(" (DeviceLink profile)");
+      break;
+    case 0x73706163:  // 'spac'
+      printf(" (ColorSpace profile)");
+      break;
+    case 0x61627374:  // 'abst'
+      printf(" (Abstract profile)");
+      break;
+    case 0x6E6D636C:  // 'nmcl'
+      printf(" (NamedColor profile)");
+      break;
+  }
+  printf("\n");
+
+  uint32_t data_color_space = be_uint32(icc_header + 16);
+  iprintf(options, "Data color space: '%.4s'", icc_header + 16);
+  switch (data_color_space) {
+    case 0x58595A20:  // 'XYZ '
+      printf(" (nCIEXYZ or PCSXYZa)");
+      break;
+    case 0x4C616220:  // 'Lab '
+      printf(" (CIELAB or PCSLABb)");
+      break;
+    case 0x4C757620:  // 'Luv '
+      printf(" (CIELUV)");
+      break;
+    case 0x59436272:  // 'YCbr'
+      printf(" (YCbCr)");
+      break;
+    case 0x59787920:  // 'Yxy '
+      printf(" (CIEYxy)");
+      break;
+    case 0x52474220:  // 'RGB '
+      printf(" (RGB)");
+      break;
+    case 0x47524159:  // 'GRAY'
+      printf(" (Gray)");
+      break;
+    case 0x48535620:  // 'HSV '
+      printf(" (HSV)");
+      break;
+    case 0x484C5320:  // 'HLS '
+      printf(" (HLS)");
+      break;
+    case 0x434D594B:  // 'CMYK'
+      printf(" (CMYK)");
+      break;
+    case 0x434D5920:  // 'CMY '
+      printf(" (CMY)");
+      break;
+    case 0x32434C52:  // '2CLR'
+      printf(" (2 color)");
+      break;
+    case 0x33434C52:  // '3CLR'
+      printf(
+          " (3 color (other than XYZ, Lab, Luv, YCbCr, CIEYxy, RGB, HSV, HLS, "
+          "CMY))");
+      break;
+    case 0x34434C52:  // '4CLR'
+      printf(" (4 color (other than CMYK))");
+      break;
+    case 0x35434C52:  // '5CLR'
+      printf(" (5 color)");
+      break;
+    case 0x36434C52:  // '6CLR'
+      printf(" (6 color)");
+      break;
+    case 0x37434C52:  // '7CLR'
+      printf(" (7 color)");
+      break;
+    case 0x38434C52:  // '8CLR'
+      printf(" (8 color)");
+      break;
+    case 0x39434C52:  // '9CLR'
+      printf(" (9 color)");
+      break;
+    case 0x41434C52:  // 'ACLR'
+      printf(" (10 color)");
+      break;
+    case 0x42434C52:  // 'BCLR'
+      printf(" (11 color)");
+      break;
+    case 0x43434C52:  // 'CCLR'
+      printf(" (12 color)");
+      break;
+    case 0x44434C52:  // 'DCLR'
+      printf(" (13 color)");
+      break;
+    case 0x45434C52:  // 'ECLR'
+      printf(" (14 color)");
+      break;
+    case 0x46434C52:  // 'FCLR'
+      printf(" (15 color)");
+      break;
+  }
+  printf("\n");
   // TODO
 }
 
@@ -796,7 +942,7 @@ static void jpeg_dump(struct Options* options,
         const char* app_id =
             jpeg_dump_app_id(options, cur, end, has_size, size);
         if (b1 == 0xe2 && strcmp(app_id, "ICC_PROFILE") == 0)
-          jpeg_dump_icc(cur, size);
+          jpeg_dump_icc(options, cur, size);
         else if (b1 == 0xe2 && strcmp(app_id, "MPF") == 0)
           jpeg_dump_mpf(options, cur, size);
         decrease_indent(options);
