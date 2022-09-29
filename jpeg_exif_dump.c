@@ -704,9 +704,9 @@ static void jpeg_dump(struct Options* options,
     // https://www.disktuna.com/list-of-jpeg-markers/
     switch (b1) {
       case 0xc0:
+        assert(has_size);
         printf(": Start Of Frame, baseline DCT (SOF0)\n");
         increase_indent(options);
-        // FIXME: check has_size
         jpeg_dump_sof0(options, cur, size);
         decrease_indent(options);
         break;
