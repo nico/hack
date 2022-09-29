@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
@@ -803,6 +804,12 @@ static void jpeg_dump(struct Options* options,
       }
       case 0xfe:
         printf(": Comment (COM)\n");
+        assert(has_size);
+        if (size > 2) {
+          increase_indent(options);
+          print_elided(options, 1024, cur + 2, size - 2);
+          decrease_indent(options);
+        }
         break;
       default:
         printf("\n");
