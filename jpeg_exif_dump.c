@@ -832,6 +832,24 @@ static void jpeg_dump_icc(struct Options* options,
     iprintf(options, "reserved header bytes are zero\n");
   else
     iprintf(options, "reserved header bytes are unexpectedly not zero\n");
+
+  // 7.3 Tag table
+  const uint8_t* tag_table = icc_header + 128;
+
+  uint32_t tag_count = be_uint32(tag_table);
+  iprintf(options, "%d tags\n", tag_count);
+
+  increase_indent(options);
+  for (unsigned i = 0; i < tag_count; ++i) {
+    uint32_t this_offset = 4 + 12 * i;
+    uint32_t tag_signature = be_uint32(tag_table + this_offset);
+    uint32_t offset_to_data = be_uint32(tag_table + this_offset + 4);
+    uint32_t size_of_data = be_uint32(tag_table + this_offset + 8);
+    iprintf(options, "signature %08x ('%.4s') offset %d size %d\n",
+            tag_signature, tag_table + this_offset, offset_to_data,
+            size_of_data);
+  }
+  decrease_indent(options);
 }
 
 static void jpeg_dump_mpf(struct Options* options,
