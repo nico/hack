@@ -656,6 +656,74 @@ static const char* icc_platform_description(uint32_t platform) {
       return NULL;
   }
 }
+
+static void icc_dump_multiLocalizedUnicodeType(struct Options* options,
+                                               const uint8_t* begin,
+                                               uint32_t size) {
+  // 10.15 multiLocalizedUnicodeType
+  if (size < 16) {
+    printf("multiLocalizedUnicodeType must be at least 16 bytes, was %d\n",
+           size);
+    return;
+  }
+
+  uint32_t type_signature = be_uint32(begin);
+  if (type_signature != 0x6D6C7563) {  // 'mluc'
+    printf("multiLocalizedUnicodeType expected type 'mluc', got '%.4s'\n",
+           begin);
+    return;
+  }
+
+  uint32_t reserved = be_uint32(begin + 4);
+  if (reserved != 0) {
+    printf("multiLocalizedUnicodeType expected reserved 0, got %d\n", reserved);
+    return;
+  }
+
+  uint32_t num_records = be_uint32(begin + 8);
+  if (size - 16 < num_records * 12) {
+    printf(
+        "multiLocalizedUnicodeType with %u records must be at least %u bytes, "
+        "was %d\n",
+        num_records, 16 + num_records * 12, size);
+    return;
+  }
+
+  uint32_t record_size = be_uint32(begin + 12);
+  if (record_size != 12) {
+    printf("multiLocalizedUnicodeType expected record_size 12, got %d\n",
+           record_size);
+    return;
+  }
+
+  for (unsigned i = 0; i < num_records; ++i) {
+    uint32_t this_offset = 16 + i * 12;
+    uint16_t iso_639_1_language_code = be_uint16(begin + this_offset);
+    uint16_t iso_3166_1_country_code = be_uint16(begin + this_offset + 2);
+    uint32_t string_length = be_uint32(begin + this_offset + 4);
+    uint32_t string_offset = be_uint32(begin + this_offset + 8);
+
+    iprintf(options, "%c%c/%c%c: \"", iso_639_1_language_code >> 8,
+            iso_639_1_language_code & 0xff, iso_3166_1_country_code >> 8,
+            iso_3166_1_country_code & 0xff);
+
+    if (string_length % 2 != 0) {
+      printf("data length not multiple of 2, skipping\n");
+      continue;
+    }
+
+    // UTF-16BE text :/
+    // And no uchar.h / c16rtomb() on macOS either (as of macOS 12.5) :/
+    // FIXME: Do actual UTF16-to-UTF8 conversion.
+    const uint8_t* utf16_be = begin + string_offset;
+    for (unsigned j = 0; j < string_length / 2; ++j, utf16_be += 2) {
+      uint16_t cur = be_uint16(utf16_be);
+      printf("%c", cur & 0x7f);
+    }
+    printf("\"\n");
+  }
+}
+
 static void jpeg_dump_icc(struct Options* options,
                           const uint8_t* begin,
                           uint16_t size) {
@@ -848,6 +916,19 @@ static void jpeg_dump_icc(struct Options* options,
     iprintf(options, "signature %08x ('%.4s') offset %d size %d\n",
             tag_signature, tag_table + this_offset, offset_to_data,
             size_of_data);
+
+    increase_indent(options);
+    switch (tag_signature) {
+      case 0x63707274:  // 'cprt', copyrightTag
+      case 0x64657363:  // 'desc', profileDescriptionTag
+      case 0x646D6E64:  // 'dmnd', deviceMfgDescTag
+      case 0x646D6464:  // 'dmdd', deviceModelDescTag
+      case 0x76756564:  // 'vued', viewingCondDescTag
+        icc_dump_multiLocalizedUnicodeType(options, icc_header + offset_to_data,
+                                           size_of_data);
+        break;
+    }
+    decrease_indent(options);
   }
   decrease_indent(options);
 }
