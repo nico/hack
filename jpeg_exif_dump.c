@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdnoreturn.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -32,7 +33,7 @@ static void print_usage(FILE* stream, const char* program_name) {
           "              (by default, skips marker data)\n");
 }
 
-static void fatal(const char* msg, ...) {
+static noreturn void fatal(const char* msg, ...) {
   va_list args;
   va_start(args, msg);
   vfprintf(stderr, msg, args);
