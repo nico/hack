@@ -773,7 +773,28 @@ static void jpeg_dump_icc(struct Options* options,
   if (rendering_intent >> 16 != 0)
     printf(" (top 16-bit unexpectedly not zero)");
   printf("\n");
-  // TODO
+
+  // TODO: PCS illuminant, bytes 68-79
+
+  uint32_t profile_creator = be_uint32(icc_header + 80);
+  iprintf(options, "Profile creator: ");
+  if (profile_creator == 0)
+    printf("none");
+  else
+    printf("'%.4s'", icc_header + 80);
+  printf("\n");
+
+  // This is the MD5 of the entire profile, with profile flags, rendering
+  // intent, and profile ID temporarily set to 0.
+  uint64_t profile_id_part_1 = be_uint64(icc_header + 84);
+  uint64_t profile_id_part_2 = be_uint64(icc_header + 92);
+  iprintf(options, "Profile ID: ");
+  if (profile_id_part_1 == 0 && profile_id_part_2 == 0)
+    printf("not computed");
+  else
+    printf("0x%016" PRIx64 "_%016" PRIx64, profile_id_part_1,
+           profile_id_part_2);
+  printf("\n");
 }
 
 static void jpeg_dump_mpf(struct Options* options,
