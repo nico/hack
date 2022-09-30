@@ -774,7 +774,18 @@ static void jpeg_dump_icc(struct Options* options,
     printf(" (top 16-bit unexpectedly not zero)");
   printf("\n");
 
-  // TODO: PCS illuminant, bytes 68-79
+  int32_t xyz_x = (int32_t)be_uint32(icc_header + 68);
+  int32_t xyz_y = (int32_t)be_uint32(icc_header + 72);
+  int32_t xyz_z = (int32_t)be_uint32(icc_header + 76);
+  char xyz_buf[1024];
+  snprintf(xyz_buf, sizeof(xyz_buf), "X = %.4f, Y = %.4f, Z = %.4f",
+           xyz_x / (double)0x10000, xyz_y / (double)0x10000,
+           xyz_z / (double)0x10000);
+  iprintf(options, "PCS illuminant: %s", xyz_buf);
+  const char expected_xyz[] = "X = 0.9642, Y = 1.0000, Z = 0.8249";
+  if (strcmp(xyz_buf, expected_xyz) != 0)
+    printf("(unexpected; expected %s)", expected_xyz);
+  printf("\n");
 
   uint32_t profile_creator = be_uint32(icc_header + 80);
   iprintf(options, "Profile creator: ");
