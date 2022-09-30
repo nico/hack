@@ -691,8 +691,14 @@ static void jpeg_dump_icc(struct Options* options,
   uint16_t hour = be_uint16(icc_header + 30);
   uint16_t minutes = be_uint16(icc_header + 32);
   uint16_t seconds = be_uint16(icc_header + 34);
-  iprintf(options, "Profile created: %d-%02d-%02dT%02d:%02d:%02dZ\n",
-          year, month, day, hour, minutes, seconds);
+  iprintf(options, "Profile created: %d-%02d-%02dT%02d:%02d:%02dZ\n", year,
+          month, day, hour, minutes, seconds);
+
+  uint32_t profile_file_signature = be_uint32(icc_header + 36);
+  iprintf(options, "Profile file signature: '%.4s'", icc_header + 36);
+  if (profile_file_signature != 0x61637370)
+    printf(" (expected 'acsp', but got something else?");
+  printf("\n");
   // TODO
 }
 
