@@ -540,6 +540,28 @@ static void jpeg_dump_exif(struct Options* options,
             begin + size);
 }
 
+static const char* icc_profile_device_class_description(
+    uint32_t profile_device_class) {
+  switch (profile_device_class) {
+    case 0x73636E72:  // 'scnr'
+      return "Input device profile";
+    case 0x6D6E7472:  // 'mntr'
+      return "Display device profile";
+    case 0x70727472:  // 'prtr'
+      return "Output device profile";
+    case 0x6C696E6B:  // 'link'
+      return "DeviceLink profile";
+    case 0x73706163:  // 'spac'
+      return "ColorSpace profile";
+    case 0x61627374:  // 'abst'
+      return "Abstract profile";
+    case 0x6E6D636C:  // 'nmcl'
+      return "NamedColor profile";
+    default:
+      return NULL;
+  }
+}
+
 static const char* icc_color_space_description(uint32_t data_color_space) {
   switch (data_color_space) {
     case 0x58595A20:  // 'XYZ '
@@ -642,29 +664,10 @@ static void jpeg_dump_icc(struct Options* options,
 
   uint32_t profile_device_class = be_uint32(icc_header + 12);
   iprintf(options, "Profile/Device class: '%.4s'", icc_header + 12);
-  switch (profile_device_class) {
-    case 0x73636E72:  // 'scnr'
-      printf(" (Input device profile)");
-      break;
-    case 0x6D6E7472:  // 'mntr'
-      printf(" (Display device profile)");
-      break;
-    case 0x70727472:  // 'prtr'
-      printf(" (Output device profile)");
-      break;
-    case 0x6C696E6B:  // 'link'
-      printf(" (DeviceLink profile)");
-      break;
-    case 0x73706163:  // 'spac'
-      printf(" (ColorSpace profile)");
-      break;
-    case 0x61627374:  // 'abst'
-      printf(" (Abstract profile)");
-      break;
-    case 0x6E6D636C:  // 'nmcl'
-      printf(" (NamedColor profile)");
-      break;
-  }
+  const char* profile_device_class_description =
+      icc_profile_device_class_description(profile_device_class);
+  if (profile_device_class_description)
+    printf(" (%s)", profile_device_class_description);
   printf("\n");
 
   uint32_t data_color_space = be_uint32(icc_header + 16);
