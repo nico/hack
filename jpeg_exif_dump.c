@@ -13,6 +13,15 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+// Dumps metadata in jpeg files.
+// Fairly complete:
+// * Exif
+// * XMP
+// In progress:
+// * ICC
+// Still missing:
+// * IPTC
+
 static void print_usage(FILE* stream, const char* program_name) {
   fprintf(stream, "usage: %s [ options ] filename\n", program_name);
   fprintf(stream,
