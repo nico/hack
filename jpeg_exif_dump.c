@@ -540,6 +540,64 @@ static void jpeg_dump_exif(struct Options* options,
             begin + size);
 }
 
+static const char* icc_color_space_description(uint32_t data_color_space) {
+  switch (data_color_space) {
+    case 0x58595A20:  // 'XYZ '
+      return "nCIEXYZ or PCSXYZa";
+    case 0x4C616220:  // 'Lab '
+      return "CIELAB or PCSLABb";
+    case 0x4C757620:  // 'Luv '
+      return "CIELUV";
+    case 0x59436272:  // 'YCbr'
+      return "YCbCr";
+    case 0x59787920:  // 'Yxy '
+      return "CIEYxy";
+    case 0x52474220:  // 'RGB '
+      return "RGB";
+    case 0x47524159:  // 'GRAY'
+      return "Gray";
+    case 0x48535620:  // 'HSV '
+      return "HSV";
+    case 0x484C5320:  // 'HLS '
+      return "HLS";
+    case 0x434D594B:  // 'CMYK'
+      return "CMYK";
+    case 0x434D5920:  // 'CMY '
+      return "CMY";
+    case 0x32434C52:  // '2CLR'
+      return "2 color";
+    case 0x33434C52:  // '3CLR'
+      return "3 color (other than XYZ, Lab, Luv, YCbCr, CIEYxy, RGB, HSV, HLS, "
+             "CMY)";
+    case 0x34434C52:  // '4CLR'
+      return "4 color (other than CMYK)";
+    case 0x35434C52:  // '5CLR'
+      return "5 color";
+    case 0x36434C52:  // '6CLR'
+      return "6 color";
+    case 0x37434C52:  // '7CLR'
+      return "7 color";
+    case 0x38434C52:  // '8CLR'
+      return "8 color";
+    case 0x39434C52:  // '9CLR'
+      return "9 color";
+    case 0x41434C52:  // 'ACLR'
+      return "10 color";
+    case 0x42434C52:  // 'BCLR'
+      return "11 color";
+    case 0x43434C52:  // 'CCLR'
+      return "12 color";
+    case 0x44434C52:  // 'DCLR'
+      return "13 color";
+    case 0x45434C52:  // 'ECLR'
+      return "14 color";
+    case 0x46434C52:  // 'FCLR'
+      return "15 color";
+    default:
+      return NULL;
+  }
+}
+
 static void jpeg_dump_icc(struct Options* options,
                           const uint8_t* begin,
                           uint16_t size) {
@@ -611,85 +669,10 @@ static void jpeg_dump_icc(struct Options* options,
 
   uint32_t data_color_space = be_uint32(icc_header + 16);
   iprintf(options, "Data color space: '%.4s'", icc_header + 16);
-  switch (data_color_space) {
-    case 0x58595A20:  // 'XYZ '
-      printf(" (nCIEXYZ or PCSXYZa)");
-      break;
-    case 0x4C616220:  // 'Lab '
-      printf(" (CIELAB or PCSLABb)");
-      break;
-    case 0x4C757620:  // 'Luv '
-      printf(" (CIELUV)");
-      break;
-    case 0x59436272:  // 'YCbr'
-      printf(" (YCbCr)");
-      break;
-    case 0x59787920:  // 'Yxy '
-      printf(" (CIEYxy)");
-      break;
-    case 0x52474220:  // 'RGB '
-      printf(" (RGB)");
-      break;
-    case 0x47524159:  // 'GRAY'
-      printf(" (Gray)");
-      break;
-    case 0x48535620:  // 'HSV '
-      printf(" (HSV)");
-      break;
-    case 0x484C5320:  // 'HLS '
-      printf(" (HLS)");
-      break;
-    case 0x434D594B:  // 'CMYK'
-      printf(" (CMYK)");
-      break;
-    case 0x434D5920:  // 'CMY '
-      printf(" (CMY)");
-      break;
-    case 0x32434C52:  // '2CLR'
-      printf(" (2 color)");
-      break;
-    case 0x33434C52:  // '3CLR'
-      printf(
-          " (3 color (other than XYZ, Lab, Luv, YCbCr, CIEYxy, RGB, HSV, HLS, "
-          "CMY))");
-      break;
-    case 0x34434C52:  // '4CLR'
-      printf(" (4 color (other than CMYK))");
-      break;
-    case 0x35434C52:  // '5CLR'
-      printf(" (5 color)");
-      break;
-    case 0x36434C52:  // '6CLR'
-      printf(" (6 color)");
-      break;
-    case 0x37434C52:  // '7CLR'
-      printf(" (7 color)");
-      break;
-    case 0x38434C52:  // '8CLR'
-      printf(" (8 color)");
-      break;
-    case 0x39434C52:  // '9CLR'
-      printf(" (9 color)");
-      break;
-    case 0x41434C52:  // 'ACLR'
-      printf(" (10 color)");
-      break;
-    case 0x42434C52:  // 'BCLR'
-      printf(" (11 color)");
-      break;
-    case 0x43434C52:  // 'CCLR'
-      printf(" (12 color)");
-      break;
-    case 0x44434C52:  // 'DCLR'
-      printf(" (13 color)");
-      break;
-    case 0x45434C52:  // 'ECLR'
-      printf(" (14 color)");
-      break;
-    case 0x46434C52:  // 'FCLR'
-      printf(" (15 color)");
-      break;
-  }
+  const char* color_space_description =
+      icc_color_space_description(data_color_space);
+  if (color_space_description)
+    printf(" (%s)", color_space_description);
   printf("\n");
   // TODO
 }
