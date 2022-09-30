@@ -315,10 +315,10 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
       continue;
     }
 
-    size_t total_size = count * TiffDataFormatSizes[format];
-    uint32_t data_offset = total_size <= 4
-                               ? this_ifd_offset + 8
-                               : uint32(begin + this_ifd_offset + 8);
+    assert(TiffDataFormatSizes[format] >= 0);
+    size_t total_size = count * (unsigned)TiffDataFormatSizes[format];
+    size_t data_offset = total_size <= 4 ? this_ifd_offset + 8
+                                         : uint32(begin + this_ifd_offset + 8);
     const void* data = begin + data_offset;
     iprintf(options, "tag %d", tag);
     const char* tag_name = name_for_tag(tag);
