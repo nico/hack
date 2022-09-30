@@ -41,11 +41,11 @@ static void fatal(const char* msg, ...) {
 }
 
 static uint16_t be_uint16(const uint8_t* p) {
-  return p[0] << 8 | p[1];
+  return (uint16_t)(p[0] << 8) | p[1];
 }
 
 static uint32_t be_uint32(const uint8_t* p) {
-  return be_uint16(p) << 16 | be_uint16(p + 2);
+  return (uint32_t)(be_uint16(p) << 16) | be_uint16(p + 2);
 }
 
 static uint64_t be_uint64(const uint8_t* p) {
@@ -53,11 +53,11 @@ static uint64_t be_uint64(const uint8_t* p) {
 }
 
 static uint16_t le_uint16(const uint8_t* p) {
-  return p[1] << 8 | p[0];
+  return (uint16_t)(p[1] << 8) | p[0];
 }
 
 static uint32_t le_uint32(const uint8_t* p) {
-  return le_uint16(p + 2) << 16 | le_uint16(p);
+  return (uint32_t)(le_uint16(p + 2) << 16) | le_uint16(p);
 }
 
 struct Options {
