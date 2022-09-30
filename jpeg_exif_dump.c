@@ -684,6 +684,15 @@ static void jpeg_dump_icc(struct Options* options,
   if (pcc_description)
     printf(" (%s)", pcc_description);
   printf("\n");
+
+  uint16_t year = be_uint16(icc_header + 24);
+  uint16_t month = be_uint16(icc_header + 26);
+  uint16_t day = be_uint16(icc_header + 28);
+  uint16_t hour = be_uint16(icc_header + 30);
+  uint16_t minutes = be_uint16(icc_header + 32);
+  uint16_t seconds = be_uint16(icc_header + 34);
+  iprintf(options, "Profile created: %d-%02d-%02dT%02d:%02d:%02dZ\n",
+          year, month, day, hour, minutes, seconds);
   // TODO
 }
 
