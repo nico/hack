@@ -305,14 +305,14 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
   uint32_t gps_info_ifd_offset = 0;
   uint32_t interopability_ifd_offset = 0;
 
-  for (int i = 0; i < num_ifd_entries; ++i) {
+  for (unsigned i = 0; i < num_ifd_entries; ++i) {
     size_t this_ifd_offset = ifd_offset + 2 + i * 12;
     uint16_t tag = uint16(begin + this_ifd_offset);
     uint16_t format = uint16(begin + this_ifd_offset + 2);
     uint32_t count = uint32(begin + this_ifd_offset + 4);
 
     if (format == 0 || format > kLastEntry) {
-      iprintf(options, "ifd entry %i invalid format %i, ignoring\n", i, format);
+      iprintf(options, "ifd entry %u invalid format %i, ignoring\n", i, format);
       continue;
     }
 
