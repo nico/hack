@@ -1114,7 +1114,10 @@ int main(int argc, char* argv[]) {
   const char* program_name = argv[0];
 
   // Parse options.
-  struct Options options = {};
+  struct Options options = {
+      .current_indent = 0,
+      .jpeg_scan = false,
+  };
   struct option getopt_options[] = {
       {"help", no_argument, NULL, 'h'},
       {"scan", no_argument, NULL, 's'},
