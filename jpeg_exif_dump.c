@@ -1153,15 +1153,17 @@ int main(int argc, char* argv[]) {
   struct stat in_stat;
   if (fstat(in_file, &in_stat))
     fatal("Failed to stat \'%s\'\n", in_name);
+  if (in_stat.st_size < 0)
+    fatal("Negative st_size?? (%jd)\n", (intmax_t)in_stat.st_size);
 
   void* contents = mmap(
-      /*addr=*/0, in_stat.st_size, PROT_READ, MAP_SHARED, in_file,
+      /*addr=*/0, (size_t)in_stat.st_size, PROT_READ, MAP_SHARED, in_file,
       /*offset=*/0);
   if (contents == MAP_FAILED)
     fatal("Failed to mmap: %d (%s)\n", errno, strerror(errno));
 
   jpeg_dump(&options, contents, (uint8_t*)contents + in_stat.st_size);
 
-  munmap(contents, in_stat.st_size);
+  munmap(contents, (size_t)in_stat.st_size);
   close(in_file);
 }
