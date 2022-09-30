@@ -669,6 +669,7 @@ static const char* icc_platform_description(uint32_t platform) {
 static void icc_dump_textType(struct Options* options,
                               const uint8_t* begin,
                               uint32_t size) {
+  // ICC.1:2022, 10.24 textType
   if (size < 9) {
     printf("textType must be at least 8 bytes, was %d\n", size);
     return;
@@ -697,7 +698,7 @@ static void icc_dump_textType(struct Options* options,
 static void icc_dump_multiLocalizedUnicodeType(struct Options* options,
                                                const uint8_t* begin,
                                                uint32_t size) {
-  // 10.15 multiLocalizedUnicodeType
+  // ICC.1:2022, 10.15 multiLocalizedUnicodeType
   if (size < 16) {
     printf("multiLocalizedUnicodeType must be at least 16 bytes, was %d\n",
            size);
@@ -961,9 +962,10 @@ static void jpeg_dump_icc(struct Options* options,
     increase_indent(options);
     switch (tag_signature) {
       case 0x63707274:  // 'cprt', copyrightTag
-        // Per 9.2.22, the type of copyrightTag must be
+        // Per ICC.1:2022 9.2.22, the type of copyrightTag must be
         // multiLocalizedUnicodeType. But Sony RAW files exported by Lightroom
-        // give it type textType.
+        // give it type textType. (This was valid older ICC versions, e.g. in
+        // ICC.1:1998.)
         if (type_signature == 0x74657874) {  // 'text'
           icc_dump_textType(options, icc_header + offset_to_data, size_of_data);
           break;
