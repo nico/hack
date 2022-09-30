@@ -329,22 +329,22 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
 
     // FIXME: print other formats
     if (format == kUnsignedByte && count == 1)
-      printf(": %u", *(uint8_t*)data);
+      printf(": %u", *(const uint8_t*)data);
     else if (format == kAscii)
-      printf(": '%.*s'", count, (char*)data);
+      printf(": '%.*s'", count, (const char*)data);
     else if (format == kUnsignedShort && count == 1)
       printf(": %u", uint16(data));
     else if (format == kUnsignedLong && count == 1)
       printf(": %u", uint32(data));
     else if (format == kUnsignedRational && count == 1) {
       uint32_t numerator = uint32(data);
-      uint32_t denominator = uint32((uint8_t*)data + 4);
+      uint32_t denominator = uint32((const uint8_t*)data + 4);
       printf(": %u/%u", numerator, denominator);
       if (denominator != 0)
         printf(" (%.3f)", numerator / (double)denominator);
     } else if (format == kSignedRational && count == 1) {
       int32_t numerator = uint32(data);
-      int32_t denominator = uint32((uint8_t*)data + 4);
+      int32_t denominator = uint32((const uint8_t*)data + 4);
       printf(": %d/%d", numerator, denominator);
       if (denominator != 0)
         printf(" (%.3f)", numerator / (double)denominator);
@@ -422,9 +422,9 @@ static void tiff_dump(struct Options* options,
     kLittle,
     kBig,
   } endianness;
-  if (strncmp((char*)begin, "II", 2) == 0)
+  if (strncmp((const char*)begin, "II", 2) == 0)
     endianness = kLittle;
-  else if (strncmp((char*)begin, "MM", 2) == 0)
+  else if (strncmp((const char*)begin, "MM", 2) == 0)
     endianness = kBig;
   else {
     printf("unknown endianness id '%.2s'\n", begin);
@@ -852,7 +852,7 @@ static void indent_and_elide_each_line(struct Options* options,
     if (column > max_column) {
       printf("...");
       const uint8_t* next_newline =
-          (const uint8_t*)strchr((char*)(s + i), '\n');
+          (const uint8_t*)strchr((const char*)(s + i), '\n');
       if (next_newline == NULL)
         return;
       i += next_newline - (s + i) - 1;
