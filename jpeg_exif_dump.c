@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <inttypes.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -36,6 +37,10 @@ static uint16_t be_uint16(const uint8_t* p) {
 
 static uint32_t be_uint32(const uint8_t* p) {
   return be_uint16(p) << 16 | be_uint16(p + 2);
+}
+
+static uint64_t be_uint64(const uint8_t* p) {
+  return ((uint64_t)be_uint32(p) << 32) | be_uint32(p + 4);
 }
 
 static uint16_t le_uint16(const uint8_t* p) {
@@ -736,6 +741,37 @@ static void jpeg_dump_icc(struct Options* options,
     printf("none");
   else
     printf("'%.4s'", icc_header + 48);
+  printf("\n");
+
+  uint32_t device_model = be_uint32(icc_header + 52);
+  iprintf(options, "Device model: ");
+  if (device_model == 0)
+    printf("none");
+  else
+    printf("'%.4s'", icc_header + 52);
+  printf("\n");
+
+  uint64_t device_attributes = be_uint64(icc_header + 56);
+  iprintf(options, "Device attributes: 0x%016" PRIx64 "\n", device_attributes);
+
+  uint32_t rendering_intent = be_uint32(icc_header + 64);
+  iprintf(options, "Rendering intent: %d", rendering_intent);
+  switch (rendering_intent & 0xffff) {
+    case 0:
+      printf(" (Perceptual)");
+      break;
+    case 1:
+      printf(" (Media-relative colorimetric)");
+      break;
+    case 2:
+      printf(" (Saturation)");
+      break;
+    case 3:
+      printf(" (ICC-absolute colorimetric)");
+      break;
+  }
+  if (rendering_intent >> 16 != 0)
+    printf(" (top 16-bit unexpectedly not zero)");
   printf("\n");
   // TODO
 }
