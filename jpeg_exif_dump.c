@@ -47,7 +47,6 @@ static void print_usage(FILE* stream, const char* program_name) {
 #define FALLTHROUGH
 #endif
 
-
 PRINTF(1, 2) static noreturn void fatal(const char* msg, ...) {
   va_list args;
   va_start(args, msg);
@@ -695,6 +694,77 @@ static void icc_dump_textType(struct Options* options,
   iprintf(options, "%.*s\n", size - 9, begin + 8);
 }
 
+static void icc_dump_textDescriptionType(struct Options* options,
+                                         const uint8_t* begin,
+                                         uint32_t size) {
+  // ICC.1:1998, 6.5.16 textDescriptionType
+
+  // TODO: The 24 here includes the trailing 0 for the ascii text, but not
+  // the trailling 0 for the unicode text (which isn't always there) and not
+  // the 67 bytes for scriptcode (which _are_ always there).
+  // This is 5 uint32_t, 2+1 bytes scriptcode trailer, and the 1 byte trailing
+  // 0 in the ascii string.
+  if (size < 24) {
+    printf("multiLocalizedUnicodeType must be at least 24 bytes, was %d\n",
+           size);
+    return;
+  }
+
+  uint32_t type_signature = be_uint32(begin);
+  if (type_signature != 0x64657363) {  // 'desc'
+    printf("textDescriptionType expected type 'desc', got '%.4s'\n", begin);
+    return;
+  }
+
+  uint32_t reserved = be_uint32(begin + 4);
+  if (reserved != 0) {
+    printf("textDescriptionType expected reserved 0, got %d\n", reserved);
+    return;
+  }
+
+  uint32_t ascii_invariant_size = be_uint32(begin + 8);
+  if (ascii_invariant_size == 0) {
+    printf("textDescriptionType expected 0 byte ascci data\n");
+    return;
+  }
+  if (size - 24 < ascii_invariant_size) {
+    printf(
+        "textDescriptionType with %u bytes of ascii must be at least %u bytes, "
+        "was %d\n",
+        ascii_invariant_size, 23 + ascii_invariant_size, size);
+    return;
+  }
+
+  iprintf(options, "ascii: \"%.*s\"\n", ascii_invariant_size, begin + 12);
+
+  // Note: Not aligned!
+  uint32_t unicode_language_code = be_uint32(begin + 12 + ascii_invariant_size);
+  uint32_t unicode_count = be_uint32(begin + 16 + ascii_invariant_size);
+  if (unicode_language_code == 0 && unicode_count == 0)
+    iprintf(options, "(no unicode data)\n");
+  else {
+    // TODO: UCS-2, \0-terminated, unicode_length inclusive of \0
+    iprintf(options, "Unicode: TODO '%.4s' %u\n",
+            begin + 12 + ascii_invariant_size, unicode_count);
+  }
+
+  uint32_t unicode_size = unicode_count * 2;  // UCS-2
+
+  uint16_t scriptcode_code =
+      be_uint16(begin + 20 + ascii_invariant_size + unicode_size);
+  uint8_t scriptcode_count = begin[22 + ascii_invariant_size + unicode_size];
+  if (scriptcode_code == 0 && scriptcode_count == 0) {
+    iprintf(options, "(no scriptcode data)\n");
+    // TODO: Could verify that the following 67 bytes are all zero.
+  } else {
+    iprintf(options, "Scriptcode: TODO %u %u\n", scriptcode_code,
+            scriptcode_count);
+  }
+
+  if (size != 23 + ascii_invariant_size + unicode_size + 67)
+    iprintf(options, "surprising size\n");
+}
+
 static void icc_dump_multiLocalizedUnicodeType(struct Options* options,
                                                const uint8_t* begin,
                                                uint32_t size) {
@@ -975,6 +1045,13 @@ static void jpeg_dump_icc(struct Options* options,
       case 0x646D6E64:  // 'dmnd', deviceMfgDescTag
       case 0x646D6464:  // 'dmdd', deviceModelDescTag
       case 0x76756564:  // 'vued', viewingCondDescTag
+        // For non-'cprt', older ICC versions used type textDescriptionType
+        // ('desc') here.
+        if (tag_signature != 0x63707274 && type_signature == 0x64657363) {
+          icc_dump_textDescriptionType(options, icc_header + offset_to_data,
+                                       size_of_data);
+          break;
+        }
         icc_dump_multiLocalizedUnicodeType(options, icc_header + offset_to_data,
                                            size_of_data);
         break;
