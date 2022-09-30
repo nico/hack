@@ -94,7 +94,15 @@ def parse_buildlog(logfile, metafile):
     with open(logfile) as f:
         log = f.read().replace('\r\n', '\n')
     with open(metafile) as f:
-        meta = json.load(f)
+        meta = f.read()
+
+    # The mini started sending files every now and then :/
+    if not log and not meta:
+      log = 'INFO:1970-01-01T00:00:00Z:root:pulling...\nempty file workaround\n'
+      meta = '{ "elapsed_s": 0, "exit_code": 1 }'
+
+    meta = json.loads(meta)
+
     return parse_output(log, meta)
 
 
