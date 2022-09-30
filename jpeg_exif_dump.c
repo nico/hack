@@ -620,6 +620,20 @@ static const char* icc_color_space_description(uint32_t data_color_space) {
   }
 }
 
+static const char* icc_platform_description(uint32_t platform) {
+  switch (platform) {
+    case 0x4150504C:  // 'APPL'
+      return "Apple Inc.";
+    case 0x4D534654:  // 'MSFT'
+      return "Microsoft Corporation";
+    case 0x53474920:  // 'SGI '
+      return "Silicon Graphics, Inc.";
+    case 0x53554E57:  // 'SUNW'
+      return "Sun Microsystems, Inc.";
+    default:
+      return NULL;
+  }
+}
 static void jpeg_dump_icc(struct Options* options,
                           const uint8_t* begin,
                           uint16_t size) {
@@ -698,6 +712,19 @@ static void jpeg_dump_icc(struct Options* options,
   iprintf(options, "Profile file signature: '%.4s'", icc_header + 36);
   if (profile_file_signature != 0x61637370)
     printf(" (expected 'acsp', but got something else?");
+  printf("\n");
+
+  uint32_t primary_platform = be_uint32(icc_header + 40);
+  iprintf(options, "Primary platform: ");
+  if (primary_platform == 0)
+    printf("none");
+  else {
+    printf("'%.4s'", icc_header + 40);
+    const char* primary_platform_description =
+        icc_platform_description(primary_platform);
+    if (primary_platform_description)
+      printf(" (%s)", primary_platform_description);
+  }
   printf("\n");
   // TODO
 }
