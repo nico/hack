@@ -343,8 +343,8 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
       if (denominator != 0)
         printf(" (%.3f)", numerator / (double)denominator);
     } else if (format == kSignedRational && count == 1) {
-      int32_t numerator = uint32(data);
-      int32_t denominator = uint32((const uint8_t*)data + 4);
+      int32_t numerator = (int32_t)uint32(data);
+      int32_t denominator = (int32_t)uint32((const uint8_t*)data + 4);
       printf(": %d/%d", numerator, denominator);
       if (denominator != 0)
         printf(" (%.3f)", numerator / (double)denominator);
