@@ -338,13 +338,13 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
       printf(": %u", uint32(data));
     else if (format == kUnsignedRational && count == 1) {
       uint32_t numerator = uint32(data);
-      uint32_t denominator = uint32(data + 4);
+      uint32_t denominator = uint32((uint8_t*)data + 4);
       printf(": %u/%u", numerator, denominator);
       if (denominator != 0)
         printf(" (%.3f)", numerator / (double)denominator);
     } else if (format == kSignedRational && count == 1) {
       int32_t numerator = uint32(data);
-      int32_t denominator = uint32(data + 4);
+      int32_t denominator = uint32((uint8_t*)data + 4);
       printf(": %d/%d", numerator, denominator);
       if (denominator != 0)
         printf(" (%.3f)", numerator / (double)denominator);
@@ -1151,7 +1151,7 @@ int main(int argc, char* argv[]) {
   if (contents == MAP_FAILED)
     fatal("Failed to mmap: %d (%s)\n", errno, strerror(errno));
 
-  jpeg_dump(&options, contents, contents + in_stat.st_size);
+  jpeg_dump(&options, contents, (uint8_t*)contents + in_stat.st_size);
 
   munmap(contents, in_stat.st_size);
   close(in_file);
