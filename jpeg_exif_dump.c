@@ -1030,7 +1030,7 @@ static void jpeg_dump(struct Options* options,
         else
           iprintf(options, "  %d macroblocks\n", be_uint16(cur + 2));
         break;
-      case 0xe0:
+      case 0xe0: {
         printf(": JPEG/JFIF Image segment (APP0)\n");
         increase_indent(options);
         const char* app_id =
@@ -1039,6 +1039,7 @@ static void jpeg_dump(struct Options* options,
           jpeg_dump_jfif(options, cur, size);
         decrease_indent(options);
         break;
+      }
       case 0xe1: {
         printf(": EXIF Image segment (APP1)\n");
 
