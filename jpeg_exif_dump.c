@@ -795,6 +795,15 @@ static void jpeg_dump_icc(struct Options* options,
     printf("0x%016" PRIx64 "_%016" PRIx64, profile_id_part_1,
            profile_id_part_2);
   printf("\n");
+
+  bool reserved_fields_are_zero = true;
+  for (int i = 100; i < 128; ++i)
+    if (icc_header[i] != 0)
+      reserved_fields_are_zero = false;
+  if (reserved_fields_are_zero)
+    iprintf(options, "reserved header bytes are zero\n");
+  else
+    iprintf(options, "reserved header bytes are unexpectedly not zero\n");
 }
 
 static void jpeg_dump_mpf(struct Options* options,
