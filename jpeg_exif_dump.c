@@ -39,6 +39,15 @@ static void print_usage(FILE* stream, const char* program_name) {
 #define PRINTF(a, b)
 #endif
 
+#if __has_c_attribute(fallthrough) == 201910L
+#define FALLTHROUGH [[fallthrough]]
+#elif defined(__clang__)
+#define FALLTHROUGH __attribute__((fallthrough))
+#else
+#define FALLTHROUGH
+#endif
+
+
 PRINTF(1, 2) static noreturn void fatal(const char* msg, ...) {
   va_list args;
   va_start(args, msg);
@@ -657,6 +666,34 @@ static const char* icc_platform_description(uint32_t platform) {
   }
 }
 
+static void icc_dump_textType(struct Options* options,
+                              const uint8_t* begin,
+                              uint32_t size) {
+  if (size < 9) {
+    printf("textType must be at least 8 bytes, was %d\n", size);
+    return;
+  }
+
+  uint32_t type_signature = be_uint32(begin);
+  if (type_signature != 0x74657874) {  // 'text'
+    printf("textType expected type 'text', got '%.4s'\n", begin);
+    return;
+  }
+
+  uint32_t reserved = be_uint32(begin + 4);
+  if (reserved != 0) {
+    printf("textType expected reserved 0, got %d\n", reserved);
+    return;
+  }
+
+  if (begin[size] != '\0') {
+    printf("textType not 0-terminated\n");
+    return;
+  }
+
+  iprintf(options, "%.*s\n", size - 9, begin + 8);
+}
+
 static void icc_dump_multiLocalizedUnicodeType(struct Options* options,
                                                const uint8_t* begin,
                                                uint32_t size) {
@@ -917,9 +954,21 @@ static void jpeg_dump_icc(struct Options* options,
             tag_signature, tag_table + this_offset, offset_to_data,
             size_of_data);
 
+    uint32_t type_signature = 0;
+    if (size_of_data >= 4)
+      type_signature = be_uint32(icc_header + offset_to_data);
+
     increase_indent(options);
     switch (tag_signature) {
       case 0x63707274:  // 'cprt', copyrightTag
+        // Per 9.2.22, the type of copyrightTag must be
+        // multiLocalizedUnicodeType. But Sony RAW files exported by Lightroom
+        // give it type textType.
+        if (type_signature == 0x74657874) {  // 'text'
+          icc_dump_textType(options, icc_header + offset_to_data, size_of_data);
+          break;
+        }
+        FALLTHROUGH;
       case 0x64657363:  // 'desc', profileDescriptionTag
       case 0x646D6E64:  // 'dmnd', deviceMfgDescTag
       case 0x646D6464:  // 'dmdd', deviceModelDescTag
