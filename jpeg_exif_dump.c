@@ -1118,7 +1118,7 @@ int main(int argc, char* argv[]) {
   struct option getopt_options[] = {
       {"help", no_argument, NULL, 'h'},
       {"scan", no_argument, NULL, 's'},
-      {},
+      {0, 0, 0, 0},
   };
   int opt;
   while ((opt = getopt_long(argc, argv, "hs", getopt_options, NULL)) != -1) {
