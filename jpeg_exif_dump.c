@@ -726,6 +726,17 @@ static void jpeg_dump_icc(struct Options* options,
       printf(" (%s)", primary_platform_description);
   }
   printf("\n");
+
+  uint32_t profile_flags = be_uint32(icc_header + 44);
+  iprintf(options, "Profile flags: 0x%08x\n", profile_flags);
+
+  uint32_t device_manufacturer = be_uint32(icc_header + 48);
+  iprintf(options, "Device manufacturer: ");
+  if (device_manufacturer == 0)
+    printf("none");
+  else
+    printf("'%.4s'", icc_header + 48);
+  printf("\n");
   // TODO
 }
 
