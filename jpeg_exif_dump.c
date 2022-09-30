@@ -33,7 +33,13 @@ static void print_usage(FILE* stream, const char* program_name) {
           "              (by default, skips marker data)\n");
 }
 
-static noreturn void fatal(const char* msg, ...) {
+#if defined(__clang__) || defined(__GNUC__)
+#define PRINTF(a, b) __attribute__((format(printf, a, b)))
+#else
+#define PRINTF(a, b)
+#endif
+
+PRINTF(1, 2) static noreturn void fatal(const char* msg, ...) {
   va_list args;
   va_start(args, msg);
   vfprintf(stderr, msg, args);
@@ -79,6 +85,7 @@ static void print_indent(const struct Options* options) {
     printf(" ");
 }
 
+PRINTF(2, 3)
 static void iprintf(const struct Options* options, const char* msg, ...) {
   print_indent(options);
   va_list args;
