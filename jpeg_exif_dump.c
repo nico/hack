@@ -565,9 +565,9 @@ static const char* icc_profile_device_class_description(
 static const char* icc_color_space_description(uint32_t data_color_space) {
   switch (data_color_space) {
     case 0x58595A20:  // 'XYZ '
-      return "nCIEXYZ or PCSXYZa";
+      return "nCIEXYZ or PCSXYZ";
     case 0x4C616220:  // 'Lab '
-      return "CIELAB or PCSLABb";
+      return "CIELAB or PCSLAB";
     case 0x4C757620:  // 'Luv '
       return "CIELUV";
     case 0x59436272:  // 'YCbr'
