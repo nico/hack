@@ -891,7 +891,7 @@ static void jpeg_dump_icc(struct Options* options,
   printf("\n");
 
   uint32_t pcs = be_uint32(icc_header + 20);
-  iprintf(options, "Data color space: '%.4s'", icc_header + 20);
+  iprintf(options, "Profile connection space (PCS): '%.4s'", icc_header + 20);
   const char* pcc_description = icc_color_space_description(pcs);
   if (pcc_description)
     printf(" (%s)", pcc_description);
