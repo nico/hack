@@ -172,9 +172,11 @@ static const char* tiff_tag_name(uint16_t tag) {
     case 296: return "ResolutionUnit";
     case 305: return "Software";
     case 306: return "DateTime";
+    case 315: return "Artist";
     case 513: return "JPEGInterchangeFormat";
     case 514: return "JPEGInterchangeFormatLength";
     case 531: return "YCbCrPositioning";
+    case 33432: return "Copyright";
 
     // EXIF Private IFD tags
     // https://exiv2.org/tags.html
