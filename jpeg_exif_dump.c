@@ -834,6 +834,45 @@ static void icc_dump_multiLocalizedUnicodeType(struct Options* options,
   }
 }
 
+static void icc_dump_XYZType(struct Options* options,
+                             const uint8_t* begin,
+                             uint32_t size) {
+  // ICC.1:2022, 10.31 XYZType
+  if (size < 8) {
+    printf("XYZType must be at least 8 bytes, was %d\n", size);
+    return;
+  }
+
+  uint32_t type_signature = be_uint32(begin);
+  if (type_signature != 0x58595A20) {  // 'XYZ '
+    printf("XYZType expected type 'XYZ ', got '%.4s'\n", begin);
+    return;
+  }
+
+  uint32_t reserved = be_uint32(begin + 4);
+  if (reserved != 0) {
+    printf("XYZType expected reserved 0, got %d\n", reserved);
+    return;
+  }
+
+  uint32_t xyz_size = size - 8;
+  if (xyz_size % 12 != 0) {
+    printf("XYZType expected %d to be multiple of 12\n", xyz_size);
+    return;
+  }
+
+  uint32_t xyz_count = xyz_size / 12;
+  for (unsigned i = 0; i < xyz_count; ++i) {
+    uint32_t this_offset = 8 + i * 12;
+
+    int32_t xyz_x = (int32_t)be_uint32(begin + this_offset);
+    int32_t xyz_y = (int32_t)be_uint32(begin + this_offset + 4);
+    int32_t xyz_z = (int32_t)be_uint32(begin + this_offset + 8);
+    iprintf(options, "X = %.4f, Y = %.4f, Z = %.4f\n", xyz_x / (double)0x10000,
+            xyz_y / (double)0x10000, xyz_z / (double)0x10000);
+  }
+}
+
 static void jpeg_dump_icc(struct Options* options,
                           const uint8_t* begin,
                           uint16_t size) {
@@ -1056,6 +1095,13 @@ static void jpeg_dump_icc(struct Options* options,
         }
         icc_dump_multiLocalizedUnicodeType(options, icc_header + offset_to_data,
                                            size_of_data);
+        break;
+      case 0x6258595A:  // 'bXYZ', blueMatrixColumnTag
+      case 0x626B7074:  // 'btpt', mediaBlackPointTag (v2 only, not in v4)
+      case 0x6758595A:  // 'gXYZ', greenMatrixColumnTag
+      case 0x7258595A:  // 'rXYZ', redMatrixColumnTag
+      case 0x77747074:  // 'wtpt', mediaWhitePointTag
+        icc_dump_XYZType(options, icc_header + offset_to_data, size_of_data);
         break;
     }
     decrease_indent(options);
