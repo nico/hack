@@ -1099,6 +1099,7 @@ static void jpeg_dump_icc(struct Options* options,
       case 0x6258595A:  // 'bXYZ', blueMatrixColumnTag
       case 0x626B7074:  // 'btpt', mediaBlackPointTag (v2 only, not in v4)
       case 0x6758595A:  // 'gXYZ', greenMatrixColumnTag
+      case 0x6c756d69:  // 'lumi', luminanceTag
       case 0x7258595A:  // 'rXYZ', redMatrixColumnTag
       case 0x77747074:  // 'wtpt', mediaWhitePointTag
         icc_dump_XYZType(options, icc_header + offset_to_data, size_of_data);
