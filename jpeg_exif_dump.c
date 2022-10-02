@@ -945,7 +945,51 @@ static void icc_dump_parametricCurveType(struct Options* options,
     return;
   }
 
-  // TODO
+  unsigned n;
+  switch (function_type) {
+    case 0:
+      iprintf(options, "Y = X**g\n");
+      n = 1;
+      break;
+    case 1:
+      iprintf(options, "Y = (a*X + b)**g     if X >= -b/a\n");
+      iprintf(options, "  = 0                if X <  -b/a\n");
+      n = 3;
+      break;
+    case 2:
+      iprintf(options, "Y = (a*X + b)**g + c if X >= -b/a\n");
+      iprintf(options, "  = c                if X <  -b/a\n");
+      n = 4;
+      break;
+    case 3:
+      iprintf(options, "Y = (a*X + b)**g     if X >= d\n");
+      iprintf(options, "  =  c*X             if X <  d\n");
+      n = 5;
+      break;
+    case 4:
+      iprintf(options, "Y = (a*X + b)**g + e if X >= d\n");
+      iprintf(options, "  =  c*X + f         if X <  d\n");
+      n = 7;
+      break;
+    default:
+      iprintf(options, "unknown function type %d\n", function_type);
+      return;
+  }
+
+  if (size - 12 != n * 4) {
+    printf("parametricCurveType with %d params must be %u bytes, was %d\n", n,
+           12 + n * 2, size);
+  }
+
+  const char names[] = {'g', 'a', 'b', 'c', 'd', 'e', 'f'};
+  iprintf(options, "with ");
+  for (unsigned i = 0; i < n; ++i) {
+    int32_t v = (int32_t)be_uint32(begin + 12 + i*4);
+    printf("%c = %f", names[i], v / (double)0x10000);
+    if (i != n - 1)
+      printf(", ");
+  }
+  printf("\n");
 }
 
 static void jpeg_dump_icc(struct Options* options,
