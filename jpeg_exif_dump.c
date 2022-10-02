@@ -1066,11 +1066,14 @@ static void jpeg_dump_icc(struct Options* options,
             tag_signature, tag_table + this_offset, offset_to_data,
             size_of_data);
 
-    uint32_t type_signature = 0;
-    if (size_of_data >= 4)
-      type_signature = be_uint32(icc_header + offset_to_data);
-
     increase_indent(options);
+
+    uint32_t type_signature = 0;
+    if (size_of_data >= 4) {
+      type_signature = be_uint32(icc_header + offset_to_data);
+      iprintf(options, "type '%.4s'\n", icc_header + offset_to_data);
+    }
+
     switch (tag_signature) {
       case 0x63707274:  // 'cprt', copyrightTag
         // Per ICC.1:2022 9.2.22, the type of copyrightTag must be
