@@ -1062,7 +1062,7 @@ static void jpeg_dump_icc(struct Options* options,
     uint32_t tag_signature = be_uint32(tag_table + this_offset);
     uint32_t offset_to_data = be_uint32(tag_table + this_offset + 4);
     uint32_t size_of_data = be_uint32(tag_table + this_offset + 8);
-    iprintf(options, "signature %08x ('%.4s') offset %d size %d\n",
+    iprintf(options, "signature 0x%08x ('%.4s') offset %d size %d\n",
             tag_signature, tag_table + this_offset, offset_to_data,
             size_of_data);
 
