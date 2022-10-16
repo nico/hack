@@ -20,9 +20,9 @@
 // * XMP (missing custom dumpers for a few tags, such as gps pos)
 // * ICC (RGB only for now)
 // In progress:
-// * MPF
-// Still missing:
 // * IPTC
+// Still missing:
+// * MPF
 
 static void print_usage(FILE* stream, const char* program_name) {
   fprintf(stream, "usage: %s [ options ] filename\n", program_name);
@@ -985,7 +985,7 @@ static void icc_dump_parametricCurveType(struct Options* options,
   const char names[] = {'g', 'a', 'b', 'c', 'd', 'e', 'f'};
   iprintf(options, "with ");
   for (unsigned i = 0; i < n; ++i) {
-    int32_t v = (int32_t)be_uint32(begin + 12 + i*4);
+    int32_t v = (int32_t)be_uint32(begin + 12 + i * 4);
     printf("%c = %f", names[i], v / (double)0x10000);
     if (i != n - 1)
       printf(", ");
@@ -1337,6 +1337,68 @@ static void jpeg_dump_xmp_extension(struct Options* options,
   print_elided(options, 1024, begin + header_size, data_size);
 }
 
+static uint32_t jpeg_dump_photoshop_3_resource_block(struct Options* options,
+                                                     const uint8_t* begin,
+                                                     uint16_t size) {
+  const size_t header_size = 12;
+  if (size < header_size) {
+    printf(
+        "photoshop image resource block should be at least %zu bytes, is %u\n",
+        header_size, size);
+    return size;
+  }
+
+  if (strncmp((const char*)begin, "8BIM", 4) != 0) {
+    printf(
+        "photoshop image resource block doesn't start with '8BIM' but '%.4s' "
+        "(0x%08x)\n",
+        begin, be_uint32(begin));
+    return size;
+  }
+
+  uint16_t image_resource_id = be_uint16(begin + 4);
+
+  uint8_t name_len = begin[6];
+
+  uint16_t size_offset = 7 + name_len;
+  if (size_offset % 2 != 0)  // Pad to even size.
+    ++size_offset;
+
+  uint32_t resource_data_size = be_uint32(begin + size_offset);
+
+  uint32_t resource_block_size = size_offset + 4 + resource_data_size;
+  if (resource_block_size % 2 != 0)  // Pad to even size.
+    ++resource_block_size;
+
+  iprintf(options, "Resource block 0x%04x '%.*s' size %d\n", image_resource_id,
+          name_len, begin + 7, resource_data_size);
+
+  return resource_block_size;
+}
+
+static void jpeg_dump_photoshop_3(struct Options* options,
+                                  const uint8_t* begin,
+                                  uint16_t size) {
+  const size_t prefix_size = sizeof(uint16_t) + sizeof("Photoshop 3.0");
+
+  // https://oldschoolprg.x10.mx/downloads/ps6ffspecsv2.pdf
+  // https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/#50577409_pgfId-1037685
+  // https://metacpan.org/pod/Image::MetaData::JPEG::Structures#Structure-of-a-Photoshop-style-APP13-segment
+  uint16_t offset = prefix_size;
+  while (offset < size) {
+    uint32_t block_size = jpeg_dump_photoshop_3_resource_block(
+        options, begin + offset, size - offset);
+
+    if (block_size > size - offset) {
+      printf("block size %d larger than remaining room %d\n", block_size,
+             size - offset);
+      break;
+    }
+
+    offset += block_size;
+  }
+}
+
 static const char* jpeg_dump_app_id(struct Options* options,
                                     const uint8_t* begin,
                                     const uint8_t* end,
@@ -1494,10 +1556,12 @@ static void jpeg_dump(struct Options* options,
         increase_indent(options);
         const char* app_id =
             jpeg_dump_app_id(options, cur, end, has_size, size);
-        if (b1 == 0xe2 && strcmp(app_id, "ICC_PROFILE") == 0)
+        if (b1 == 0xe2 && strcmp(app_id, "ICC_PROFILE") == 0)  // APP2
           jpeg_dump_icc(options, cur, size);
-        else if (b1 == 0xe2 && strcmp(app_id, "MPF") == 0)
+        else if (b1 == 0xe2 && strcmp(app_id, "MPF") == 0)  // APP2
           jpeg_dump_mpf(options, cur, size);
+        else if (b1 == 0xed && strcmp(app_id, "Photoshop 3.0") == 0)  // APP13
+          jpeg_dump_photoshop_3(options, cur, size);
         decrease_indent(options);
         break;
       }
