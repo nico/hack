@@ -121,7 +121,7 @@ enum TiffDataFormat {
   kSignedLong = 9,
   kSignedRational = 10,
   kFloat = 11,
-  kDouble = 11,
+  kDouble = 12,
   kLastEntry = kDouble,
 };
 
