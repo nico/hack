@@ -17,9 +17,10 @@
 // Dumps metadata in jpeg files.
 // Fairly complete:
 // * Exif
-// * XMP
+// * XMP (missing custom dumpers for a few tags, such as gps pos)
+// * ICC (RGB only for now)
 // In progress:
-// * ICC
+// * MPF
 // Still missing:
 // * IPTC
 
