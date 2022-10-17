@@ -1366,6 +1366,46 @@ static const char* photoshop_tag_name(uint16_t tag) {
   // clang-format on
 }
 
+static void photoshop_dump_resolution_info(struct Options* options,
+                                           const uint8_t* begin,
+                                           uint32_t size) {
+  const size_t header_size = 2 * sizeof(uint32_t) + 4 * sizeof(uint16_t);
+  if (size != header_size) {
+    printf("photoshop resolution info should be %zu bytes, is %u\n",
+           header_size, size);
+    return;
+  }
+
+  const char* direction[] = {"horizontal", "vertical"};
+  const char* dimension[] = {"width", "height"};
+  for (int i = 0; i < 2; ++i) {
+    uint32_t res = be_uint32(begin + i * 8);
+    uint16_t res_unit = be_uint16(begin + i * 8 + 4);
+    uint16_t unit = be_uint16(begin + i * 8 + 6);
+
+    iprintf(options, "%s resolution: %f ppi\n", direction[i],
+            res / (double)0x10000);
+    iprintf(options, "display unit %d", res_unit);
+    if (res_unit == 1)
+      printf(" (pixels per inch)");
+    else if (res_unit == 2)
+      printf(" (pixels per cm)");
+
+    printf(", display %s unit %d", dimension[i], unit);
+    if (res_unit == 1)
+      printf(" (inches)");
+    else if (res_unit == 2)
+      printf(" (cm)");
+    else if (res_unit == 3)
+      printf(" (points)");
+    else if (res_unit == 4)
+      printf(" (picas)");
+    else if (res_unit == 5)
+      printf(" (columns)");
+    printf("\n");
+  }
+}
+
 static void photoshop_dump_thumbnail(struct Options* options,
                                      const uint8_t* begin,
                                      uint32_t size) {
@@ -1451,6 +1491,10 @@ static uint32_t photoshop_dump_resource_block(struct Options* options,
 
   increase_indent(options);
   switch (image_resource_id) {
+    case 0x03ed:
+      photoshop_dump_resolution_info(options, resource_data,
+                                     resource_data_size);
+      break;
     case 0x040c:
       photoshop_dump_thumbnail(options, resource_data, resource_data_size);
       break;
