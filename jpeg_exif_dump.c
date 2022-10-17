@@ -1449,6 +1449,23 @@ static void photoshop_dump_thumbnail(struct Options* options,
   }
 }
 
+static void photoshop_dump_md5(struct Options* options,
+                               const uint8_t* begin,
+                               uint32_t size) {
+  if (size != 16) {
+    printf("photoshop md5 block should be 16 bytes, is %u\n", size);
+    return;
+  }
+
+  iprintf(options, "checksum: ");
+  for (int i = 0; i < 16; ++i) {
+    if (i != 0 && i % 4 == 0)
+      printf("-");
+    printf("%02x", begin[i]);
+  }
+  printf("\n");
+}
+
 static uint32_t photoshop_dump_resource_block(struct Options* options,
                                               const uint8_t* begin,
                                               uint16_t size) {
@@ -1497,6 +1514,9 @@ static uint32_t photoshop_dump_resource_block(struct Options* options,
       break;
     case 0x040c:
       photoshop_dump_thumbnail(options, resource_data, resource_data_size);
+      break;
+    case 0x0425:
+      photoshop_dump_md5(options, resource_data, resource_data_size);
       break;
   }
   decrease_indent(options);
