@@ -1366,9 +1366,9 @@ static const char* photoshop_tag_name(uint16_t tag) {
   // clang-format on
 }
 
-static uint32_t jpeg_dump_photoshop_3_resource_block(struct Options* options,
-                                                     const uint8_t* begin,
-                                                     uint16_t size) {
+static uint32_t jpeg_dump_photoshop_resource_block(struct Options* options,
+                                                   const uint8_t* begin,
+                                                   uint16_t size) {
   const size_t header_size = 12;
   if (size < header_size) {
     printf(
@@ -1418,7 +1418,7 @@ static void jpeg_dump_photoshop_3(struct Options* options,
   // https://metacpan.org/pod/Image::MetaData::JPEG::Structures#Structure-of-a-Photoshop-style-APP13-segment
   uint16_t offset = prefix_size;
   while (offset < size) {
-    uint32_t block_size = jpeg_dump_photoshop_3_resource_block(
+    uint32_t block_size = jpeg_dump_photoshop_resource_block(
         options, begin + offset, size - offset);
 
     if (block_size > size - offset) {
