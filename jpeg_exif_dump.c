@@ -1342,9 +1342,25 @@ static const char* photoshop_tag_name(uint16_t tag) {
   // clang-format off
   switch (tag) {
     case 0x03ed: return "ResolutionInfo";
+    case 0x03f3: return "Print flags";
+    case 0x03f5: return "Color halftoning information";
+    case 0x03f8: return "Color transfer functions";
     case 0x0404: return "IPTC-NAA record";
+    case 0x0406: return "JPEG quality";
+    case 0x0408: return "Grid and guides information";
     case 0x040c: return "Thumbnail";
+    case 0x040d: return "Global Angle";
+    case 0x0414: return "Document-specific IDs seed number";
+    case 0x0419: return "Global Altitude";
+    case 0x041a: return "Slices";
+    case 0x041e: return "URL List";
+    case 0x0421: return "Version Info";
     case 0x0425: return "MD5 checksum";
+    case 0x0426: return "Print scale";
+    case 0x0428: return "Pixel Aspect Ratio";
+    case 0x043a: return "Print Information";
+    case 0x043b: return "Print Style";
+    case 0x2710: return "Print flags information";
     default: return NULL;
   }
   // clang-format on
