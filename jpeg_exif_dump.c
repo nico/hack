@@ -1366,6 +1366,49 @@ static const char* photoshop_tag_name(uint16_t tag) {
   // clang-format on
 }
 
+static void photoshop_dump_thumbnail(struct Options* options,
+                                     const uint8_t* begin,
+                                     uint32_t size) {
+  const size_t header_size = 6 * sizeof(uint32_t) + 2 * sizeof(uint16_t);
+  if (size < header_size) {
+    printf("photoshop thumbnail block should be at least %zu bytes, is %u\n",
+           header_size, size);
+    return;
+  }
+
+  uint32_t format = be_uint32(begin);
+  uint32_t width = be_uint32(begin + 4);
+  uint32_t height = be_uint32(begin + 8);
+  uint32_t stride = be_uint32(begin + 12);
+  uint32_t uncompressed_size = be_uint32(begin + 16);
+  uint32_t compressed_size = be_uint32(begin + 20);
+  uint16_t bits_per_pixel = be_uint16(begin + 24);
+  uint16_t number_of_planes = be_uint16(begin + 26);
+
+  iprintf(options, "Format %d", format);
+  if (format == 0)
+    printf(" (raw RGB)");
+  else if (format == 1)
+    printf(" (JPEG RGB)");
+  printf("\n");
+  iprintf(options, "%dx%d, %d bytes stride\n", width, height, stride);
+  iprintf(options, "%d bytes uncompressed, %d bytes compressed\n",
+          uncompressed_size, compressed_size);
+  iprintf(options, "%d bpp, %d planes\n", bits_per_pixel, number_of_planes);
+
+  if (format == 1) {
+    if (compressed_size != size - header_size) {
+      printf("expected %d bytes compressed size, got %zu\n", compressed_size,
+             size - header_size);
+      return;
+    }
+
+    increase_indent(options);
+    jpeg_dump(options, begin + header_size, begin + size);
+    decrease_indent(options);
+  }
+}
+
 static uint32_t photoshop_dump_resource_block(struct Options* options,
                                               const uint8_t* begin,
                                               uint16_t size) {
@@ -1394,6 +1437,7 @@ static uint32_t photoshop_dump_resource_block(struct Options* options,
     ++size_offset;
 
   uint32_t resource_data_size = be_uint32(begin + size_offset);
+  const uint8_t* resource_data = begin + size_offset + 4;
 
   uint32_t resource_block_size = size_offset + 4 + resource_data_size;
   if (resource_block_size % 2 != 0)  // Pad to even size.
@@ -1404,6 +1448,14 @@ static uint32_t photoshop_dump_resource_block(struct Options* options,
   if (tag_name)
     printf(" (%s)", tag_name);
   printf(" '%.*s' size %d\n", name_len, begin + 7, resource_data_size);
+
+  increase_indent(options);
+  switch (image_resource_id) {
+    case 0x040c:
+      photoshop_dump_thumbnail(options, resource_data, resource_data_size);
+      break;
+  }
+  decrease_indent(options);
 
   return resource_block_size;
 }
