@@ -1337,6 +1337,19 @@ static void jpeg_dump_xmp_extension(struct Options* options,
   print_elided(options, 1024, begin + header_size, data_size);
 }
 
+static const char* photoshop_tag_name(uint16_t tag) {
+  // https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/#50577409_38034
+  // clang-format off
+  switch (tag) {
+    case 0x03ed: return "ResolutionInfo";
+    case 0x0404: return "IPTC-NAA record";
+    case 0x040c: return "Thumbnail";
+    case 0x0425: return "MD5 checksum";
+    default: return NULL;
+  }
+  // clang-format on
+}
+
 static uint32_t jpeg_dump_photoshop_3_resource_block(struct Options* options,
                                                      const uint8_t* begin,
                                                      uint16_t size) {
@@ -1370,8 +1383,11 @@ static uint32_t jpeg_dump_photoshop_3_resource_block(struct Options* options,
   if (resource_block_size % 2 != 0)  // Pad to even size.
     ++resource_block_size;
 
-  iprintf(options, "Resource block 0x%04x '%.*s' size %d\n", image_resource_id,
-          name_len, begin + 7, resource_data_size);
+  iprintf(options, "Resource block 0x%04x", image_resource_id);
+  const char* tag_name = photoshop_tag_name(image_resource_id);
+  if (tag_name)
+    printf(" (%s)", tag_name);
+  printf(" '%.*s' size %d\n", name_len, begin + 7, resource_data_size);
 
   return resource_block_size;
 }
