@@ -1406,6 +1406,56 @@ static void photoshop_dump_resolution_info(struct Options* options,
   }
 }
 
+static uint32_t iptc_dump_tag(struct Options* options,
+                              const uint8_t* begin,
+                              uint32_t size) {
+  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
+  if (size < 5) {
+    printf("iptc tag should be at least 5 bytes, is %u\n", size);
+    return size;
+  }
+
+  // 1.5 (b) The Standard DataSet Tag
+  uint8_t tag_marker = begin[0];
+  uint8_t record_number = begin[1];
+  uint8_t dataset_number = begin[2];
+  uint32_t data_field_size = be_uint16(begin + 3);
+
+  unsigned header_size = 5;
+  if (data_field_size > 32767) {
+    // 1.5 (c) The Extended DataSet Tag
+    uint16_t data_field_size_size = data_field_size & 0x7fff;
+
+    // FIXME: untested
+    data_field_size = 0;
+    for (int i = 0; i < data_field_size_size; ++i)
+      data_field_size = (data_field_size << 8) | begin[5 + i];
+
+    header_size += data_field_size_size;
+  }
+
+  iprintf(options, "IPTC tag %d %d:%02d %d bytes\n", tag_marker, record_number,
+          dataset_number, data_field_size);
+  return header_size + data_field_size;
+}
+
+static void photoshop_dump_iptc(struct Options* options,
+                                const uint8_t* begin,
+                                uint32_t size) {
+  uint32_t offset = 0;
+  while (offset < size) {
+    uint32_t tag_size = iptc_dump_tag(options, begin + offset, size - offset);
+
+    if (tag_size > size - offset) {
+      printf("tag size %d larger than remaining room %d\n", tag_size,
+             size - offset);
+      break;
+    }
+
+    offset += tag_size;
+  }
+}
+
 static void photoshop_dump_thumbnail(struct Options* options,
                                      const uint8_t* begin,
                                      uint32_t size) {
@@ -1511,6 +1561,9 @@ static uint32_t photoshop_dump_resource_block(struct Options* options,
     case 0x03ed:
       photoshop_dump_resolution_info(options, resource_data,
                                      resource_data_size);
+      break;
+    case 0x0404:
+      photoshop_dump_iptc(options, resource_data, resource_data_size);
       break;
     case 0x040c:
       photoshop_dump_thumbnail(options, resource_data, resource_data_size);
