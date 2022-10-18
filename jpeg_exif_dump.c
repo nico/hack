@@ -1426,6 +1426,12 @@ static uint32_t iptc_dump_tag(struct Options* options,
     // 1.5 (c) The Extended DataSet Tag
     uint16_t data_field_size_size = data_field_size & 0x7fff;
 
+    if (data_field_size_size > 4) {
+      printf("iptc tag with size field %d bytes, can handle at most 4\n",
+             data_field_size_size);
+      return size;
+    }
+
     // FIXME: untested
     data_field_size = 0;
     for (int i = 0; i < data_field_size_size; ++i)
