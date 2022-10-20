@@ -126,6 +126,28 @@ static void png_dump_chunk_IHDR(const uint8_t* begin, uint32_t size) {
     printf("  adam7 interlacing\n");
 }
 
+static void png_dump_chunk_cHRM(const uint8_t* begin, uint32_t size) {
+  // https://w3c.github.io/PNG-spec/#11cHRM
+  if (!png_check_size("cHRM", size, 32))
+    return;
+
+  uint32_t whitepoint_x = be_uint32(begin);
+  uint32_t whitepoint_y = be_uint32(begin + 4);
+  uint32_t red_x = be_uint32(begin + 8);
+  uint32_t red_y = be_uint32(begin + 12);
+  uint32_t green_x = be_uint32(begin + 16);
+  uint32_t green_y = be_uint32(begin + 20);
+  uint32_t blue_x = be_uint32(begin + 24);
+  uint32_t blue_y = be_uint32(begin + 28);
+
+  // FIXME: complain if top bit is set
+  printf("  whitepoint: %f %f\n", whitepoint_x / 100000.0,
+         whitepoint_y / 100000.0);
+  printf("  red: %f %f\n", red_x / 100000.0, red_y / 100000.0);
+  printf("  green: %f %f\n", green_x / 100000.0, green_y / 100000.0);
+  printf("  blue: %f %f\n", blue_x / 100000.0, blue_y / 100000.0);
+}
+
 static void png_dump_chunk_eXIf(const uint8_t* begin, uint32_t size) {
   if (size > 0xffff - 8)
     printf("  (larger than what fits in a jpeg APP1 Exif segment)\n");
@@ -421,6 +443,9 @@ static uint32_t png_dump_chunk(const uint8_t* begin, const uint8_t* end) {
   switch (type) {
     case 0x49484452:  // 'IHDR'
       png_dump_chunk_IHDR(begin + 8, length);
+      break;
+    case 0x6348524d:  // 'cHRM'
+      png_dump_chunk_cHRM(begin + 8, length);
       break;
     case 0x65584966:  // 'eXIf'
       png_dump_chunk_eXIf(begin + 8, length);
