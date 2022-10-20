@@ -154,6 +154,10 @@ static void png_dump_chunk_iCCP(const uint8_t* begin, uint32_t size) {
   if (size < profile_name_len_max)
     profile_name_len_max = size;
   size_t profile_name_len = strnlen((const char*)begin, profile_name_len_max);
+  if (profile_name_len == 0) {
+    fprintf(stderr, "profile name should be at least 1 byte, was 0\n");
+    return;
+  }
   if (profile_name_len == profile_name_len_max) {
     fprintf(stderr, "profile name should be at most %zu bytes, was longer\n",
             profile_name_len_max);
