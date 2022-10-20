@@ -152,6 +152,35 @@ static void png_dump_chunk_iCCP(const uint8_t* begin, uint32_t size) {
   printf("  deflate-compressed %u bytes\n", compressed_size);
 }
 
+static void png_dump_chunk_pHYs(const uint8_t* begin, uint32_t size) {
+  if (size != 9) {
+    fprintf(stderr, "pHYs should be 9 bytes, was %u bytes\n", size);
+    return;
+  }
+
+  uint32_t x_pixels_per_unit = be_uint32(begin);
+  uint32_t y_pixels_per_unit = be_uint32(begin + 4);
+  uint8_t unit = begin[8];
+
+  if (x_pixels_per_unit & 0x80000000) {
+    fprintf(stderr, "x %x invalidly has top bit set\n", x_pixels_per_unit);
+    return;
+  }
+  if (y_pixels_per_unit & 0x80000000) {
+    fprintf(stderr, "y %x invalidly has top bit set\n", y_pixels_per_unit);
+    return;
+  }
+
+  if (unit != 0 && unit != 1) {
+    fprintf(stderr, "unit should be 0 or 1, was %d\n", unit);
+    return;
+  }
+
+  const char* unit_string = unit == 0 ? "unknown unit" : "meter";
+  printf("  %d pixels per %s in x direction\n", x_pixels_per_unit, unit_string);
+  printf("  %d pixels per %s in y direction\n", y_pixels_per_unit, unit_string);
+}
+
 static uint32_t png_dump_chunk(const uint8_t* begin, const uint8_t* end) {
   size_t size = (size_t)(end - begin);
   if (size < 12)
@@ -174,6 +203,9 @@ static uint32_t png_dump_chunk(const uint8_t* begin, const uint8_t* end) {
       break;
     case 0x69434350:  // 'iCCP'
       png_dump_chunk_iCCP(begin + 8, length);
+      break;
+    case 0x70485973:  // 'pHYs'
+      png_dump_chunk_pHYs(begin + 8, length);
       break;
   }
 
