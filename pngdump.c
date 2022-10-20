@@ -31,6 +31,95 @@ static uint32_t be_uint32(const uint8_t* p) {
   return (uint32_t)(be_uint16(p) << 16) | be_uint16(p + 2);
 }
 
+static void png_dump_chunk_IHDR(const uint8_t* begin, uint32_t size) {
+  if (size != 13) {
+    fprintf(stderr, "IHDR should be 13 bytes, was %u bytes\n", size);
+    return;
+  }
+
+  uint32_t width = be_uint32(begin);
+  uint32_t height = be_uint32(begin + 4);
+  uint8_t bit_depth = begin[8];
+  uint8_t color_type = begin[9];
+  uint8_t compression_method = begin[10];
+  uint8_t filter_method = begin[11];
+  uint8_t interlace_method = begin[12];
+
+  if (width & 0x80000000) {
+    fprintf(stderr, "width %x invalidly has top bit set\n", width);
+    return;
+  }
+  if (height & 0x80000000) {
+    fprintf(stderr, "height %x invalidly has top bit set\n", height);
+    return;
+  }
+
+  if (bit_depth != 1 && bit_depth != 2 && bit_depth != 4 && bit_depth != 8 &&
+      bit_depth != 16) {
+    fprintf(stderr, "bit depth must be one of 1, 2, 4, 8, 16 but was %d\n",
+            bit_depth);
+    return;
+  }
+
+  if (color_type != 0 && color_type != 2 && color_type != 3 &&
+      color_type != 4 && color_type != 6) {
+    fprintf(stderr, "color type must be one of 0, 2, 3, 4, 6 but was %d\n",
+            color_type);
+    return;
+  }
+
+  if ((color_type == 2 || color_type == 4 || color_type == 6) &&
+      (bit_depth != 8 && bit_depth != 16)) {
+    fprintf(stderr,
+            "for color type %d, bit depth must be one of 8, 16 but was %d\n",
+            color_type, bit_depth);
+    return;
+  }
+  if (color_type == 3 && bit_depth == 16) {
+    fprintf(
+        stderr,
+        "for color type 3, bit depth must be one of 1, 2, 4, 8 but was 16\n");
+    return;
+  }
+
+  if (compression_method != 0) {
+    fprintf(stderr, "compression method must be 0 but was %d\n",
+            compression_method);
+    return;
+  }
+
+  if (filter_method != 0) {
+    fprintf(stderr, "filter method must be 0 but was %d\n", filter_method);
+    return;
+  }
+
+  if (interlace_method != 0 && interlace_method != 1) {
+    fprintf(stderr, "interlace method must be 0 or 1 but was %d\n",
+            interlace_method);
+    return;
+  }
+
+  printf("  %ux%u pixels, %d bits per pixel\n", width, height, bit_depth);
+
+  printf("  ");
+  if (color_type & 1)
+    printf("palletized, ");
+  if (color_type & 2)
+    printf("rgb");
+  else
+    printf("grayscale");
+  if (color_type & 4)
+    printf(", has alpha");
+  printf("\n");
+
+  printf("  deflate-compressed\n");
+  printf("  adaptive filtering with five basic filter types\n");
+  if (interlace_method == 0)
+    printf("  no interlacing\n");
+  else
+    printf("  adam7 interlacing\n");
+}
+
 static uint32_t png_dump_chunk(const uint8_t* begin, const uint8_t* end) {
   size_t size = (size_t)(end - begin);
   if (size < 12)
@@ -46,6 +135,12 @@ static uint32_t png_dump_chunk(const uint8_t* begin, const uint8_t* end) {
 
   printf("chunk '%.4s' (%08x), length %d, crc %08x\n", begin + 4, type, length,
          crc);
+
+  switch (type) {
+    case 0x49484452:  // 'IHDR'
+      png_dump_chunk_IHDR(begin + 8, length);
+      break;
+  }
 
   return 12 + length;
 }
