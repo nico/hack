@@ -32,6 +32,7 @@ static uint32_t be_uint32(const uint8_t* p) {
 }
 
 static void png_dump_chunk_IHDR(const uint8_t* begin, uint32_t size) {
+  // https://w3c.github.io/PNG-spec/#11IHDR
   if (size != 13) {
     fprintf(stderr, "IHDR should be 13 bytes, was %u bytes\n", size);
     return;
@@ -121,6 +122,7 @@ static void png_dump_chunk_IHDR(const uint8_t* begin, uint32_t size) {
 }
 
 static void png_dump_chunk_iCCP(const uint8_t* begin, uint32_t size) {
+  // https://w3c.github.io/PNG-spec/#11iCCP
   size_t profile_name_len_max = 80;
   if (size < profile_name_len_max)
     profile_name_len_max = size;
@@ -153,6 +155,7 @@ static void png_dump_chunk_iCCP(const uint8_t* begin, uint32_t size) {
 }
 
 static void png_dump_chunk_pHYs(const uint8_t* begin, uint32_t size) {
+  // https://w3c.github.io/PNG-spec/#11pHYs
   if (size != 9) {
     fprintf(stderr, "pHYs should be 9 bytes, was %u bytes\n", size);
     return;
@@ -182,6 +185,7 @@ static void png_dump_chunk_pHYs(const uint8_t* begin, uint32_t size) {
 }
 
 static uint32_t png_dump_chunk(const uint8_t* begin, const uint8_t* end) {
+  // https://w3c.github.io/PNG-spec/#5Chunk-layout
   size_t size = (size_t)(end - begin);
   if (size < 12)
     fatal("png chunk must be at least 12 bytes but is %zu\n", size);
@@ -213,6 +217,7 @@ static uint32_t png_dump_chunk(const uint8_t* begin, const uint8_t* end) {
 }
 
 static void png_dump(const uint8_t* begin, const uint8_t* end) {
+  // https://w3c.github.io/PNG-spec/#5DataRep
   const char png_header[] = {(char)0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'};
 
   size_t size = (size_t)(end - begin);
