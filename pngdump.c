@@ -283,6 +283,46 @@ static void png_dump_chunk_tEXt(const uint8_t* begin, uint32_t size) {
   printf("  '%s': '%.*s'\n", begin, data_size, begin + keyword_len + 1);
 }
 
+static void png_dump_chunk_zTXt(const uint8_t* begin, uint32_t size) {
+  // https://w3c.github.io/PNG-spec/#11zTXt
+  size_t keyword_len_max = 80;
+  if (size < keyword_len_max)
+    keyword_len_max = size;
+  size_t keyword_len = strnlen((const char*)begin, keyword_len_max);
+  if (keyword_len == 0) {
+    fprintf(stderr, "keyword should be at least 1 byte, was 0\n");
+    return;
+  }
+  if (keyword_len == keyword_len_max) {
+    fprintf(stderr, "keyword should be at most %zu bytes, was longer\n",
+            keyword_len_max);
+    return;
+  }
+
+  if (size - keyword_len < 2) {
+    fprintf(stderr,
+            "profile with name with length %zd should be at least %zu bytes, "
+            "but is %d\n",
+            keyword_len, keyword_len + 2, size);
+    return;
+  }
+
+  // `begin[keyword_len]` is the keyword's \0 terminator.
+  uint8_t compression_method = begin[keyword_len + 1];
+  if (compression_method != 0) {
+    fprintf(stderr, "zTXt: compression method must be 0 but was %d\n",
+            compression_method);
+    return;
+  }
+
+  unsigned data_size = size - (unsigned)keyword_len - 2;
+  // FIXME: Convert from latin1 to utf-8.
+  printf("  name: '%s'\n", begin);
+  printf("  deflate-compressed %u bytes\n", data_size);
+
+  // FIXME: deflate compressed data, convert from latin1 to utf-8, print.
+}
+
 static uint32_t png_dump_chunk(const uint8_t* begin, const uint8_t* end) {
   // https://w3c.github.io/PNG-spec/#5Chunk-layout
   size_t size = (size_t)(end - begin);
@@ -324,6 +364,9 @@ static uint32_t png_dump_chunk(const uint8_t* begin, const uint8_t* end) {
       break;
     case 0x74494d45:  // 'tIME'
       png_dump_chunk_tIME(begin + 8, length);
+      break;
+    case 0x7a545874:  // 'zTXt'
+      png_dump_chunk_zTXt(begin + 8, length);
       break;
   }
 
