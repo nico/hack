@@ -226,6 +226,21 @@ static void png_dump_chunk_sRGB(const uint8_t* begin, uint32_t size) {
   }
 }
 
+static void png_dump_chunk_tIME(const uint8_t* begin, uint32_t size) {
+  // https://w3c.github.io/PNG-spec/#11tIME
+  if (!png_check_size("tIME", size, 7))
+    return;
+
+  uint16_t year = be_uint16(begin);
+  uint8_t month = begin[2];
+  uint8_t day = begin[3];
+  uint8_t hours = begin[4];
+  uint8_t minutes = begin[5];
+  uint8_t seconds = begin[6];
+  printf("  last modified: %04d-%02d-%02dT%02d:%02d:%02dZ\n", year, month, day,
+         hours, minutes, seconds);
+}
+
 static uint32_t png_dump_chunk(const uint8_t* begin, const uint8_t* end) {
   // https://w3c.github.io/PNG-spec/#5Chunk-layout
   size_t size = (size_t)(end - begin);
@@ -258,6 +273,9 @@ static uint32_t png_dump_chunk(const uint8_t* begin, const uint8_t* end) {
       break;
     case 0x73524742:  // 'sRGB'
       png_dump_chunk_sRGB(begin + 8, length);
+      break;
+    case 0x74494d45:  // 'tIME'
+      png_dump_chunk_tIME(begin + 8, length);
       break;
   }
 
