@@ -200,6 +200,33 @@ static void png_dump_chunk_pHYs(const uint8_t* begin, uint32_t size) {
   printf("  %d pixels per %s in y direction\n", y_pixels_per_unit, unit_string);
 }
 
+static void png_dump_chunk_sRGB(const uint8_t* begin, uint32_t size) {
+  // https://w3c.github.io/PNG-spec/#11sRGB
+  if (size != 1) {
+    fprintf(stderr, "sRGB should be 1 byte, was %u bytes\n", size);
+    return;
+  }
+
+  uint8_t rendering_intent = *begin;
+  switch (rendering_intent) {
+    case 0:
+      printf("  rendering intent: perceptual\n");
+      break;
+    case 1:
+      printf("  rendering intent: relative colorimetric\n");
+      break;
+    case 2:
+      printf("  rendering intent: saturation\n");
+      break;
+    case 3:
+      printf("  rendering intent: absolute colorimetric\n");
+      break;
+    default:
+      fprintf(stderr, "rendering intent should be 0, 1, 2, or 3, but was %d\n",
+              rendering_intent);
+  }
+}
+
 static uint32_t png_dump_chunk(const uint8_t* begin, const uint8_t* end) {
   // https://w3c.github.io/PNG-spec/#5Chunk-layout
   size_t size = (size_t)(end - begin);
@@ -229,6 +256,9 @@ static uint32_t png_dump_chunk(const uint8_t* begin, const uint8_t* end) {
       break;
     case 0x70485973:  // 'pHYs'
       png_dump_chunk_pHYs(begin + 8, length);
+      break;
+    case 0x73524742:  // 'sRGB'
+      png_dump_chunk_sRGB(begin + 8, length);
       break;
   }
 
