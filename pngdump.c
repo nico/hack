@@ -126,6 +126,14 @@ static void png_dump_chunk_IHDR(const uint8_t* begin, uint32_t size) {
     printf("  adam7 interlacing\n");
 }
 
+static void png_dump_chunk_eXIf(const uint8_t* begin, uint32_t size) {
+  if (size > 0xffff - 8)
+    printf("  (larger than what fits in a jpeg APP1 Exif segment)\n");
+
+  // FIXME: call tiff_dump(begin, begin + size)
+  (void)begin;
+}
+
 static void png_dump_chunk_gAMA(const uint8_t* begin, uint32_t size) {
   // https://w3c.github.io/PNG-spec/#11gAMA
   if (!png_check_size("gAMA", size, 4))
@@ -261,6 +269,9 @@ static uint32_t png_dump_chunk(const uint8_t* begin, const uint8_t* end) {
   switch (type) {
     case 0x49484452:  // 'IHDR'
       png_dump_chunk_IHDR(begin + 8, length);
+      break;
+    case 0x65584966:  // 'eXIf'
+      png_dump_chunk_eXIf(begin + 8, length);
       break;
     case 0x67414d41:  // 'gAMA'
       png_dump_chunk_gAMA(begin + 8, length);
