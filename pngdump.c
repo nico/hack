@@ -253,6 +253,36 @@ static void png_dump_chunk_tIME(const uint8_t* begin, uint32_t size) {
          hours, minutes, seconds);
 }
 
+static void png_dump_chunk_tEXt(const uint8_t* begin, uint32_t size) {
+  // https://w3c.github.io/PNG-spec/#11tEXt
+  size_t keyword_len_max = 80;
+  if (size < keyword_len_max)
+    keyword_len_max = size;
+  size_t keyword_len = strnlen((const char*)begin, keyword_len_max);
+  if (keyword_len == 0) {
+    fprintf(stderr, "keyword should be at least 1 byte, was 0\n");
+    return;
+  }
+  if (keyword_len == keyword_len_max) {
+    fprintf(stderr, "keyword should be at most %zu bytes, was longer\n",
+            keyword_len_max);
+    return;
+  }
+
+  if (size - keyword_len < 1) {
+    fprintf(stderr,
+            "profile with name with length %zd should be at least %zu bytes, "
+            "but is %d\n",
+            keyword_len, keyword_len + 1, size);
+    return;
+  }
+  unsigned data_size = size - (unsigned)keyword_len - 1;
+
+  // FIXME: Convert from latin1 to utf-8.
+  // `begin[keyword_len]` is the keyword's \0 terminator.
+  printf("  '%s': '%.*s'\n", begin, data_size, begin + keyword_len + 1);
+}
+
 static uint32_t png_dump_chunk(const uint8_t* begin, const uint8_t* end) {
   // https://w3c.github.io/PNG-spec/#5Chunk-layout
   size_t size = (size_t)(end - begin);
@@ -288,6 +318,9 @@ static uint32_t png_dump_chunk(const uint8_t* begin, const uint8_t* end) {
       break;
     case 0x73524742:  // 'sRGB'
       png_dump_chunk_sRGB(begin + 8, length);
+      break;
+    case 0x74455874:  // 'tEXt'
+      png_dump_chunk_tEXt(begin + 8, length);
       break;
     case 0x74494d45:  // 'tIME'
       png_dump_chunk_tIME(begin + 8, length);
