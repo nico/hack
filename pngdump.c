@@ -83,7 +83,7 @@ static void png_dump_chunk_IHDR(const uint8_t* begin, uint32_t size) {
   }
 
   if (compression_method != 0) {
-    fprintf(stderr, "compression method must be 0 but was %d\n",
+    fprintf(stderr, "IHDR: compression method must be 0 but was %d\n",
             compression_method);
     return;
   }
@@ -120,6 +120,38 @@ static void png_dump_chunk_IHDR(const uint8_t* begin, uint32_t size) {
     printf("  adam7 interlacing\n");
 }
 
+static void png_dump_chunk_iCCP(const uint8_t* begin, uint32_t size) {
+  size_t profile_name_len_max = 80;
+  if (size < profile_name_len_max)
+    profile_name_len_max = size;
+  size_t profile_name_len = strnlen((const char*)begin, profile_name_len_max);
+  if (profile_name_len == profile_name_len_max) {
+    fprintf(stderr, "profile name should be at most %zu bytes, was longer\n",
+            profile_name_len_max);
+    return;
+  }
+
+  if (size - profile_name_len < 2) {
+    fprintf(stderr,
+            "profile with name with length %zd should be at least %zu bytes, "
+            "but is %d\n",
+            profile_name_len, profile_name_len + 2, size);
+    return;
+  }
+
+  // `begin[profile_name_len]` is the profile names's \0 terminator.
+  uint8_t compression_method = begin[profile_name_len + 1];
+  if (compression_method != 0) {
+    fprintf(stderr, "iCCP: compression method must be 0 but was %d\n",
+            compression_method);
+    return;
+  }
+
+  uint32_t compressed_size = size - (uint32_t)profile_name_len - 2;
+  printf("  name: '%s'\n", begin);
+  printf("  deflate-compressed %u bytes\n", compressed_size);
+}
+
 static uint32_t png_dump_chunk(const uint8_t* begin, const uint8_t* end) {
   size_t size = (size_t)(end - begin);
   if (size < 12)
@@ -139,6 +171,9 @@ static uint32_t png_dump_chunk(const uint8_t* begin, const uint8_t* end) {
   switch (type) {
     case 0x49484452:  // 'IHDR'
       png_dump_chunk_IHDR(begin + 8, length);
+      break;
+    case 0x69434350:  // 'iCCP'
+      png_dump_chunk_iCCP(begin + 8, length);
       break;
   }
 
