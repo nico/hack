@@ -185,6 +185,84 @@ static void png_dump_chunk_iCCP(const uint8_t* begin, uint32_t size) {
   printf("  deflate-compressed %u bytes\n", compressed_size);
 }
 
+static void png_dump_chunk_iTXt(const uint8_t* begin, uint32_t size) {
+  // https://w3c.github.io/PNG-spec/#11iTXt
+  size_t keyword_len_max = 80;
+  if (size < keyword_len_max)
+    keyword_len_max = size;
+  size_t keyword_len = strnlen((const char*)begin, keyword_len_max);
+  if (keyword_len == 0) {
+    fprintf(stderr, "keyword should be at least 1 byte, was 0\n");
+    return;
+  }
+  if (keyword_len == keyword_len_max) {
+    fprintf(stderr, "keyword should be at most %zu bytes, was longer\n",
+            keyword_len_max);
+    return;
+  }
+
+  if (size - keyword_len < 4) {
+    fprintf(stderr,
+            "profile with name with length %zd should be at least %zu bytes, "
+            "but is %d\n",
+            keyword_len, keyword_len + 4, size);
+    return;
+  }
+
+  // `begin[keyword_len]` is the keyword's \0 terminator.
+  uint8_t compression_flag = begin[keyword_len + 1];
+  if (compression_flag != 0 && compression_flag != 1) {
+    fprintf(stderr, "iTXt: compression flag must be 0 or 1 but was %d\n",
+            compression_flag);
+    return;
+  }
+
+  uint8_t compression_method = begin[keyword_len + 2];
+  if (compression_method != 0) {
+    fprintf(stderr, "iTXt: compression method must be 0 but was %d\n",
+            compression_method);
+    return;
+  }
+
+  size_t language_tag_len_max = size - keyword_len - 3;
+  size_t language_tag_len =
+      strnlen((const char*)begin + keyword_len + 3, language_tag_len_max);
+  if (language_tag_len == language_tag_len_max) {
+    fprintf(stderr, "language tag overflows tag\n");
+    return;
+  }
+
+  size_t translated_keyword_len_max =
+      size - keyword_len - 3 - language_tag_len - 1;
+  size_t translated_keyword_len =
+      strnlen((const char*)begin + keyword_len + 3 + language_tag_len + 1,
+              translated_keyword_len_max);
+  if (translated_keyword_len == translated_keyword_len_max) {
+    fprintf(stderr, "translated keyword overflows tag\n");
+    return;
+  }
+
+  unsigned data_size = size - (unsigned)keyword_len - 3 -
+                       (unsigned)language_tag_len - 1 -
+                       (unsigned)translated_keyword_len - 1;
+  // FIXME: Convert keyword latin1 to utf-8.
+  // Translated keyword and main text are both utf-8.
+  printf("  name: '%s'\n", begin);
+  printf("  language tag: '%s'\n", begin + keyword_len + 3);
+  printf("  localized name: '%s'\n",
+         begin + keyword_len + 3 + language_tag_len + 1);
+
+  if (compression_flag == 0) {
+    printf("  uncompressed %u bytes\n", data_size);
+    printf("  text: '%.*s'\n", data_size,
+           begin + keyword_len + 3 + language_tag_len + 1 +
+               translated_keyword_len + 1);
+  } else {
+    printf("  deflate-compressed %u bytes\n", data_size);
+    // FIXME: deflate compressed data, print.
+  }
+}
+
 static void png_dump_chunk_pHYs(const uint8_t* begin, uint32_t size) {
   // https://w3c.github.io/PNG-spec/#11pHYs
   if (!png_check_size("pHYs", size, 9))
@@ -352,6 +430,9 @@ static uint32_t png_dump_chunk(const uint8_t* begin, const uint8_t* end) {
       break;
     case 0x69434350:  // 'iCCP'
       png_dump_chunk_iCCP(begin + 8, length);
+      break;
+    case 0x69545874:  // 'iTXt'
+      png_dump_chunk_iTXt(begin + 8, length);
       break;
     case 0x70485973:  // 'pHYs'
       png_dump_chunk_pHYs(begin + 8, length);
