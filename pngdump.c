@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdnoreturn.h>
@@ -31,12 +32,16 @@ static uint32_t be_uint32(const uint8_t* p) {
   return (uint32_t)(be_uint16(p) << 16) | be_uint16(p + 2);
 }
 
+static bool png_check_size(const char* name, uint32_t size, uint32_t expected) {
+  if (size != expected)
+    fprintf(stderr, "%s was %u bytes, but expected %u\n", name, size, expected);
+  return size == expected;
+}
+
 static void png_dump_chunk_IHDR(const uint8_t* begin, uint32_t size) {
   // https://w3c.github.io/PNG-spec/#11IHDR
-  if (size != 13) {
-    fprintf(stderr, "IHDR should be 13 bytes, was %u bytes\n", size);
+  if (!png_check_size("IHDR", size, 13))
     return;
-  }
 
   uint32_t width = be_uint32(begin);
   uint32_t height = be_uint32(begin + 4);
@@ -123,10 +128,8 @@ static void png_dump_chunk_IHDR(const uint8_t* begin, uint32_t size) {
 
 static void png_dump_chunk_gAMA(const uint8_t* begin, uint32_t size) {
   // https://w3c.github.io/PNG-spec/#11gAMA
-  if (size != 4) {
-    fprintf(stderr, "gAMA should be 9 bytes, was %u bytes\n", size);
+  if (!png_check_size("gAMA", size, 4))
     return;
-  }
 
   uint32_t gamma = be_uint32(begin);
   if (gamma & 0x80000000) {
@@ -172,10 +175,8 @@ static void png_dump_chunk_iCCP(const uint8_t* begin, uint32_t size) {
 
 static void png_dump_chunk_pHYs(const uint8_t* begin, uint32_t size) {
   // https://w3c.github.io/PNG-spec/#11pHYs
-  if (size != 9) {
-    fprintf(stderr, "pHYs should be 9 bytes, was %u bytes\n", size);
+  if (!png_check_size("pHYs", size, 9))
     return;
-  }
 
   uint32_t x_pixels_per_unit = be_uint32(begin);
   uint32_t y_pixels_per_unit = be_uint32(begin + 4);
@@ -202,10 +203,8 @@ static void png_dump_chunk_pHYs(const uint8_t* begin, uint32_t size) {
 
 static void png_dump_chunk_sRGB(const uint8_t* begin, uint32_t size) {
   // https://w3c.github.io/PNG-spec/#11sRGB
-  if (size != 1) {
-    fprintf(stderr, "sRGB should be 1 byte, was %u bytes\n", size);
+  if (!png_check_size("sRGB", size, 1))
     return;
-  }
 
   uint8_t rendering_intent = *begin;
   switch (rendering_intent) {
