@@ -121,6 +121,22 @@ static void png_dump_chunk_IHDR(const uint8_t* begin, uint32_t size) {
     printf("  adam7 interlacing\n");
 }
 
+static void png_dump_chunk_gAMA(const uint8_t* begin, uint32_t size) {
+  // https://w3c.github.io/PNG-spec/#11gAMA
+  if (size != 4) {
+    fprintf(stderr, "gAMA should be 9 bytes, was %u bytes\n", size);
+    return;
+  }
+
+  uint32_t gamma = be_uint32(begin);
+  if (gamma & 0x80000000) {
+    fprintf(stderr, "gamma %x invalidly has top bit set\n", gamma);
+    return;
+  }
+
+  printf("  gamma %d (%f)\n", gamma, gamma / 100000.0);
+}
+
 static void png_dump_chunk_iCCP(const uint8_t* begin, uint32_t size) {
   // https://w3c.github.io/PNG-spec/#11iCCP
   size_t profile_name_len_max = 80;
@@ -204,6 +220,9 @@ static uint32_t png_dump_chunk(const uint8_t* begin, const uint8_t* end) {
   switch (type) {
     case 0x49484452:  // 'IHDR'
       png_dump_chunk_IHDR(begin + 8, length);
+      break;
+    case 0x67414d41:  // 'gAMA'
+      png_dump_chunk_gAMA(begin + 8, length);
       break;
     case 0x69434350:  // 'iCCP'
       png_dump_chunk_iCCP(begin + 8, length);
