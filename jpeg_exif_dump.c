@@ -1026,6 +1026,7 @@ static void jpeg_dump_icc(struct Options* options,
   // 7.2 Profile header
   const uint8_t* icc_header = begin + header_size;
   uint32_t profile_size = be_uint32(icc_header);
+  // FIXME: range checking for profile_size, header size
   iprintf(options, "Profile size: %u\n", profile_size);
 
   uint32_t preferred_cmm_type = be_uint32(icc_header + 4);
@@ -1183,6 +1184,8 @@ static void jpeg_dump_icc(struct Options* options,
   uint32_t tag_count = be_uint32(tag_table);
   iprintf(options, "%d tags\n", tag_count);
 
+  // FIXME: range checking for tag_count
+
   increase_indent(options);
   for (unsigned i = 0; i < tag_count; ++i) {
     uint32_t this_offset = 4 + 12 * i;
@@ -1192,6 +1195,8 @@ static void jpeg_dump_icc(struct Options* options,
     iprintf(options, "signature 0x%08x ('%.4s') offset %d size %d\n",
             tag_signature, tag_table + this_offset, offset_to_data,
             size_of_data);
+
+    // FIXME: range checking for offset_to_data, size_of_data
 
     increase_indent(options);
 
