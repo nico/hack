@@ -174,6 +174,7 @@ static const char* tiff_tag_name(uint16_t tag) {
     case 305: return "Software";
     case 306: return "DateTime";
     case 315: return "Artist";
+    case 316: return "HostComputer";
     case 513: return "JPEGInterchangeFormat";
     case 514: return "JPEGInterchangeFormatLength";
     case 531: return "YCbCrPositioning";
