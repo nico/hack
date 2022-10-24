@@ -207,6 +207,7 @@ static const char* tiff_tag_name(uint16_t tag) {
     case 37384: return "LightSource";
     case 37385: return "Flash";
     case 37386: return "FocalLength";
+    case 37396: return "SubjectArea";
     case 37500: return "MakerNote";
     case 37520: return "SubsecTime";
     case 37521: return "SubsecTimeOriginal";
@@ -268,10 +269,15 @@ static const char* tiff_gps_tag_name(uint16_t tag) {
     case 5: return "GPSAltitudeRef";
     case 6: return "GPSAltitude";
     case 7: return "GPSTimeStamp";
+    case 12: return "GPSSpeedRef";
+    case 13: return "GPSSpeed";
     case 16: return "GPSImgDirectionRef";
     case 17: return "GPSImgDirection";
+    case 23: return "GPSDestBearingRef";
+    case 24: return "GPSDestBearing";
     case 27: return "GPSProcessingMethod";
     case 29: return "GPSDateStamp";
+    case 31: return "GPSHPositioningError";  // Horizontal error in meters.
     default: return NULL;
   }
   // clang-format on
