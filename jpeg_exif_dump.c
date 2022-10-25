@@ -494,91 +494,8 @@ static void tiff_dump(struct Options* options,
   } while (ifd_offset != 0);
 }
 
-// JPEG dumping ///////////////////////////////////////////////////////////////
-
-// JPEG spec: https://www.w3.org/Graphics/JPEG/itu-t81.pdf
-// JFIF spec: https://www.w3.org/Graphics/JPEG/jfif3.pdf
-// EXIF spec: https://www.cipa.jp/std/documents/e/DC-008-2012_E.pdf
-//            https://www.cipa.jp/std/documents/e/DC-X008-Translation-2019-E.pdf
-
-static void jpeg_dump_sof0(struct Options* options,
-                           const uint8_t* begin,
-                           uint16_t size) {
-  // https://www.w3.org/Graphics/JPEG/itu-t81.pdf section B.2.2 on page 25, or
-  // https://mykb.cipindanci.com/archive/SuperKB/1294/JPEG%20File%20Layout%20and%20Format.htm
-  if (size < 8) {
-    printf("SOF0 should be at least 8 bytes, is %u\n", size);
-    return;
-  }
-
-  begin += sizeof(uint16_t);
-
-  iprintf(options, "bits per sample: %d\n", begin[0]);
-  iprintf(options, "height: %d\n", be_uint16(begin + 1));
-  iprintf(options, "width: %d\n", be_uint16(begin + 3));
-
-  uint8_t num_components = begin[5];
-  if (size - 8 < 3 * num_components) {
-    printf("SOF0 with %d components should be at least %d bytes, is %u\n",
-           num_components, 8 + 3 * num_components, size);
-    return;
-  }
-
-  for (int i = 0; i < num_components; ++i) {
-    iprintf(options, "components %d/%d\n", i + 1, num_components);
-    iprintf(options, "  component id: %d\n", begin[6 + 3 * i]);
-
-    uint8_t sampling_factors = begin[6 + 3 * i + 1];
-    iprintf(options, "  sampling factors: %d horizontal, %d vertical\n",
-            sampling_factors >> 4, sampling_factors & 0xf);
-    iprintf(options, "  quantization table number: %d\n", begin[6 + 3 * i + 2]);
-  }
-}
-
-static void jpeg_dump_jfif(struct Options* options,
-                           const uint8_t* begin,
-                           uint16_t size) {
-  // https://en.wikipedia.org/wiki/JPEG_File_Interchange_Format#JFIF_APP0_marker_segment
-  if (size < 16) {
-    printf("jfif header should be at least 18 bytes, is %u\n", size);
-    return;
-  }
-
-  begin += sizeof(uint16_t) + sizeof("JFIF");
-
-  iprintf(options, "jfif version: %d.%d\n", begin[0], begin[1]);
-
-  uint8_t units = begin[2];
-  iprintf(options, "density unit: %d", units);
-  switch (units) {
-    case 0:
-      printf(" (no units, aspect only)");
-      break;
-    case 1:
-      printf(" (pixels/inch)");
-      break;
-    case 2:
-      printf(" (pixels/cm)");
-      break;
-    default:
-      printf(" (unknown value)");
-      break;
-  }
-  printf("\n");
-
-  iprintf(options, "Xdensity: %d\n", be_uint16(begin + 3));
-  iprintf(options, "Ydensity: %d\n", be_uint16(begin + 5));
-  iprintf(options, "Xthumbnail: %d\n", begin[7]);
-  iprintf(options, "Ythumbnail: %d\n", begin[8]);
-}
-
-static void jpeg_dump_exif(struct Options* options,
-                           const uint8_t* begin,
-                           uint16_t size) {
-  // https://www.cipa.jp/std/documents/e/DC-X008-Translation-2019-E.pdf
-  tiff_dump(options, begin + sizeof(uint16_t) + sizeof("Exif") + 1,
-            begin + size);
-}
+// ICC dumping ////////////////////////////////////////////////////////////////
+// ICC spec: https://www.color.org/specification/ICC.1-2022-05.pdf
 
 static const char* icc_profile_device_class_description(
     uint32_t profile_device_class) {
@@ -1254,6 +1171,91 @@ static void icc_dump(struct Options* options,
   icc_dump_tag_table(options, icc_header, size);
 }
 
+// JPEG dumping ///////////////////////////////////////////////////////////////
+
+// JPEG spec: https://www.w3.org/Graphics/JPEG/itu-t81.pdf
+// JFIF spec: https://www.w3.org/Graphics/JPEG/jfif3.pdf
+// EXIF spec: https://www.cipa.jp/std/documents/e/DC-008-2012_E.pdf
+//            https://www.cipa.jp/std/documents/e/DC-X008-Translation-2019-E.pdf
+
+static void jpeg_dump_sof0(struct Options* options,
+                           const uint8_t* begin,
+                           uint16_t size) {
+  // https://www.w3.org/Graphics/JPEG/itu-t81.pdf section B.2.2 on page 25, or
+  // https://mykb.cipindanci.com/archive/SuperKB/1294/JPEG%20File%20Layout%20and%20Format.htm
+  if (size < 8) {
+    printf("SOF0 should be at least 8 bytes, is %u\n", size);
+    return;
+  }
+
+  begin += sizeof(uint16_t);
+
+  iprintf(options, "bits per sample: %d\n", begin[0]);
+  iprintf(options, "height: %d\n", be_uint16(begin + 1));
+  iprintf(options, "width: %d\n", be_uint16(begin + 3));
+
+  uint8_t num_components = begin[5];
+  if (size - 8 < 3 * num_components) {
+    printf("SOF0 with %d components should be at least %d bytes, is %u\n",
+           num_components, 8 + 3 * num_components, size);
+    return;
+  }
+
+  for (int i = 0; i < num_components; ++i) {
+    iprintf(options, "components %d/%d\n", i + 1, num_components);
+    iprintf(options, "  component id: %d\n", begin[6 + 3 * i]);
+
+    uint8_t sampling_factors = begin[6 + 3 * i + 1];
+    iprintf(options, "  sampling factors: %d horizontal, %d vertical\n",
+            sampling_factors >> 4, sampling_factors & 0xf);
+    iprintf(options, "  quantization table number: %d\n", begin[6 + 3 * i + 2]);
+  }
+}
+
+static void jpeg_dump_jfif(struct Options* options,
+                           const uint8_t* begin,
+                           uint16_t size) {
+  // https://en.wikipedia.org/wiki/JPEG_File_Interchange_Format#JFIF_APP0_marker_segment
+  if (size < 16) {
+    printf("jfif header should be at least 18 bytes, is %u\n", size);
+    return;
+  }
+
+  begin += sizeof(uint16_t) + sizeof("JFIF");
+
+  iprintf(options, "jfif version: %d.%d\n", begin[0], begin[1]);
+
+  uint8_t units = begin[2];
+  iprintf(options, "density unit: %d", units);
+  switch (units) {
+    case 0:
+      printf(" (no units, aspect only)");
+      break;
+    case 1:
+      printf(" (pixels/inch)");
+      break;
+    case 2:
+      printf(" (pixels/cm)");
+      break;
+    default:
+      printf(" (unknown value)");
+      break;
+  }
+  printf("\n");
+
+  iprintf(options, "Xdensity: %d\n", be_uint16(begin + 3));
+  iprintf(options, "Ydensity: %d\n", be_uint16(begin + 5));
+  iprintf(options, "Xthumbnail: %d\n", begin[7]);
+  iprintf(options, "Ythumbnail: %d\n", begin[8]);
+}
+
+static void jpeg_dump_exif(struct Options* options,
+                           const uint8_t* begin,
+                           uint16_t size) {
+  // https://www.cipa.jp/std/documents/e/DC-X008-Translation-2019-E.pdf
+  tiff_dump(options, begin + sizeof(uint16_t) + sizeof("Exif") + 1,
+            begin + size);
+}
 static void jpeg_dump_icc(struct Options* options,
                           const uint8_t* begin,
                           uint16_t size) {
