@@ -1005,6 +1005,11 @@ static void icc_dump_header(struct Options* options,
                             uint32_t size) {
   // https://www.color.org/specification/ICC.1-2022-05.pdf
   // 7.2 Profile header
+  if (size < 128) {
+    printf("ICC header must be at least 128 bytes, was %d\n", size);
+    return;
+  }
+
   uint32_t profile_size = be_uint32(icc_header);
   iprintf(options, "Profile size: %u\n", profile_size);
 
