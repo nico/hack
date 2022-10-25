@@ -1163,33 +1163,10 @@ static void icc_dump_header(struct Options* options,
     iprintf(options, "reserved header bytes are unexpectedly not zero\n");
 }
 
-static void jpeg_dump_icc(struct Options* options,
-                          const uint8_t* begin,
-                          uint16_t size) {
-  // https://www.color.org/technotes/ICC-Technote-ProfileEmbedding.pdf
-  //   (In particular, an ICC profile can be split across several APP2 marker
-  //   chunks: "...a mechanism is required to break the profile into chunks...")
+static void icc_dump_tag_table(struct Options* options,
+                               const uint8_t* icc_header,
+                               uint32_t size) {
   // https://www.color.org/specification/ICC.1-2022-05.pdf
-  const size_t prefix_size = sizeof(uint16_t) + sizeof("ICC_PROFILE");
-  const size_t header_size = prefix_size + 1 + 1;
-  if (size < header_size) {
-    printf("ICC should be at least %zu bytes, is %u\n", header_size, size);
-    return;
-  }
-
-  uint8_t chunk_sequence_number = begin[prefix_size];  // 1-based (!)
-  uint8_t num_chunks = begin[prefix_size + 1];
-  iprintf(options, "chunk %u/%u\n", chunk_sequence_number, num_chunks);
-
-  if (chunk_sequence_number != 1 || num_chunks != 1) {
-    printf("cannot handle ICC profiles spread over several chunks yet\n");
-    return;
-  }
-
-  // 7.2 Profile header
-  const uint8_t* icc_header = begin + header_size;
-  icc_dump_header(options, icc_header, size - header_size);
-
   // 7.3 Tag table
   const uint8_t* tag_table = icc_header + 128;
 
@@ -1268,6 +1245,35 @@ static void jpeg_dump_icc(struct Options* options,
     decrease_indent(options);
   }
   decrease_indent(options);
+}
+
+static void jpeg_dump_icc(struct Options* options,
+                          const uint8_t* begin,
+                          uint16_t size) {
+  // https://www.color.org/technotes/ICC-Technote-ProfileEmbedding.pdf
+  //   (In particular, an ICC profile can be split across several APP2 marker
+  //   chunks: "...a mechanism is required to break the profile into chunks...")
+  // https://www.color.org/specification/ICC.1-2022-05.pdf
+  const size_t prefix_size = sizeof(uint16_t) + sizeof("ICC_PROFILE");
+  const size_t header_size = prefix_size + 1 + 1;
+  if (size < header_size) {
+    printf("ICC should be at least %zu bytes, is %u\n", header_size, size);
+    return;
+  }
+
+  uint8_t chunk_sequence_number = begin[prefix_size];  // 1-based (!)
+  uint8_t num_chunks = begin[prefix_size + 1];
+  iprintf(options, "chunk %u/%u\n", chunk_sequence_number, num_chunks);
+
+  if (chunk_sequence_number != 1 || num_chunks != 1) {
+    printf("cannot handle ICC profiles spread over several chunks yet\n");
+    return;
+  }
+
+  // FIXME: add range checking below
+  const uint8_t* icc_header = begin + header_size;
+  icc_dump_header(options, icc_header, size - header_size);
+  icc_dump_tag_table(options, icc_header, size - header_size);
 }
 
 static void jpeg_dump_mpf(struct Options* options,
