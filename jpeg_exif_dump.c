@@ -165,11 +165,14 @@ static const char* tiff_tag_name(uint16_t tag) {
   switch (tag) {
     case 256: return "ImageWidth";
     case 257: return "ImageHeight";
+    case 258: return "BitsPerSample";
     case 259: return "Compression";
+    case 262: return "PhotometricInterpretation";
     case 270: return "ImageDescription";
     case 271: return "Make";
     case 272: return "Model";
     case 274: return "Orientation";
+    case 277: return "SamplesPerPixel";
     case 282: return "XResolution";
     case 283: return "YResolution";
     case 296: return "ResolutionUnit";
