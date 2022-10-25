@@ -1247,6 +1247,13 @@ static void icc_dump_tag_table(struct Options* options,
   decrease_indent(options);
 }
 
+static void icc_dump(struct Options* options,
+                     const uint8_t* icc_header,
+                     uint32_t size) {
+  icc_dump_header(options, icc_header, size);
+  icc_dump_tag_table(options, icc_header, size);
+}
+
 static void jpeg_dump_icc(struct Options* options,
                           const uint8_t* begin,
                           uint16_t size) {
@@ -1270,10 +1277,7 @@ static void jpeg_dump_icc(struct Options* options,
     return;
   }
 
-  // FIXME: add range checking below
-  const uint8_t* icc_header = begin + header_size;
-  icc_dump_header(options, icc_header, size - header_size);
-  icc_dump_tag_table(options, icc_header, size - header_size);
+  icc_dump(options, begin + header_size, size - header_size);
 }
 
 static void jpeg_dump_mpf(struct Options* options,
