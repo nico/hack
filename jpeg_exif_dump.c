@@ -16,8 +16,10 @@
 
 // Dumps metadata in jpeg files.
 // Fairly complete:
-// * Exif
-// * XMP (missing custom dumpers for a few tags, such as gps pos)
+// * Exif (missing custom dumpers for a few tags, such as gps pos)
+// * XMP (could parse XML and combine xmp extension chunks into a single
+//       doc, also could interpret some of the base64 data in here for Pixel
+//       jpegs)
 // * ICC (RGB only for now)
 // In progress:
 // * IPTC
