@@ -21,7 +21,6 @@
 //       doc, also could interpret some of the base64 data in here for Pixel
 //       jpegs)
 // * ICC (RGB only for now)
-// In progress:
 // * IPTC
 // Still missing:
 // * MPF
