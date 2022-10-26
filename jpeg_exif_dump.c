@@ -1447,6 +1447,17 @@ static void photoshop_dump_resolution_info(struct Options* options,
   }
 }
 
+static const char* iptc_envelope_record_dataset_name(uint8_t dataset_number) {
+  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
+  // Chapter 5. ENVELOPE RECORD
+  // clang-format off
+  switch (dataset_number) {
+    case  90: return "Coded Character Set";
+    default: return NULL;
+  }
+  // clang-format on
+}
+
 static const char* iptc_application_record_dataset_name(
     uint8_t dataset_number) {
   // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
@@ -1461,6 +1472,8 @@ static const char* iptc_application_record_dataset_name(
     case  40: return "Special Instructions";
     case  55: return "Date Created";
     case  60: return "Time Created";
+    case  62: return "Digital Creation Date";
+    case  63: return "Digital Creation Time";
     case  80: return "By-line";
     case  85: return "By-line Title";
     case  90: return "City";
@@ -1482,8 +1495,10 @@ static const char* iptc_application_record_dataset_name(
 
 static const char* iptc_dataset_name(uint8_t record_number,
                                      uint8_t dataset_number) {
-  // FIXME: record_numbers 1, 3, 4, 5, 6, 7, 8, 9 (apparently not used in
-  //        jpeg files at least, though?)
+  // FIXME: record_numbers 3, 4, 5, 6, 7, 8, 9 (apparently not used in jpeg
+  //        files at least, though?)
+  if (record_number == 1)
+    return iptc_envelope_record_dataset_name(dataset_number);
   if (record_number == 2)
     return iptc_application_record_dataset_name(dataset_number);
   return NULL;
