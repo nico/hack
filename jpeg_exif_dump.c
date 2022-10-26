@@ -1504,6 +1504,20 @@ static const char* iptc_dataset_name(uint8_t record_number,
   return NULL;
 }
 
+static void iptc_dump_record_version(struct Options* options,
+                                     const uint8_t* begin,
+                                     uint32_t size) {
+  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
+  // Chapter 6, 2:00 Record Version
+  if (size != 2) {
+    printf("IPTC record version should be 2 bytes, was %d\n", size);
+    return;
+  }
+
+  uint16_t version = be_uint16(begin);
+  iprintf(options, "%d\n", version);
+}
+
 static void iptc_dump_date(struct Options* options,
                            const uint8_t* begin,
                            uint32_t size) {
@@ -1532,6 +1546,7 @@ static void iptc_dump_time(struct Options* options,
   }
 
   // "Represented in the form HHMMSS±HHMM [...] Follows ISO 8601 standard."
+  // FIXME: Maybe transcode hyphen-minus to U+2212 minus per ISO 8601
   iprintf(options, "%.2s:%.2s:%.2s%.1s%.2s:%.2s\n", begin, begin + 2, begin + 4,
           begin + 6, begin + 7, begin + 9);
 }
@@ -1595,6 +1610,9 @@ static uint32_t iptc_dump_tag(struct Options* options,
   increase_indent(options);
   if (record_number == 2) {
     switch (dataset_number) {
+      case 0:
+        iptc_dump_record_version(options, data_field, data_field_size);
+        break;
       case 55:
       case 62:
         iptc_dump_date(options, data_field, data_field_size);
