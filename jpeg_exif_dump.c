@@ -1514,10 +1514,26 @@ static void iptc_dump_date(struct Options* options,
     return;
   }
 
+  // "Represented in the form CCYYMMDD [...] follows ISO 8601 standard."
   // CCMM of 0000 means unknown year, MM of 00 means unknown month,
   // DD of 00 means unknown day.
   // FIXME: Incorporate in output?
   iprintf(options, "%.4s-%.2s-%.2s\n", begin, begin + 4, begin + 6);
+}
+
+static void iptc_dump_time(struct Options* options,
+                           const uint8_t* begin,
+                           uint32_t size) {
+  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
+  // Chapter 6, 2:60 Time Created and 2:63 Digital Creation Time
+  if (size != 11) {
+    printf("IPTC time should be 11 bytes, was %d\n", size);
+    return;
+  }
+
+  // "Represented in the form HHMMSS±HHMM [...] Follows ISO 8601 standard."
+  iprintf(options, "%.2s:%.2s:%.2s%.1s%.2s:%.2s\n", begin, begin + 2, begin + 4,
+          begin + 6, begin + 7, begin + 9);
 }
 
 static uint32_t iptc_dump_tag(struct Options* options,
@@ -1582,6 +1598,10 @@ static uint32_t iptc_dump_tag(struct Options* options,
       case 55:
       case 62:
         iptc_dump_date(options, data_field, data_field_size);
+        break;
+      case 60:
+      case 63:
+        iptc_dump_time(options, data_field, data_field_size);
         break;
     }
   }
