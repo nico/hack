@@ -1504,6 +1504,22 @@ static const char* iptc_dataset_name(uint8_t record_number,
   return NULL;
 }
 
+static void iptc_dump_date(struct Options* options,
+                           const uint8_t* begin,
+                           uint32_t size) {
+  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
+  // Chapter 6, 2:55 Date Created and 2:62 Digital Creation Date
+  if (size != 8) {
+    printf("IPTC date should be 8 bytes, was %d\n", size);
+    return;
+  }
+
+  // CCMM of 0000 means unknown year, MM of 00 means unknown month,
+  // DD of 00 means unknown day.
+  // FIXME: Incorporate in output?
+  iprintf(options, "%.4s-%.2s-%.2s\n", begin, begin + 4, begin + 6);
+}
+
 static uint32_t iptc_dump_tag(struct Options* options,
                               const uint8_t* begin,
                               uint32_t size) {
@@ -1551,11 +1567,26 @@ static uint32_t iptc_dump_tag(struct Options* options,
     header_size += data_field_size_size;
   }
 
+  // FIXME: size checking for data_field_size
+
   iprintf(options, "IPTC tag %d:%02d", record_number, dataset_number);
   const char* name = iptc_dataset_name(record_number, dataset_number);
   if (name)
     printf(" (%s)", name);
   printf(", %d bytes\n", data_field_size);
+
+  const uint8_t* data_field = begin + header_size;
+  increase_indent(options);
+  if (record_number == 2) {
+    switch (dataset_number) {
+      case 55:
+      case 62:
+        iptc_dump_date(options, data_field, data_field_size);
+        break;
+    }
+  }
+  decrease_indent(options);
+
   return header_size + data_field_size;
 }
 
