@@ -1504,6 +1504,21 @@ static const char* iptc_dataset_name(uint8_t record_number,
   return NULL;
 }
 
+static void iptc_dump_coded_character_set(struct Options* options,
+                                          const uint8_t* begin,
+                                          uint32_t size) {
+  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
+  // Chapter 5, 1:90 Coded Character Set
+  // https://en.wikipedia.org/wiki/ISO/IEC_2022#Character_set_designations
+  // https://en.wikipedia.org/wiki/ISO/IEC_2022#Interaction_with_other_coding_systems
+
+  // 'ESC % G' is UTF-8 per the last link.
+  if (size == 3 && begin[0] == 0x1b && begin[1] == 0x25 && begin[2] == 0x47)
+    iprintf(options, "UTF-8\n");
+  else
+    iprintf(options, "XXX support forthis encoding is not yet implemented\n");
+}
+
 static void iptc_dump_record_version(struct Options* options,
                                      const uint8_t* begin,
                                      uint32_t size) {
@@ -1516,6 +1531,21 @@ static void iptc_dump_record_version(struct Options* options,
 
   uint16_t version = be_uint16(begin);
   iprintf(options, "%d\n", version);
+}
+
+static void iptc_dump_text(struct Options* options,
+                           const uint8_t* begin,
+                           uint32_t size) {
+  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
+  // Chapter %, 1:90 Coded Character Set:
+  // "If 1:90 is omitted, the default for records 2-6 and 8 is ISO 646 IRV (7
+  // bits) or ISO 4873 DV (8 bits)"
+  // 1:90 can specify complex encodings (see links in
+  // iptc_dump_coded_character_set), but in practice 1:90 is either missing
+  // or set to UTF-8. ISO 646 is basically ASCII.
+  // So let's just dump this as ASCII for now.
+  // FIXME: Do this correctly at some point.
+  iprintf(options, "'%.*s'\n", size, begin);
 }
 
 static void iptc_dump_date(struct Options* options,
@@ -1608,10 +1638,33 @@ static uint32_t iptc_dump_tag(struct Options* options,
 
   const uint8_t* data_field = begin + header_size;
   increase_indent(options);
-  if (record_number == 2) {
+  if (record_number == 1) {
+    if (dataset_number == 90)
+      iptc_dump_coded_character_set(options, data_field, data_field_size);
+  } else if (record_number == 2) {
     switch (dataset_number) {
       case 0:
         iptc_dump_record_version(options, data_field, data_field_size);
+        break;
+      case 5:
+      case 12:  // FIXME: custom dumper for 2:12
+      case 25:
+      case 40:
+      case 80:
+      case 85:
+      case 90:
+      case 92:
+      case 95:
+      case 100:  // FIXME: custom dumper for 2:100
+      case 101:
+      case 103:
+      case 105:
+      case 110:
+      case 115:
+      case 116:
+      case 120:
+      case 122:
+        iptc_dump_text(options, data_field, data_field_size);
         break;
       case 55:
       case 62:
