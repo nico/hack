@@ -1447,6 +1447,48 @@ static void photoshop_dump_resolution_info(struct Options* options,
   }
 }
 
+static const char* iptc_application_record_dataset_name(
+    uint8_t dataset_number) {
+  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
+  // Chapter 6. APPLICATION RECORD
+  // clang-format off
+  switch (dataset_number) {
+    case   0: return "Record Version";
+    case   4: return "Object Attribute Reference";
+    case   5: return "Object Name";
+    case  12: return "Subject Reference";
+    case  25: return "Keywords";
+    case  40: return "Special Instructions";
+    case  55: return "Date Created";
+    case  60: return "Time Created";
+    case  80: return "By-line";
+    case  85: return "By-line Title";
+    case  90: return "City";
+    case  92: return "Sublocation";
+    case  95: return "Province/State";
+    case 100: return "Country/Primary Location Code";
+    case 101: return "Country/Primary Location Name";
+    case 103: return "Original Transmission Reference";
+    case 105: return "Headline";
+    case 110: return "Credit";
+    case 115: return "Source";
+    case 116: return "Copyright Notice";
+    case 120: return "Caption/Abstract";
+    case 122: return "Writer/Editor";
+    default: return NULL;
+  }
+  // clang-format on
+}
+
+static const char* iptc_dataset_name(uint8_t record_number,
+                                     uint8_t dataset_number) {
+  // FIXME: record_numbers 1, 3, 4, 5, 6, 7, 8, 9 (apparently not used in
+  //        jpeg files at least, though?)
+  if (record_number == 2)
+    return iptc_application_record_dataset_name(dataset_number);
+  return NULL;
+}
+
 static uint32_t iptc_dump_tag(struct Options* options,
                               const uint8_t* begin,
                               uint32_t size) {
@@ -1494,8 +1536,11 @@ static uint32_t iptc_dump_tag(struct Options* options,
     header_size += data_field_size_size;
   }
 
-  iprintf(options, "IPTC tag %d:%02d, %d bytes\n", record_number,
-          dataset_number, data_field_size);
+  iprintf(options, "IPTC tag %d:%02d", record_number, dataset_number);
+  const char* name = iptc_dataset_name(record_number, dataset_number);
+  if (name)
+    printf(" (%s)", name);
+  printf(", %d bytes\n", data_field_size);
   return header_size + data_field_size;
 }
 
