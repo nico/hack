@@ -1680,9 +1680,9 @@ static uint32_t iptc_dump_tag(struct Options* options,
   return header_size + data_field_size;
 }
 
-static void photoshop_dump_iptc(struct Options* options,
-                                const uint8_t* begin,
-                                uint32_t size) {
+static void iptc_dump(struct Options* options,
+                      const uint8_t* begin,
+                      uint32_t size) {
   uint32_t offset = 0;
   while (offset < size) {
     uint32_t tag_size = iptc_dump_tag(options, begin + offset, size - offset);
@@ -1804,7 +1804,7 @@ static uint32_t photoshop_dump_resource_block(struct Options* options,
                                      resource_data_size);
       break;
     case 0x0404:
-      photoshop_dump_iptc(options, resource_data, resource_data_size);
+      iptc_dump(options, resource_data, resource_data_size);
       break;
     case 0x040c:
       photoshop_dump_thumbnail(options, resource_data, resource_data_size);
