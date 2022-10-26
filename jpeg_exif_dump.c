@@ -1175,6 +1175,261 @@ static void icc_dump(struct Options* options,
   icc_dump_tag_table(options, icc_header, size);
 }
 
+// IPTC dumping ///////////////////////////////////////////////////////////////
+// IPTC IIM spec: https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
+
+static const char* iptc_envelope_record_dataset_name(uint8_t dataset_number) {
+  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
+  // Chapter 5. ENVELOPE RECORD
+  // clang-format off
+  switch (dataset_number) {
+    case  90: return "Coded Character Set";
+    default: return NULL;
+  }
+  // clang-format on
+}
+
+static const char* iptc_application_record_dataset_name(
+    uint8_t dataset_number) {
+  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
+  // Chapter 6. APPLICATION RECORD
+  // clang-format off
+  switch (dataset_number) {
+    case   0: return "Record Version";
+    case   4: return "Object Attribute Reference";
+    case   5: return "Object Name";
+    case  12: return "Subject Reference";
+    case  25: return "Keywords";
+    case  40: return "Special Instructions";
+    case  55: return "Date Created";
+    case  60: return "Time Created";
+    case  62: return "Digital Creation Date";
+    case  63: return "Digital Creation Time";
+    case  80: return "By-line";
+    case  85: return "By-line Title";
+    case  90: return "City";
+    case  92: return "Sublocation";
+    case  95: return "Province/State";
+    case 100: return "Country/Primary Location Code";
+    case 101: return "Country/Primary Location Name";
+    case 103: return "Original Transmission Reference";
+    case 105: return "Headline";
+    case 110: return "Credit";
+    case 115: return "Source";
+    case 116: return "Copyright Notice";
+    case 120: return "Caption/Abstract";
+    case 122: return "Writer/Editor";
+    default: return NULL;
+  }
+  // clang-format on
+}
+
+static const char* iptc_dataset_name(uint8_t record_number,
+                                     uint8_t dataset_number) {
+  // FIXME: record_numbers 3, 4, 5, 6, 7, 8, 9 (apparently not used in jpeg
+  //        files at least, though?)
+  if (record_number == 1)
+    return iptc_envelope_record_dataset_name(dataset_number);
+  if (record_number == 2)
+    return iptc_application_record_dataset_name(dataset_number);
+  return NULL;
+}
+
+static void iptc_dump_coded_character_set(struct Options* options,
+                                          const uint8_t* begin,
+                                          uint32_t size) {
+  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
+  // Chapter 5, 1:90 Coded Character Set
+  // https://en.wikipedia.org/wiki/ISO/IEC_2022#Character_set_designations
+  // https://en.wikipedia.org/wiki/ISO/IEC_2022#Interaction_with_other_coding_systems
+
+  // 'ESC % G' is UTF-8 per the last link.
+  if (size == 3 && begin[0] == 0x1b && begin[1] == 0x25 && begin[2] == 0x47)
+    iprintf(options, "UTF-8\n");
+  else
+    iprintf(options, "XXX support forthis encoding is not yet implemented\n");
+}
+
+static void iptc_dump_record_version(struct Options* options,
+                                     const uint8_t* begin,
+                                     uint32_t size) {
+  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
+  // Chapter 6, 2:00 Record Version
+  if (size != 2) {
+    printf("IPTC record version should be 2 bytes, was %d\n", size);
+    return;
+  }
+
+  uint16_t version = be_uint16(begin);
+  iprintf(options, "%d\n", version);
+}
+
+static void iptc_dump_text(struct Options* options,
+                           const uint8_t* begin,
+                           uint32_t size) {
+  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
+  // Chapter %, 1:90 Coded Character Set:
+  // "If 1:90 is omitted, the default for records 2-6 and 8 is ISO 646 IRV (7
+  // bits) or ISO 4873 DV (8 bits)"
+  // 1:90 can specify complex encodings (see links in
+  // iptc_dump_coded_character_set), but in practice 1:90 is either missing
+  // or set to UTF-8. ISO 646 is basically ASCII.
+  // So let's just dump this as ASCII for now.
+  // FIXME: Do this correctly at some point.
+  iprintf(options, "'%.*s'\n", size, begin);
+}
+
+static void iptc_dump_date(struct Options* options,
+                           const uint8_t* begin,
+                           uint32_t size) {
+  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
+  // Chapter 6, 2:55 Date Created and 2:62 Digital Creation Date
+  if (size != 8) {
+    printf("IPTC date should be 8 bytes, was %d\n", size);
+    return;
+  }
+
+  // "Represented in the form CCYYMMDD [...] follows ISO 8601 standard."
+  // CCMM of 0000 means unknown year, MM of 00 means unknown month,
+  // DD of 00 means unknown day.
+  // FIXME: Incorporate in output?
+  iprintf(options, "%.4s-%.2s-%.2s\n", begin, begin + 4, begin + 6);
+}
+
+static void iptc_dump_time(struct Options* options,
+                           const uint8_t* begin,
+                           uint32_t size) {
+  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
+  // Chapter 6, 2:60 Time Created and 2:63 Digital Creation Time
+  if (size != 11) {
+    printf("IPTC time should be 11 bytes, was %d\n", size);
+    return;
+  }
+
+  // "Represented in the form HHMMSS±HHMM [...] Follows ISO 8601 standard."
+  // FIXME: Maybe transcode hyphen-minus to U+2212 minus per ISO 8601
+  iprintf(options, "%.2s:%.2s:%.2s%.1s%.2s:%.2s\n", begin, begin + 2, begin + 4,
+          begin + 6, begin + 7, begin + 9);
+}
+
+static uint32_t iptc_dump_tag(struct Options* options,
+                              const uint8_t* begin,
+                              uint32_t size) {
+  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
+  if (size < 5) {
+    printf("iptc tag should be at least 5 bytes, is %u\n", size);
+    return size;
+  }
+
+  // Chapter 3, section 1.5 (b) The Standard DataSet Tag
+  uint8_t tag_marker = begin[0];
+  uint8_t record_number = begin[1];
+  uint8_t dataset_number = begin[2];
+  uint32_t data_field_size = be_uint16(begin + 3);
+
+  // Chapter 3, section 1.5 (b) (ii):
+  //     "Octet 1 is the tag marker that initiates the start of a DataSet and
+  //     is always position 1/12"
+  // Chapter 1, section 1.37 octet:
+  //     "Character Definition by Chart Position:
+  //     The bit combinations are identified by notations of the form xx/yy,
+  //     where xx and yy are numbers in the range 00-15"
+  // That is, tag_marker must be 0x1c for DataSets.
+  if (tag_marker != 0x1c) {
+    printf("iptc tag marker should be 0x1c, was 0x%x\n", tag_marker);
+    return size;
+  }
+
+  unsigned header_size = 5;
+  if (data_field_size > 32767) {
+    // 1.5 (c) The Extended DataSet Tag
+    uint16_t data_field_size_size = data_field_size & 0x7fff;
+
+    if (data_field_size_size > 4) {
+      printf("iptc tag with size field %d bytes, can handle at most 4\n",
+             data_field_size_size);
+      return size;
+    }
+
+    // FIXME: untested
+    data_field_size = 0;
+    for (int i = 0; i < data_field_size_size; ++i)
+      data_field_size = (data_field_size << 8) | begin[5 + i];
+
+    header_size += data_field_size_size;
+  }
+
+  // FIXME: size checking for data_field_size
+
+  iprintf(options, "IPTC tag %d:%02d", record_number, dataset_number);
+  const char* name = iptc_dataset_name(record_number, dataset_number);
+  if (name)
+    printf(" (%s)", name);
+  printf(", %d bytes\n", data_field_size);
+
+  const uint8_t* data_field = begin + header_size;
+  increase_indent(options);
+  if (record_number == 1) {
+    if (dataset_number == 90)
+      iptc_dump_coded_character_set(options, data_field, data_field_size);
+  } else if (record_number == 2) {
+    switch (dataset_number) {
+      case 0:
+        iptc_dump_record_version(options, data_field, data_field_size);
+        break;
+      case 5:
+      case 12:  // FIXME: custom dumper for 2:12
+      case 25:
+      case 40:
+      case 80:
+      case 85:
+      case 90:
+      case 92:
+      case 95:
+      case 100:  // FIXME: custom dumper for 2:100
+      case 101:
+      case 103:
+      case 105:
+      case 110:
+      case 115:
+      case 116:
+      case 120:
+      case 122:
+        iptc_dump_text(options, data_field, data_field_size);
+        break;
+      case 55:
+      case 62:
+        iptc_dump_date(options, data_field, data_field_size);
+        break;
+      case 60:
+      case 63:
+        iptc_dump_time(options, data_field, data_field_size);
+        break;
+    }
+  }
+  decrease_indent(options);
+
+  return header_size + data_field_size;
+}
+
+static void iptc_dump(struct Options* options,
+                      const uint8_t* begin,
+                      uint32_t size) {
+  uint32_t offset = 0;
+  while (offset < size) {
+    uint32_t tag_size = iptc_dump_tag(options, begin + offset, size - offset);
+
+    if (tag_size > size - offset) {
+      printf("tag size %d larger than remaining room %d\n", tag_size,
+             size - offset);
+      break;
+    }
+
+    offset += tag_size;
+  }
+}
+
+
 // JPEG dumping ///////////////////////////////////////////////////////////////
 
 // JPEG spec: https://www.w3.org/Graphics/JPEG/itu-t81.pdf
@@ -1443,257 +1698,6 @@ static void photoshop_dump_resolution_info(struct Options* options,
     else if (res_unit == 5)
       printf(" (columns)");
     printf("\n");
-  }
-}
-
-static const char* iptc_envelope_record_dataset_name(uint8_t dataset_number) {
-  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
-  // Chapter 5. ENVELOPE RECORD
-  // clang-format off
-  switch (dataset_number) {
-    case  90: return "Coded Character Set";
-    default: return NULL;
-  }
-  // clang-format on
-}
-
-static const char* iptc_application_record_dataset_name(
-    uint8_t dataset_number) {
-  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
-  // Chapter 6. APPLICATION RECORD
-  // clang-format off
-  switch (dataset_number) {
-    case   0: return "Record Version";
-    case   4: return "Object Attribute Reference";
-    case   5: return "Object Name";
-    case  12: return "Subject Reference";
-    case  25: return "Keywords";
-    case  40: return "Special Instructions";
-    case  55: return "Date Created";
-    case  60: return "Time Created";
-    case  62: return "Digital Creation Date";
-    case  63: return "Digital Creation Time";
-    case  80: return "By-line";
-    case  85: return "By-line Title";
-    case  90: return "City";
-    case  92: return "Sublocation";
-    case  95: return "Province/State";
-    case 100: return "Country/Primary Location Code";
-    case 101: return "Country/Primary Location Name";
-    case 103: return "Original Transmission Reference";
-    case 105: return "Headline";
-    case 110: return "Credit";
-    case 115: return "Source";
-    case 116: return "Copyright Notice";
-    case 120: return "Caption/Abstract";
-    case 122: return "Writer/Editor";
-    default: return NULL;
-  }
-  // clang-format on
-}
-
-static const char* iptc_dataset_name(uint8_t record_number,
-                                     uint8_t dataset_number) {
-  // FIXME: record_numbers 3, 4, 5, 6, 7, 8, 9 (apparently not used in jpeg
-  //        files at least, though?)
-  if (record_number == 1)
-    return iptc_envelope_record_dataset_name(dataset_number);
-  if (record_number == 2)
-    return iptc_application_record_dataset_name(dataset_number);
-  return NULL;
-}
-
-static void iptc_dump_coded_character_set(struct Options* options,
-                                          const uint8_t* begin,
-                                          uint32_t size) {
-  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
-  // Chapter 5, 1:90 Coded Character Set
-  // https://en.wikipedia.org/wiki/ISO/IEC_2022#Character_set_designations
-  // https://en.wikipedia.org/wiki/ISO/IEC_2022#Interaction_with_other_coding_systems
-
-  // 'ESC % G' is UTF-8 per the last link.
-  if (size == 3 && begin[0] == 0x1b && begin[1] == 0x25 && begin[2] == 0x47)
-    iprintf(options, "UTF-8\n");
-  else
-    iprintf(options, "XXX support forthis encoding is not yet implemented\n");
-}
-
-static void iptc_dump_record_version(struct Options* options,
-                                     const uint8_t* begin,
-                                     uint32_t size) {
-  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
-  // Chapter 6, 2:00 Record Version
-  if (size != 2) {
-    printf("IPTC record version should be 2 bytes, was %d\n", size);
-    return;
-  }
-
-  uint16_t version = be_uint16(begin);
-  iprintf(options, "%d\n", version);
-}
-
-static void iptc_dump_text(struct Options* options,
-                           const uint8_t* begin,
-                           uint32_t size) {
-  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
-  // Chapter %, 1:90 Coded Character Set:
-  // "If 1:90 is omitted, the default for records 2-6 and 8 is ISO 646 IRV (7
-  // bits) or ISO 4873 DV (8 bits)"
-  // 1:90 can specify complex encodings (see links in
-  // iptc_dump_coded_character_set), but in practice 1:90 is either missing
-  // or set to UTF-8. ISO 646 is basically ASCII.
-  // So let's just dump this as ASCII for now.
-  // FIXME: Do this correctly at some point.
-  iprintf(options, "'%.*s'\n", size, begin);
-}
-
-static void iptc_dump_date(struct Options* options,
-                           const uint8_t* begin,
-                           uint32_t size) {
-  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
-  // Chapter 6, 2:55 Date Created and 2:62 Digital Creation Date
-  if (size != 8) {
-    printf("IPTC date should be 8 bytes, was %d\n", size);
-    return;
-  }
-
-  // "Represented in the form CCYYMMDD [...] follows ISO 8601 standard."
-  // CCMM of 0000 means unknown year, MM of 00 means unknown month,
-  // DD of 00 means unknown day.
-  // FIXME: Incorporate in output?
-  iprintf(options, "%.4s-%.2s-%.2s\n", begin, begin + 4, begin + 6);
-}
-
-static void iptc_dump_time(struct Options* options,
-                           const uint8_t* begin,
-                           uint32_t size) {
-  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
-  // Chapter 6, 2:60 Time Created and 2:63 Digital Creation Time
-  if (size != 11) {
-    printf("IPTC time should be 11 bytes, was %d\n", size);
-    return;
-  }
-
-  // "Represented in the form HHMMSS±HHMM [...] Follows ISO 8601 standard."
-  // FIXME: Maybe transcode hyphen-minus to U+2212 minus per ISO 8601
-  iprintf(options, "%.2s:%.2s:%.2s%.1s%.2s:%.2s\n", begin, begin + 2, begin + 4,
-          begin + 6, begin + 7, begin + 9);
-}
-
-static uint32_t iptc_dump_tag(struct Options* options,
-                              const uint8_t* begin,
-                              uint32_t size) {
-  // https://www.iptc.org/std/IIM/4.1/specification/IIMV4.1.pdf
-  if (size < 5) {
-    printf("iptc tag should be at least 5 bytes, is %u\n", size);
-    return size;
-  }
-
-  // Chapter 3, section 1.5 (b) The Standard DataSet Tag
-  uint8_t tag_marker = begin[0];
-  uint8_t record_number = begin[1];
-  uint8_t dataset_number = begin[2];
-  uint32_t data_field_size = be_uint16(begin + 3);
-
-  // Chapter 3, section 1.5 (b) (ii):
-  //     "Octet 1 is the tag marker that initiates the start of a DataSet and
-  //     is always position 1/12"
-  // Chapter 1, section 1.37 octet:
-  //     "Character Definition by Chart Position:
-  //     The bit combinations are identified by notations of the form xx/yy,
-  //     where xx and yy are numbers in the range 00-15"
-  // That is, tag_marker must be 0x1c for DataSets.
-  if (tag_marker != 0x1c) {
-    printf("iptc tag marker should be 0x1c, was 0x%x\n", tag_marker);
-    return size;
-  }
-
-  unsigned header_size = 5;
-  if (data_field_size > 32767) {
-    // 1.5 (c) The Extended DataSet Tag
-    uint16_t data_field_size_size = data_field_size & 0x7fff;
-
-    if (data_field_size_size > 4) {
-      printf("iptc tag with size field %d bytes, can handle at most 4\n",
-             data_field_size_size);
-      return size;
-    }
-
-    // FIXME: untested
-    data_field_size = 0;
-    for (int i = 0; i < data_field_size_size; ++i)
-      data_field_size = (data_field_size << 8) | begin[5 + i];
-
-    header_size += data_field_size_size;
-  }
-
-  // FIXME: size checking for data_field_size
-
-  iprintf(options, "IPTC tag %d:%02d", record_number, dataset_number);
-  const char* name = iptc_dataset_name(record_number, dataset_number);
-  if (name)
-    printf(" (%s)", name);
-  printf(", %d bytes\n", data_field_size);
-
-  const uint8_t* data_field = begin + header_size;
-  increase_indent(options);
-  if (record_number == 1) {
-    if (dataset_number == 90)
-      iptc_dump_coded_character_set(options, data_field, data_field_size);
-  } else if (record_number == 2) {
-    switch (dataset_number) {
-      case 0:
-        iptc_dump_record_version(options, data_field, data_field_size);
-        break;
-      case 5:
-      case 12:  // FIXME: custom dumper for 2:12
-      case 25:
-      case 40:
-      case 80:
-      case 85:
-      case 90:
-      case 92:
-      case 95:
-      case 100:  // FIXME: custom dumper for 2:100
-      case 101:
-      case 103:
-      case 105:
-      case 110:
-      case 115:
-      case 116:
-      case 120:
-      case 122:
-        iptc_dump_text(options, data_field, data_field_size);
-        break;
-      case 55:
-      case 62:
-        iptc_dump_date(options, data_field, data_field_size);
-        break;
-      case 60:
-      case 63:
-        iptc_dump_time(options, data_field, data_field_size);
-        break;
-    }
-  }
-  decrease_indent(options);
-
-  return header_size + data_field_size;
-}
-
-static void iptc_dump(struct Options* options,
-                      const uint8_t* begin,
-                      uint32_t size) {
-  uint32_t offset = 0;
-  while (offset < size) {
-    uint32_t tag_size = iptc_dump_tag(options, begin + offset, size - offset);
-
-    if (tag_size > size - offset) {
-      printf("tag size %d larger than remaining room %d\n", tag_size,
-             size - offset);
-      break;
-    }
-
-    offset += tag_size;
   }
 }
 
