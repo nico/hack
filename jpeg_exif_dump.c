@@ -1456,11 +1456,24 @@ static uint32_t iptc_dump_tag(struct Options* options,
     return size;
   }
 
-  // 1.5 (b) The Standard DataSet Tag
+  // Chapter 3, section 1.5 (b) The Standard DataSet Tag
   uint8_t tag_marker = begin[0];
   uint8_t record_number = begin[1];
   uint8_t dataset_number = begin[2];
   uint32_t data_field_size = be_uint16(begin + 3);
+
+  // Chapter 3, section 1.5 (b) (ii):
+  //     "Octet 1 is the tag marker that initiates the start of a DataSet and
+  //     is always position 1/12"
+  // Chapter 1, section 1.37 octet:
+  //     "Character Definition by Chart Position:
+  //     The bit combinations are identified by notations of the form xx/yy,
+  //     where xx and yy are numbers in the range 00-15"
+  // That is, tag_marker must be 0x1c for DataSets.
+  if (tag_marker != 0x1c) {
+    printf("iptc tag marker should be 0x1c, was 0x%x\n", tag_marker);
+    return size;
+  }
 
   unsigned header_size = 5;
   if (data_field_size > 32767) {
@@ -1481,7 +1494,7 @@ static uint32_t iptc_dump_tag(struct Options* options,
     header_size += data_field_size_size;
   }
 
-  iprintf(options, "IPTC tag %d %d:%02d %d bytes\n", tag_marker, record_number,
+  iprintf(options, "IPTC tag %d:%02d, %d bytes\n", record_number,
           dataset_number, data_field_size);
   return header_size + data_field_size;
 }
