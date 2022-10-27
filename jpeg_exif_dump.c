@@ -357,7 +357,7 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
     printf(" format %u (%s): count %u", format, TiffDataFormatNames[format],
            count);
 
-    // FIXME: print other formats
+    // TODO: print other formats
     if (format == kUnsignedByte && count == 1)
       printf(": %u", *(const uint8_t*)data);
     else if (format == kAscii)
@@ -753,7 +753,7 @@ static void icc_dump_multiLocalizedUnicodeType(struct Options* options,
 
     // UTF-16BE text :/
     // And no uchar.h / c16rtomb() on macOS either (as of macOS 12.5) :/
-    // FIXME: Do actual UTF16-to-UTF8 conversion.
+    // TODO: Do actual UTF16-to-UTF8 conversion.
     const uint8_t* utf16_be = begin + string_offset;
     for (unsigned j = 0; j < string_length / 2; ++j, utf16_be += 2) {
       uint16_t cur = be_uint16(utf16_be);
@@ -1094,7 +1094,7 @@ static void icc_dump_tag_table(struct Options* options,
   uint32_t tag_count = be_uint32(tag_table);
   iprintf(options, "%d tags\n", tag_count);
 
-  // FIXME: range checking for tag_count
+  // TODO: range checking for tag_count
 
   increase_indent(options);
   for (unsigned i = 0; i < tag_count; ++i) {
@@ -1106,7 +1106,7 @@ static void icc_dump_tag_table(struct Options* options,
             tag_signature, tag_table + this_offset, offset_to_data,
             size_of_data);
 
-    // FIXME: range checking for offset_to_data, size_of_data
+    // TODO: range checking for offset_to_data, size_of_data
 
     increase_indent(options);
 
@@ -1226,8 +1226,8 @@ static const char* iptc_application_record_dataset_name(
 
 static const char* iptc_dataset_name(uint8_t record_number,
                                      uint8_t dataset_number) {
-  // FIXME: record_numbers 3, 4, 5, 6, 7, 8, 9 (apparently not used in jpeg
-  //        files at least, though?)
+  // TODO: record_numbers 3, 4, 5, 6, 7, 8, 9 (apparently not used in jpeg
+  //       files at least, though?)
   if (record_number == 1)
     return iptc_envelope_record_dataset_name(dataset_number);
   if (record_number == 2)
@@ -1247,7 +1247,7 @@ static void iptc_dump_coded_character_set(struct Options* options,
   if (size == 3 && begin[0] == 0x1b && begin[1] == 0x25 && begin[2] == 0x47)
     iprintf(options, "UTF-8\n");
   else
-    iprintf(options, "XXX support forthis encoding is not yet implemented\n");
+    iprintf(options, "TODO support for this encoding is not yet implemented\n");
 }
 
 static void iptc_dump_record_version(struct Options* options,
@@ -1275,7 +1275,7 @@ static void iptc_dump_text(struct Options* options,
   // iptc_dump_coded_character_set), but in practice 1:90 is either missing
   // or set to UTF-8. ISO 646 is basically ASCII.
   // So let's just dump this as ASCII for now.
-  // FIXME: Do this correctly at some point.
+  // TODO: Do this correctly at some point.
   iprintf(options, "'%.*s'\n", size, begin);
 }
 
@@ -1292,7 +1292,7 @@ static void iptc_dump_date(struct Options* options,
   // "Represented in the form CCYYMMDD [...] follows ISO 8601 standard."
   // CCMM of 0000 means unknown year, MM of 00 means unknown month,
   // DD of 00 means unknown day.
-  // FIXME: Incorporate in output?
+  // TODO: Incorporate in output?
   iprintf(options, "%.4s-%.2s-%.2s\n", begin, begin + 4, begin + 6);
 }
 
@@ -1307,7 +1307,7 @@ static void iptc_dump_time(struct Options* options,
   }
 
   // "Represented in the form HHMMSS±HHMM [...] Follows ISO 8601 standard."
-  // FIXME: Maybe transcode hyphen-minus to U+2212 minus per ISO 8601
+  // TODO: Maybe transcode hyphen-minus to U+2212 minus per ISO 8601
   iprintf(options, "%.2s:%.2s:%.2s%.1s%.2s:%.2s\n", begin, begin + 2, begin + 4,
           begin + 6, begin + 7, begin + 9);
 }
@@ -1351,7 +1351,7 @@ static uint32_t iptc_dump_tag(struct Options* options,
       return size;
     }
 
-    // FIXME: untested
+    // TODO: untested
     data_field_size = 0;
     for (int i = 0; i < data_field_size_size; ++i)
       data_field_size = (data_field_size << 8) | begin[5 + i];
@@ -1359,7 +1359,7 @@ static uint32_t iptc_dump_tag(struct Options* options,
     header_size += data_field_size_size;
   }
 
-  // FIXME: size checking for data_field_size
+  // TODO: size checking for data_field_size
 
   iprintf(options, "IPTC tag %d:%02d", record_number, dataset_number);
   const char* name = iptc_dataset_name(record_number, dataset_number);
@@ -1378,7 +1378,7 @@ static uint32_t iptc_dump_tag(struct Options* options,
         iptc_dump_record_version(options, data_field, data_field_size);
         break;
       case 5:
-      case 12:  // FIXME: custom dumper for 2:12
+      case 12:  // TODO: custom dumper for 2:12
       case 25:
       case 40:
       case 80:
@@ -1386,7 +1386,7 @@ static uint32_t iptc_dump_tag(struct Options* options,
       case 90:
       case 92:
       case 95:
-      case 100:  // FIXME: custom dumper for 2:100
+      case 100:  // TODO: custom dumper for 2:100
       case 101:
       case 103:
       case 105:
@@ -1940,7 +1940,7 @@ static void jpeg_dump(struct Options* options,
         // it'll point to additional images past the first image's EOI.
         // Some versions of the Pixel Pro camera app write unknown-to-me
         // non-jpeg trailing data after the EOI marker.
-        // FIXME: In non-scan mode, this should terminate the reading loop.
+        // TODO: In non-scan mode, this should terminate the reading loop.
         printf(": End Of Image (EOI)\n");
         break;
       case 0xda:
