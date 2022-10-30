@@ -634,6 +634,26 @@ static void tiff_dump_color_space(const struct TiffState* tiff_state,
   // clang-format on
 }
 
+static void tiff_dump_file_source(uint16_t format,
+                                  uint32_t count,
+                                  const void* data) {
+  if (!tiff_has_format_and_count(format, kUndefined, count, 1))
+    return;
+
+  uint8_t file_source = *(const uint8_t*)data;
+  printf(" (%d, ", file_source);
+  // clang-format off
+  switch (file_source) {
+    case 0: printf("others"); break;
+    case 1: printf("scanner of transparent type"); break;
+    case 2: printf("scanner of reflex type"); break;
+    case 3: printf("digital still camera (DSC)"); break;
+    default: printf("unknown value");
+  }
+  // clang-format on
+  printf(")");
+}
+
 // Returns offset to next IFD, or 0 if none.
 static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
                                   uint32_t ifd_offset) {
@@ -731,6 +751,9 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
       tiff_dump_flash(tiff_state, format, count, data);
     else if (tag == 40961)
       tiff_dump_color_space(tiff_state, format, count, data);
+    else if (tag == 41728)
+      tiff_dump_file_source(format, count, data);
+
 
     if (tag == 513 && format == kUnsignedLong && count == 1)
       jpeg_offset = uint32(data);
