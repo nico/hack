@@ -455,12 +455,12 @@ static void tiff_dump_sensitivity_type(const struct TiffState* tiff_state,
       printf(" (Standard output sensitivity (SOS) and ISO speed)");
       break;
     case 6:
-      printf(" (Recommended exposure index (REI) and ISO speed");
+      printf(" (Recommended exposure index (REI) and ISO speed)");
       break;
     case 7:
       printf(
           " (Standard output sensitivity (SOS) and recommended exposure index "
-          "(REI) and ISO speed");
+          "(REI) and ISO speed)");
       break;
     default:
       printf(" (unknown value)");
@@ -476,6 +476,30 @@ static void tiff_dump_exif_version(uint16_t format,
   const char* version = (const char*)data;
   printf(" (%c%c.%c%c)", version[0], version[1], version[2], version[3]);
 }
+
+static void tiff_dump_metering_mode(const struct TiffState* tiff_state,
+                                    uint16_t format,
+                                    uint32_t count,
+                                    const void* data) {
+  if (!tiff_has_format_and_count(format, kUnsignedShort, count, 1))
+    return;
+
+  uint16_t metering_mode = tiff_state->uint16(data);
+  // clang-format off
+  switch (metering_mode) {
+    case 0: printf(" (unknown)"); break;
+    case 1: printf(" (Average)"); break;
+    case 2: printf(" (CenterWeightedAverage)"); break;
+    case 3: printf(" (Spot)"); break;
+    case 4: printf(" (Multispot)"); break;
+    case 5: printf(" (Pattern)"); break;
+    case 6: printf(" (Partial)"); break;
+    case 255: printf(" (other)"); break;
+    default: printf(" (unknown value)");
+  }
+  // clang-format on
+}
+
 // Returns offset to next IFD, or 0 if none.
 static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
                                   uint32_t ifd_offset) {
@@ -565,6 +589,8 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
       tiff_dump_sensitivity_type(tiff_state, format, count, data);
     else if (tag == 36864 || tag == 40960)
       tiff_dump_exif_version(format, count, data);
+    else if (tag == 37383)
+      tiff_dump_metering_mode(tiff_state, format, count, data);
 
     if (tag == 513 && format == kUnsignedLong && count == 1)
       jpeg_offset = uint32(data);
