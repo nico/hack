@@ -307,18 +307,24 @@ struct TiffState {
   struct Options* options;
 };
 
+static bool tiff_has_format_and_count(uint16_t format, uint16_t expected_format, uint32_t count, uint32_t expected_count) {
+  if (format != expected_format) {
+    printf(" (invalid format %d, wanted %d)", format, expected_format);
+    return false;
+  }
+  if (count != expected_count) {
+    printf(" (invalid count %d, wanted %d)", count, expected_count);
+    return false;
+  }
+  return true;
+}
+
 static void tiff_dump_image_orientation(const struct TiffState* tiff_state,
                                         uint16_t format,
                                         uint32_t count,
                                         const void* data) {
-  if (format != kUnsignedShort) {
-    printf(" (invalid format %d, wanted %d)", format, kUnsignedShort);
+  if (!tiff_has_format_and_count(format, kUnsignedShort, count, 1))
     return;
-  }
-  if (count != 1) {
-    printf(" (invalid count %d, wanted 1)", count);
-    return;
-  }
 
   uint16_t orientation = tiff_state->uint16(data);
   // clang-format off
@@ -331,6 +337,24 @@ static void tiff_dump_image_orientation(const struct TiffState* tiff_state,
     case 6: printf(" (right top)"); break;
     case 7: printf(" (right bottom)"); break;
     case 8: printf(" (left bottom)"); break;
+    default: printf(" (unknown value)");
+  }
+  // clang-format on
+}
+
+static void tiff_dump_resolution_unit(const struct TiffState* tiff_state,
+                                      uint16_t format,
+                                      uint32_t count,
+                                      const void* data) {
+  if (!tiff_has_format_and_count(format, kUnsignedShort, count, 1))
+    return;
+
+  uint16_t resolution_unit = tiff_state->uint16(data);
+  // clang-format off
+  switch (resolution_unit) {
+    case 1: printf(" (none)"); break;
+    case 2: printf(" (inch)"); break;
+    case 3: printf(" (centimeter)"); break;
     default: printf(" (unknown value)");
   }
   // clang-format on
@@ -415,6 +439,8 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
     // That's harmless in practice, but a bit yucky.
     if (tag == 274)
       tiff_dump_image_orientation(tiff_state, format, count, data);
+    else if (tag == 296)
+      tiff_dump_resolution_unit(tiff_state, format, count, data);
 
     if (tag == 513 && format == kUnsignedLong && count == 1)
       jpeg_offset = uint32(data);
