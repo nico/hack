@@ -307,6 +307,35 @@ struct TiffState {
   struct Options* options;
 };
 
+static void tiff_dump_image_orientation(const struct TiffState* tiff_state,
+                                        uint16_t format,
+                                        uint32_t count,
+                                        const void* data) {
+  if (format != kUnsignedShort) {
+    printf(" (invalid format %d, wanted %d)", format, kUnsignedShort);
+    return;
+  }
+  if (count != 1) {
+    printf(" (invalid count %d, wanted 1)", count);
+    return;
+  }
+
+  uint16_t orientation = tiff_state->uint16(data);
+  // clang-format off
+  switch (orientation) {
+    case 1: printf(" (top left)"); break;
+    case 2: printf(" (top right)"); break;
+    case 3: printf(" (bottom right)"); break;
+    case 4: printf(" (bottom left)"); break;
+    case 5: printf(" (left top)"); break;
+    case 6: printf(" (right top)"); break;
+    case 7: printf(" (right bottom)"); break;
+    case 8: printf(" (left bottom)"); break;
+    default: printf(" (unknown value)");
+  }
+  // clang-format on
+}
+
 // Returns offset to next IFD, or 0 if none.
 static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
                                   uint32_t ifd_offset) {
@@ -379,6 +408,13 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
       if (denominator != 0)
         printf(" (%.3f)", numerator / (double)denominator);
     }
+
+    // TODO: Make this more table-driven.
+    // In addition of being generally nicer, there are several tag namespaces
+    // (EXIF, GPS, Interopability, maybe more), and currently this mixes them.
+    // That's harmless in practice, but a bit yucky.
+    if (tag == 274)
+      tiff_dump_image_orientation(tiff_state, format, count, data);
 
     if (tag == 513 && format == kUnsignedLong && count == 1)
       jpeg_offset = uint32(data);
@@ -1428,7 +1464,6 @@ static void iptc_dump(struct Options* options,
     offset += tag_size;
   }
 }
-
 
 // JPEG dumping ///////////////////////////////////////////////////////////////
 
