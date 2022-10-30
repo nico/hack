@@ -360,6 +360,23 @@ static void tiff_dump_resolution_unit(const struct TiffState* tiff_state,
   // clang-format on
 }
 
+static void tiff_dump_ycbcr_positioning(const struct TiffState* tiff_state,
+                                        uint16_t format,
+                                        uint32_t count,
+                                        const void* data) {
+  if (!tiff_has_format_and_count(format, kUnsignedShort, count, 1))
+    return;
+
+  uint16_t resolution_unit = tiff_state->uint16(data);
+  // clang-format off
+  switch (resolution_unit) {
+    case 1: printf(" (centered)"); break;
+    case 2: printf(" (cosited)"); break;
+    default: printf(" (unknown value)");
+  }
+  // clang-format on
+}
+
 // Returns offset to next IFD, or 0 if none.
 static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
                                   uint32_t ifd_offset) {
@@ -441,6 +458,8 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
       tiff_dump_image_orientation(tiff_state, format, count, data);
     else if (tag == 296)
       tiff_dump_resolution_unit(tiff_state, format, count, data);
+    else if (tag == 531)
+      tiff_dump_ycbcr_positioning(tiff_state, format, count, data);
 
     if (tag == 513 && format == kUnsignedLong && count == 1)
       jpeg_offset = uint32(data);
