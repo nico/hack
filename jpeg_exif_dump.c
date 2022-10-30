@@ -467,6 +467,15 @@ static void tiff_dump_sensitivity_type(const struct TiffState* tiff_state,
   }
 }
 
+static void tiff_dump_exif_version(uint16_t format,
+                                   uint32_t count,
+                                   const void* data) {
+  if (!tiff_has_format_and_count(format, kUndefined, count, 4))
+    return;
+
+  const char* version = (const char*)data;
+  printf(" (%c%c.%c%c)", version[0], version[1], version[2], version[3]);
+}
 // Returns offset to next IFD, or 0 if none.
 static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
                                   uint32_t ifd_offset) {
@@ -554,6 +563,8 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
       tiff_dump_exposure_program(tiff_state, format, count, data);
     else if (tag == 34864)
       tiff_dump_sensitivity_type(tiff_state, format, count, data);
+    else if (tag == 36864)
+      tiff_dump_exif_version(format, count, data);
 
     if (tag == 513 && format == kUnsignedLong && count == 1)
       jpeg_offset = uint32(data);
