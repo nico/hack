@@ -537,6 +537,86 @@ static void tiff_dump_light_source(const struct TiffState* tiff_state,
   // clang-format on
 }
 
+static void tiff_dump_flash(const struct TiffState* tiff_state,
+                            uint16_t format,
+                            uint32_t count,
+                            const void* data) {
+  if (!tiff_has_format_and_count(format, kUnsignedShort, count, 1))
+    return;
+
+  uint16_t flash = tiff_state->uint16(data);
+
+  bool flash_fired = flash & 1;
+
+  enum {
+    no_strobe_return_function,
+    reserved,
+    strobe_return_light_not_detected,
+    strobe_return_light_detected,
+  } flash_return = (flash >> 1) & 3;
+
+  enum {
+    unknown,
+    compulsory_flash_firing,
+    compulsory_flash_suppression,
+    auto_mode,
+  } flash_mode = (flash >> 3) & 3;
+
+  bool flash_function_present = !(flash & 0x20);
+
+  bool red_eye_reduction_supported = flash & 0x40;
+
+  printf(" (");
+
+  if (flash_fired)
+    printf("flash fired");
+  else
+    printf("flash did not fire");
+
+  switch (flash_return) {
+    case no_strobe_return_function:
+      printf(", no strobe return function");
+      break;
+    case reserved:
+      printf(", reserved");
+      break;
+    case strobe_return_light_not_detected:
+      printf(", strobe return light not detected");
+      break;
+    case strobe_return_light_detected:
+      printf(", strobe return light detected");
+      break;
+  }
+
+  printf(", flash mode ");
+  switch (flash_mode) {
+    case unknown:
+      printf("unknown");
+      break;
+    case compulsory_flash_firing:
+      printf("on");
+      break;
+    case compulsory_flash_suppression:
+      printf("off");
+      break;
+    case auto_mode:
+      printf("auto");
+      break;
+  }
+
+  if (flash_function_present)
+    printf(", flash present");
+  else
+    printf(", no flash present");
+
+  if (red_eye_reduction_supported)
+    printf(", red-eye reduction supported");
+  else
+    printf(", no red-eye reduction mode or unknown");
+
+  printf(")");
+}
+
 static void tiff_dump_color_space(const struct TiffState* tiff_state,
                                   uint16_t format,
                                   uint32_t count,
@@ -647,6 +727,8 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
       tiff_dump_metering_mode(tiff_state, format, count, data);
     else if (tag == 37384)
       tiff_dump_light_source(tiff_state, format, count, data);
+    else if (tag == 37385)
+      tiff_dump_flash(tiff_state, format, count, data);
     else if (tag == 40961)
       tiff_dump_color_space(tiff_state, format, count, data);
 
