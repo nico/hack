@@ -307,7 +307,10 @@ struct TiffState {
   struct Options* options;
 };
 
-static bool tiff_has_format_and_count(uint16_t format, uint16_t expected_format, uint32_t count, uint32_t expected_count) {
+static bool tiff_has_format_and_count(uint16_t format,
+                                      uint16_t expected_format,
+                                      uint32_t count,
+                                      uint32_t expected_count) {
   if (format != expected_format) {
     printf(" (invalid format %d, wanted %d)", format, expected_format);
     return false;
@@ -375,6 +378,51 @@ static void tiff_dump_ycbcr_positioning(const struct TiffState* tiff_state,
     default: printf(" (unknown value)");
   }
   // clang-format on
+}
+
+static void tiff_dump_exposure_program(const struct TiffState* tiff_state,
+                                       uint16_t format,
+                                       uint32_t count,
+                                       const void* data) {
+  if (!tiff_has_format_and_count(format, kUnsignedShort, count, 1))
+    return;
+
+  uint16_t exposure_program = tiff_state->uint16(data);
+  switch (exposure_program) {
+    case 0:
+      printf(" (Not defined)");
+      break;
+    case 1:
+      printf(" (Manual)");
+      break;
+    case 2:
+      printf(" (Normal program)");
+      break;
+    case 3:
+      printf(" (Aperture priority)");
+      break;
+    case 4:
+      printf(" (Shutter priority)");
+      break;
+    case 5:
+      printf(" (Creative program (biased toward depth of field))");
+      break;
+    case 6:
+      printf(" (Action program (biased toward fast shutter speed))");
+      break;
+    case 7:
+      printf(
+          " (Portrait mode (for closeup photos with the background out of "
+          "focus))");
+      break;
+    case 8:
+      printf(
+          " (Landscape mode (for landscape photos with the background in "
+          "focus))");
+      break;
+    default:
+      printf(" (unknown value)");
+  }
 }
 
 // Returns offset to next IFD, or 0 if none.
@@ -460,6 +508,8 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
       tiff_dump_resolution_unit(tiff_state, format, count, data);
     else if (tag == 531)
       tiff_dump_ycbcr_positioning(tiff_state, format, count, data);
+    else if (tag == 34850)
+      tiff_dump_exposure_program(tiff_state, format, count, data);
 
     if (tag == 513 && format == kUnsignedLong && count == 1)
       jpeg_offset = uint32(data);
