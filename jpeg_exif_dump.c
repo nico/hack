@@ -425,6 +425,48 @@ static void tiff_dump_exposure_program(const struct TiffState* tiff_state,
   }
 }
 
+static void tiff_dump_sensitivity_type(const struct TiffState* tiff_state,
+                                       uint16_t format,
+                                       uint32_t count,
+                                       const void* data) {
+  if (!tiff_has_format_and_count(format, kUnsignedShort, count, 1))
+    return;
+
+  uint16_t sensitivity_type = tiff_state->uint16(data);
+  switch (sensitivity_type) {
+    case 0:
+      printf(" (Unknown)");
+      break;
+    case 1:
+      printf(" (Standard output sensitivity (SOS))");
+      break;
+    case 2:
+      printf(" (Recommended exposure index (REI))");
+      break;
+    case 3:
+      printf(" (ISO speed)");
+      break;
+    case 4:
+      printf(
+          " (Standard output sensitivity (SOS) and recommended exposure index "
+          "(REI))");
+      break;
+    case 5:
+      printf(" (Standard output sensitivity (SOS) and ISO speed)");
+      break;
+    case 6:
+      printf(" (Recommended exposure index (REI) and ISO speed");
+      break;
+    case 7:
+      printf(
+          " (Standard output sensitivity (SOS) and recommended exposure index "
+          "(REI) and ISO speed");
+      break;
+    default:
+      printf(" (unknown value)");
+  }
+}
+
 // Returns offset to next IFD, or 0 if none.
 static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
                                   uint32_t ifd_offset) {
@@ -510,6 +552,8 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
       tiff_dump_ycbcr_positioning(tiff_state, format, count, data);
     else if (tag == 34850)
       tiff_dump_exposure_program(tiff_state, format, count, data);
+    else if (tag == 34864)
+      tiff_dump_sensitivity_type(tiff_state, format, count, data);
 
     if (tag == 513 && format == kUnsignedLong && count == 1)
       jpeg_offset = uint32(data);
