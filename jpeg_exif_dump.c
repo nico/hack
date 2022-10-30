@@ -634,6 +634,29 @@ static void tiff_dump_color_space(const struct TiffState* tiff_state,
   // clang-format on
 }
 
+static void tiff_dump_sensing_method(const struct TiffState* tiff_state,
+                                     uint16_t format,
+                                     uint32_t count,
+                                     const void* data) {
+  if (!tiff_has_format_and_count(format, kUnsignedShort, count, 1))
+    return;
+
+  uint16_t sensing_method = tiff_state->uint16(data);
+  // clang-format off
+  switch (sensing_method) {
+    case 1: printf(" (Not defined)"); break;
+    case 2: printf(" (One-chip color area sensor)"); break;
+    case 3: printf(" (Two-chip color area sensor)"); break;
+    case 4: printf(" (Three-chip color area sensor)"); break;
+    case 5: printf(" (Color sequential area sensor)"); break;
+    // no 6
+    case 7: printf(" (Trilinear sensor)"); break;
+    case 8: printf(" (Color sequential linear sensor)"); break;
+    default: printf(" (unknown value)");
+  }
+  // clang-format on
+}
+
 static void tiff_dump_file_source(uint16_t format,
                                   uint32_t count,
                                   const void* data) {
@@ -768,6 +791,8 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
       tiff_dump_flash(tiff_state, format, count, data);
     else if (tag == 40961)
       tiff_dump_color_space(tiff_state, format, count, data);
+    else if (tag == 41495)
+      tiff_dump_sensing_method(tiff_state, format, count, data);
     else if (tag == 41728)
       tiff_dump_file_source(format, count, data);
     else if (tag == 41729)
