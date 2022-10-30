@@ -500,6 +500,43 @@ static void tiff_dump_metering_mode(const struct TiffState* tiff_state,
   // clang-format on
 }
 
+static void tiff_dump_light_source(const struct TiffState* tiff_state,
+                                   uint16_t format,
+                                   uint32_t count,
+                                   const void* data) {
+  if (!tiff_has_format_and_count(format, kUnsignedShort, count, 1))
+    return;
+
+  uint16_t light_source = tiff_state->uint16(data);
+  // clang-format off
+  switch (light_source) {
+    case 0: printf(" (unknown)"); break;
+    case 1: printf(" (Daylight)"); break;
+    case 2: printf(" (Fluorescent)"); break;
+    case 3: printf(" (Tungsten (incandescent light))"); break;
+    case 4: printf(" (Flash)"); break;
+    case 9: printf(" (Fine weather)"); break;
+    case 10: printf(" (Cloudy weather)"); break;
+    case 11: printf(" (Shade)"); break;
+    case 12: printf(" (Daylight fluorescent (D 5700 - 7100K))"); break;
+    case 13: printf(" (Day white fluorescent (N 4600 - 5500K))"); break;
+    case 14: printf(" (Cool white fluorescent (W 3800 - 4500K))"); break;
+    case 15: printf(" (White fluorescent (WW 3250 - 3800K))"); break;
+    case 16: printf(" (Warm white fluorescent (L 2600 - 3250K))"); break;
+    case 17: printf(" (Standard light A)"); break;
+    case 18: printf(" (Standard light B)"); break;
+    case 19: printf(" (Standard light C)"); break;
+    case 20: printf(" (D55)"); break;
+    case 21: printf(" (D65)"); break;
+    case 22: printf(" (D75)"); break;
+    case 23: printf(" (D50)"); break;
+    case 24: printf(" (ISO studio tungsten)"); break;
+    case 255: printf(" (other light source)"); break;
+    default: printf(" (unknown value)");
+  }
+  // clang-format on
+}
+
 // Returns offset to next IFD, or 0 if none.
 static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
                                   uint32_t ifd_offset) {
@@ -591,6 +628,8 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
       tiff_dump_exif_version(format, count, data);
     else if (tag == 37383)
       tiff_dump_metering_mode(tiff_state, format, count, data);
+    else if (tag == 37384)
+      tiff_dump_light_source(tiff_state, format, count, data);
 
     if (tag == 513 && format == kUnsignedLong && count == 1)
       jpeg_offset = uint32(data);
