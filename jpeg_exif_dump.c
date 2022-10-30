@@ -1613,7 +1613,7 @@ static void jpeg_dump_xmp_extension(struct Options* options,
                                     uint16_t size) {
   // See section 1.1.3.1 in:
   // https://github.com/adobe/xmp-docs/blob/master/XMPSpecifications/XMPSpecificationPart3.pdf
-  const size_t guid_size = 32;
+  const int guid_size = 32;
   const size_t prefix_size =
       sizeof(uint16_t) + sizeof("http://ns.adobe.com/xmp/extension/");
   const size_t header_size = prefix_size + guid_size + 2 * sizeof(uint32_t);
@@ -1622,7 +1622,7 @@ static void jpeg_dump_xmp_extension(struct Options* options,
            size);
     return;
   }
-  iprintf(options, "guid %.32s\n", begin + prefix_size);
+  iprintf(options, "guid %.*s\n", guid_size, begin + prefix_size);
   uint32_t total_data_size = be_uint32(begin + prefix_size + guid_size);
   uint32_t data_offset =
       be_uint32(begin + prefix_size + guid_size + sizeof(uint32_t));
