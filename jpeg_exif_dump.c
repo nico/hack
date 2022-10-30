@@ -563,7 +563,7 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
       tiff_dump_exposure_program(tiff_state, format, count, data);
     else if (tag == 34864)
       tiff_dump_sensitivity_type(tiff_state, format, count, data);
-    else if (tag == 36864)
+    else if (tag == 36864 || tag == 40960)
       tiff_dump_exif_version(format, count, data);
 
     if (tag == 513 && format == kUnsignedLong && count == 1)
