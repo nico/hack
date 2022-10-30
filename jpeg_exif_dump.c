@@ -713,7 +713,7 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
     // That's harmless in practice, but a bit yucky.
     if (tag == 274)
       tiff_dump_image_orientation(tiff_state, format, count, data);
-    else if (tag == 296)
+    else if (tag == 296 || tag == 41488)
       tiff_dump_resolution_unit(tiff_state, format, count, data);
     else if (tag == 531)
       tiff_dump_ycbcr_positioning(tiff_state, format, count, data);
