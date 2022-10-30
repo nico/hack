@@ -654,6 +654,23 @@ static void tiff_dump_file_source(uint16_t format,
   printf(")");
 }
 
+static void tiff_dump_scene_type(uint16_t format,
+                                 uint32_t count,
+                                 const void* data) {
+  if (!tiff_has_format_and_count(format, kUndefined, count, 1))
+    return;
+
+  uint8_t scene_type = *(const uint8_t*)data;
+  printf(" (%d, ", scene_type);
+  // clang-format off
+  switch (scene_type) {
+    case 1: printf("directly photographed image"); break;
+    default: printf("unknown value");
+  }
+  // clang-format on
+  printf(")");
+}
+
 // Returns offset to next IFD, or 0 if none.
 static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
                                   uint32_t ifd_offset) {
@@ -753,6 +770,8 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
       tiff_dump_color_space(tiff_state, format, count, data);
     else if (tag == 41728)
       tiff_dump_file_source(format, count, data);
+    else if (tag == 41729)
+      tiff_dump_scene_type(format, count, data);
 
 
     if (tag == 513 && format == kUnsignedLong && count == 1)
