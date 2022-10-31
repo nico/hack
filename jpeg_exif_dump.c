@@ -951,6 +951,55 @@ static void tiff_dump_subject_distance_range(const struct TiffState* tiff_state,
   // clang-format on
 }
 
+static void tiff_dump_fraction(uint32_t numerator, uint32_t denominator) {
+  if (denominator == 1)
+    printf("%u", numerator);
+  else if (denominator != 0)
+    printf("%f", numerator / (double)denominator);
+  else
+    printf("%u/%u", numerator, denominator);
+}
+
+static void tiff_dump_lens_specification(const struct TiffState* tiff_state,
+                                         uint16_t format,
+                                         uint32_t count,
+                                         const void* data) {
+  if (!tiff_has_format_and_count(format, kUnsignedRational, count, 4))
+    return;
+
+  const uint8_t* p = (const uint8_t*)data;
+  uint32_t min_focal_length_mm_numerator = tiff_state->uint32(p);
+  uint32_t min_focal_length_mm_denominator = tiff_state->uint32(p + 4);
+
+  uint32_t max_focal_length_mm_numerator = tiff_state->uint32(p + 8);
+  uint32_t max_focal_length_mm_denominator = tiff_state->uint32(p + 12);
+
+  uint32_t min_f_num_at_min_focal_len_numerator = tiff_state->uint32(p + 16);
+  uint32_t min_f_num_at_min_focal_len_denominator = tiff_state->uint32(p + 20);
+
+  uint32_t min_f_num_at_max_focal_len_numerator = tiff_state->uint32(p + 24);
+  uint32_t min_f_num_at_max_focal_len_denominator = tiff_state->uint32(p + 28);
+
+  printf(" (focal length ");
+
+  tiff_dump_fraction(min_focal_length_mm_numerator,
+                     min_focal_length_mm_denominator);
+  printf(" - ");
+
+  tiff_dump_fraction(max_focal_length_mm_numerator,
+                     max_focal_length_mm_denominator);
+  printf(" mm, min f numbers ");
+
+  tiff_dump_fraction(min_f_num_at_min_focal_len_numerator,
+                     min_f_num_at_min_focal_len_denominator);
+  printf(" at min, ");
+
+  tiff_dump_fraction(min_f_num_at_max_focal_len_numerator,
+                     min_f_num_at_max_focal_len_denominator);
+
+  printf(" at max)");
+}
+
 static void tiff_dump_composite_image(const struct TiffState* tiff_state,
                                       uint16_t format,
                                       uint32_t count,
@@ -1024,17 +1073,10 @@ static void tiff_dump_extra_exif_tag_info(const struct TiffState* tiff_state,
     tiff_dump_sharpness(tiff_state, format, count, data);
   else if (tag == 41996)
     tiff_dump_subject_distance_range(tiff_state, format, count, data);
+  else if (tag == 42034)
+    tiff_dump_lens_specification(tiff_state, format, count, data);
   else if (tag == 42080)
     tiff_dump_composite_image(tiff_state, format, count, data);
-}
-
-static void tiff_dump_fraction(uint32_t numerator, uint32_t denominator) {
-  if (denominator == 1)
-    printf("%u", numerator);
-  else if (denominator != 0)
-    printf("%f", numerator / (double)denominator);
-  else
-    printf("%u/%u", numerator, denominator);
 }
 
 static void tiff_dump_exif_gps_position(const struct TiffState* tiff_state,
