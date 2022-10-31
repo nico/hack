@@ -825,6 +825,80 @@ static void tiff_dump_scene_capture_type(const struct TiffState* tiff_state,
   // clang-format on
 }
 
+static void tiff_dump_gain_control(const struct TiffState* tiff_state,
+                                   uint16_t format,
+                                   uint32_t count,
+                                   const void* data) {
+  if (!tiff_has_format_and_count(format, kUnsignedShort, count, 1))
+    return;
+
+  uint16_t gain_control = tiff_state->uint16(data);
+  // clang-format off
+  switch (gain_control) {
+    case 0: printf(" (None)"); break;
+    case 1: printf(" (Low gain up)"); break;
+    case 2: printf(" (High gain up)"); break;
+    case 3: printf(" (Low gain down)"); break;
+    case 4: printf(" (High gain down)"); break;
+    default: printf(" (unknown value)");
+  }
+  // clang-format on
+}
+
+static void tiff_dump_contrast(const struct TiffState* tiff_state,
+                               uint16_t format,
+                               uint32_t count,
+                               const void* data) {
+  if (!tiff_has_format_and_count(format, kUnsignedShort, count, 1))
+    return;
+
+  uint16_t contrast = tiff_state->uint16(data);
+  // clang-format off
+  switch (contrast) {
+    case 0: printf(" (Normal)"); break;
+    case 1: printf(" (Soft)"); break;
+    case 2: printf(" (Hard)"); break;
+    default: printf(" (unknown value)");
+  }
+  // clang-format on
+}
+
+static void tiff_dump_saturation(const struct TiffState* tiff_state,
+                                 uint16_t format,
+                                 uint32_t count,
+                                 const void* data) {
+  if (!tiff_has_format_and_count(format, kUnsignedShort, count, 1))
+    return;
+
+  uint16_t saturation = tiff_state->uint16(data);
+  // clang-format off
+  switch (saturation) {
+    case 0: printf(" (Normal)"); break;
+    case 1: printf(" (Low saturation)"); break;
+    case 2: printf(" (High saturation)"); break;
+    default: printf(" (unknown value)");
+  }
+  // clang-format on
+}
+
+static void tiff_dump_sharpness(const struct TiffState* tiff_state,
+                                uint16_t format,
+                                uint32_t count,
+                                const void* data) {
+  if (!tiff_has_format_and_count(format, kUnsignedShort, count, 1))
+    return;
+
+  uint16_t sharpness = tiff_state->uint16(data);
+  // clang-format off
+  switch (sharpness) {
+    case 0: printf(" (Normal)"); break;
+    case 1: printf(" (Soft)"); break;
+    case 2: printf(" (Hard)"); break;
+    default: printf(" (unknown value)");
+  }
+  // clang-format on
+}
+
 static void tiff_dump_extra_exif_tag_info(const struct TiffState* tiff_state,
                                           uint16_t tag,
                                           uint16_t format,
@@ -868,6 +942,14 @@ static void tiff_dump_extra_exif_tag_info(const struct TiffState* tiff_state,
     tiff_dump_white_balance(tiff_state, format, count, data);
   else if (tag == 41990)
     tiff_dump_scene_capture_type(tiff_state, format, count, data);
+  else if (tag == 41991)
+    tiff_dump_gain_control(tiff_state, format, count, data);
+  else if (tag == 41992)
+    tiff_dump_contrast(tiff_state, format, count, data);
+  else if (tag == 41993)
+    tiff_dump_saturation(tiff_state, format, count, data);
+  else if (tag == 41994)
+    tiff_dump_sharpness(tiff_state, format, count, data);
 }
 
 static void tiff_dump_fraction(uint32_t numerator, uint32_t denominator) {
