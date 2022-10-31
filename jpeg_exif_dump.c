@@ -16,7 +16,7 @@
 
 // Dumps metadata in jpeg files.
 // Fairly complete:
-// * Exif (missing custom dumpers for a few tags, such as gps pos)
+// * Exif (missing custom dumpers for a few tags)
 // * XMP (could parse XML and combine xmp extension chunks into a single
 //       doc, also could interpret some of the base64 data in here for Pixel
 //       jpegs)
@@ -732,6 +732,55 @@ static void tiff_dump_extra_exif_tag_info(const struct TiffState* tiff_state,
     tiff_dump_scene_type(format, count, data);
 }
 
+static void tiff_dump_fraction(uint32_t numerator, uint32_t denominator) {
+  if (denominator == 1)
+    printf("%u", numerator);
+  else if (denominator != 0)
+    printf("%f", numerator / (double)denominator);
+  else
+    printf("%u/%u", numerator, denominator);
+}
+
+static void tiff_dump_exif_gps_position(const struct TiffState* tiff_state,
+                                        uint16_t format,
+                                        uint32_t count,
+                                        const void* data) {
+  if (!tiff_has_format_and_count(format, kUnsignedRational, count, 3))
+    return;
+
+  const uint8_t* p = (const uint8_t*)data;
+  uint32_t degrees_numerator = tiff_state->uint32(p);
+  uint32_t degrees_denominator = tiff_state->uint32(p + 4);
+
+  uint32_t minutes_numerator = tiff_state->uint32(p + 8);
+  uint32_t minutes_denominator = tiff_state->uint32(p + 12);
+
+  uint32_t seconds_numerator = tiff_state->uint32(p + 16);
+  uint32_t seconds_denominator = tiff_state->uint32(p + 20);
+
+  printf(" (");
+
+  tiff_dump_fraction(degrees_numerator, degrees_denominator);
+  printf("°");
+
+  tiff_dump_fraction(minutes_numerator, minutes_denominator);
+  printf("′");
+
+  tiff_dump_fraction(seconds_numerator, seconds_denominator);
+  printf("″");
+
+  printf(")");
+}
+
+static void tiff_dump_extra_gps_tag_info(const struct TiffState* tiff_state,
+                                         uint16_t tag,
+                                         uint16_t format,
+                                         uint32_t count,
+                                         const void* data) {
+  if (tag == 2 || tag == 4)
+    tiff_dump_exif_gps_position(tiff_state, format, count, data);
+}
+
 static void tiff_dump_extra_interoperability_tag_info(
     const struct TiffState* tiff_state,
     uint16_t tag,
@@ -852,6 +901,7 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
     increase_indent(options);
     struct TiffState gps_tiff_state = *tiff_state;
     gps_tiff_state.tag_name = tiff_gps_tag_name;
+    gps_tiff_state.dump_extra_tag_info = tiff_dump_extra_gps_tag_info;
     uint32_t next = tiff_dump_one_ifd(&gps_tiff_state, gps_info_ifd_offset);
     if (next != 0)
       iprintf(options, "unexpected next IFD at %d, skipping\n", next);
