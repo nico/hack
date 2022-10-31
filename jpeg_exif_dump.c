@@ -213,6 +213,7 @@ static const char* tiff_tag_name(uint16_t tag) {
     case 37386: return "FocalLength";
     case 37396: return "SubjectArea";
     case 37500: return "MakerNote";
+    case 37510: return "UserComment";
     case 37520: return "SubsecTime";
     case 37521: return "SubsecTimeOriginal";
     case 37522: return "SubsecTimeDigitized";
@@ -647,6 +648,35 @@ static void tiff_dump_flash(const struct TiffState* tiff_state,
   printf(")");
 }
 
+static void tiff_dump_user_comment(uint16_t format,
+                                   uint32_t count,
+                                   const void* data) {
+  if (format != kUndefined) {
+    printf(" (invalid format %d, wanted %d)", format, kUndefined);
+    return;
+  }
+  if (count < 8) {
+    printf(" (invalid count %d, wanted at least 8)", count);
+    return;
+  }
+
+  printf(" (");
+  if (memcmp(data, "ASCII\0\0", 8) == 0) {
+    printf("ASCII: '%.*s'", count - 8, (const char*)data);
+  } else if (memcmp(data, "JIS\0\0\0\0", 8) == 0) {
+    printf("JIS");  // TODO: convert, print?
+  } else if (memcmp(data, "UNICODE", 8) == 0) {
+    // TODO: convert, print? DC-008 doesn't say what "Unicode" means here --
+    // I suppose either UCS-2 or UTF-16.
+    printf("UNICODE: ");
+  } else if (memcmp(data, "\0\0\0\0\0\0\0", 8) == 0) {
+    printf("Undefined encoding");
+  } else {
+    printf("Unknown encoding '%.8s'", (const char*)data);
+  }
+  printf(")");
+}
+
 static void tiff_dump_color_space(const struct TiffState* tiff_state,
                                   uint16_t format,
                                   uint32_t count,
@@ -749,6 +779,8 @@ static void tiff_dump_extra_exif_tag_info(const struct TiffState* tiff_state,
     tiff_dump_light_source(tiff_state, format, count, data);
   else if (tag == 37385)
     tiff_dump_flash(tiff_state, format, count, data);
+  else if (tag == 37510)
+    tiff_dump_user_comment(format, count, data);
   else if (tag == 40961)
     tiff_dump_color_space(tiff_state, format, count, data);
   else if (tag == 41495)
