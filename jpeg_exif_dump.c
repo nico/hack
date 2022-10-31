@@ -732,6 +732,17 @@ static void tiff_dump_extra_exif_tag_info(const struct TiffState* tiff_state,
     tiff_dump_scene_type(format, count, data);
 }
 
+static void tiff_dump_extra_interopability_tag_info(
+    const struct TiffState* tiff_state,
+    uint16_t tag,
+    uint16_t format,
+    uint32_t count,
+    const void* data) {
+  (void)tiff_state;
+  if (tag == 2)
+    tiff_dump_exif_version(format, count, data);
+}
+
 // Returns offset to next IFD, or 0 if none.
 static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
                                   uint32_t ifd_offset) {
@@ -851,6 +862,8 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
     increase_indent(options);
     struct TiffState interopability_tiff_state = *tiff_state;
     interopability_tiff_state.tag_name = tiff_interopability_tag_name;
+    interopability_tiff_state.dump_extra_tag_info =
+        tiff_dump_extra_interopability_tag_info;
     uint32_t next = tiff_dump_one_ifd(&interopability_tiff_state,
                                       interopability_ifd_offset);
     if (next != 0)
