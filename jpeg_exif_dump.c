@@ -482,6 +482,31 @@ static void tiff_dump_exif_version(uint16_t format,
   printf(" (%c%c.%c%c)", version[0], version[1], version[2], version[3]);
 }
 
+static void tiff_dump_components_configuration(uint16_t format,
+                                               uint32_t count,
+                                               const void* data) {
+  if (!tiff_has_format_and_count(format, kUndefined, count, 4))
+    return;
+
+  printf(" (");
+  const uint8_t* components = (const uint8_t*)data;
+  for (int i = 0; i < 4; ++i) {
+    // clang-format off
+    switch(components[i]) {
+      case 0: printf("."); break;
+      case 1: printf("Y"); break;
+      case 2: printf("Cb"); break;
+      case 3: printf("Cr"); break;
+      case 4: printf("R"); break;
+      case 5: printf("G"); break;
+      case 6: printf("B"); break;
+      default: printf("?");
+    }
+    // clang-format on
+  }
+  printf(")");
+}
+
 static void tiff_dump_metering_mode(const struct TiffState* tiff_state,
                                     uint16_t format,
                                     uint32_t count,
@@ -716,6 +741,8 @@ static void tiff_dump_extra_exif_tag_info(const struct TiffState* tiff_state,
     tiff_dump_sensitivity_type(tiff_state, format, count, data);
   else if (tag == 36864 || tag == 40960)
     tiff_dump_exif_version(format, count, data);
+  else if (tag == 37121)
+    tiff_dump_components_configuration(format, count, data);
   else if (tag == 37383)
     tiff_dump_metering_mode(tiff_state, format, count, data);
   else if (tag == 37384)
