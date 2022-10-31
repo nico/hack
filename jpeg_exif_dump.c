@@ -287,12 +287,12 @@ static const char* tiff_gps_tag_name(uint16_t tag) {
   // clang-format on
 }
 
-// The Interopability IFD has its own tag namespace.
-static const char* tiff_interopability_tag_name(uint16_t tag) {
+// The Interoperability IFD has its own tag namespace.
+static const char* tiff_interoperability_tag_name(uint16_t tag) {
   // clang-format off
   switch (tag) {
-    case 1: return "InteropabilityIndex";
-    case 2: return "InteropabilityVersion";
+    case 1: return "InteroperabilityIndex";
+    case 2: return "InteroperabilityVersion";
     default: return NULL;
   }
   // clang-format on
@@ -732,7 +732,7 @@ static void tiff_dump_extra_exif_tag_info(const struct TiffState* tiff_state,
     tiff_dump_scene_type(format, count, data);
 }
 
-static void tiff_dump_extra_interopability_tag_info(
+static void tiff_dump_extra_interoperability_tag_info(
     const struct TiffState* tiff_state,
     uint16_t tag,
     uint16_t format,
@@ -768,7 +768,7 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
   uint32_t jpeg_length = 0;
   uint32_t exif_ifd_offset = 0;
   uint32_t gps_info_ifd_offset = 0;
-  uint32_t interopability_ifd_offset = 0;
+  uint32_t interoperability_ifd_offset = 0;
 
   for (unsigned i = 0; i < num_ifd_entries; ++i) {
     size_t this_ifd_offset = ifd_offset + 2 + i * 12;
@@ -827,7 +827,7 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
     else if (tag == 34853 && format == kUnsignedLong && count == 1)
       gps_info_ifd_offset = uint32(data);
     else if (tag == 40965 && format == kUnsignedLong && count == 1)
-      interopability_ifd_offset = uint32(data);
+      interoperability_ifd_offset = uint32(data);
 
     printf("\n");
   }
@@ -857,15 +857,15 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
       iprintf(options, "unexpected next IFD at %d, skipping\n", next);
     decrease_indent(options);
   }
-  if (interopability_ifd_offset != 0) {
-    iprintf(options, "Interopability IFD:\n");
+  if (interoperability_ifd_offset != 0) {
+    iprintf(options, "interoperability IFD:\n");
     increase_indent(options);
-    struct TiffState interopability_tiff_state = *tiff_state;
-    interopability_tiff_state.tag_name = tiff_interopability_tag_name;
-    interopability_tiff_state.dump_extra_tag_info =
-        tiff_dump_extra_interopability_tag_info;
-    uint32_t next = tiff_dump_one_ifd(&interopability_tiff_state,
-                                      interopability_ifd_offset);
+    struct TiffState interoperability_tiff_state = *tiff_state;
+    interoperability_tiff_state.tag_name = tiff_interoperability_tag_name;
+    interoperability_tiff_state.dump_extra_tag_info =
+        tiff_dump_extra_interoperability_tag_info;
+    uint32_t next = tiff_dump_one_ifd(&interoperability_tiff_state,
+                                      interoperability_ifd_offset);
     if (next != 0)
       iprintf(options, "unexpected next IFD at %d, skipping\n", next);
     decrease_indent(options);
