@@ -984,10 +984,14 @@ static void tiff_dump_lens_specification(const struct TiffState* tiff_state,
 
   tiff_dump_fraction(min_focal_length_mm_numerator,
                      min_focal_length_mm_denominator);
-  printf(" - ");
 
-  tiff_dump_fraction(max_focal_length_mm_numerator,
-                     max_focal_length_mm_denominator);
+  if (max_focal_length_mm_numerator != min_focal_length_mm_numerator ||
+      max_focal_length_mm_denominator != min_focal_length_mm_denominator) {
+    printf(" - ");
+    tiff_dump_fraction(max_focal_length_mm_numerator,
+                       max_focal_length_mm_denominator);
+  }
+
   printf(" mm, min f numbers ");
 
   tiff_dump_fraction(min_f_num_at_min_focal_len_numerator,
