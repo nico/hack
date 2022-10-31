@@ -899,6 +899,43 @@ static void tiff_dump_sharpness(const struct TiffState* tiff_state,
   // clang-format on
 }
 
+static void tiff_dump_subject_distance_range(const struct TiffState* tiff_state,
+                                             uint16_t format,
+                                             uint32_t count,
+                                             const void* data) {
+  if (!tiff_has_format_and_count(format, kUnsignedShort, count, 1))
+    return;
+
+  uint16_t subject_distance_range = tiff_state->uint16(data);
+  // clang-format off
+  switch (subject_distance_range) {
+    case 0: printf(" (unknown)"); break;
+    case 1: printf(" (Macro)"); break;
+    case 2: printf(" (Close view)"); break;
+    case 3: printf(" (Distant view)"); break;
+    default: printf(" (unknown value)");
+  }
+  // clang-format on
+}
+
+static void tiff_dump_composite_image(const struct TiffState* tiff_state,
+                                      uint16_t format,
+                                      uint32_t count,
+                                      const void* data) {
+  if (!tiff_has_format_and_count(format, kUnsignedShort, count, 1))
+    return;
+
+  uint16_t composite_image = tiff_state->uint16(data);
+  // clang-format off
+  switch (composite_image) {
+    case 1: printf(" (non-composite image)"); break;
+    case 2: printf(" (General composite image)"); break;
+    case 3: printf(" (Composite image captured while shooting)"); break;
+    default: printf(" (unknown value)");
+  }
+  // clang-format on
+}
+
 static void tiff_dump_extra_exif_tag_info(const struct TiffState* tiff_state,
                                           uint16_t tag,
                                           uint16_t format,
@@ -950,6 +987,10 @@ static void tiff_dump_extra_exif_tag_info(const struct TiffState* tiff_state,
     tiff_dump_saturation(tiff_state, format, count, data);
   else if (tag == 41994)
     tiff_dump_sharpness(tiff_state, format, count, data);
+  else if (tag == 41996)
+    tiff_dump_subject_distance_range(tiff_state, format, count, data);
+  else if (tag == 42080)
+    tiff_dump_composite_image(tiff_state, format, count, data);
 }
 
 static void tiff_dump_fraction(uint32_t numerator, uint32_t denominator) {
