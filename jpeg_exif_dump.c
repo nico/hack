@@ -304,6 +304,11 @@ struct TiffState {
   uint16_t (*uint16)(const uint8_t*);
   uint32_t (*uint32)(const uint8_t*);
   const char* (*tag_name)(uint16_t);
+  void (*dump_extra_tag_info)(const struct TiffState*,
+                              uint16_t,
+                              uint16_t,
+                              uint32_t,
+                              const void*);
   struct Options* options;
 };
 
@@ -694,6 +699,39 @@ static void tiff_dump_scene_type(uint16_t format,
   printf(")");
 }
 
+static void tiff_dump_extra_exif_tag_info(const struct TiffState* tiff_state,
+                                          uint16_t tag,
+                                          uint16_t format,
+                                          uint32_t count,
+                                          const void* data) {
+  if (tag == 274)
+    tiff_dump_image_orientation(tiff_state, format, count, data);
+  else if (tag == 296 || tag == 41488)
+    tiff_dump_resolution_unit(tiff_state, format, count, data);
+  else if (tag == 531)
+    tiff_dump_ycbcr_positioning(tiff_state, format, count, data);
+  else if (tag == 34850)
+    tiff_dump_exposure_program(tiff_state, format, count, data);
+  else if (tag == 34864)
+    tiff_dump_sensitivity_type(tiff_state, format, count, data);
+  else if (tag == 36864 || tag == 40960)
+    tiff_dump_exif_version(format, count, data);
+  else if (tag == 37383)
+    tiff_dump_metering_mode(tiff_state, format, count, data);
+  else if (tag == 37384)
+    tiff_dump_light_source(tiff_state, format, count, data);
+  else if (tag == 37385)
+    tiff_dump_flash(tiff_state, format, count, data);
+  else if (tag == 40961)
+    tiff_dump_color_space(tiff_state, format, count, data);
+  else if (tag == 41495)
+    tiff_dump_sensing_method(tiff_state, format, count, data);
+  else if (tag == 41728)
+    tiff_dump_file_source(format, count, data);
+  else if (tag == 41729)
+    tiff_dump_scene_type(format, count, data);
+}
+
 // Returns offset to next IFD, or 0 if none.
 static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
                                   uint32_t ifd_offset) {
@@ -767,37 +805,7 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
         printf(" (%.3f)", numerator / (double)denominator);
     }
 
-    // TODO: Make this more table-driven.
-    // In addition of being generally nicer, there are several tag namespaces
-    // (EXIF, GPS, Interopability, maybe more), and currently this mixes them.
-    // That's harmless in practice, but a bit yucky.
-    if (tag == 274)
-      tiff_dump_image_orientation(tiff_state, format, count, data);
-    else if (tag == 296 || tag == 41488)
-      tiff_dump_resolution_unit(tiff_state, format, count, data);
-    else if (tag == 531)
-      tiff_dump_ycbcr_positioning(tiff_state, format, count, data);
-    else if (tag == 34850)
-      tiff_dump_exposure_program(tiff_state, format, count, data);
-    else if (tag == 34864)
-      tiff_dump_sensitivity_type(tiff_state, format, count, data);
-    else if (tag == 36864 || tag == 40960)
-      tiff_dump_exif_version(format, count, data);
-    else if (tag == 37383)
-      tiff_dump_metering_mode(tiff_state, format, count, data);
-    else if (tag == 37384)
-      tiff_dump_light_source(tiff_state, format, count, data);
-    else if (tag == 37385)
-      tiff_dump_flash(tiff_state, format, count, data);
-    else if (tag == 40961)
-      tiff_dump_color_space(tiff_state, format, count, data);
-    else if (tag == 41495)
-      tiff_dump_sensing_method(tiff_state, format, count, data);
-    else if (tag == 41728)
-      tiff_dump_file_source(format, count, data);
-    else if (tag == 41729)
-      tiff_dump_scene_type(format, count, data);
-
+    tiff_state->dump_extra_tag_info(tiff_state, tag, format, count, data);
 
     if (tag == 513 && format == kUnsignedLong && count == 1)
       jpeg_offset = uint32(data);
@@ -909,6 +917,7 @@ static void tiff_dump(struct Options* options,
       .uint16 = uint16,
       .uint32 = uint32,
       .tag_name = tiff_tag_name,
+      .dump_extra_tag_info = tiff_dump_extra_exif_tag_info,
       .options = options,
   };
   do {
