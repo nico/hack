@@ -754,6 +754,24 @@ static void tiff_dump_scene_type(uint16_t format,
   printf(")");
 }
 
+static void tiff_dump_custom_rendered(const struct TiffState* tiff_state,
+                                      uint16_t format,
+                                      uint32_t count,
+                                      const void* data) {
+  if (!tiff_has_format_and_count(format, kUnsignedShort, count, 1))
+    return;
+
+  uint16_t custom_rendered = tiff_state->uint16(data);
+  // clang-format off
+  switch (custom_rendered) {
+    case 0: printf(" (Normal process)"); break;
+    case 1: printf(" (Custom process)"); break;
+    default: printf(" (unknown value)");
+  }
+  // clang-format on
+}
+
+
 static void tiff_dump_extra_exif_tag_info(const struct TiffState* tiff_state,
                                           uint16_t tag,
                                           uint16_t format,
@@ -789,6 +807,8 @@ static void tiff_dump_extra_exif_tag_info(const struct TiffState* tiff_state,
     tiff_dump_file_source(format, count, data);
   else if (tag == 41729)
     tiff_dump_scene_type(format, count, data);
+  else if (tag == 41985)
+    tiff_dump_custom_rendered(tiff_state, format, count, data);
 }
 
 static void tiff_dump_fraction(uint32_t numerator, uint32_t denominator) {
