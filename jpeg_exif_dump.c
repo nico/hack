@@ -771,6 +771,59 @@ static void tiff_dump_custom_rendered(const struct TiffState* tiff_state,
   // clang-format on
 }
 
+static void tiff_dump_exposure_mode(const struct TiffState* tiff_state,
+                                    uint16_t format,
+                                    uint32_t count,
+                                    const void* data) {
+  if (!tiff_has_format_and_count(format, kUnsignedShort, count, 1))
+    return;
+
+  uint16_t exposure_mode = tiff_state->uint16(data);
+  // clang-format off
+  switch (exposure_mode) {
+    case 0: printf(" (Auto exposure)"); break;
+    case 1: printf(" (Manual exposure)"); break;
+    case 2: printf(" (Auto bracket)"); break;
+    default: printf(" (unknown value)");
+  }
+  // clang-format on
+}
+
+static void tiff_dump_white_balance(const struct TiffState* tiff_state,
+                                    uint16_t format,
+                                    uint32_t count,
+                                    const void* data) {
+  if (!tiff_has_format_and_count(format, kUnsignedShort, count, 1))
+    return;
+
+  uint16_t white_balance = tiff_state->uint16(data);
+  // clang-format off
+  switch (white_balance) {
+    case 0: printf(" (Auto white balance)"); break;
+    case 1: printf(" (Manual white balance)"); break;
+    default: printf(" (unknown value)");
+  }
+  // clang-format on
+}
+
+static void tiff_dump_scene_capture_type(const struct TiffState* tiff_state,
+                                         uint16_t format,
+                                         uint32_t count,
+                                         const void* data) {
+  if (!tiff_has_format_and_count(format, kUnsignedShort, count, 1))
+    return;
+
+  uint16_t scene_capture_type = tiff_state->uint16(data);
+  // clang-format off
+  switch (scene_capture_type) {
+    case 0: printf(" (Standard)"); break;
+    case 1: printf(" (Landscape)"); break;
+    case 2: printf(" (Portrait)"); break;
+    case 3: printf(" (Night scene)"); break;
+    default: printf(" (unknown value)");
+  }
+  // clang-format on
+}
 
 static void tiff_dump_extra_exif_tag_info(const struct TiffState* tiff_state,
                                           uint16_t tag,
@@ -809,6 +862,12 @@ static void tiff_dump_extra_exif_tag_info(const struct TiffState* tiff_state,
     tiff_dump_scene_type(format, count, data);
   else if (tag == 41985)
     tiff_dump_custom_rendered(tiff_state, format, count, data);
+  else if (tag == 41986)
+    tiff_dump_exposure_mode(tiff_state, format, count, data);
+  else if (tag == 41987)
+    tiff_dump_white_balance(tiff_state, format, count, data);
+  else if (tag == 41990)
+    tiff_dump_scene_capture_type(tiff_state, format, count, data);
 }
 
 static void tiff_dump_fraction(uint32_t numerator, uint32_t denominator) {
