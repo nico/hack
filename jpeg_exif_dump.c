@@ -1125,6 +1125,22 @@ static void tiff_dump_exif_gps_position(const struct TiffState* tiff_state,
   printf(")");
 }
 
+static void tiff_dump_exif_gps_altitude_ref(uint16_t format,
+                                            uint32_t count,
+                                            const void* data) {
+  if (!tiff_has_format_and_count(format, kUnsignedByte, count, 1))
+    return;
+
+  uint8_t gps_altitude_ref = *(const uint8_t*)data;
+  // clang-format off
+  switch (gps_altitude_ref) {
+    case 0: printf(" (meters above sea level)"); break;
+    case 1: printf(" (meters below sea level)"); break;
+    default: printf(" (unknown value)");
+  }
+  // clang-format on
+}
+
 static void tiff_dump_extra_gps_tag_info(const struct TiffState* tiff_state,
                                          uint16_t tag,
                                          uint16_t format,
@@ -1132,6 +1148,8 @@ static void tiff_dump_extra_gps_tag_info(const struct TiffState* tiff_state,
                                          const void* data) {
   if (tag == 2 || tag == 4)
     tiff_dump_exif_gps_position(tiff_state, format, count, data);
+  else if (tag == 5)
+    tiff_dump_exif_gps_altitude_ref(format, count, data);
 }
 
 static void tiff_dump_extra_interoperability_tag_info(
