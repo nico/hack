@@ -992,16 +992,27 @@ static void tiff_dump_lens_specification(const struct TiffState* tiff_state,
                        max_focal_length_mm_denominator);
   }
 
-  printf(" mm, min f numbers ");
+  printf(" mm");
 
-  tiff_dump_fraction(min_f_num_at_min_focal_len_numerator,
-                     min_f_num_at_min_focal_len_denominator);
-  printf(" at min, ");
+  if (min_f_num_at_max_focal_len_numerator !=
+          min_f_num_at_min_focal_len_numerator ||
+      min_f_num_at_max_focal_len_denominator !=
+          min_f_num_at_min_focal_len_denominator) {
+    printf(", min f numbers ");
 
-  tiff_dump_fraction(min_f_num_at_max_focal_len_numerator,
-                     min_f_num_at_max_focal_len_denominator);
+    tiff_dump_fraction(min_f_num_at_min_focal_len_numerator,
+                       min_f_num_at_min_focal_len_denominator);
+    printf(" at min, ");
 
-  printf(" at max)");
+    tiff_dump_fraction(min_f_num_at_max_focal_len_numerator,
+                       min_f_num_at_max_focal_len_denominator);
+    printf(" at max)");
+  } else {
+    printf(", min f number ");
+    tiff_dump_fraction(min_f_num_at_min_focal_len_numerator,
+                       min_f_num_at_min_focal_len_denominator);
+    printf(")");
+  }
 }
 
 static void tiff_dump_composite_image(const struct TiffState* tiff_state,
