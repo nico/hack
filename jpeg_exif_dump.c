@@ -648,6 +648,39 @@ static void tiff_dump_flash(const struct TiffState* tiff_state,
   printf(")");
 }
 
+static void tiff_dump_subject_area(const struct TiffState* tiff_state,
+                                   uint16_t format,
+                                   uint32_t count,
+                                   const void* data) {
+  if (format != kUnsignedShort) {
+    printf(" (invalid format %d, wanted %d)", format, kUnsignedShort);
+    return;
+  }
+  if (count != 2 && count != 3 && count != 4) {
+    printf(" (invalid count %d, wanted 2, 3, or 4)", count);
+    return;
+  }
+
+  const uint8_t* p = (const uint8_t*)data;
+  uint16_t x = tiff_state->uint16(p);
+  uint16_t y = tiff_state->uint16(p + 2);
+  if (count == 2) {
+    printf(" (point: %d, %d)", x, y);
+    return;
+  }
+
+  if (count == 3) {
+    uint16_t d = tiff_state->uint16(p + 4);
+    printf(" (circle at %d, %d with diameter %d)", x, y, d);
+    return;
+  }
+
+  assert(count == 4);
+  uint16_t x2 = tiff_state->uint16(p + 4);
+  uint16_t y2 = tiff_state->uint16(p + 6);
+  printf(" (rect: (%d, %d), (%d, %d))", x, y, x2, y2);
+}
+
 static void tiff_dump_user_comment(uint16_t format,
                                    uint32_t count,
                                    const void* data) {
@@ -961,6 +994,8 @@ static void tiff_dump_extra_exif_tag_info(const struct TiffState* tiff_state,
     tiff_dump_light_source(tiff_state, format, count, data);
   else if (tag == 37385)
     tiff_dump_flash(tiff_state, format, count, data);
+  else if (tag == 37396)
+    tiff_dump_subject_area(tiff_state, format, count, data);
   else if (tag == 37510)
     tiff_dump_user_comment(format, count, data);
   else if (tag == 40961)
