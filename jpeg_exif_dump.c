@@ -16,7 +16,7 @@
 
 // Dumps metadata in jpeg files.
 // Fairly complete:
-// * Exif (missing custom dumpers for a few tags)
+// * Exif
 // * XMP (could parse XML and combine xmp extension chunks into a single
 //       doc, also could interpret some of the base64 data in here for Pixel
 //       jpegs)
@@ -24,6 +24,7 @@
 // * IPTC
 // Still missing:
 // * MPF
+// * Makernote
 
 static void print_usage(FILE* stream, const char* program_name) {
   fprintf(stream, "usage: %s [ options ] filename\n", program_name);
