@@ -31,6 +31,7 @@ static void print_usage(FILE* stream, const char* program_name) {
   fprintf(stream,
           "\n"
           "options:\n"
+          "  -d  --dump  write each embedded jpeg to jpeg-$n.jpg\n"
           "  -h  --help  print this message\n"
           "  -s  --scan  scan for jpeg markers in entire file\n"
           "              (by default, skips marker data)\n");
@@ -81,7 +82,9 @@ static uint32_t le_uint32(const uint8_t* p) {
 struct Options {
   int current_indent;
   bool jpeg_scan;
+
   bool dump_jpegs;
+  int num_jpegs;
 };
 
 static void increase_indent(struct Options* options) {
@@ -2732,7 +2735,6 @@ static void jpeg_dump(struct Options* options,
                       const uint8_t* end) {
   const uint8_t* cur = begin;
 
-  int num_jpegs = 0;
   const uint8_t* cur_start = NULL;
 
   while (cur < end) {
@@ -2800,12 +2802,12 @@ static void jpeg_dump(struct Options* options,
 
         if (options->dump_jpegs) {
           char buf[80];
-          sprintf(buf, "jpeg-%d.jpg", num_jpegs);
+          sprintf(buf, "jpeg-%d.jpg", options->num_jpegs);
           FILE* f = fopen(buf, "wb");
           fwrite(cur_start, (size_t)(cur - cur_start), 1, f);
           fclose(f);
         }
-        ++num_jpegs;
+        ++options->num_jpegs;
 
         break;
       case 0xda:
@@ -2895,15 +2897,20 @@ int main(int argc, char* argv[]) {
       .current_indent = 0,
       .jpeg_scan = false,
       .dump_jpegs = false,
+      .num_jpegs = 0,
   };
   struct option getopt_options[] = {
+      {"dump", no_argument, NULL, 'd'},
       {"help", no_argument, NULL, 'h'},
       {"scan", no_argument, NULL, 's'},
       {0, 0, 0, 0},
   };
   int opt;
-  while ((opt = getopt_long(argc, argv, "hs", getopt_options, NULL)) != -1) {
+  while ((opt = getopt_long(argc, argv, "dhs", getopt_options, NULL)) != -1) {
     switch (opt) {
+      case 'd':
+        options.dump_jpegs = true;
+        break;
       case 'h':
         print_usage(stdout, program_name);
         return 0;
