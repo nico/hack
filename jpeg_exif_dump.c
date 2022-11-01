@@ -2817,21 +2817,7 @@ static void jpeg_dump(struct Options* options,
         decrease_indent(options);
         break;
       }
-      case 0xe1: {
-        printf(": EXIF Image segment (APP1)\n");
-
-        increase_indent(options);
-        const char* app_id =
-            jpeg_dump_app_id(options, cur, end, has_size, size);
-        if (strcmp(app_id, "Exif") == 0)
-          jpeg_dump_exif(options, cur, size);
-        else if (strcmp(app_id, "http://ns.adobe.com/xap/1.0/") == 0)
-          jpeg_dump_xmp(options, cur, size);
-        else if (strcmp(app_id, "http://ns.adobe.com/xmp/extension/") == 0)
-          jpeg_dump_xmp_extension(options, cur, size);
-        decrease_indent(options);
-        break;
-      }
+      case 0xe1:
       case 0xe2:
       case 0xe3:
       case 0xe4:
@@ -2851,7 +2837,15 @@ static void jpeg_dump(struct Options* options,
         increase_indent(options);
         const char* app_id =
             jpeg_dump_app_id(options, cur, end, has_size, size);
-        if (b1 == 0xe2 && strcmp(app_id, "ICC_PROFILE") == 0)  // APP2
+        if (b1 == 0xe1 && strcmp(app_id, "Exif") == 0)  // APP1
+          jpeg_dump_exif(options, cur, size);
+        else if (b1 == 0xe1 &&  // APP1
+                 strcmp(app_id, "http://ns.adobe.com/xap/1.0/") == 0)
+          jpeg_dump_xmp(options, cur, size);
+        else if (b1 == 0xe1 &&  // APP1
+                 strcmp(app_id, "http://ns.adobe.com/xmp/extension/") == 0)
+          jpeg_dump_xmp_extension(options, cur, size);
+        else if (b1 == 0xe2 && strcmp(app_id, "ICC_PROFILE") == 0)  // APP2
           jpeg_dump_icc(options, cur, size);
         else if (b1 == 0xe2 && strcmp(app_id, "MPF") == 0)  // APP2
           jpeg_dump_mpf(options, cur, size);
