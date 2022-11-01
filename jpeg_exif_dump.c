@@ -2807,16 +2807,7 @@ static void jpeg_dump(struct Options* options,
         else
           iprintf(options, "  %d macroblocks\n", be_uint16(cur + 2));
         break;
-      case 0xe0: {
-        printf(": JPEG/JFIF Image segment (APP0)\n");
-        increase_indent(options);
-        const char* app_id =
-            jpeg_dump_app_id(options, cur, end, has_size, size);
-        if (strcmp(app_id, "JFIF") == 0)
-          jpeg_dump_jfif(options, cur, size);
-        decrease_indent(options);
-        break;
-      }
+      case 0xe0:
       case 0xe1:
       case 0xe2:
       case 0xe3:
@@ -2837,7 +2828,9 @@ static void jpeg_dump(struct Options* options,
         increase_indent(options);
         const char* app_id =
             jpeg_dump_app_id(options, cur, end, has_size, size);
-        if (b1 == 0xe1 && strcmp(app_id, "Exif") == 0)  // APP1
+        if (b1 == 0xe0 && strcmp(app_id, "JFIF") == 0)  // APP0
+          jpeg_dump_jfif(options, cur, size);
+        else if (b1 == 0xe1 && strcmp(app_id, "Exif") == 0)  // APP1
           jpeg_dump_exif(options, cur, size);
         else if (b1 == 0xe1 &&  // APP1
                  strcmp(app_id, "http://ns.adobe.com/xap/1.0/") == 0)
