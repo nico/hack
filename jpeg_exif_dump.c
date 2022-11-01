@@ -81,6 +81,7 @@ static uint32_t le_uint32(const uint8_t* p) {
 struct Options {
   int current_indent;
   bool jpeg_scan;
+  bool dump_jpegs;
 };
 
 static void increase_indent(struct Options* options) {
@@ -2730,6 +2731,10 @@ static void jpeg_dump(struct Options* options,
                       const uint8_t* begin,
                       const uint8_t* end) {
   const uint8_t* cur = begin;
+
+  int num_jpegs = 0;
+  const uint8_t* cur_start = NULL;
+
   while (cur < end) {
     uint8_t b0 = *cur++;
     if (b0 != 0xff)
@@ -2783,6 +2788,7 @@ static void jpeg_dump(struct Options* options,
         break;
       case 0xd8:
         printf(": Start Of Image (SOI)\n");
+        cur_start = cur - 2;
         break;
       case 0xd9:
         // If there's an App2/"MPF" ("Multi-Picture Format") marker,
@@ -2791,6 +2797,16 @@ static void jpeg_dump(struct Options* options,
         // non-jpeg trailing data after the EOI marker.
         // TODO: In non-scan mode, this should terminate the reading loop.
         printf(": End Of Image (EOI)\n");
+
+        if (options->dump_jpegs) {
+          char buf[80];
+          sprintf(buf, "jpeg-%d.jpg", num_jpegs);
+          FILE* f = fopen(buf, "wb");
+          fwrite(cur_start, (size_t)(cur - cur_start), 1, f);
+          fclose(f);
+        }
+        ++num_jpegs;
+
         break;
       case 0xda:
         printf(": Start Of Scan (SOS)\n");
@@ -2875,6 +2891,7 @@ int main(int argc, char* argv[]) {
   struct Options options = {
       .current_indent = 0,
       .jpeg_scan = false,
+      .dump_jpegs = false,
   };
   struct option getopt_options[] = {
       {"help", no_argument, NULL, 'h'},
