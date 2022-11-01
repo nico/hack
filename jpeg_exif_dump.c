@@ -2437,21 +2437,8 @@ static void indent_and_elide_each_line(struct Options* options,
   }
 }
 
-static void print_elided(struct Options* options,
-                         int max_width,
-                         const uint8_t* s,
-                         int n) {
-  if (n < max_width) {
-    indent_and_elide_each_line(options, s, n);
-  } else {
-    indent_and_elide_each_line(options, s, max_width / 2 - 1);
-    if (s[max_width / 2 - 2] != '\n')
-      printf("\n");
-    print_indent(options);
-    printf("...\n");
-    indent_and_elide_each_line(options, s + n - (max_width / 2 - 2),
-                               max_width / 2 - 2);
-  }
+static void print_elided(struct Options* options, const uint8_t* s, int n) {
+  indent_and_elide_each_line(options, s, n);
   if (s[n - 1] != '\n')
     printf("\n");
 }
@@ -2467,7 +2454,7 @@ static void jpeg_dump_xmp(struct Options* options,
            size);
     return;
   }
-  print_elided(options, 1024, begin + header_size, size - header_size);
+  print_elided(options, begin + header_size, size - header_size);
 }
 
 static void jpeg_dump_xmp_extension(struct Options* options,
@@ -2491,7 +2478,7 @@ static void jpeg_dump_xmp_extension(struct Options* options,
   uint16_t data_size = size - header_size;
   iprintf(options, "offset %u\n", data_offset);
   iprintf(options, "total size %u\n", total_data_size);
-  print_elided(options, 1024, begin + header_size, data_size);
+  print_elided(options, begin + header_size, data_size);
 }
 
 static const char* photoshop_tag_name(uint16_t tag) {
@@ -2878,7 +2865,7 @@ static void jpeg_dump(struct Options* options,
         assert(has_size);
         if (size > 2) {
           increase_indent(options);
-          print_elided(options, 1024, cur + 2, size - 2);
+          print_elided(options, cur + 2, size - 2);
           decrease_indent(options);
         }
         break;
