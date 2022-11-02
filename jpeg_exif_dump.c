@@ -1170,6 +1170,48 @@ static void tiff_dump_extra_interoperability_tag_info(
     tiff_dump_exif_version(format, count, data);
 }
 
+static void tiff_dump_tag_info(const struct TiffState* tiff_state,
+                               uint16_t tag,
+                               uint16_t format,
+                               uint32_t count,
+                               const void* data) {
+  iprintf(tiff_state->options, "tag %d", tag);
+  const char* tag_name = tiff_state->tag_name(tag);
+  if (tag_name)
+    printf(" (%s)", tag_name);
+  printf(" format %u (%s): count %u", format, TiffDataFormatNames[format],
+         count);
+
+  // TODO: print other formats
+  uint16_t (*uint16)(const uint8_t*) = tiff_state->uint16;
+  uint32_t (*uint32)(const uint8_t*) = tiff_state->uint32;
+  if (format == kUnsignedByte && count == 1)
+    printf(": %u", *(const uint8_t*)data);
+  else if (format == kAscii)
+    printf(": '%.*s'", count, (const char*)data);
+  else if (format == kUnsignedShort && count == 1)
+    printf(": %u", uint16(data));
+  else if (format == kUnsignedLong && count == 1)
+    printf(": %u", uint32(data));
+  else if (format == kUnsignedRational && count == 1) {
+    uint32_t numerator = uint32(data);
+    uint32_t denominator = uint32((const uint8_t*)data + 4);
+    printf(": %u/%u", numerator, denominator);
+    if (denominator != 0)
+      printf(" (%.3f)", numerator / (double)denominator);
+  } else if (format == kSignedRational && count == 1) {
+    int32_t numerator = (int32_t)uint32(data);
+    int32_t denominator = (int32_t)uint32((const uint8_t*)data + 4);
+    printf(": %d/%d", numerator, denominator);
+    if (denominator != 0)
+      printf(" (%.3f)", numerator / (double)denominator);
+  }
+
+  tiff_state->dump_extra_tag_info(tiff_state, tag, format, count, data);
+
+  printf("\n");
+}
+
 // Returns offset to next IFD, or 0 if none.
 static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
                                   uint32_t ifd_offset) {
@@ -1177,7 +1219,6 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
   ssize_t size = tiff_state->size;
   uint16_t (*uint16)(const uint8_t*) = tiff_state->uint16;
   uint32_t (*uint32)(const uint8_t*) = tiff_state->uint32;
-  const char* (*name_for_tag)(uint16_t) = tiff_state->tag_name;
   struct Options* options = tiff_state->options;
 
   if (size - ifd_offset < 6) {
@@ -1213,39 +1254,9 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
     size_t data_offset = total_size <= 4 ? this_ifd_offset + 8
                                          : uint32(begin + this_ifd_offset + 8);
     const void* data = begin + data_offset;
-    iprintf(options, "tag %d", tag);
-    const char* tag_name = name_for_tag(tag);
-    if (tag_name)
-      printf(" (%s)", tag_name);
-    printf(" format %u (%s): count %u", format, TiffDataFormatNames[format],
-           count);
+    // TODO: Add bounds checking for data, data + total_size
 
-    // TODO: print other formats
-    if (format == kUnsignedByte && count == 1)
-      printf(": %u", *(const uint8_t*)data);
-    else if (format == kAscii)
-      printf(": '%.*s'", count, (const char*)data);
-    else if (format == kUnsignedShort && count == 1)
-      printf(": %u", uint16(data));
-    else if (format == kUnsignedLong && count == 1)
-      printf(": %u", uint32(data));
-    else if (format == kUnsignedRational && count == 1) {
-      uint32_t numerator = uint32(data);
-      uint32_t denominator = uint32((const uint8_t*)data + 4);
-      printf(": %u/%u", numerator, denominator);
-      if (denominator != 0)
-        printf(" (%.3f)", numerator / (double)denominator);
-    } else if (format == kSignedRational && count == 1) {
-      int32_t numerator = (int32_t)uint32(data);
-      int32_t denominator = (int32_t)uint32((const uint8_t*)data + 4);
-      printf(": %d/%d", numerator, denominator);
-      if (denominator != 0)
-        printf(" (%.3f)", numerator / (double)denominator);
-    }
-
-    tiff_state->dump_extra_tag_info(tiff_state, tag, format, count, data);
-
-    printf("\n");
+    tiff_dump_tag_info(tiff_state, tag, format, count, data);
 
     if (tag == 513 && format == kUnsignedLong && count == 1)
       jpeg_offset = uint32(data);
