@@ -2734,15 +2734,13 @@ static uint32_t photoshop_dump_resource_block(struct Options* options,
   return resource_block_size;
 }
 
-static void jpeg_dump_photoshop_3(struct Options* options,
-                                  const uint8_t* begin,
-                                  uint16_t size) {
-  const size_t prefix_size = sizeof(uint16_t) + sizeof("Photoshop 3.0");
-
+static void photoshop_dump_resource_blocks(struct Options* options,
+                                           const uint8_t* begin,
+                                           uint16_t size) {
   // https://oldschoolprg.x10.mx/downloads/ps6ffspecsv2.pdf
   // https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/#50577409_pgfId-1037685
   // https://metacpan.org/pod/Image::MetaData::JPEG::Structures#Structure-of-a-Photoshop-style-APP13-segment
-  uint16_t offset = prefix_size;
+  uint16_t offset = 0;
   while (offset < size) {
     uint32_t block_size =
         photoshop_dump_resource_block(options, begin + offset, size - offset);
@@ -2755,6 +2753,19 @@ static void jpeg_dump_photoshop_3(struct Options* options,
 
     offset += block_size;
   }
+}
+
+static void jpeg_dump_photoshop_3(struct Options* options,
+                                  const uint8_t* begin,
+                                  uint16_t size) {
+  const size_t prefix_size = sizeof(uint16_t) + sizeof("Photoshop 3.0");
+  if (size < prefix_size) {
+    printf("Photoshop 3.0 header should be at least %zu bytes, is %u\n",
+           prefix_size, size);
+    return;
+  }
+  photoshop_dump_resource_blocks(options, begin + prefix_size,
+                                 size - prefix_size);
 }
 
 static const char* jpeg_dump_app_id(struct Options* options,
