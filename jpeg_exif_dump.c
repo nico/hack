@@ -111,7 +111,7 @@ static void iprintf(const struct Options* options, const char* msg, ...) {
   va_end(args);
 }
 
-// TIFF dumping ///////////////////////////////////////////////////////////////
+// TIFF / Exif dumping ////////////////////////////////////////////////////////
 
 static void jpeg_dump(struct Options* options,
                       const uint8_t* begin,
