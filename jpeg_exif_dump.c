@@ -1268,6 +1268,45 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
       gps_info_ifd_offset = uint32(data);
     else if (tag == 40965 && format == kUnsignedLong && count == 1)
       interoperability_ifd_offset = uint32(data);
+
+    if (tag == 37500) {
+      increase_indent(options);
+      iprintf(options, "%.*s\n", 12, (const char*)data);
+
+      if (memcmp(data, "SONY DSC \0\0", 12) == 0) {
+        // Makernote contains one IFD
+        struct TiffState makernote_tiff_state = *tiff_state;
+        makernote_tiff_state.begin = (const uint8_t*)data + 12;
+        makernote_tiff_state.size = (ssize_t)total_size - 12;
+        // TODO: Maybe always big- or little-endian extractors?
+        // TODO: Custom tag dumpers
+        // ref https://github.com/exiftool/exiftool/blob/master/lib/Image/ExifTool/Sony.pm
+        // and https://exiv2.org/tags-sony.html
+        uint32_t next = tiff_dump_one_ifd(&makernote_tiff_state, 0);
+        iprintf(options, "next: %u\n", next);
+      } else if (memcmp(data, "Apple iOS\0\0\001", 10) == 0) {
+        // Makernote contains of a full tiff header, but magic number is 33
+        // instead of 42, and the first IFD starts immediately, instead of
+        // having its offset stored at byte 4 (in normal exif data, it always
+        // contains 8 in practice, so it's pretty redundant).
+        // So use tiff_dump_one_ifd() instead of tiff_dump().
+        // TODO: Verify endianness and magic number bytes.
+        struct TiffState makernote_tiff_state = *tiff_state;
+        makernote_tiff_state.begin = (const uint8_t*)data + 14;
+        makernote_tiff_state.size = (ssize_t)total_size - 14;
+        // TODO: Custom tag dumpers
+        // ref https://github.com/exiftool/exiftool/blob/master/lib/Image/ExifTool/Apple.pm
+        uint32_t next = tiff_dump_one_ifd(&makernote_tiff_state, 0);
+        iprintf(options, "next: %u\n", next);
+      } else {
+        iprintf(options, "");
+        for (int j = 0; j < 32; ++j)
+          printf("%02x", ((const uint8_t*)data)[j]);
+        printf("\n");
+      }
+
+      decrease_indent(options);
+    }
   }
 
   if (jpeg_offset != 0 && jpeg_length) {
