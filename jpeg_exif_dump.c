@@ -2427,13 +2427,57 @@ static void jpeg_dump_mpf(struct Options* options,
   tiff_dump(options, begin + sizeof(uint16_t) + sizeof("MPF"), begin + size);
 }
 
+static int is_line_with_just_spaces(int i, const uint8_t* s, int n) {
+  int num_spaces = 0;
+  while (i < n) {
+    if (s[i] == '\n')
+      return num_spaces;
+    if (s[i] != ' ')
+      return 0;
+    ++num_spaces;
+    ++i;
+  }
+  return 0;
+}
+
+static int num_lines_with_just_spaces(int* i, const uint8_t* s, int n) {
+  // XMPSpecificationPart3.pdf
+  // "It is recommended that applications place 2 KB to 4 KB of padding within
+  // the packet. This allows the XMP to be edited in place, and expanded if
+  // necessary, without overwriting existing application data. The padding must
+  // be XML-compatible whitespace; the recommended practice is to use the ASCII
+  // space character (U+0020) in the appropriate encoding, with a newline about
+  // every 100 characters."
+  // JPEGs written by Lightroom Classic and by Sony cameras do this.
+  // Filter out the padding, to not print hundreds of lines with nothing but
+  // spaces.
+  int num_lines = 0;
+  int num_spaces_on_current_line = 0;
+  while ((num_spaces_on_current_line = is_line_with_just_spaces(*i, s, n))) {
+    ++num_lines;
+    *i += num_spaces_on_current_line + 1;
+  }
+  return num_lines;
+}
+
 static void indent_and_elide_each_line(struct Options* options,
                                        const uint8_t* s,
                                        int n) {
   const int max_column = 80;
   print_indent(options);
   int column = options->current_indent;
+  bool is_at_start_of_line = true;
   for (int i = 0; i < n; ++i) {
+    if (is_at_start_of_line) {
+      int num_skipped_lines = num_lines_with_just_spaces(&i, s, n);
+      if (num_skipped_lines) {
+        printf("...skipped %d space-only lines...", num_skipped_lines);
+        // Reset to last newline, so that newline printing on next iteration
+        // resets state and prints indent.
+        --i;
+      }
+    }
+
     putchar(s[i]);
     ++column;
 
@@ -2441,7 +2485,9 @@ static void indent_and_elide_each_line(struct Options* options,
       if (i + 1 < n)
         print_indent(options);
       column = options->current_indent;
-    }
+      is_at_start_of_line = true;
+    } else
+      is_at_start_of_line = false;
 
     if (column > max_column) {
       printf("...");
