@@ -22,8 +22,8 @@
 //       jpegs)
 // * ICC (RGB only for now)
 // * IPTC
-// Dumps some bits
-// * Photoshop resource block (APP13/ "Photoshop 3.0")
+// Dumps some bits:
+// * Photoshop resource block (APP13/"Photoshop 3.0")
 // Still missing:
 // * MPF
 // * Makernote
