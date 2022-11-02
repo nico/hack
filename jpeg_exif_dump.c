@@ -2309,6 +2309,220 @@ static void iptc_dump(struct Options* options,
   }
 }
 
+// Photoshop Image Resource Section dumping //////////////////////////////////
+
+static const char* photoshop_tag_name(uint16_t tag) {
+  // https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/#50577409_38034
+  // clang-format off
+  switch (tag) {
+    case 0x03ed: return "ResolutionInfo";
+    case 0x03f3: return "Print flags";
+    case 0x03f5: return "Color halftoning information";
+    case 0x03f8: return "Color transfer functions";
+    case 0x0404: return "IPTC-NAA record";
+    case 0x0406: return "JPEG quality";
+    case 0x0408: return "Grid and guides information";
+    case 0x040c: return "Thumbnail";
+    case 0x040d: return "Global Angle";
+    case 0x0414: return "Document-specific IDs seed number";
+    case 0x0419: return "Global Altitude";
+    case 0x041a: return "Slices";
+    case 0x041e: return "URL List";
+    case 0x0421: return "Version Info";
+    case 0x0425: return "MD5 checksum";
+    case 0x0426: return "Print scale";
+    case 0x0428: return "Pixel Aspect Ratio";
+    case 0x043a: return "Print Information";
+    case 0x043b: return "Print Style";
+    case 0x2710: return "Print flags information";
+    default: return NULL;
+  }
+  // clang-format on
+}
+
+static void photoshop_dump_resolution_info(struct Options* options,
+                                           const uint8_t* begin,
+                                           uint32_t size) {
+  const size_t header_size = 2 * sizeof(uint32_t) + 4 * sizeof(uint16_t);
+  if (size != header_size) {
+    printf("photoshop resolution info should be %zu bytes, is %u\n",
+           header_size, size);
+    return;
+  }
+
+  const char* direction[] = {"horizontal", "vertical"};
+  const char* dimension[] = {"width", "height"};
+  for (int i = 0; i < 2; ++i) {
+    uint32_t res = be_uint32(begin + i * 8);
+    uint16_t res_unit = be_uint16(begin + i * 8 + 4);
+    uint16_t unit = be_uint16(begin + i * 8 + 6);
+
+    iprintf(options, "%s resolution: %f ppi\n", direction[i],
+            res / (double)0x10000);
+    iprintf(options, "display unit %d", res_unit);
+    if (res_unit == 1)
+      printf(" (pixels per inch)");
+    else if (res_unit == 2)
+      printf(" (pixels per cm)");
+
+    printf(", display %s unit %d", dimension[i], unit);
+    if (res_unit == 1)
+      printf(" (inches)");
+    else if (res_unit == 2)
+      printf(" (cm)");
+    else if (res_unit == 3)
+      printf(" (points)");
+    else if (res_unit == 4)
+      printf(" (picas)");
+    else if (res_unit == 5)
+      printf(" (columns)");
+    printf("\n");
+  }
+}
+
+static void photoshop_dump_thumbnail(struct Options* options,
+                                     const uint8_t* begin,
+                                     uint32_t size) {
+  const size_t header_size = 6 * sizeof(uint32_t) + 2 * sizeof(uint16_t);
+  if (size < header_size) {
+    printf("photoshop thumbnail block should be at least %zu bytes, is %u\n",
+           header_size, size);
+    return;
+  }
+
+  uint32_t format = be_uint32(begin);
+  uint32_t width = be_uint32(begin + 4);
+  uint32_t height = be_uint32(begin + 8);
+  uint32_t stride = be_uint32(begin + 12);
+  uint32_t uncompressed_size = be_uint32(begin + 16);
+  uint32_t compressed_size = be_uint32(begin + 20);
+  uint16_t bits_per_pixel = be_uint16(begin + 24);
+  uint16_t number_of_planes = be_uint16(begin + 26);
+
+  iprintf(options, "Format %d", format);
+  if (format == 0)
+    printf(" (raw RGB)");
+  else if (format == 1)
+    printf(" (JPEG RGB)");
+  printf("\n");
+  iprintf(options, "%dx%d, %d bytes stride\n", width, height, stride);
+  iprintf(options, "%d bytes uncompressed, %d bytes compressed\n",
+          uncompressed_size, compressed_size);
+  iprintf(options, "%d bpp, %d planes\n", bits_per_pixel, number_of_planes);
+
+  if (format == 1) {
+    if (compressed_size != size - header_size) {
+      printf("expected %d bytes compressed size, got %zu\n", compressed_size,
+             size - header_size);
+      return;
+    }
+
+    increase_indent(options);
+    jpeg_dump(options, begin + header_size, begin + size);
+    decrease_indent(options);
+  }
+}
+
+static void photoshop_dump_md5(struct Options* options,
+                               const uint8_t* begin,
+                               uint32_t size) {
+  if (size != 16) {
+    printf("photoshop md5 block should be 16 bytes, is %u\n", size);
+    return;
+  }
+
+  iprintf(options, "checksum: ");
+  for (int i = 0; i < 16; ++i) {
+    if (i != 0 && i % 4 == 0)
+      printf("-");
+    printf("%02x", begin[i]);
+  }
+  printf("\n");
+}
+
+static uint32_t photoshop_dump_resource_block(struct Options* options,
+                                              const uint8_t* begin,
+                                              uint16_t size) {
+  const size_t header_size = 12;
+  if (size < header_size) {
+    printf(
+        "photoshop image resource block should be at least %zu bytes, is %u\n",
+        header_size, size);
+    return size;
+  }
+
+  if (strncmp((const char*)begin, "8BIM", 4) != 0) {
+    printf(
+        "photoshop image resource block doesn't start with '8BIM' but '%.4s' "
+        "(0x%08x)\n",
+        begin, be_uint32(begin));
+    return size;
+  }
+
+  uint16_t image_resource_id = be_uint16(begin + 4);
+
+  uint8_t name_len = begin[6];
+
+  uint16_t size_offset = 7 + name_len;
+  if (size_offset % 2 != 0)  // Pad to even size.
+    ++size_offset;
+
+  uint32_t resource_data_size = be_uint32(begin + size_offset);
+  const uint8_t* resource_data = begin + size_offset + 4;
+
+  uint32_t resource_block_size = size_offset + 4 + resource_data_size;
+  if (resource_block_size % 2 != 0)  // Pad to even size.
+    ++resource_block_size;
+
+  iprintf(options, "Resource block 0x%04x", image_resource_id);
+  const char* tag_name = photoshop_tag_name(image_resource_id);
+  if (tag_name)
+    printf(" (%s)", tag_name);
+  printf(" '%.*s' size %d\n", name_len, begin + 7, resource_data_size);
+
+  increase_indent(options);
+  switch (image_resource_id) {
+    case 0x03ed:
+      photoshop_dump_resolution_info(options, resource_data,
+                                     resource_data_size);
+      break;
+    case 0x0404:
+      iptc_dump(options, resource_data, resource_data_size);
+      break;
+    case 0x040c:
+      photoshop_dump_thumbnail(options, resource_data, resource_data_size);
+      break;
+    case 0x0425:
+      photoshop_dump_md5(options, resource_data, resource_data_size);
+      break;
+  }
+  decrease_indent(options);
+
+  return resource_block_size;
+}
+
+static void photoshop_dump_resource_blocks(struct Options* options,
+                                           const uint8_t* begin,
+                                           uint16_t size) {
+  // https://oldschoolprg.x10.mx/downloads/ps6ffspecsv2.pdf
+  // https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/#50577409_pgfId-1037685
+  // https://metacpan.org/pod/Image::MetaData::JPEG::Structures#Structure-of-a-Photoshop-style-APP13-segment
+  uint16_t offset = 0;
+  while (offset < size) {
+    uint32_t block_size =
+        photoshop_dump_resource_block(options, begin + offset, size - offset);
+
+    if (block_size > size - offset) {
+      printf("block size %d larger than remaining room %d\n", block_size,
+             size - offset);
+      break;
+    }
+
+    offset += block_size;
+  }
+}
+
+
 // JPEG dumping ///////////////////////////////////////////////////////////////
 
 // JPEG spec: https://www.w3.org/Graphics/JPEG/itu-t81.pdf
@@ -2542,217 +2756,6 @@ static void jpeg_dump_xmp_extension(struct Options* options,
   iprintf(options, "offset %u\n", data_offset);
   iprintf(options, "total size %u\n", total_data_size);
   print_elided(options, begin + header_size, data_size);
-}
-
-static const char* photoshop_tag_name(uint16_t tag) {
-  // https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/#50577409_38034
-  // clang-format off
-  switch (tag) {
-    case 0x03ed: return "ResolutionInfo";
-    case 0x03f3: return "Print flags";
-    case 0x03f5: return "Color halftoning information";
-    case 0x03f8: return "Color transfer functions";
-    case 0x0404: return "IPTC-NAA record";
-    case 0x0406: return "JPEG quality";
-    case 0x0408: return "Grid and guides information";
-    case 0x040c: return "Thumbnail";
-    case 0x040d: return "Global Angle";
-    case 0x0414: return "Document-specific IDs seed number";
-    case 0x0419: return "Global Altitude";
-    case 0x041a: return "Slices";
-    case 0x041e: return "URL List";
-    case 0x0421: return "Version Info";
-    case 0x0425: return "MD5 checksum";
-    case 0x0426: return "Print scale";
-    case 0x0428: return "Pixel Aspect Ratio";
-    case 0x043a: return "Print Information";
-    case 0x043b: return "Print Style";
-    case 0x2710: return "Print flags information";
-    default: return NULL;
-  }
-  // clang-format on
-}
-
-static void photoshop_dump_resolution_info(struct Options* options,
-                                           const uint8_t* begin,
-                                           uint32_t size) {
-  const size_t header_size = 2 * sizeof(uint32_t) + 4 * sizeof(uint16_t);
-  if (size != header_size) {
-    printf("photoshop resolution info should be %zu bytes, is %u\n",
-           header_size, size);
-    return;
-  }
-
-  const char* direction[] = {"horizontal", "vertical"};
-  const char* dimension[] = {"width", "height"};
-  for (int i = 0; i < 2; ++i) {
-    uint32_t res = be_uint32(begin + i * 8);
-    uint16_t res_unit = be_uint16(begin + i * 8 + 4);
-    uint16_t unit = be_uint16(begin + i * 8 + 6);
-
-    iprintf(options, "%s resolution: %f ppi\n", direction[i],
-            res / (double)0x10000);
-    iprintf(options, "display unit %d", res_unit);
-    if (res_unit == 1)
-      printf(" (pixels per inch)");
-    else if (res_unit == 2)
-      printf(" (pixels per cm)");
-
-    printf(", display %s unit %d", dimension[i], unit);
-    if (res_unit == 1)
-      printf(" (inches)");
-    else if (res_unit == 2)
-      printf(" (cm)");
-    else if (res_unit == 3)
-      printf(" (points)");
-    else if (res_unit == 4)
-      printf(" (picas)");
-    else if (res_unit == 5)
-      printf(" (columns)");
-    printf("\n");
-  }
-}
-
-static void photoshop_dump_thumbnail(struct Options* options,
-                                     const uint8_t* begin,
-                                     uint32_t size) {
-  const size_t header_size = 6 * sizeof(uint32_t) + 2 * sizeof(uint16_t);
-  if (size < header_size) {
-    printf("photoshop thumbnail block should be at least %zu bytes, is %u\n",
-           header_size, size);
-    return;
-  }
-
-  uint32_t format = be_uint32(begin);
-  uint32_t width = be_uint32(begin + 4);
-  uint32_t height = be_uint32(begin + 8);
-  uint32_t stride = be_uint32(begin + 12);
-  uint32_t uncompressed_size = be_uint32(begin + 16);
-  uint32_t compressed_size = be_uint32(begin + 20);
-  uint16_t bits_per_pixel = be_uint16(begin + 24);
-  uint16_t number_of_planes = be_uint16(begin + 26);
-
-  iprintf(options, "Format %d", format);
-  if (format == 0)
-    printf(" (raw RGB)");
-  else if (format == 1)
-    printf(" (JPEG RGB)");
-  printf("\n");
-  iprintf(options, "%dx%d, %d bytes stride\n", width, height, stride);
-  iprintf(options, "%d bytes uncompressed, %d bytes compressed\n",
-          uncompressed_size, compressed_size);
-  iprintf(options, "%d bpp, %d planes\n", bits_per_pixel, number_of_planes);
-
-  if (format == 1) {
-    if (compressed_size != size - header_size) {
-      printf("expected %d bytes compressed size, got %zu\n", compressed_size,
-             size - header_size);
-      return;
-    }
-
-    increase_indent(options);
-    jpeg_dump(options, begin + header_size, begin + size);
-    decrease_indent(options);
-  }
-}
-
-static void photoshop_dump_md5(struct Options* options,
-                               const uint8_t* begin,
-                               uint32_t size) {
-  if (size != 16) {
-    printf("photoshop md5 block should be 16 bytes, is %u\n", size);
-    return;
-  }
-
-  iprintf(options, "checksum: ");
-  for (int i = 0; i < 16; ++i) {
-    if (i != 0 && i % 4 == 0)
-      printf("-");
-    printf("%02x", begin[i]);
-  }
-  printf("\n");
-}
-
-static uint32_t photoshop_dump_resource_block(struct Options* options,
-                                              const uint8_t* begin,
-                                              uint16_t size) {
-  const size_t header_size = 12;
-  if (size < header_size) {
-    printf(
-        "photoshop image resource block should be at least %zu bytes, is %u\n",
-        header_size, size);
-    return size;
-  }
-
-  if (strncmp((const char*)begin, "8BIM", 4) != 0) {
-    printf(
-        "photoshop image resource block doesn't start with '8BIM' but '%.4s' "
-        "(0x%08x)\n",
-        begin, be_uint32(begin));
-    return size;
-  }
-
-  uint16_t image_resource_id = be_uint16(begin + 4);
-
-  uint8_t name_len = begin[6];
-
-  uint16_t size_offset = 7 + name_len;
-  if (size_offset % 2 != 0)  // Pad to even size.
-    ++size_offset;
-
-  uint32_t resource_data_size = be_uint32(begin + size_offset);
-  const uint8_t* resource_data = begin + size_offset + 4;
-
-  uint32_t resource_block_size = size_offset + 4 + resource_data_size;
-  if (resource_block_size % 2 != 0)  // Pad to even size.
-    ++resource_block_size;
-
-  iprintf(options, "Resource block 0x%04x", image_resource_id);
-  const char* tag_name = photoshop_tag_name(image_resource_id);
-  if (tag_name)
-    printf(" (%s)", tag_name);
-  printf(" '%.*s' size %d\n", name_len, begin + 7, resource_data_size);
-
-  increase_indent(options);
-  switch (image_resource_id) {
-    case 0x03ed:
-      photoshop_dump_resolution_info(options, resource_data,
-                                     resource_data_size);
-      break;
-    case 0x0404:
-      iptc_dump(options, resource_data, resource_data_size);
-      break;
-    case 0x040c:
-      photoshop_dump_thumbnail(options, resource_data, resource_data_size);
-      break;
-    case 0x0425:
-      photoshop_dump_md5(options, resource_data, resource_data_size);
-      break;
-  }
-  decrease_indent(options);
-
-  return resource_block_size;
-}
-
-static void photoshop_dump_resource_blocks(struct Options* options,
-                                           const uint8_t* begin,
-                                           uint16_t size) {
-  // https://oldschoolprg.x10.mx/downloads/ps6ffspecsv2.pdf
-  // https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/#50577409_pgfId-1037685
-  // https://metacpan.org/pod/Image::MetaData::JPEG::Structures#Structure-of-a-Photoshop-style-APP13-segment
-  uint16_t offset = 0;
-  while (offset < size) {
-    uint32_t block_size =
-        photoshop_dump_resource_block(options, begin + offset, size - offset);
-
-    if (block_size > size - offset) {
-      printf("block size %d larger than remaining room %d\n", block_size,
-             size - offset);
-      break;
-    }
-
-    offset += block_size;
-  }
 }
 
 static void jpeg_dump_photoshop_3(struct Options* options,
