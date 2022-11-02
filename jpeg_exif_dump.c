@@ -1245,6 +1245,8 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
 
     tiff_state->dump_extra_tag_info(tiff_state, tag, format, count, data);
 
+    printf("\n");
+
     if (tag == 513 && format == kUnsignedLong && count == 1)
       jpeg_offset = uint32(data);
     else if (tag == 514 && format == kUnsignedLong && count == 1)
@@ -1255,8 +1257,6 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
       gps_info_ifd_offset = uint32(data);
     else if (tag == 40965 && format == kUnsignedLong && count == 1)
       interoperability_ifd_offset = uint32(data);
-
-    printf("\n");
   }
 
   if (jpeg_offset != 0 && jpeg_length) {
