@@ -38,7 +38,9 @@ static uint64_t be_uint64(const uint8_t* p) {
 }
 
 static uint64_t heif_dump_box(const uint8_t* begin, const uint8_t* end) {
-  // XXX good spec link :/
+  // ISO_IEC_14496-12_2015.pdf
+  // e.g. https://b.goeswhere.com/ISO_IEC_14496-12_2015.pdf
+  // https://www.loc.gov/preservation/digital/formats/fdd/fdd000079.shtml
   size_t size = (size_t)(end - begin);
   if (size < 8)
     fatal("heif box must be at least 8 bytes but is %zu\n", size);
@@ -67,8 +69,9 @@ static uint64_t heif_dump_box(const uint8_t* begin, const uint8_t* end) {
 }
 
 static void heif_dump(const uint8_t* begin, const uint8_t* end) {
-  // XXX good spec link :/
-
+  // ISO_IEC_14496-12_2015.pdf
+  // e.g. https://b.goeswhere.com/ISO_IEC_14496-12_2015.pdf
+  // https://www.loc.gov/preservation/digital/formats/fdd/fdd000079.shtml
   while (begin < end) {
     uint64_t box_size = heif_dump_box(begin, end);
 
