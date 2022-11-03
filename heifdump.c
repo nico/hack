@@ -114,7 +114,6 @@ static void heif_dump_box_dref(struct Options* options,
   heif_dump_box_container(options, begin + 8, begin + size);
 }
 
-
 static void heif_dump_box_ftyp(struct Options* options,
                                const uint8_t* begin,
                                uint64_t size) {
@@ -139,6 +138,36 @@ static void heif_dump_box_ftyp(struct Options* options,
     uint32_t minor_brand = be_uint32(begin + i);
     iprintf(options, " '%.4s' (0x%x)\n", begin + i, minor_brand);
   }
+}
+
+static void heif_dump_box_iinf(struct Options* options,
+                               const uint8_t* begin,
+                               uint64_t size) {
+  // ISO_IEC_14496-12_2015.pdf, 8.11.6 Item Information Box
+  if (size < 8) {
+    fprintf(stderr, "dref not at least 8 bytes, was %" PRIu64 "\n", size);
+    return;
+  }
+
+  uint32_t version_and_flags = be_uint32(begin);
+  uint8_t version = version_and_flags >> 24;
+  uint32_t flags = version_and_flags & 0xffffff;
+  iprintf(options, "version %u, flags %u\n", version, flags);
+
+  uint32_t num_subboxes;
+  int offset;
+  if (version == 0) {
+    num_subboxes = be_uint16(begin + 4);
+    offset = 6;
+  } else {
+    num_subboxes = be_uint32(begin + 4);
+    offset = 8;
+  }
+  iprintf(options, "num subboxes %d\n", num_subboxes);
+
+  // TODO: Why does 'iinf' store num_subboxes, unlike all other containers?
+  // TODO: Check num_subboxes vs num boxes printed by size.
+  heif_dump_box_container(options, begin + offset, begin + size);
 }
 
 static void heif_dump_full_box_container(struct Options* options,
@@ -213,6 +242,9 @@ static uint64_t heif_dump_box(struct Options* options,
       break;
     case 0x66747970:  // 'ftyp'
       heif_dump_box_ftyp(options, data_begin, data_length);
+      break;
+    case 0x69696e66:  // 'iinf'
+      heif_dump_box_iinf(options, data_begin, data_length);
       break;
     case 0x69726566:  // 'iref'
     case 0x6d657461:  // 'meta'
