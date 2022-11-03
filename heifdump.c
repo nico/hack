@@ -59,6 +59,7 @@ static uint64_t be_uint64(const uint8_t* p) {
 // https://mpeg.chiariglione.org/standards/mpeg-h/image-file-format/text-isoiec-cd-23008-12-image-file-format
 // => w14148.zip => W14148-HEVC-still-WD.doc
 
+static void heif_dump(const uint8_t* begin, const uint8_t* end);
 static uint64_t heif_dump_box(const uint8_t* begin, const uint8_t* end);
 
 static void heif_dump_box_ftyp(const uint8_t* begin, uint64_t size) {
@@ -152,6 +153,10 @@ static uint64_t heif_dump_box(const uint8_t* begin, const uint8_t* end) {
       break;
     case 0x6d657461:  // 'meta'
       heif_dump_box_meta(data_begin, data_length);
+      break;
+    case 0x6970636f:  // 'ipco'
+    case 0x69707270:  // 'iprp'
+      heif_dump(data_begin, data_begin + data_length);
       break;
   }
 
