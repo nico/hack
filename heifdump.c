@@ -37,6 +37,30 @@ static uint64_t be_uint64(const uint8_t* p) {
   return ((uint64_t)be_uint32(p) << 32) | be_uint32(p + 4);
 }
 
+static void heif_dump_box_ftyp(const uint8_t* begin, uint64_t size) {
+  // ISO_IEC_14496-12_2015.pdf, 4.3 File Type Box
+  if (size < 8) {
+    fprintf(stderr, "ftyp not at least 8 bytes, was %" PRIu64 "\n", size);
+    return;
+  }
+  if (size % 4 != 0) {
+    fprintf(stderr, "ftyp size not multiple of 4, was %" PRIu64 "\n", size);
+    return;
+  }
+
+  uint32_t major_brand = be_uint32(begin);
+  uint32_t minor_version = be_uint32(begin + 4);
+
+  printf("  major brand '%.4s' (0x%x), minor version %u\n", begin, major_brand,
+         minor_version);
+
+  printf("  minor brands:\n");
+  for (uint64_t i = 8; i < size; i += 4) {
+    uint32_t minor_brand = be_uint32(begin + i);
+    printf("   '%.4s' (0x%x)\n", begin + i, minor_brand);
+  }
+}
+
 static uint64_t heif_dump_box(const uint8_t* begin, const uint8_t* end) {
   // ISO_IEC_14496-12_2015.pdf
   // e.g. https://b.goeswhere.com/ISO_IEC_14496-12_2015.pdf
@@ -47,12 +71,17 @@ static uint64_t heif_dump_box(const uint8_t* begin, const uint8_t* end) {
 
   uint64_t length = be_uint32(begin);
   uint32_t type = be_uint32(begin + 4);
+  const uint8_t* data_begin = begin + 8;
+  uint64_t data_length = length - 8;
 
   if (length == 1) {
     if (size < 16)
       fatal("heif box wth extended size must be at least 16 bytes but is %zu\n",
             size);
     length = be_uint64(begin + 8);
+
+    data_begin = begin + 16;
+    data_length = length - 16;
   } else if (length == 0) {
     // length == 0: Box extends to end of file.
     length = size;
@@ -64,6 +93,12 @@ static uint64_t heif_dump_box(const uint8_t* begin, const uint8_t* end) {
           length, length, size);
 
   printf("box '%.4s' (%08x), length %" PRIu64 "\n", begin + 4, type, length);
+
+  switch (type) {
+    case 0x66747970:  // 'ftyp'
+      heif_dump_box_ftyp(data_begin, data_length);
+      break;
+  }
 
   return length;
 }
