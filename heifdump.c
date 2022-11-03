@@ -37,6 +37,32 @@ static uint64_t be_uint64(const uint8_t* p) {
   return ((uint64_t)be_uint32(p) << 32) | be_uint32(p + 4);
 }
 
+struct Options {
+  int current_indent;
+};
+
+static void increase_indent(struct Options* options) {
+  options->current_indent += 2;
+}
+
+static void decrease_indent(struct Options* options) {
+  options->current_indent -= 2;
+}
+
+static void print_indent(const struct Options* options) {
+  for (int i = 0; i < options->current_indent; ++i)
+    printf(" ");
+}
+
+PRINTF(2, 3)
+static void iprintf(const struct Options* options, const char* msg, ...) {
+  print_indent(options);
+  va_list args;
+  va_start(args, msg);
+  vprintf(msg, args);
+  va_end(args);
+}
+
 // HEIC is built on top of the "ISOBMFF ISO Base Media File Format", an old
 // version of it is at ISO_IEC_14496-12_2015.pdf
 // e.g. here https://b.goeswhere.com/ISO_IEC_14496-12_2015.pdf
@@ -59,10 +85,16 @@ static uint64_t be_uint64(const uint8_t* p) {
 // https://mpeg.chiariglione.org/standards/mpeg-h/image-file-format/text-isoiec-cd-23008-12-image-file-format
 // => w14148.zip => W14148-HEVC-still-WD.doc
 
-static void heif_dump(const uint8_t* begin, const uint8_t* end);
-static uint64_t heif_dump_box(const uint8_t* begin, const uint8_t* end);
+static void heif_dump(struct Options* options,
+                      const uint8_t* begin,
+                      const uint8_t* end);
+static uint64_t heif_dump_box(struct Options* options,
+                              const uint8_t* begin,
+                              const uint8_t* end);
 
-static void heif_dump_box_ftyp(const uint8_t* begin, uint64_t size) {
+static void heif_dump_box_ftyp(struct Options* options,
+                               const uint8_t* begin,
+                               uint64_t size) {
   // ISO_IEC_14496-12_2015.pdf, 4.3 File Type Box
   if (size < 8) {
     fprintf(stderr, "ftyp not at least 8 bytes, was %" PRIu64 "\n", size);
@@ -76,17 +108,19 @@ static void heif_dump_box_ftyp(const uint8_t* begin, uint64_t size) {
   uint32_t major_brand = be_uint32(begin);
   uint32_t minor_version = be_uint32(begin + 4);
 
-  printf("  major brand '%.4s' (0x%x), minor version %u\n", begin, major_brand,
-         minor_version);
+  iprintf(options, "major brand '%.4s' (0x%x), minor version %u\n", begin,
+          major_brand, minor_version);
 
-  printf("  minor brands:\n");
+  iprintf(options, "minor brands:\n");
   for (uint64_t i = 8; i < size; i += 4) {
     uint32_t minor_brand = be_uint32(begin + i);
-    printf("   '%.4s' (0x%x)\n", begin + i, minor_brand);
+    iprintf(options, " '%.4s' (0x%x)\n", begin + i, minor_brand);
   }
 }
 
-static void heif_dump_box_meta(const uint8_t* begin, uint64_t size) {
+static void heif_dump_box_meta(struct Options* options,
+                               const uint8_t* begin,
+                               uint64_t size) {
   // ISO_IEC_14496-12_2015.pdf, 8.11.1 The Meta box
   if (size < 4) {
     fprintf(stderr, "meta not at least 4 bytes, was %" PRIu64 "\n", size);
@@ -101,8 +135,7 @@ static void heif_dump_box_meta(const uint8_t* begin, uint64_t size) {
   int i = 0;
   uint64_t offset = 4;
   while (offset < size) {
-    printf("  ");
-    uint64_t box_size = heif_dump_box(begin + offset, begin + size);
+    uint64_t box_size = heif_dump_box(options, begin + offset, begin + size);
 
     if (box_size > size - offset) {
       printf("box has size %" PRIu64 " but only %" PRIu64 " bytes left\n",
@@ -115,7 +148,9 @@ static void heif_dump_box_meta(const uint8_t* begin, uint64_t size) {
   }
 }
 
-static uint64_t heif_dump_box(const uint8_t* begin, const uint8_t* end) {
+static uint64_t heif_dump_box(struct Options* options,
+                              const uint8_t* begin,
+                              const uint8_t* end) {
   const size_t size = (size_t)(end - begin);
   if (size < 8)
     fatal("heif box must be at least 8 bytes but is %zu\n", size);
@@ -145,29 +180,34 @@ static uint64_t heif_dump_box(const uint8_t* begin, const uint8_t* end) {
           " bytes but is %zu\n",
           begin + 4, length, length, size);
 
-  printf("box '%.4s' (%08x), length %" PRIu64 "\n", begin + 4, type, length);
+  iprintf(options, "box '%.4s' (%08x), length %" PRIu64 "\n", begin + 4, type,
+          length);
 
+  increase_indent(options);
   switch (type) {
     case 0x66747970:  // 'ftyp'
-      heif_dump_box_ftyp(data_begin, data_length);
+      heif_dump_box_ftyp(options, data_begin, data_length);
       break;
     case 0x6d657461:  // 'meta'
-      heif_dump_box_meta(data_begin, data_length);
+      heif_dump_box_meta(options, data_begin, data_length);
       break;
     case 0x6970636f:  // 'ipco'
     case 0x69707270:  // 'iprp'
-      heif_dump(data_begin, data_begin + data_length);
+      heif_dump(options, data_begin, data_begin + data_length);
       break;
   }
+  decrease_indent(options);
 
   return length;
 }
 
-static void heif_dump(const uint8_t* begin, const uint8_t* end) {
+static void heif_dump(struct Options* options,
+                      const uint8_t* begin,
+                      const uint8_t* end) {
   // ISO_IEC_14496-12_2015.pdf
   // e.g. https://b.goeswhere.com/ISO_IEC_14496-12_2015.pdf
   while (begin < end) {
-    uint64_t box_size = heif_dump_box(begin, end);
+    uint64_t box_size = heif_dump_box(options, begin, end);
 
     if (box_size > (size_t)(end - begin))
       fatal("box has size %" PRIu64 " but only %zu bytes left\n", box_size,
@@ -200,7 +240,10 @@ int main(int argc, char* argv[]) {
   if (contents == MAP_FAILED)
     fatal("Failed to mmap: %d (%s)\n", errno, strerror(errno));
 
-  heif_dump(contents, (uint8_t*)contents + in_stat.st_size);
+  struct Options options = {
+      .current_indent = 0,
+  };
+  heif_dump(&options, contents, (uint8_t*)contents + in_stat.st_size);
 
   munmap(contents, (size_t)in_stat.st_size);
   close(in_file);
