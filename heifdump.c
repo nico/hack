@@ -93,25 +93,36 @@ static uint64_t heif_dump_box(struct Options* options,
                               const uint8_t* end);
 
 static const char* heif_box_name(uint32_t type) {
+  // https://nokiatech.github.io/heif/technical.html
   switch (type) {
+    case 0x63647363:  // 'cdsc'
+      return "content description";
+    case 0x64696d67:  // 'dimg'
+      return "derived image inputs";
     case 0x68646c72:  // 'hdlr'
       return "handler";
-    //case 0x64726566:  // 'dref'
+    // case 0x64726566:  // 'dref'
     case 0x66747970:  // 'ftyp'
       return "file type";
     case 0x69696e66:  // 'iinf'
       return "item info";
-    //case 0x69726566:  // 'iref'
+    case 0x696e6665:  // 'infe'
+      return "item info entry";
+    case 0x69726566:  // 'iref'
+      return "item type reference";
     case 0x69737065:  // 'ispe'
       return "image spacial extent";
-    //case 0x6d657461:  // 'meta'
-    //case 0x64696e66:  // 'dinf'
+    // case 0x6d657461:  // 'meta'
+    // case 0x64696e66:  // 'dinf'
     case 0x6970636f:  // 'ipco'
       return "item property container";
-    //case 0x69707270:  // 'iprp'
+    // case 0x69707270:  // 'iprp'
     case 0x7069746d:  // 'pitm'
       return "primary item number";
-    default: return NULL;
+    case 0x70697869:  // 'pixi'
+      return "pixel information";
+    default:
+      return NULL;
   }
 }
 
@@ -281,7 +292,7 @@ static uint64_t heif_dump_box(struct Options* options,
     case 0x69707270:  // 'iprp'
       heif_dump_box_container(options, data_begin, data_begin + data_length);
       break;
-    // TODO: infe, iloc, ipma, ...
+      // TODO: infe, iloc, ipma, ...
   }
   decrease_indent(options);
 
