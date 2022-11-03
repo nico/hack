@@ -51,6 +51,9 @@ static uint64_t heif_dump_box(const uint8_t* begin, const uint8_t* end) {
       fatal("heif box wth extended size must be at least 16 bytes but is %zu\n",
             size);
     length = be_uint64(begin + 8);
+  } else if (length == 0) {
+    // length == 0: Box extends to end of file.
+    length = size;
   }
 
   if (size < length)
