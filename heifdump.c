@@ -92,6 +92,29 @@ static uint64_t heif_dump_box(struct Options* options,
                               const uint8_t* begin,
                               const uint8_t* end);
 
+static const char* heif_box_name(uint32_t type) {
+  switch (type) {
+    case 0x68646c72:  // 'hdlr'
+      return "handler";
+    //case 0x64726566:  // 'dref'
+    case 0x66747970:  // 'ftyp'
+      return "file type";
+    case 0x69696e66:  // 'iinf'
+      return "item info";
+    //case 0x69726566:  // 'iref'
+    case 0x69737065:  // 'ispe'
+      return "image spacial extent";
+    //case 0x6d657461:  // 'meta'
+    //case 0x64696e66:  // 'dinf'
+    case 0x6970636f:  // 'ipco'
+      return "item property container";
+    //case 0x69707270:  // 'iprp'
+    case 0x7069746d:  // 'pitm'
+      return "primary item number";
+    default: return NULL;
+  }
+}
+
 static void heif_dump_box_dref(struct Options* options,
                                const uint8_t* begin,
                                uint64_t size) {
@@ -232,8 +255,11 @@ static uint64_t heif_dump_box(struct Options* options,
           " bytes but is %zu\n",
           begin + 4, length, length, size);
 
-  iprintf(options, "box '%.4s' (%08x), length %" PRIu64 "\n", begin + 4, type,
-          length);
+  iprintf(options, "box '%.4s' (%08x", begin + 4, type);
+  const char* box_name = heif_box_name(type);
+  if (box_name)
+    printf(", %s", box_name);
+  printf("), length %" PRIu64 "\n", length);
 
   increase_indent(options);
   switch (type) {
@@ -255,6 +281,7 @@ static uint64_t heif_dump_box(struct Options* options,
     case 0x69707270:  // 'iprp'
       heif_dump_box_container(options, data_begin, data_begin + data_length);
       break;
+    // TODO: infe, iloc, ipma, ...
   }
   decrease_indent(options);
 
