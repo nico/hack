@@ -99,24 +99,36 @@ static const char* heif_box_name(uint32_t type) {
       return "content description";
     case 0x64696d67:  // 'dimg'
       return "derived image inputs";
+    case 0x64696e66:  // 'dinf'
+      return "data information";
+    case 0x64726566:  // 'dref'
+      return "data reference";
     case 0x68646c72:  // 'hdlr'
       return "handler";
-    // case 0x64726566:  // 'dref'
+    case 0x69726f74:  // 'irot'
+      return "image rotation";
     case 0x66747970:  // 'ftyp'
       return "file type";
+    case 0x69646174:  // 'idat'
+      return "item data";
     case 0x69696e66:  // 'iinf'
       return "item info";
+    case 0x696c6f63:  // 'iloc'
+      return "item location";
     case 0x696e6665:  // 'infe'
       return "item info entry";
     case 0x69726566:  // 'iref'
       return "item type reference";
     case 0x69737065:  // 'ispe'
       return "image spacial extent";
-    // case 0x6d657461:  // 'meta'
-    // case 0x64696e66:  // 'dinf'
     case 0x6970636f:  // 'ipco'
       return "item property container";
-    // case 0x69707270:  // 'iprp'
+    case 0x69706d61:  // 'ipma'
+      return "item property association";
+    case 0x69707270:  // 'iprp'
+      return "item properties";
+    case 0x6d657461:  // 'meta'
+      return "metadata";
     case 0x7069746d:  // 'pitm'
       return "primary item number";
     case 0x70697869:  // 'pixi'
