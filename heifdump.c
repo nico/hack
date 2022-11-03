@@ -37,6 +37,8 @@ static uint64_t be_uint64(const uint8_t* p) {
   return ((uint64_t)be_uint32(p) << 32) | be_uint32(p + 4);
 }
 
+static uint64_t heif_dump_box(const uint8_t* begin, const uint8_t* end);
+
 static void heif_dump_box_ftyp(const uint8_t* begin, uint64_t size) {
   // ISO_IEC_14496-12_2015.pdf, 4.3 File Type Box
   if (size < 8) {
@@ -61,11 +63,40 @@ static void heif_dump_box_ftyp(const uint8_t* begin, uint64_t size) {
   }
 }
 
+static void heif_dump_box_meta(const uint8_t* begin, uint64_t size) {
+  // ISO_IEC_14496-12_2015.pdf, 8.11.1 The Meta box
+  if (size < 4) {
+    fprintf(stderr, "meta not at least 4 bytes, was %" PRIu64 "\n", size);
+    return;
+  }
+
+  uint32_t version_and_flags = be_uint32(begin);
+  uint8_t version = version_and_flags >> 24;
+  uint32_t flags = version_and_flags & 0xffffff;
+  printf("  version %u, flags %u\n", version, flags);
+
+  int i = 0;
+  uint64_t offset = 4;
+  while (offset < size) {
+    printf("  ");
+    uint64_t box_size = heif_dump_box(begin + offset, begin + size);
+
+    if (box_size > size - offset) {
+      printf("box has size %" PRIu64 " but only %" PRIu64 " bytes left\n",
+             box_size, size - offset);
+      return;
+    }
+
+    offset += box_size;
+    i++;
+  }
+}
+
 static uint64_t heif_dump_box(const uint8_t* begin, const uint8_t* end) {
   // ISO_IEC_14496-12_2015.pdf
   // e.g. https://b.goeswhere.com/ISO_IEC_14496-12_2015.pdf
   // https://www.loc.gov/preservation/digital/formats/fdd/fdd000079.shtml
-  size_t size = (size_t)(end - begin);
+  const size_t size = (size_t)(end - begin);
   if (size < 8)
     fatal("heif box must be at least 8 bytes but is %zu\n", size);
 
@@ -75,9 +106,11 @@ static uint64_t heif_dump_box(const uint8_t* begin, const uint8_t* end) {
   uint64_t data_length = length - 8;
 
   if (length == 1) {
+    // length == 1: 64-bit length is stored after the type.
     if (size < 16)
       fatal("heif box wth extended size must be at least 16 bytes but is %zu\n",
             size);
+
     length = be_uint64(begin + 8);
 
     data_begin = begin + 16;
@@ -88,15 +121,18 @@ static uint64_t heif_dump_box(const uint8_t* begin, const uint8_t* end) {
   }
 
   if (size < length)
-    fatal("heif box with size %" PRIu64 " must be at least %" PRIu64
+    fatal("heif box '%.4s' with size %" PRIu64 " must be at least %" PRIu64
           " bytes but is %zu\n",
-          length, length, size);
+          begin + 4, length, length, size);
 
   printf("box '%.4s' (%08x), length %" PRIu64 "\n", begin + 4, type, length);
 
   switch (type) {
     case 0x66747970:  // 'ftyp'
       heif_dump_box_ftyp(data_begin, data_length);
+      break;
+    case 0x6d657461:  // 'meta'
+      heif_dump_box_meta(data_begin, data_length);
       break;
   }
 
