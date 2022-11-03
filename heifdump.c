@@ -85,9 +85,9 @@ static void iprintf(const struct Options* options, const char* msg, ...) {
 // https://mpeg.chiariglione.org/standards/mpeg-h/image-file-format/text-isoiec-cd-23008-12-image-file-format
 // => w14148.zip => W14148-HEVC-still-WD.doc
 
-static void heif_dump(struct Options* options,
-                      const uint8_t* begin,
-                      const uint8_t* end);
+static void heif_dump_box_container(struct Options* options,
+                                    const uint8_t* begin,
+                                    const uint8_t* end);
 static uint64_t heif_dump_box(struct Options* options,
                               const uint8_t* begin,
                               const uint8_t* end);
@@ -118,10 +118,10 @@ static void heif_dump_box_ftyp(struct Options* options,
   }
 }
 
-static void heif_dump_box_meta(struct Options* options,
-                               const uint8_t* begin,
-                               uint64_t size) {
-  // ISO_IEC_14496-12_2015.pdf, 8.11.1 The Meta box
+static void heif_dump_full_box_container(struct Options* options,
+                                         const uint8_t* begin,
+                                         uint64_t size) {
+  // ISO_IEC_14496-12_2015.pdf, 4.2 Object Structure, class FullBox
   if (size < 4) {
     fprintf(stderr, "meta not at least 4 bytes, was %" PRIu64 "\n", size);
     return;
@@ -130,7 +130,7 @@ static void heif_dump_box_meta(struct Options* options,
   uint32_t version_and_flags = be_uint32(begin);
   uint8_t version = version_and_flags >> 24;
   uint32_t flags = version_and_flags & 0xffffff;
-  printf("  version %u, flags %u\n", version, flags);
+  iprintf(options, "version %u, flags %u\n", version, flags);
 
   int i = 0;
   uint64_t offset = 4;
@@ -188,12 +188,14 @@ static uint64_t heif_dump_box(struct Options* options,
     case 0x66747970:  // 'ftyp'
       heif_dump_box_ftyp(options, data_begin, data_length);
       break;
+    case 0x69726566:  // 'iref'
     case 0x6d657461:  // 'meta'
-      heif_dump_box_meta(options, data_begin, data_length);
+      heif_dump_full_box_container(options, data_begin, data_length);
       break;
+    case 0x64696e66:  // 'dinf'
     case 0x6970636f:  // 'ipco'
     case 0x69707270:  // 'iprp'
-      heif_dump(options, data_begin, data_begin + data_length);
+      heif_dump_box_container(options, data_begin, data_begin + data_length);
       break;
   }
   decrease_indent(options);
@@ -201,9 +203,9 @@ static uint64_t heif_dump_box(struct Options* options,
   return length;
 }
 
-static void heif_dump(struct Options* options,
-                      const uint8_t* begin,
-                      const uint8_t* end) {
+static void heif_dump_box_container(struct Options* options,
+                                    const uint8_t* begin,
+                                    const uint8_t* end) {
   // ISO_IEC_14496-12_2015.pdf
   // e.g. https://b.goeswhere.com/ISO_IEC_14496-12_2015.pdf
   while (begin < end) {
@@ -243,7 +245,8 @@ int main(int argc, char* argv[]) {
   struct Options options = {
       .current_indent = 0,
   };
-  heif_dump(&options, contents, (uint8_t*)contents + in_stat.st_size);
+  heif_dump_box_container(&options, contents,
+                          (uint8_t*)contents + in_stat.st_size);
 
   munmap(contents, (size_t)in_stat.st_size);
   close(in_file);
