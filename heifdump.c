@@ -37,6 +37,28 @@ static uint64_t be_uint64(const uint8_t* p) {
   return ((uint64_t)be_uint32(p) << 32) | be_uint32(p + 4);
 }
 
+// HEIC is built on top of the "ISOBMFF ISO Base Media File Format", an old
+// version of it is at ISO_IEC_14496-12_2015.pdf
+// e.g. here https://b.goeswhere.com/ISO_IEC_14496-12_2015.pdf
+// The text seems to not generally be freely available.
+
+// There's not super great authoritative documentation as far as I can tell.
+
+// There are a few ok documents online.
+
+// Readable master thesis on the format:
+// https://trepo.tuni.fi/bitstream/handle/123456789/24147/heikkila.pdf
+
+// Blog post on the format.
+// http://cheeky4n6monkey.blogspot.com/2017/10/monkey-takes-heic.html
+
+// Relatively useless Library Of Congress page:
+// https://www.loc.gov/preservation/digital/formats/fdd/fdd000079.shtml
+
+// There are a bunch of .doc (!) files in zips floating around, e.g:
+// https://mpeg.chiariglione.org/standards/mpeg-h/image-file-format/text-isoiec-cd-23008-12-image-file-format
+// => w14148.zip => W14148-HEVC-still-WD.doc
+
 static uint64_t heif_dump_box(const uint8_t* begin, const uint8_t* end);
 
 static void heif_dump_box_ftyp(const uint8_t* begin, uint64_t size) {
@@ -93,9 +115,6 @@ static void heif_dump_box_meta(const uint8_t* begin, uint64_t size) {
 }
 
 static uint64_t heif_dump_box(const uint8_t* begin, const uint8_t* end) {
-  // ISO_IEC_14496-12_2015.pdf
-  // e.g. https://b.goeswhere.com/ISO_IEC_14496-12_2015.pdf
-  // https://www.loc.gov/preservation/digital/formats/fdd/fdd000079.shtml
   const size_t size = (size_t)(end - begin);
   if (size < 8)
     fatal("heif box must be at least 8 bytes but is %zu\n", size);
@@ -142,7 +161,6 @@ static uint64_t heif_dump_box(const uint8_t* begin, const uint8_t* end) {
 static void heif_dump(const uint8_t* begin, const uint8_t* end) {
   // ISO_IEC_14496-12_2015.pdf
   // e.g. https://b.goeswhere.com/ISO_IEC_14496-12_2015.pdf
-  // https://www.loc.gov/preservation/digital/formats/fdd/fdd000079.shtml
   while (begin < end) {
     uint64_t box_size = heif_dump_box(begin, end);
 
