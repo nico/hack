@@ -263,17 +263,22 @@ static struct Box heif_read_box(const uint8_t* begin, uint64_t size) {
   };
 }
 
+static void print_box(struct Options* options,
+                      const struct Box* box,
+                      const uint8_t* type_str) {
+  iprintf(options, "box '%.4s' (%08x", type_str, box->type);
+  const char* box_name = heif_box_name(box->type);
+  if (box_name)
+    printf(", %s", box_name);
+  printf("), length %" PRIu64 "\n", box->length);
+}
+
 static uint64_t heif_dump_box_item_reference(struct Options* options,
                                              const uint8_t* begin,
                                              uint64_t size) {
   // ISO_IEC_14496-12_2015.pdf, 8.11.12 Item Reference Box
   struct Box box = heif_read_box(begin, size);
-
-  iprintf(options, "box '%.4s' (%08x", begin + 4, box.type);
-  const char* box_name = heif_box_name(box.type);
-  if (box_name)
-    printf(", %s", box_name);
-  printf("), length %" PRIu64 "\n", box.length);
+  print_box(options, &box, begin + 4);
 
   if (box.data_length < 4 != 0) {
     fprintf(stderr, "iref size not at least 4, was %" PRIu64 "\n",
@@ -308,12 +313,7 @@ static uint64_t heif_dump_box_item_reference_large(struct Options* options,
   // ISO_IEC_14496-12_2015.pdf, 8.11.12 Item Reference Box
   // ISO_IEC_14496-12_2015.pdf, 8.11.12 Item Reference Box
   struct Box box = heif_read_box(begin, size);
-
-  iprintf(options, "box '%.4s' (%08x", begin + 4, box.type);
-  const char* box_name = heif_box_name(box.type);
-  if (box_name)
-    printf(", %s", box_name);
-  printf("), length %" PRIu64 "\n", box.length);
+  print_box(options, &box, begin + 4);
 
   if (box.data_length < 6 != 0) {
     fprintf(stderr, "iref size not at least 4, was %" PRIu64 "\n",
@@ -413,12 +413,7 @@ static uint64_t heif_dump_box(struct Options* options,
                               const uint8_t* end) {
   const size_t size = (size_t)(end - begin);
   struct Box box = heif_read_box(begin, size);
-
-  iprintf(options, "box '%.4s' (%08x", begin + 4, box.type);
-  const char* box_name = heif_box_name(box.type);
-  if (box_name)
-    printf(", %s", box_name);
-  printf("), length %" PRIu64 "\n", box.length);
+  print_box(options, &box, begin + 4);
 
   increase_indent(options);
   switch (box.type) {
