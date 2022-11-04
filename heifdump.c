@@ -302,6 +302,11 @@ static uint64_t heif_dump_box(struct Options* options,
     case 0x64696e66:  // 'dinf'
     case 0x6970636f:  // 'ipco'
     case 0x69707270:  // 'iprp'
+    case 0x6d646961:  // 'mdia'
+    case 0x6d696e66:  // 'minf'
+    case 0x6d6f6f76:  // 'moov'
+    case 0x7374626c:  // 'stbl'
+    case 0x7472616b:  // 'trak'
       heif_dump_box_container(options, data_begin, data_begin + data_length);
       break;
       // TODO: infe, iloc, ipma, ...
