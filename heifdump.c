@@ -216,6 +216,183 @@ static void heif_dump_box_iinf(struct Options* options,
   heif_dump_box_container(options, begin + offset, begin + size);
 }
 
+static uint64_t heif_dump_box_item_reference(struct Options* options,
+                                             const uint8_t* begin,
+                                             uint64_t size) {
+  // ISO_IEC_14496-12_2015.pdf, 8.11.12 Item Reference Box
+  if (size < 8) {
+    printf("heif box must be at least 8 bytes but is %" PRIu64 "\n", size);
+    return size;
+  }
+
+  uint64_t length = be_uint32(begin);
+  uint32_t type = be_uint32(begin + 4);
+  const uint8_t* data_begin = begin + 8;
+  uint64_t data_length = length - 8;
+
+  if (length == 1) {
+    // length == 1: 64-bit length is stored after the type.
+    if (size < 16)
+      fatal(
+          "heif box wth extended size must be at least 16 bytes but is %" PRIu64
+          " \n",
+          size);
+
+    length = be_uint64(begin + 8);
+
+    data_begin = begin + 16;
+    data_length = length - 16;
+  } else if (length == 0) {
+    // length == 0: Box extends to end of file.
+    length = size;
+    data_length = length - 8;
+  }
+
+  if (size < length)
+    fatal("heif box '%.4s' with size %" PRIu64 " must be at least %" PRIu64
+          " bytes but is %" PRIu64 "\n",
+          begin + 4, length, length, size);
+
+  iprintf(options, "box '%.4s' (%08x", begin + 4, type);
+  const char* box_name = heif_box_name(type);
+  if (box_name)
+    printf(", %s", box_name);
+  printf("), length %" PRIu64 "\n", length);
+
+  if (data_length < 4 != 0) {
+    fprintf(stderr, "iref size not at least 4, was %" PRIu64 "\n", data_length);
+    return length;
+  }
+  if (data_length % 2 != 0) {
+    fprintf(stderr, "iref size not multiple of 2, was %" PRIu64 "\n",
+            data_length);
+    return length;
+  }
+
+  uint16_t from = be_uint16(data_begin);
+  uint16_t count = be_uint16(data_begin + 2);
+  if (data_length != 4 + count * 2) {
+    fprintf(stderr, "iref size not %u, was %" PRIu64 "\n",
+            4 + count * 2, data_length);
+    return length;
+  }
+
+  iprintf(options, "  ref from %d to:", from);
+  for (unsigned i = 0; i < count; ++i)
+    printf(" %d", be_uint16(data_begin + 4 + 2 * i));
+  printf("\n");
+
+  return length;
+}
+
+static uint64_t heif_dump_box_item_reference_large(struct Options* options,
+                                                   const uint8_t* begin,
+                                                   uint64_t size) {
+  // ISO_IEC_14496-12_2015.pdf, 8.11.12 Item Reference Box
+  // ISO_IEC_14496-12_2015.pdf, 8.11.12 Item Reference Box
+  if (size < 8) {
+    printf("heif box must be at least 8 bytes but is %" PRIu64 "\n", size);
+    return size;
+  }
+
+  uint64_t length = be_uint32(begin);
+  uint32_t type = be_uint32(begin + 4);
+  const uint8_t* data_begin = begin + 8;
+  uint64_t data_length = length - 8;
+
+  if (length == 1) {
+    // length == 1: 64-bit length is stored after the type.
+    if (size < 16)
+      fatal(
+          "heif box wth extended size must be at least 16 bytes but is %" PRIu64
+          " \n",
+          size);
+
+    length = be_uint64(begin + 8);
+
+    data_begin = begin + 16;
+    data_length = length - 16;
+  } else if (length == 0) {
+    // length == 0: Box extends to end of file.
+    length = size;
+    data_length = length - 8;
+  }
+
+  if (size < length)
+    fatal("heif box '%.4s' with size %" PRIu64 " must be at least %" PRIu64
+          " bytes but is %" PRIu64 "\n",
+          begin + 4, length, length, size);
+
+  iprintf(options, "box '%.4s' (%08x", begin + 4, type);
+  const char* box_name = heif_box_name(type);
+  if (box_name)
+    printf(", %s", box_name);
+  printf("), length %" PRIu64 "\n", length);
+
+  if (data_length < 6 != 0) {
+    fprintf(stderr, "iref size not at least 4, was %" PRIu64 "\n", data_length);
+    return length;
+  }
+  if ((data_length - 2) % 4 != 0) {
+    fprintf(stderr, "iref size not multiple of 4, was %" PRIu64 "\n",
+            data_length);
+    return length;
+  }
+
+  uint32_t from = be_uint32(data_begin);
+  uint16_t count = be_uint16(data_begin + 4);
+  if (data_length != 6 + count * 4) {
+    fprintf(stderr, "iref size not %u, was %" PRIu64 "\n",
+            6 + count * 4, data_length);
+    return length;
+  }
+
+  iprintf(options, "  ref from %d to:", from);
+  for (unsigned i = 0; i < count; ++i)
+    printf(" %d", be_uint32(data_begin + 6 + 4 * i));
+  printf("\n");
+
+  return length;
+}
+
+static void heif_dump_box_iref(struct Options* options,
+                               const uint8_t* begin,
+                               uint64_t size) {
+  // ISO_IEC_14496-12_2015.pdf, 8.11.12 Item Reference Box
+  if (size < 4) {
+    fprintf(stderr, "iref not at least 4 bytes, was %" PRIu64 "\n", size);
+    return;
+  }
+
+  uint32_t version_and_flags = be_uint32(begin);
+  uint8_t version = version_and_flags >> 24;
+  uint32_t flags = version_and_flags & 0xffffff;
+  iprintf(options, "version %u, flags %u\n", version, flags);
+
+  uint64_t (*dump_ref)(struct Options*, const uint8_t*, uint64_t);
+  if (version == 0)
+    dump_ref = heif_dump_box_item_reference;
+  else if (version == 1)
+    dump_ref = heif_dump_box_item_reference_large;
+  else {
+    fprintf(stderr, "iref version %d unknown\n", version);
+    return;
+  }
+
+  uint64_t offset = 4;
+  while (offset < size) {
+    uint64_t box_size = dump_ref(options, begin + offset, size - offset);
+
+    if (box_size > size - offset) {
+      printf("box has size %" PRIu64 " but only %" PRIu64 " bytes left\n",
+             box_size, size - offset);
+      return;
+    }
+
+    offset += box_size;
+  }
+}
+
 static void heif_dump_full_box_container(struct Options* options,
                                          const uint8_t* begin,
                                          uint64_t size) {
@@ -230,7 +407,6 @@ static void heif_dump_full_box_container(struct Options* options,
   uint32_t flags = version_and_flags & 0xffffff;
   iprintf(options, "version %u, flags %u\n", version, flags);
 
-  int i = 0;
   uint64_t offset = 4;
   while (offset < size) {
     uint64_t box_size = heif_dump_box(options, begin + offset, begin + size);
@@ -242,7 +418,6 @@ static void heif_dump_full_box_container(struct Options* options,
     }
 
     offset += box_size;
-    i++;
   }
 }
 
@@ -271,6 +446,7 @@ static uint64_t heif_dump_box(struct Options* options,
   } else if (length == 0) {
     // length == 0: Box extends to end of file.
     length = size;
+    data_length = length - 8;
   }
 
   if (size < length)
@@ -296,6 +472,8 @@ static uint64_t heif_dump_box(struct Options* options,
       heif_dump_box_iinf(options, data_begin, data_length);
       break;
     case 0x69726566:  // 'iref'
+      heif_dump_box_iref(options, data_begin, data_length);
+      break;
     case 0x6d657461:  // 'meta'
       heif_dump_full_box_container(options, data_begin, data_length);
       break;
