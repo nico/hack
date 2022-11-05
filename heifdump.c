@@ -380,6 +380,36 @@ static void heif_dump_box_iref(struct Options* options,
   }
 }
 
+static void heif_dump_box_pitm(struct Options* options,
+                               const uint8_t* begin,
+                               uint64_t size) {
+  // ISO_IEC_14496-12_2015.pdf, 8.11.4 Primary Item Box
+  if (size < 4) {
+    fprintf(stderr, "pitm not at least 4 bytes, was %" PRIu64 "\n", size);
+    return;
+  }
+
+  uint32_t version_and_flags = be_uint32(begin);
+  uint8_t version = version_and_flags >> 24;
+  uint32_t flags = version_and_flags & 0xffffff;
+  iprintf(options, "version %u, flags %u\n", version, flags);
+
+  if (version == 0 && size != 6) {
+    fprintf(stderr, "pitm v0 not 6 bytes, was %" PRIu64 "\n", size);
+    return;
+  }
+  if (version != 0 && size != 8) {
+    fprintf(stderr, "pitm not 8 bytes, was %" PRIu64 "\n", size);
+    return;
+  }
+
+  uint32_t item_id;
+  if (version == 0)
+    item_id = be_uint16(begin + 4);
+  else
+    item_id = be_uint32(begin + 4);
+  iprintf(options, "item id %u\n", item_id);
+}
 static void heif_dump_full_box_container(struct Options* options,
                                          const uint8_t* begin,
                                          uint64_t size) {
@@ -431,6 +461,9 @@ static uint64_t heif_dump_box(struct Options* options,
       break;
     case 0x6d657461:  // 'meta'
       heif_dump_full_box_container(options, box.data_begin, box.data_length);
+      break;
+    case 0x7069746d:  // 'pitm'
+      heif_dump_box_pitm(options, box.data_begin, box.data_length);
       break;
     case 0x64696e66:  // 'dinf'
     case 0x6970636f:  // 'ipco'
