@@ -225,6 +225,8 @@ static void heif_dump_box_infe(struct Options* options,
     return;
   }
 
+  // FIXME: bounds checking
+
   uint32_t version_and_flags = be_uint32(begin);
   uint8_t version = version_and_flags >> 24;
   uint32_t flags = version_and_flags & 0xffffff;
@@ -233,15 +235,26 @@ static void heif_dump_box_infe(struct Options* options,
   if (version == 0 || version == 1) {
     uint16_t item_id = be_uint16(begin + 4);
     uint16_t item_protection_index = be_uint16(begin + 6);
-    // TODO: item_name, content_type, content_encoding
+
+    unsigned offset = 8;
+
+    const char* item_name = (const char*)(begin + offset);
+    offset += strlen(item_name) + 1;
+
+    const char* content_type = (const char*)(begin + offset);
+    offset += strlen(content_type) + 1;
+
+    // TODO: optional content_encoding
     iprintf(options, "item_id %u\n", item_id);
     iprintf(options, "item_protection_index %u\n", item_protection_index);
+    iprintf(options, "item_name '%s'\n", item_name);
+    iprintf(options, "content_type '%s'\n", content_type);
   }
   if (version == 1) {
     // TODO: extension_type, extension
   }
   if (version >= 2) {
-    int offset;
+    unsigned offset;
     uint32_t item_id;
     if (version == 2) {
       item_id = be_uint16(begin + 4);
@@ -251,21 +264,39 @@ static void heif_dump_box_infe(struct Options* options,
       offset = 8;
     }
     uint16_t item_protection_index = be_uint16(begin + offset);
-    uint32_t item_type = be_uint32(begin + offset + 2);
+    offset += 2;
+
+    unsigned item_type_offset = offset;
+    uint32_t item_type = be_uint32(begin + item_type_offset);
+    offset += 4;
+
+    const char* item_name = (const char*)(begin + offset);
+    offset += strlen(item_name) + 1;
 
     iprintf(options, "item_id %u\n", item_id);
     iprintf(options, "item_protection_index %u\n", item_protection_index);
-    iprintf(options, "item_type '%.4s' (0x%x)\n", begin + offset + 2,
+    iprintf(options, "item_type '%.4s' (0x%x)\n", begin + item_type_offset,
             item_type);
+    iprintf(options, "item_name '%s'\n", item_name);
 
-    // TODO:
-    // string item_name;
-    // if (item_type==’mime’) {
-    //   string content_type;
-    //   string content_encoding; //optional
-    // } else if (item_type == ‘uri ‘) {
-    //   striing item_uri_type;
-    // }
+    if (item_type == 0x6d696d65) {  // 'mime'
+      const char* content_type = (const char*)(begin + offset);
+      offset += strlen(content_type) + 1;
+
+      const char* content_encoding = NULL;
+      if (offset < size) {
+        content_encoding = (const char*)(begin + offset);
+        offset += strlen(content_encoding) + 1;
+      }
+
+      iprintf(options, "content_type '%s'\n", content_type);
+      if (content_encoding)
+        iprintf(options, "content_encoding '%s'\n", content_encoding);
+    } else if (item_type == 0x75726920) {  // 'uri '
+      const char* item_uri_type = (const char*)(begin + offset);
+      offset += strlen(item_name) + 1;
+      iprintf(options, "item_uri_type '%s'\n", item_uri_type);
+    }
   }
 }
 
