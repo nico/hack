@@ -216,6 +216,59 @@ static void heif_dump_box_iinf(struct Options* options,
   heif_dump_box_container(options, begin + offset, begin + size);
 }
 
+static void heif_dump_box_infe(struct Options* options,
+                               const uint8_t* begin,
+                               uint64_t size) {
+  // ISO_IEC_14496-12_2015.pdf, 8.11.6 Item Information Box
+  if (size < 8) {
+    fprintf(stderr, "dref not at least 8 bytes, was %" PRIu64 "\n", size);
+    return;
+  }
+
+  uint32_t version_and_flags = be_uint32(begin);
+  uint8_t version = version_and_flags >> 24;
+  uint32_t flags = version_and_flags & 0xffffff;
+  iprintf(options, "version %u, flags %u\n", version, flags);
+
+  if (version == 0 || version == 1) {
+    uint16_t item_id = be_uint16(begin + 4);
+    uint16_t item_protection_index = be_uint16(begin + 6);
+    // TODO: item_name, content_type, content_encoding
+    iprintf(options, "item_id %u\n", item_id);
+    iprintf(options, "item_protection_index %u\n", item_protection_index);
+  }
+  if (version == 1) {
+    // TODO: extension_type, extension
+  }
+  if (version >= 2) {
+    int offset;
+    uint32_t item_id;
+    if (version == 2) {
+      item_id = be_uint16(begin + 4);
+      offset = 6;
+    } else {
+      item_id = be_uint32(begin + 4);
+      offset = 8;
+    }
+    uint16_t item_protection_index = be_uint16(begin + offset);
+    uint32_t item_type = be_uint32(begin + offset + 2);
+
+    iprintf(options, "item_id %u\n", item_id);
+    iprintf(options, "item_protection_index %u\n", item_protection_index);
+    iprintf(options, "item_type '%.4s' (0x%x)\n", begin + offset + 2,
+            item_type);
+
+    // TODO:
+    // string item_name;
+    // if (item_type==’mime’) {
+    //   string content_type;
+    //   string content_encoding; //optional
+    // } else if (item_type == ‘uri ‘) {
+    //   striing item_uri_type;
+    // }
+  }
+}
+
 struct Box {
   uint64_t length;
   uint32_t type;
@@ -455,6 +508,9 @@ static uint64_t heif_dump_box(struct Options* options,
       break;
     case 0x69696e66:  // 'iinf'
       heif_dump_box_iinf(options, box.data_begin, box.data_length);
+      break;
+    case 0x696e6665:  // 'infe'
+      heif_dump_box_infe(options, box.data_begin, box.data_length);
       break;
     case 0x69726566:  // 'iref'
       heif_dump_box_iref(options, box.data_begin, box.data_length);
