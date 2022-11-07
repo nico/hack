@@ -191,7 +191,7 @@ static void heif_dump_box_iinf(struct Options* options,
                                uint64_t size) {
   // ISO_IEC_14496-12_2015.pdf, 8.11.6 Item Information Box
   if (size < 8) {
-    fprintf(stderr, "dref not at least 8 bytes, was %" PRIu64 "\n", size);
+    fprintf(stderr, "iinf not at least 8 bytes, was %" PRIu64 "\n", size);
     return;
   }
 
@@ -216,12 +216,111 @@ static void heif_dump_box_iinf(struct Options* options,
   heif_dump_box_container(options, begin + offset, begin + size);
 }
 
+static void heif_dump_box_iloc(struct Options* options,
+                               const uint8_t* begin,
+                               uint64_t size) {
+  // ISO_IEC_14496-12_2015.pdf, 8.11.3 The Item Location Box
+  if (size < 6) {
+    fprintf(stderr, "iloc not at least ^ bytes, was %" PRIu64 "\n", size);
+    return;
+  }
+
+  uint32_t version_and_flags = be_uint32(begin);
+  uint8_t version = version_and_flags >> 24;
+  uint32_t flags = version_and_flags & 0xffffff;
+  iprintf(options, "version %u, flags %u\n", version, flags);
+
+  uint16_t sizes = be_uint16(begin + 4);
+  unsigned offset_size = sizes >> 12;
+  unsigned length_size = (sizes >> 8) & 0xf;
+  unsigned base_offset_size = (sizes >> 4) & 0xf;
+  unsigned index_size = 0;
+  if (version == 1 || version == 2)
+    index_size = sizes & 0xf;
+
+  if (offset_size != 0 && offset_size != 4 && offset_size != 8) {
+    printf("offset_size should be 0, 4, 8 but was %d\n", offset_size);
+    return;
+  }
+  if (length_size != 0 && length_size != 4 && length_size != 8) {
+    printf("length_size should be 0, 4, 8 but was %d\n", length_size);
+    return;
+  }
+  if (base_offset_size != 0 && base_offset_size != 4 && base_offset_size != 8) {
+    printf("base_offset_size should be 0, 4, 8 but was %d\n", base_offset_size);
+    return;
+  }
+  if (index_size != 0 && index_size != 4 && index_size != 8) {
+    printf("index_size should be 0, 4, 8 but was %d\n", index_size);
+    return;
+  }
+
+  // FIXME: bounds checking
+
+  unsigned offset;
+  uint32_t item_count;
+  if (version < 2) {
+    item_count = be_uint16(begin + 6);
+    offset = 8;
+  } else {
+    item_count = be_uint32(begin + 6);
+    offset = 10;
+  }
+
+  iprintf(options, "offset_size %d\n", offset_size);
+  iprintf(options, "offset_size %d\n", length_size);
+  iprintf(options, "base_offset_size %d\n", base_offset_size);
+  if (version == 1 || version == 2)
+    iprintf(options, "index_size %d\n", index_size);
+
+  increase_indent(options);
+  for (unsigned i = 0; i < item_count; ++i) {
+    uint32_t item_id;
+    if (version < 2) {
+      item_id = be_uint16(begin + offset);
+      offset += 2;
+    } else {
+      item_id = be_uint32(begin + offset);
+      offset += 4;
+    }
+
+    uint8_t construction_method = 0;
+    if (version == 1 || version == 2) {
+      uint16_t reserved = be_uint16(begin + offset);
+      offset += 2;
+
+      construction_method = reserved & 0xf;
+    }
+
+    uint16_t data_reference_index = be_uint16(begin + offset);
+    offset += 2;
+
+    offset += base_offset_size;  // TODO: read base_offset
+
+    uint16_t extent_count = be_uint16(begin + offset);
+    offset += 2;
+
+    for (int j = 0; j < extent_count; ++j) {
+      if ((version == 1 || version == 2) && index_size > 0) {
+        offset += index_size;  // TODO: read extent_index
+      }
+      offset += offset_size;  // TODO: read extent_offset
+      offset += length_size;  // TODO: read extent_length
+    }
+
+    iprintf(options, "item_id: %d\n", item_id);
+    iprintf(options, "construction_method: %d\n", construction_method);
+    iprintf(options, "data_reference_index: %d\n", data_reference_index);
+  }
+  decrease_indent(options);
+}
+
 static void heif_dump_box_infe(struct Options* options,
                                const uint8_t* begin,
                                uint64_t size) {
   // ISO_IEC_14496-12_2015.pdf, 8.11.6 Item Information Box
   if (size < 8) {
-    fprintf(stderr, "dref not at least 8 bytes, was %" PRIu64 "\n", size);
+    fprintf(stderr, "infe not at least 8 bytes, was %" PRIu64 "\n", size);
     return;
   }
 
@@ -546,6 +645,9 @@ static uint64_t heif_dump_box(struct Options* options,
       break;
     case 0x69696e66:  // 'iinf'
       heif_dump_box_iinf(options, box.data_begin, box.data_length);
+      break;
+    case 0x696c6f63:  // 'iloc'
+      heif_dump_box_iloc(options, box.data_begin, box.data_length);
       break;
     case 0x696e6665:  // 'infe'
       heif_dump_box_infe(options, box.data_begin, box.data_length);
