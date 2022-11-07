@@ -244,11 +244,18 @@ static void heif_dump_box_infe(struct Options* options,
     const char* content_type = (const char*)(begin + offset);
     offset += strlen(content_type) + 1;
 
-    // TODO: optional content_encoding
+    const char* content_encoding = NULL;
+    if (offset < size) {
+      content_encoding = (const char*)(begin + offset);
+      offset += strlen(content_encoding) + 1;
+    }
+
     iprintf(options, "item_id %u\n", item_id);
     iprintf(options, "item_protection_index %u\n", item_protection_index);
     iprintf(options, "item_name '%s'\n", item_name);
     iprintf(options, "content_type '%s'\n", content_type);
+    if (content_encoding)
+      iprintf(options, "content_encoding '%s'\n", content_encoding);
   }
   if (version == 1) {
     // TODO: extension_type, extension
