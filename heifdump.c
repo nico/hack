@@ -570,6 +570,26 @@ static void heif_dump_box_iref(struct Options* options,
   }
 }
 
+static void heif_dump_box_ispe(struct Options* options,
+                               const uint8_t* begin,
+                               uint64_t size) {
+  // Image Spacial Extents
+  // Maybe documented in a newer version of the standard?
+  if (size != 12) {
+    fprintf(stderr, "ispe not 12 bytes, was %" PRIu64 "\n", size);
+    return;
+  }
+
+  uint32_t version_and_flags = be_uint32(begin);
+  uint8_t version = version_and_flags >> 24;
+  uint32_t flags = version_and_flags & 0xffffff;
+  iprintf(options, "version %u, flags %u\n", version, flags);
+
+  uint32_t width = be_uint32(begin + 4);
+  uint32_t height = be_uint32(begin + 8);
+  iprintf(options, "%d x %d\n", width, height);
+}
+
 static void heif_dump_box_pitm(struct Options* options,
                                const uint8_t* begin,
                                uint64_t size) {
@@ -654,6 +674,9 @@ static uint64_t heif_dump_box(struct Options* options,
       break;
     case 0x69726566:  // 'iref'
       heif_dump_box_iref(options, box.data_begin, box.data_length);
+      break;
+    case 0x69737065:  // 'ispe'
+      heif_dump_box_ispe(options, box.data_begin, box.data_length);
       break;
     case 0x6d657461:  // 'meta'
       heif_dump_full_box_container(options, box.data_begin, box.data_length);
