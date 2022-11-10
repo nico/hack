@@ -570,6 +570,21 @@ static void heif_dump_box_iref(struct Options* options,
   }
 }
 
+static void heif_dump_box_irot(struct Options* options,
+                               const uint8_t* begin,
+                               uint64_t size) {
+  // Image Rotation
+  // Maybe documented in a newer version of the standard?
+  if (size != 1) {
+    fprintf(stderr, "irot not 1 byte, was %" PRIu64 "\n", size);
+    return;
+  }
+
+  uint8_t rotation = *begin;
+  rotation &= 0x3;
+  iprintf(options, "%d degrees\n", rotation * 90);
+}
+
 static void heif_dump_box_ispe(struct Options* options,
                                const uint8_t* begin,
                                uint64_t size) {
@@ -674,6 +689,9 @@ static uint64_t heif_dump_box(struct Options* options,
       break;
     case 0x69726566:  // 'iref'
       heif_dump_box_iref(options, box.data_begin, box.data_length);
+      break;
+    case 0x69726f74:  // 'irot'
+      heif_dump_box_irot(options, box.data_begin, box.data_length);
       break;
     case 0x69737065:  // 'ispe'
       heif_dump_box_ispe(options, box.data_begin, box.data_length);
