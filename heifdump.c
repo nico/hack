@@ -635,6 +635,37 @@ static void heif_dump_box_pitm(struct Options* options,
     item_id = be_uint32(begin + 4);
   iprintf(options, "item id %u\n", item_id);
 }
+
+static void heif_dump_box_pixi(struct Options* options,
+                               const uint8_t* begin,
+                               uint64_t size) {
+  // Pixel Information
+  // Maybe documented in a newer version of the standard?
+  if (size < 5) {
+    fprintf(stderr, "pixi not at least 5 bytes, was %" PRIu64 "\n", size);
+    return;
+  }
+
+  uint32_t version_and_flags = be_uint32(begin);
+  uint8_t version = version_and_flags >> 24;
+  uint32_t flags = version_and_flags & 0xffffff;
+  iprintf(options, "version %u, flags %u\n", version, flags);
+
+  uint8_t num_channels = begin[4];
+  if (size - 5 != num_channels) {
+    fprintf(stderr, "pixi with %d channels not %d bytes, was %" PRIu64 "\n",
+            num_channels, num_channels + 5, size);
+    return;
+  }
+
+  iprintf(options, "bits per channel:");
+  for (unsigned i = 0; i < num_channels; ++i) {
+    uint8_t bits_per_channel = begin[5 + i];
+    printf(" %d", bits_per_channel);
+  }
+  printf("\n");
+}
+
 static void heif_dump_full_box_container(struct Options* options,
                                          const uint8_t* begin,
                                          uint64_t size) {
@@ -701,6 +732,9 @@ static uint64_t heif_dump_box(struct Options* options,
       break;
     case 0x7069746d:  // 'pitm'
       heif_dump_box_pitm(options, box.data_begin, box.data_length);
+      break;
+    case 0x70697869:  // 'pixi'
+      heif_dump_box_pixi(options, box.data_begin, box.data_length);
       break;
     case 0x64696e66:  // 'dinf'
     case 0x6970636f:  // 'ipco'
