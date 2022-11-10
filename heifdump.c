@@ -406,6 +406,64 @@ static void heif_dump_box_infe(struct Options* options,
   }
 }
 
+static void heif_dump_box_ipma(struct Options* options,
+                               const uint8_t* begin,
+                               uint64_t size) {
+  // Item Property Association
+  // Maybe documented in a newer version of the standard?
+  if (size < 12) {
+    fprintf(stderr, "ipma not at least 12 bytes, was %" PRIu64 "\n", size);
+    return;
+  }
+
+  // FIXME: bounds checking
+
+  uint32_t version_and_flags = be_uint32(begin);
+  uint8_t version = version_and_flags >> 24;
+  uint32_t flags = version_and_flags & 0xffffff;
+  iprintf(options, "version %u, flags %u\n", version, flags);
+
+  size_t offset = 4;
+  uint32_t num_entries = be_uint32(begin + offset);
+  offset += 4;
+
+  increase_indent(options);
+  for (unsigned i = 0; i < num_entries; ++i) {
+    uint32_t item_id;
+    if (version < 1) {
+      item_id = be_uint16(begin + offset);
+      offset += 2;
+    } else {
+      item_id = be_uint32(begin + offset);
+      offset += 4;
+    }
+    iprintf(options, "item_id %d\n", item_id);
+
+    uint8_t num_associations = begin[offset++];
+
+    increase_indent(options);
+    for (unsigned k = 0; k < num_associations; ++k) {
+      uint16_t index;
+      bool is_essential;
+      if (flags & 1) {
+        index = be_uint16(begin + offset);
+        offset += 2;
+
+        is_essential = (index & 0x8000) != 0;
+        index &= 0x7fff;
+      } else {
+        index = begin[offset++];
+
+        is_essential = (index & 0x80) != 0;
+        index &= 0x7f;
+      }
+      iprintf(options, "index %d, is_essential %d\n", index, is_essential);
+    }
+    decrease_indent(options);
+  }
+  decrease_indent(options);
+}
+
 struct Box {
   uint64_t length;
   uint32_t type;
@@ -718,6 +776,9 @@ static uint64_t heif_dump_box(struct Options* options,
     case 0x696e6665:  // 'infe'
       heif_dump_box_infe(options, box.data_begin, box.data_length);
       break;
+    case 0x69706d61:  // 'ipma'
+      heif_dump_box_ipma(options, box.data_begin, box.data_length);
+      break;
     case 0x69726566:  // 'iref'
       heif_dump_box_iref(options, box.data_begin, box.data_length);
       break;
@@ -747,7 +808,6 @@ static uint64_t heif_dump_box(struct Options* options,
       heif_dump_box_container(options, box.data_begin,
                               box.data_begin + box.data_length);
       break;
-      // TODO: infe, iloc, ipma, ...
   }
   decrease_indent(options);
 
