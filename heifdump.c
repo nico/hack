@@ -379,7 +379,22 @@ static void heif_dump_box_iloc(struct Options* options,
     offset += 2;
 
     iprintf(options, "item_id: %d\n", item_id);
-    iprintf(options, "construction_method: %d\n", construction_method);
+    iprintf(options, "construction_method: %d", construction_method);
+    switch (construction_method) {
+      case 0:
+        printf(" (file offset)");
+        break;
+      case 1:
+        printf(" (idat offset)");
+        break;
+      case 2:
+        printf(" (item offset)");
+        break;
+      default:
+        printf(" (unknown method)");
+        break;
+    }
+    printf("\n");
     iprintf(options, "data_reference_index: %d\n", data_reference_index);
     iprintf(options, "base_offset: %" PRIu64 "\n", base_offset);
     iprintf(options, "extent_count: %u\n", extent_count);
