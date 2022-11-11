@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
@@ -332,10 +333,12 @@ static void heif_dump_box_iloc(struct Options* options,
   }
 
   iprintf(options, "offset_size %d\n", offset_size);
-  iprintf(options, "offset_size %d\n", length_size);
+  iprintf(options, "length_size %d\n", length_size);
   iprintf(options, "base_offset_size %d\n", base_offset_size);
   if (version == 1 || version == 2)
     iprintf(options, "index_size %d\n", index_size);
+
+  iprintf(options, "item_count %d\n", item_count);
 
   increase_indent(options);
   for (unsigned i = 0; i < item_count; ++i) {
@@ -359,22 +362,69 @@ static void heif_dump_box_iloc(struct Options* options,
     uint16_t data_reference_index = be_uint16(begin + offset);
     offset += 2;
 
-    offset += base_offset_size;  // TODO: read base_offset
+    uint64_t base_offset = 0;
+    if (base_offset_size == 4) {
+      base_offset = be_uint32(begin + offset);
+      offset += 4;
+    } else if (base_offset_size == 8) {
+      base_offset = be_uint64(begin + offset);
+      offset += 8;
+    } else {
+      assert(base_offset_size == 0);
+    }
 
     uint16_t extent_count = be_uint16(begin + offset);
     offset += 2;
 
-    for (int j = 0; j < extent_count; ++j) {
-      if ((version == 1 || version == 2) && index_size > 0) {
-        offset += index_size;  // TODO: read extent_index
-      }
-      offset += offset_size;  // TODO: read extent_offset
-      offset += length_size;  // TODO: read extent_length
-    }
-
     iprintf(options, "item_id: %d\n", item_id);
     iprintf(options, "construction_method: %d\n", construction_method);
     iprintf(options, "data_reference_index: %d\n", data_reference_index);
+    iprintf(options, "base_offset: %" PRIu64 "\n", base_offset);
+    iprintf(options, "extent_count: %u\n", extent_count);
+
+    increase_indent(options);
+    for (int j = 0; j < extent_count; ++j) {
+      uint64_t extent_index = 0;
+      if ((version == 1 || version == 2) && index_size > 0) {
+        if (index_size == 4) {
+          extent_index = be_uint32(begin + offset);
+          offset += 4;
+        } else {
+          assert(index_size == 8);
+          extent_index = be_uint64(begin + offset);
+          offset += 8;
+        }
+      }
+
+      uint64_t extent_offset = 0;
+      if (offset_size == 4) {
+        extent_offset = be_uint32(begin + offset);
+        offset += 4;
+      } else if (offset_size == 8) {
+        extent_offset = be_uint64(begin + offset);
+        offset += 8;
+      } else {
+        assert(offset_size == 0);
+      }
+
+      uint64_t extent_length = 0;
+      if (length_size == 4) {
+        extent_length = be_uint32(begin + offset);
+        offset += 4;
+      } else if (length_size == 8) {
+        extent_length = be_uint64(begin + offset);
+        offset += 8;
+      } else {
+        assert(length_size == 0);
+      }
+
+      iprintf(options, "extent %d\n", j);
+      if ((version == 1 || version == 2) && index_size > 0)
+        iprintf(options, "extent_index %" PRIu64 "\n", extent_index);
+      iprintf(options, "extent_offset %" PRIu64 "\n", extent_offset);
+      iprintf(options, "extent_length %" PRIu64 "\n", extent_length);
+    }
+    decrease_indent(options);
   }
   decrease_indent(options);
 }
