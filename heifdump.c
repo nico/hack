@@ -97,12 +97,16 @@ static const char* heif_box_name(uint32_t type) {
   switch (type) {
     case 0x63647363:  // 'cdsc'
       return "content description";
+    case 0x63747473:  // 'ctts'
+      return "composite time to sample";
     case 0x64696d67:  // 'dimg'
       return "derived image inputs";
     case 0x64696e66:  // 'dinf'
       return "data information";
     case 0x64726566:  // 'dref'
       return "data reference";
+    case 0x65647473:  // 'edts'
+      return "edit list container";
     case 0x68646c72:  // 'hdlr'
       return "handler";
     case 0x69726f74:  // 'irot'
@@ -127,12 +131,42 @@ static const char* heif_box_name(uint32_t type) {
       return "item property association";
     case 0x69707270:  // 'iprp'
       return "item properties";
+    case 0x6d646864:  // 'mdhd'
+      return "media header";
     case 0x6d657461:  // 'meta'
       return "metadata";
+    case 0x6d6f6f76:  // 'moov'
+      return "movie";
+    case 0x6d766864:  // 'mvhd'
+      return "movie header";
+    case 0x73626770:  // 'sbgp'
+      return "sample to group";
+    case 0x73677064:  // 'sgpd'
+      return "sample group description";
+    case 0x7374626c:  // 'stbl'
+      return "sample table";
+    case 0x7374636f:  // 'stco'
+      return "chunk offsets";
+    case 0x73747364:  // 'stsd'
+      return "sample descriptions";
+    case 0x73747363:  // 'stsc'
+      return "sample to chunk";
+    case 0x73747373:  // 'stss'
+      return "sync (key, I-frame) sample map";
+    case 0x7374737a:  // 'stsz'
+      return "sample size";
+    case 0x73747473:  // 'stts'
+      return "time-to-sample";
+    case 0x746b6864:  // 'tkhd'
+      return "track header";
     case 0x7069746d:  // 'pitm'
       return "primary item number";
     case 0x70697869:  // 'pixi'
       return "pixel information";
+    case 0x75647461:  // 'udta'
+      return "user data";
+    case 0x766d6864:  // 'vmhd'
+      return "video media header";
     default:
       return NULL;
   }
@@ -798,6 +832,7 @@ static uint64_t heif_dump_box(struct Options* options,
       heif_dump_box_pixi(options, box.data_begin, box.data_length);
       break;
     case 0x64696e66:  // 'dinf'
+    case 0x65647473:  // 'edts'
     case 0x6970636f:  // 'ipco'
     case 0x69707270:  // 'iprp'
     case 0x6d646961:  // 'mdia'
