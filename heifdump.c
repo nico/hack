@@ -220,6 +220,36 @@ static void heif_dump_box_ftyp(struct Options* options,
   }
 }
 
+static void heif_dump_box_hdlr(struct Options* options,
+                               const uint8_t* begin,
+                               uint64_t size) {
+  // ISO_IEC_14496-12_2015.pdf, 8.4.3 Handler Reference Box
+  if (size < 25) {
+    fprintf(stderr, "iinf not at least 29 bytes, was %" PRIu64 "\n", size);
+    return;
+  }
+
+  uint32_t version_and_flags = be_uint32(begin);
+  uint8_t version = version_and_flags >> 24;
+  uint32_t flags = version_and_flags & 0xffffff;
+  iprintf(options, "version %u, flags %u\n", version, flags);
+
+  uint32_t pre_defined = be_uint32(begin + 4);
+  uint32_t handler_type = be_uint32(begin + 8);
+  uint32_t reserved_0 = be_uint32(begin + 12);
+  uint32_t reserved_1 = be_uint32(begin + 16);
+  uint32_t reserved_2 = be_uint32(begin + 20);
+
+  const char* name = (const char*)begin + 24;
+
+  iprintf(options, "pre_defined = %d\n", pre_defined);
+  iprintf(options, "handler_type = '%.4s' (0x%x)\n", begin + 8, handler_type);
+  iprintf(options, "reserved[0] = 0x%x\n", reserved_0);
+  iprintf(options, "reserved[1] = 0x%x\n", reserved_1);
+  iprintf(options, "reserved[2] = 0x%x\n", reserved_2);
+  iprintf(options, "name '%s'\n", name);
+}
+
 static void heif_dump_box_iinf(struct Options* options,
                                const uint8_t* begin,
                                uint64_t size) {
@@ -800,6 +830,9 @@ static uint64_t heif_dump_box(struct Options* options,
       break;
     case 0x66747970:  // 'ftyp'
       heif_dump_box_ftyp(options, box.data_begin, box.data_length);
+      break;
+    case 0x68646c72:  // 'hdlr'
+      heif_dump_box_hdlr(options, box.data_begin, box.data_length);
       break;
     case 0x69696e66:  // 'iinf'
       heif_dump_box_iinf(options, box.data_begin, box.data_length);
