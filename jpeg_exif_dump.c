@@ -2000,7 +2000,7 @@ static void icc_dump_tag_table(struct Options* options,
       case 0x63707274:  // 'cprt', copyrightTag
         // Per ICC.1:2022 9.2.22, the type of copyrightTag must be
         // multiLocalizedUnicodeType. But Sony RAW files exported by Lightroom
-        // give it type textType. (This was valid older ICC versions, e.g. in
+        // give it type textType. (This was valid in older ICC versions, e.g. in
         // ICC.1:1998.)
         if (type_signature == 0x74657874) {  // 'text'
           icc_dump_textType(options, icc_header + offset_to_data, size_of_data);
