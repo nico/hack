@@ -144,6 +144,8 @@ static const char* heif_box_name(uint32_t type) {
       return "sample to group";
     case 0x73677064:  // 'sgpd'
       return "sample group description";
+    case 0x736d6864:  // 'smhd'
+      return "sound media header";
     case 0x7374626c:  // 'stbl'
       return "sample table";
     case 0x7374636f:  // 'stco'
