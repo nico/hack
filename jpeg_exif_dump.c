@@ -1912,6 +1912,8 @@ static void icc_dump_lut16Type(struct Options* options,
       icc_is_truecolor_terminal()) {
     // This assumes RGB, and 24-bit color terminal support
     // (i.e. iTerm2 is in, Terminal.app is out).
+    // FIXME: This is kind of nonsense. The CLUT maps _from_ RGB _to_ XYZ.
+    //        This here assumes the opposite at the moment.
     for (unsigned z = 0; z < num_clut_grid_points; ++z) {
       for (unsigned y = 0; y < num_clut_grid_points; ++y) {
         iprintf(options, "");
