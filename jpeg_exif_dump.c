@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <getopt.h>
 #include <inttypes.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -89,7 +90,6 @@ struct Options {
   bool dump_luts;
   bool dump_jpegs;
   int num_jpegs;
-
 };
 
 static void increase_indent(struct Options* options) {
@@ -1822,8 +1822,34 @@ static double icc_s15fixed16(int32_t i) {
   return i / (double)0x10000;
 }
 
-static uint8_t icc_16_to_8(uint16_t i) {
-  return (i * 255u + 32767) / 65535u;
+static uint8_t icc_saturate_u8(double d) {
+  double d8 = round(d * 255);
+  if (d8 < 0)
+    return 0;
+  if (d8 > 255)
+    return 255;
+  return (uint8_t)d8;
+}
+
+static void icc_xyz_to_rgb(uint16_t x16,
+                           uint16_t y16,
+                           uint16_t z16,
+                           uint8_t* r8,
+                           uint8_t* g8,
+                           uint8_t* b8) {
+  double x = x16 / 65535.0;
+  double y = y16 / 65535.0;
+  double z = z16 / 65535.0;
+
+  // This uses the sRGB D50 reference white value.
+  // Assuming an rgb output color space here is a bit silly, but hey.
+  double r = 3.1338561 * x + -1.6168667 * y + -0.4906146 * z;
+  double g = -0.9787684 * x + 1.9161415 * y + 0.0334540 * z;
+  double b = 0.0719453 * x + -0.2289914 * y + 1.4052427 * z;
+
+  *r8 = icc_saturate_u8(r);
+  *g8 = icc_saturate_u8(g);
+  *b8 = icc_saturate_u8(b);
 }
 
 static bool icc_is_truecolor_terminal(void) {
@@ -1912,20 +1938,17 @@ static void icc_dump_lut16Type(struct Options* options,
       icc_is_truecolor_terminal()) {
     // This assumes RGB, and 24-bit color terminal support
     // (i.e. iTerm2 is in, Terminal.app is out).
-    // FIXME: This is kind of nonsense. The CLUT maps _from_ RGB _to_ XYZ.
-    //        This here assumes the opposite at the moment.
-    for (unsigned z = 0; z < num_clut_grid_points; ++z) {
-      for (unsigned y = 0; y < num_clut_grid_points; ++y) {
+    for (unsigned r = 0; r < num_clut_grid_points; ++r) {
+      for (unsigned g = 0; g < num_clut_grid_points; ++g) {
         iprintf(options, "");
-        for (unsigned x = 0; x < num_clut_grid_points; ++x) {
-          uint16_t r = be_uint16(begin + offset);
-          uint16_t g = be_uint16(begin + offset + 2);
-          uint16_t b = be_uint16(begin + offset + 4);
+        for (unsigned b = 0; b < num_clut_grid_points; ++b) {
+          uint16_t x = be_uint16(begin + offset);
+          uint16_t y = be_uint16(begin + offset + 2);
+          uint16_t z = be_uint16(begin + offset + 4);
           offset += 6;
 
-          uint8_t r8 = icc_16_to_8(r);
-          uint8_t g8 = icc_16_to_8(g);
-          uint8_t b8 = icc_16_to_8(b);
+          uint8_t r8, g8, b8;
+          icc_xyz_to_rgb(x, y, z, &r8, &g8, &b8);
 
           printf("\033[48;2;%u;%u;%um.", r8, g8, b8);
         }
@@ -3161,7 +3184,7 @@ int main(int argc, char* argv[]) {
       .num_jpegs = 0,
       .dump_luts = false,
   };
-  #define kDumpLuts 512
+#define kDumpLuts 512
   struct option getopt_options[] = {
       {"dump", no_argument, NULL, 'd'},
       {"dump-luts", no_argument, NULL, kDumpLuts},
