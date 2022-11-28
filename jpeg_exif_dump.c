@@ -33,10 +33,11 @@ static void print_usage(FILE* stream, const char* program_name) {
   fprintf(stream,
           "\n"
           "options:\n"
-          "  -d  --dump  write each embedded jpeg to jpeg-$n.jpg\n"
-          "  -h  --help  print this message\n"
-          "  -s  --scan  scan for jpeg markers in entire file\n"
-          "              (by default, skips marker data)\n");
+          "  -d  --dump   write each embedded jpeg to jpeg-$n.jpg\n"
+          "  --dump-luts  dump LUTs even on non-truecolor terminals\n"
+          "  -h  --help   print this message\n"
+          "  -s  --scan   scan for jpeg markers in entire file\n"
+          "               (by default, skips marker data)\n");
 }
 
 #if defined(__clang__) || defined(__GNUC__)
@@ -85,8 +86,10 @@ struct Options {
   int current_indent;
   bool jpeg_scan;
 
+  bool dump_luts;
   bool dump_jpegs;
   int num_jpegs;
+
 };
 
 static void increase_indent(struct Options* options) {
@@ -1819,6 +1822,15 @@ static double icc_s15fixed16(int32_t i) {
   return i / (double)0x10000;
 }
 
+static uint8_t icc_16_to_8(uint16_t i) {
+  return (i * 255u + 32767) / 65535u;
+}
+
+static bool icc_is_truecolor_terminal(void) {
+  const char* e = getenv("COLORTERM");
+  return e != NULL && strcmp(e, "truecolor") == 0;
+}
+
 static void icc_dump_lut16Type(struct Options* options,
                                const uint8_t* begin,
                                uint32_t size) {
@@ -1896,9 +1908,33 @@ static void icc_dump_lut16Type(struct Options* options,
   // num_output_channels-dimensional space with num_clut_grid_points along
   // each axis, for a total of num_clut_grid_points ** num_input_channels
   // points. Each point contains num_output_channels points.
-  if (num_input_channels == 3) {
+  if (num_input_channels == 3 && num_output_channels == 3 &&
+      icc_is_truecolor_terminal()) {
+    // This assumes RGB, and 24-bit color terminal support
+    // (i.e. iTerm2 is in, Terminal.app is out).
     for (unsigned z = 0; z < num_clut_grid_points; ++z) {
       for (unsigned y = 0; y < num_clut_grid_points; ++y) {
+        iprintf(options, "");
+        for (unsigned x = 0; x < num_clut_grid_points; ++x) {
+          uint16_t r = be_uint16(begin + offset);
+          uint16_t g = be_uint16(begin + offset + 2);
+          uint16_t b = be_uint16(begin + offset + 4);
+          offset += 6;
+
+          uint8_t r8 = icc_16_to_8(r);
+          uint8_t g8 = icc_16_to_8(g);
+          uint8_t b8 = icc_16_to_8(b);
+
+          printf("\033[48;2;%u;%u;%um.", r8, g8, b8);
+        }
+        printf("\033[0m\n");
+      }
+      printf("\n");
+    }
+  } else if (num_input_channels == 3 && options->dump_luts) {
+    for (unsigned z = 0; z < num_clut_grid_points; ++z) {
+      for (unsigned y = 0; y < num_clut_grid_points; ++y) {
+        iprintf(options, "");
         for (unsigned x = 0; x < num_clut_grid_points; ++x) {
           printf(" ");
           for (unsigned i = 0; i < num_output_channels; ++i) {
@@ -3115,9 +3151,12 @@ int main(int argc, char* argv[]) {
       .jpeg_scan = false,
       .dump_jpegs = false,
       .num_jpegs = 0,
+      .dump_luts = false,
   };
+  #define kDumpLuts 512
   struct option getopt_options[] = {
       {"dump", no_argument, NULL, 'd'},
+      {"dump-luts", no_argument, NULL, kDumpLuts},
       {"help", no_argument, NULL, 'h'},
       {"scan", no_argument, NULL, 's'},
       {0, 0, 0, 0},
@@ -3137,6 +3176,9 @@ int main(int argc, char* argv[]) {
       case '?':
         print_usage(stderr, program_name);
         return 1;
+      case kDumpLuts:
+        options.dump_luts = true;
+        break;
     }
   }
   argv += optind;
