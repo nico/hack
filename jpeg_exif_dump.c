@@ -1857,6 +1857,22 @@ static bool icc_is_truecolor_terminal(void) {
   return e != NULL && strcmp(e, "truecolor") == 0;
 }
 
+// Assumes 3 output colors.
+static void icc_colored_lut_row(const uint8_t* begin, uint8_t n, char end) {
+  for (unsigned b = 0; b < n; ++b) {
+    uint16_t x = be_uint16(begin);
+    uint16_t y = be_uint16(begin + 2);
+    uint16_t z = be_uint16(begin + 4);
+    begin += 6;
+
+    uint8_t r8, g8, b8;
+    icc_xyz_to_rgb(x, y, z, &r8, &g8, &b8);
+
+    printf("\033[48;2;%u;%u;%um.", r8, g8, b8);
+  }
+  printf("\033[0m%c", end);
+}
+
 static void icc_dump_lut16Type(struct Options* options,
                                const uint8_t* begin,
                                uint32_t size) {
@@ -1941,18 +1957,8 @@ static void icc_dump_lut16Type(struct Options* options,
     for (unsigned r = 0; r < num_clut_grid_points; ++r) {
       for (unsigned g = 0; g < num_clut_grid_points; ++g) {
         iprintf(options, "");
-        for (unsigned b = 0; b < num_clut_grid_points; ++b) {
-          uint16_t x = be_uint16(begin + offset);
-          uint16_t y = be_uint16(begin + offset + 2);
-          uint16_t z = be_uint16(begin + offset + 4);
-          offset += 6;
-
-          uint8_t r8, g8, b8;
-          icc_xyz_to_rgb(x, y, z, &r8, &g8, &b8);
-
-          printf("\033[48;2;%u;%u;%um.", r8, g8, b8);
-        }
-        printf("\033[0m\n");
+        icc_colored_lut_row(begin + offset, num_clut_grid_points, '\n');
+        offset += 6 * num_clut_grid_points;
       }
       printf("\n");
     }
