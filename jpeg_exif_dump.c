@@ -1815,6 +1815,103 @@ static void icc_dump_parametricCurveType(struct Options* options,
   printf("\n");
 }
 
+static double icc_s15fixed16(int32_t i) {
+  return i / (double)0x10000;
+}
+
+static void icc_dump_lut16Type(struct Options* options,
+                               const uint8_t* begin,
+                               uint32_t size) {
+  // https://www.color.org/specification/ICC.1-2022-05.pdf
+  // 10.10 lut16Type
+  if (size < 52) {
+    printf("lut16Type must be at least 52 bytes, was %d\n", size);
+    return;
+  }
+
+  uint32_t type_signature = be_uint32(begin);
+  if (type_signature != 0x6D667432) {  // 'mft2'
+    printf("lut16Type expected type 'mft2', got '%.4s'\n", begin);
+    return;
+  }
+
+  uint32_t reserved = be_uint32(begin + 4);
+  if (reserved != 0) {
+    printf("lut16Type expected reserved 0, got %d\n", reserved);
+    return;
+  }
+
+  uint8_t num_input_channels = begin[8];
+  uint8_t num_output_channels = begin[9];
+  uint8_t num_clut_grid_points = begin[10];
+  uint8_t reserved2 = begin[11];
+  if (reserved2 != 0) {
+    printf("lut16Type expected reserved2 0, got %d\n", reserved2);
+    return;
+  }
+
+  double e[9];
+  for (int i = 0; i < 9; ++i)
+    e[i] = icc_s15fixed16((int32_t)be_uint32(begin + 12 + i * 4));
+
+  uint16_t num_input_table_entries = be_uint16(begin + 48);
+  uint16_t num_output_table_entries = be_uint16(begin + 50);
+
+  iprintf(options, "num input channels: %u\n", num_input_channels);
+  iprintf(options, "num output channels: %u\n", num_output_channels);
+  iprintf(options, "num CLUT grid points: %u\n", num_clut_grid_points);
+
+  iprintf(options, "e matrix: %.4f %.4f %.4f\n", e[0], e[1], e[2]);
+  iprintf(options, "          %.4f %.4f %.4f\n", e[3], e[4], e[5]);
+  iprintf(options, "          %.4f %.4f %.4f\n", e[6], e[7], e[8]);
+
+  iprintf(options, "num input table entries: %u\n", num_input_table_entries);
+  if (num_input_table_entries < 2 || num_input_table_entries > 4096) {
+    printf("lut16Type expected num input tables to be in [2, 4096], got %u\n",
+           num_input_table_entries);
+    return;
+  }
+
+  iprintf(options, "num output table entries: %u\n", num_output_table_entries);
+  if (num_output_table_entries < 2 || num_output_table_entries > 4096) {
+    printf("lut16Type expected num output tables to be in [2, 4096], got %u\n",
+           num_output_table_entries);
+    return;
+  }
+
+  // FIXME: bounds checking
+  size_t offset = 52;
+
+  iprintf(options, "input tables:\n");
+  for (unsigned c = 0; c < num_input_channels; ++c) {
+    iprintf(options, "  channel %u:", c);
+    for (unsigned i = 0; i < num_input_table_entries; ++i) {
+      printf(" %u", be_uint16(begin + offset));
+      offset += 2;
+    }
+    printf("\n");
+  }
+
+  // FIXME: print CLUT values
+  // num_output_channels-dimensional space with num_clut_grid_points along
+  // each axis, for a total of num_clut_grid_points ** num_input_channels
+  // points. Each point contains num_output_channels points.
+  size_t clut_values_size = 2 * num_output_channels;
+  for (unsigned i = 0; i < num_input_channels; ++i)
+    clut_values_size *= num_clut_grid_points;
+  offset += clut_values_size;
+
+  iprintf(options, "output tables:\n");
+  for (unsigned c = 0; c < num_output_channels; ++c) {
+    iprintf(options, "  channel %u:", c);
+    for (unsigned i = 0; i < num_output_table_entries; ++i) {
+      printf(" %u", be_uint16(begin + offset));
+      offset += 2;
+    }
+    printf("\n");
+  }
+}
+
 static void icc_dump_header(struct Options* options,
                             const uint8_t* icc_header,
                             uint32_t size) {
@@ -2011,6 +2108,21 @@ static void icc_dump_tag_table(struct Options* options,
     }
 
     switch (tag_signature) {
+      case 0x41324230:                       // 'A2B0', AToB0Tag
+      case 0x41324231:                       // 'A2B1', AToB1Tag
+      case 0x41324232:                       // 'A2B2', AToB2Tag
+        if (type_signature == 0x6D667431) {  // 'mft1'
+          // TODO: icc_dump_lut8Type
+        } else if (type_signature == 0x6D667432) {  // 'mft2'
+          icc_dump_lut16Type(options, icc_header + offset_to_data,
+                             size_of_data);
+        } else if (type_signature == 0x6D414220) {  // 'mAB '
+          // TODO: icc_dump_lutAToBType
+        } else {
+          iprintf(options,
+                  "unexpected type, expected 'mtf1', 'mtf2', or 'mAB '\n");
+        }
+        break;
       case 0x63707274:  // 'cprt', copyrightTag
         // Per ICC.1:2022 9.2.22, the type of copyrightTag must be
         // multiLocalizedUnicodeType. But Sony RAW files exported by Lightroom
@@ -2535,7 +2647,6 @@ static void photoshop_dump_resource_blocks(struct Options* options,
     offset += block_size;
   }
 }
-
 
 // JPEG dumping ///////////////////////////////////////////////////////////////
 
