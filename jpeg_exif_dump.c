@@ -1505,6 +1505,16 @@ static void icc_dump_textType(struct Options* options,
   iprintf(options, "%.*s\n", size - 9, begin + 8);
 }
 
+static void dump_ucs2be(const uint8_t* utf16_be, size_t num_codepoints) {
+  // UCS2-BE text :/
+  // And no uchar.h / c16rtomb() on macOS either (as of macOS 12.5) :/
+  // TODO: Do actual UCS2-to-UTF8 conversion.
+  for (unsigned i = 0; i < num_codepoints; ++i, utf16_be += 2) {
+    uint16_t cur = be_uint16(utf16_be);
+    printf("%c", cur & 0x7f);
+  }
+}
+
 static void icc_dump_textDescriptionType(struct Options* options,
                                          const uint8_t* begin,
                                          uint32_t size) {
@@ -1555,8 +1565,9 @@ static void icc_dump_textDescriptionType(struct Options* options,
     iprintf(options, "(no unicode data)\n");
   else {
     // TODO: UCS-2, \0-terminated, unicode_length inclusive of \0
-    iprintf(options, "Unicode: TODO '%.4s' %u\n",
-            begin + 12 + ascii_invariant_size, unicode_count);
+    iprintf(options, "Unicode: %08x \"", unicode_language_code);
+    dump_ucs2be(begin + 20 + ascii_invariant_size, unicode_count);
+    printf("\"\n");
   }
 
   uint32_t unicode_size = unicode_count * 2;  // UCS-2
