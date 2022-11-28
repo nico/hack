@@ -1896,10 +1896,29 @@ static void icc_dump_lut16Type(struct Options* options,
   // num_output_channels-dimensional space with num_clut_grid_points along
   // each axis, for a total of num_clut_grid_points ** num_input_channels
   // points. Each point contains num_output_channels points.
-  size_t clut_values_size = 2 * num_output_channels;
-  for (unsigned i = 0; i < num_input_channels; ++i)
-    clut_values_size *= num_clut_grid_points;
-  offset += clut_values_size;
+  if (num_input_channels == 3) {
+    for (unsigned z = 0; z < num_clut_grid_points; ++z) {
+      for (unsigned y = 0; y < num_clut_grid_points; ++y) {
+        for (unsigned x = 0; x < num_clut_grid_points; ++x) {
+          printf(" ");
+          for (unsigned i = 0; i < num_output_channels; ++i) {
+            uint16_t value = be_uint16(begin + offset);
+            offset += 2;
+            printf("%u", value);
+            if (i != num_output_channels - 1)
+              printf(",");
+          }
+        }
+        printf("\n");
+      }
+      printf("\n");
+    }
+  } else {
+    size_t clut_values_size = 2 * num_output_channels;
+    for (unsigned i = 0; i < num_input_channels; ++i)
+      clut_values_size *= num_clut_grid_points;
+    offset += clut_values_size;
+  }
 
   iprintf(options, "output tables:\n");
   for (unsigned c = 0; c < num_output_channels; ++c) {
