@@ -2232,6 +2232,12 @@ static void icc_dump_tag_table(struct Options* options,
 static void icc_dump(struct Options* options,
                      const uint8_t* icc_header,
                      uint32_t size) {
+  if (options->dump_jpegs) {
+    FILE* f = fopen("jpeg.icc", "wb");
+    fwrite(icc_header, size, 1, f);
+    fclose(f);
+  }
+
   icc_dump_header(options, icc_header, size);
   icc_dump_tag_table(options, icc_header, size);
 }
