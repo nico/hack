@@ -1576,6 +1576,16 @@ static void icc_dump_textDescriptionType(struct Options* options,
     iprintf(options, "surprising size\n");
 }
 
+static void dump_utf16be(const uint8_t* utf16_be, size_t num_codepoints) {
+  // UTF-16BE text :/
+  // And no uchar.h / c16rtomb() on macOS either (as of macOS 12.5) :/
+  // TODO: Do actual UTF16-to-UTF8 conversion.
+  for (unsigned i = 0; i < num_codepoints; ++i, utf16_be += 2) {
+    uint16_t cur = be_uint16(utf16_be);
+    printf("%c", cur & 0x7f);
+  }
+}
+
 static void icc_dump_multiLocalizedUnicodeType(struct Options* options,
                                                const uint8_t* begin,
                                                uint32_t size) {
@@ -1631,14 +1641,7 @@ static void icc_dump_multiLocalizedUnicodeType(struct Options* options,
       continue;
     }
 
-    // UTF-16BE text :/
-    // And no uchar.h / c16rtomb() on macOS either (as of macOS 12.5) :/
-    // TODO: Do actual UTF16-to-UTF8 conversion.
-    const uint8_t* utf16_be = begin + string_offset;
-    for (unsigned j = 0; j < string_length / 2; ++j, utf16_be += 2) {
-      uint16_t cur = be_uint16(utf16_be);
-      printf("%c", cur & 0x7f);
-    }
+    dump_utf16be(begin + string_offset, string_length / 2);
     printf("\"\n");
   }
 }
