@@ -1954,11 +1954,31 @@ static void icc_dump_lut16Type(struct Options* options,
       icc_is_truecolor_terminal()) {
     // This assumes RGB, and 24-bit color terminal support
     // (i.e. iTerm2 is in, Terminal.app is out).
-    for (unsigned r = 0; r < num_clut_grid_points; ++r) {
+    size_t start_offset = offset;
+
+    unsigned grids_per_line =
+        (unsigned)(160 - options->current_indent) / (num_clut_grid_points + 1);
+    if (grids_per_line < 1)
+      grids_per_line = 1;
+
+    for (unsigned r = 0; r < num_clut_grid_points; r += grids_per_line) {
+      unsigned grids_this_line = grids_per_line;
+      if (r + grids_per_line >= num_clut_grid_points) {
+        // Overflow line (maybe empty).
+        grids_this_line = num_clut_grid_points % grids_per_line;
+        if (grids_this_line == 0)
+          break;
+      }
+
       for (unsigned g = 0; g < num_clut_grid_points; ++g) {
         iprintf(options, "");
-        icc_colored_lut_row(begin + offset, num_clut_grid_points, '\n');
-        offset += 6 * num_clut_grid_points;
+        for (unsigned i = 0; i < grids_this_line; ++i) {
+          offset = start_offset;
+          offset += (r + i) * num_clut_grid_points * num_clut_grid_points * 6;
+          icc_colored_lut_row(begin + offset, num_clut_grid_points,
+                              i == grids_this_line - 1 ? '\n' : ' ');
+          offset += 6 * num_clut_grid_points;
+        }
       }
       printf("\n");
     }
