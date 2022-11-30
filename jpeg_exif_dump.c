@@ -1479,6 +1479,10 @@ static const char* icc_platform_description(uint32_t platform) {
   }
 }
 
+static double icc_s15fixed16(int32_t i) {
+  return i / (double)0x10000;
+}
+
 static void icc_dump_textType(struct Options* options,
                               const uint8_t* begin,
                               uint32_t size) {
@@ -1694,8 +1698,8 @@ static void icc_dump_XYZType(struct Options* options,
     int32_t xyz_x = (int32_t)be_uint32(begin + this_offset);
     int32_t xyz_y = (int32_t)be_uint32(begin + this_offset + 4);
     int32_t xyz_z = (int32_t)be_uint32(begin + this_offset + 8);
-    iprintf(options, "X = %.4f, Y = %.4f, Z = %.4f\n", xyz_x / (double)0x10000,
-            xyz_y / (double)0x10000, xyz_z / (double)0x10000);
+    iprintf(options, "X = %.4f, Y = %.4f, Z = %.4f\n", icc_s15fixed16(xyz_x),
+            icc_s15fixed16(xyz_y), icc_s15fixed16(xyz_z));
   }
 }
 
@@ -1811,15 +1815,11 @@ static void icc_dump_parametricCurveType(struct Options* options,
   iprintf(options, "with ");
   for (unsigned i = 0; i < n; ++i) {
     int32_t v = (int32_t)be_uint32(begin + 12 + i * 4);
-    printf("%c = %f", names[i], v / (double)0x10000);
+    printf("%c = %f", names[i], icc_s15fixed16(v));
     if (i != n - 1)
       printf(", ");
   }
   printf("\n");
-}
-
-static double icc_s15fixed16(int32_t i) {
-  return i / (double)0x10000;
 }
 
 static uint8_t icc_saturate_u8(double d) {
@@ -2142,8 +2142,7 @@ static void icc_dump_header(struct Options* options,
   int32_t xyz_z = (int32_t)be_uint32(icc_header + 76);
   char xyz_buf[1024];
   snprintf(xyz_buf, sizeof(xyz_buf), "X = %.4f, Y = %.4f, Z = %.4f",
-           xyz_x / (double)0x10000, xyz_y / (double)0x10000,
-           xyz_z / (double)0x10000);
+           icc_s15fixed16(xyz_x), icc_s15fixed16(xyz_y), icc_s15fixed16(xyz_z));
   iprintf(options, "PCS illuminant: %s", xyz_buf);
   const char expected_xyz[] = "X = 0.9642, Y = 1.0000, Z = 0.8249";
   if (strcmp(xyz_buf, expected_xyz) != 0)
