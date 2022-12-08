@@ -1968,7 +1968,7 @@ static void icc_dump_lut16Type(struct Options* options,
     printf("\n");
   }
 
-  // num_output_channels-dimensional space with num_clut_grid_points along
+  // num_input_channels-dimensional space with num_clut_grid_points along
   // each axis, for a total of num_clut_grid_points ** num_input_channels
   // points. Each point contains num_output_channels points.
   if (num_input_channels == 3 && num_output_channels == 3 &&
