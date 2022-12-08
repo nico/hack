@@ -1880,7 +1880,9 @@ static bool icc_is_truecolor_terminal(void) {
 }
 
 // Assumes 3 output colors.
-static void icc_colored_lut_row(const uint8_t* begin, uint8_t n, char end) {
+static void icc_colored_lut_row_xyz_to_rgb_16(const uint8_t* begin,
+                                              uint8_t n,
+                                              char end) {
   for (unsigned b = 0; b < n; ++b) {
     uint16_t x = be_uint16(begin);
     uint16_t y = be_uint16(begin + 2);
@@ -1895,11 +1897,37 @@ static void icc_colored_lut_row(const uint8_t* begin, uint8_t n, char end) {
   printf("\033[0m%c", end);
 }
 
+static uint8_t icc_16_to_8(uint16_t i) {
+  return (i * 255u + 32767) / 65535u;
+}
+
+// Assumes 3 output colors.
+static void icc_colored_lut_row_rgb_16(const uint8_t* begin,
+                                       uint8_t n,
+                                       char end) {
+  for (unsigned b = 0; b < n; ++b) {
+    uint16_t r16 = be_uint16(begin);
+    uint16_t g16 = be_uint16(begin + 2);
+    uint16_t b16 = be_uint16(begin + 4);
+    begin += 6;
+
+    uint8_t r8 = icc_16_to_8(r16);
+    uint8_t g8 = icc_16_to_8(g16);
+    uint8_t b8 = icc_16_to_8(b16);
+
+    printf("\033[48;2;%u;%u;%um.", r8, g8, b8);
+  }
+  printf("\033[0m%c", end);
+}
+
 static void icc_dump_clut_3_3_truecolor(struct Options* options,
                                         uint8_t clut_size_r,
                                         uint8_t clut_size_g,
                                         uint8_t clut_size_b,
-                                        const uint8_t* clut_data) {
+                                        const uint8_t* clut_data,
+                                        void (*dump_row)(const uint8_t*,
+                                                         uint8_t,
+                                                         char)) {
   // This assumes RGB, and 24-bit color terminal support
   // (i.e. iTerm2 is in, Terminal.app is out).
   unsigned grids_per_line =
@@ -1921,8 +1949,7 @@ static void icc_dump_clut_3_3_truecolor(struct Options* options,
       for (unsigned i = 0; i < grids_this_line; ++i) {
         const uint8_t* line = clut_data;
         line += ((r + i) * clut_size_g + g) * clut_size_b * 6;
-        icc_colored_lut_row(line, clut_size_b,
-                            i == grids_this_line - 1 ? '\n' : ' ');
+        dump_row(line, clut_size_b, i == grids_this_line - 1 ? '\n' : ' ');
       }
     }
     printf("\n");
@@ -2009,7 +2036,8 @@ static void icc_dump_lut16Type(struct Options* options,
       icc_is_truecolor_terminal()) {
     icc_dump_clut_3_3_truecolor(options, num_clut_grid_points,
                                 num_clut_grid_points, num_clut_grid_points,
-                                begin + offset);
+                                begin + offset,
+                                icc_colored_lut_row_xyz_to_rgb_16);
     offset += 2 * num_output_channels * num_clut_grid_points *
               num_clut_grid_points * num_clut_grid_points;
   } else if (num_input_channels == 3 && options->dump_luts) {
@@ -2159,7 +2187,8 @@ static void icc_dump_lutAToBType(struct Options* options,
     if (num_input_channels == 3 && num_output_channels == 3 &&
         bytes_per_entry == 2 && icc_is_truecolor_terminal()) {
       icc_dump_clut_3_3_truecolor(options, clut_begin[0], clut_begin[1],
-                                  clut_begin[2], clut_begin + 20);
+                                  clut_begin[2], clut_begin + 20,
+                                  icc_colored_lut_row_rgb_16);
     }
   }
 
