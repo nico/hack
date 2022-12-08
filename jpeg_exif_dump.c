@@ -2156,6 +2156,11 @@ static void icc_dump_lutAToBType(struct Options* options,
     }
 
     // FIXME: dump actual CLUT
+    if (num_input_channels == 3 && num_output_channels == 3 &&
+        bytes_per_entry == 2 && icc_is_truecolor_terminal()) {
+      icc_dump_clut_3_3_truecolor(options, clut_begin[0], clut_begin[1],
+                                  clut_begin[2], clut_begin + 20);
+    }
   }
 
   // 10.12.4 “M” curves
