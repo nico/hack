@@ -1895,6 +1895,40 @@ static void icc_colored_lut_row(const uint8_t* begin, uint8_t n, char end) {
   printf("\033[0m%c", end);
 }
 
+static void icc_dump_clut_3_3_truecolor(struct Options* options,
+                                        uint8_t clut_size_r,
+                                        uint8_t clut_size_g,
+                                        uint8_t clut_size_b,
+                                        const uint8_t* clut_data) {
+  // This assumes RGB, and 24-bit color terminal support
+  // (i.e. iTerm2 is in, Terminal.app is out).
+  unsigned grids_per_line =
+      (unsigned)(160 - options->current_indent) / (clut_size_g + 1);
+  if (grids_per_line < 1)
+    grids_per_line = 1;
+
+  for (unsigned r = 0; r < clut_size_r; r += grids_per_line) {
+    unsigned grids_this_line = grids_per_line;
+    if (r + grids_per_line >= clut_size_r) {
+      // Overflow line (maybe empty).
+      grids_this_line = clut_size_r % grids_per_line;
+      if (grids_this_line == 0)
+        break;
+    }
+
+    for (unsigned g = 0; g < clut_size_g; ++g) {
+      iprintf(options, "");
+      for (unsigned i = 0; i < grids_this_line; ++i) {
+        const uint8_t* line = clut_data;
+        line += (r + i) * clut_size_r * clut_size_g * 6;
+        icc_colored_lut_row(line, clut_size_b,
+                            i == grids_this_line - 1 ? '\n' : ' ');
+      }
+    }
+    printf("\n");
+  }
+}
+
 static void icc_dump_lut16Type(struct Options* options,
                                const uint8_t* begin,
                                uint32_t size) {
@@ -1973,36 +2007,11 @@ static void icc_dump_lut16Type(struct Options* options,
   // points. Each point contains num_output_channels points.
   if (num_input_channels == 3 && num_output_channels == 3 &&
       icc_is_truecolor_terminal()) {
-    // This assumes RGB, and 24-bit color terminal support
-    // (i.e. iTerm2 is in, Terminal.app is out).
-    size_t start_offset = offset;
-
-    unsigned grids_per_line =
-        (unsigned)(160 - options->current_indent) / (num_clut_grid_points + 1);
-    if (grids_per_line < 1)
-      grids_per_line = 1;
-
-    for (unsigned r = 0; r < num_clut_grid_points; r += grids_per_line) {
-      unsigned grids_this_line = grids_per_line;
-      if (r + grids_per_line >= num_clut_grid_points) {
-        // Overflow line (maybe empty).
-        grids_this_line = num_clut_grid_points % grids_per_line;
-        if (grids_this_line == 0)
-          break;
-      }
-
-      for (unsigned g = 0; g < num_clut_grid_points; ++g) {
-        iprintf(options, "");
-        for (unsigned i = 0; i < grids_this_line; ++i) {
-          offset = start_offset;
-          offset += (r + i) * num_clut_grid_points * num_clut_grid_points * 6;
-          icc_colored_lut_row(begin + offset, num_clut_grid_points,
-                              i == grids_this_line - 1 ? '\n' : ' ');
-          offset += 6 * num_clut_grid_points;
-        }
-      }
-      printf("\n");
-    }
+    icc_dump_clut_3_3_truecolor(options, num_clut_grid_points,
+                                num_clut_grid_points, num_clut_grid_points,
+                                begin + offset);
+    offset += 2 * num_output_channels * num_clut_grid_points *
+              num_clut_grid_points * num_clut_grid_points;
   } else if (num_input_channels == 3 && options->dump_luts) {
     for (unsigned r = 0; r < num_clut_grid_points; ++r) {
       for (unsigned g = 0; g < num_clut_grid_points; ++g) {
