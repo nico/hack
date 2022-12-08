@@ -2004,10 +2004,10 @@ static void icc_dump_lut16Type(struct Options* options,
       printf("\n");
     }
   } else if (num_input_channels == 3 && options->dump_luts) {
-    for (unsigned z = 0; z < num_clut_grid_points; ++z) {
-      for (unsigned y = 0; y < num_clut_grid_points; ++y) {
+    for (unsigned r = 0; r < num_clut_grid_points; ++r) {
+      for (unsigned g = 0; g < num_clut_grid_points; ++g) {
         iprintf(options, "");
-        for (unsigned x = 0; x < num_clut_grid_points; ++x) {
+        for (unsigned b = 0; b < num_clut_grid_points; ++b) {
           printf(" ");
           for (unsigned i = 0; i < num_output_channels; ++i) {
             uint16_t value = be_uint16(begin + offset);
