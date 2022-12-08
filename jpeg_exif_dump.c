@@ -2116,8 +2116,38 @@ static void icc_dump_lutAToBType(struct Options* options,
   }
 
   // 10.12.3 CLUT
-  // FIXME
-  (void)offset_to_clut;
+  if (offset_to_clut) {
+    const uint8_t* clut_begin = begin + offset_to_clut;
+
+    if (num_input_channels > 16) {
+      printf("can have at most 16 input channels, got %u\n",
+             num_input_channels);
+      return;
+    }
+
+    iprintf(options, "clut sizes:");
+    for (unsigned i = 0; i < num_input_channels; ++i)
+      printf(" %u", clut_begin[i]);
+    printf("\n");
+    for (unsigned i = num_input_channels; i < 16; ++i)
+      if (clut_begin[i] != 0)
+        printf("clut size[%u] expected to be 0 but was %u\n", i, clut_begin[i]);
+
+    uint8_t bytes_per_entry = clut_begin[16];
+    iprintf(options, "clut bytes per entry: %u\n", bytes_per_entry);
+    for (unsigned i = 17; i < 20; ++i)
+      if (clut_begin[i] != 0)
+        printf("clut padding[%u] expected to be 0 but was %u\n", i - 17,
+               clut_begin[i]);
+
+    if (bytes_per_entry != 1 && bytes_per_entry != 2) {
+      printf("expected bytes_per_entry to be 1 or 2, was %u\n",
+             bytes_per_entry);
+      return;
+    }
+
+    // FIXME: dump actual CLUT
+  }
 
   // 10.12.4 “M” curves
   if (offset_to_m_curves) {
