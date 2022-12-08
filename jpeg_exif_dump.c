@@ -1956,6 +1956,31 @@ static void icc_dump_clut_3_3_truecolor(struct Options* options,
   }
 }
 
+static void icc_dump_clut_values(struct Options* options,
+                                 uint8_t clut_size_r,
+                                 uint8_t clut_size_g,
+                                 uint8_t clut_size_b,
+                                 uint8_t num_output_channels,
+                                 const uint8_t* clut_data) {
+  for (unsigned r = 0; r < clut_size_r; ++r) {
+    for (unsigned g = 0; g < clut_size_g; ++g) {
+      iprintf(options, "");
+      for (unsigned b = 0; b < clut_size_b; ++b) {
+        printf(" ");
+        for (unsigned i = 0; i < num_output_channels; ++i) {
+          uint16_t value = be_uint16(clut_data);
+          clut_data += 2;
+          printf("%u", value);
+          if (i != num_output_channels - 1)
+            printf(",");
+        }
+      }
+      printf("\n");
+    }
+    printf("\n");
+  }
+}
+
 static void icc_dump_lut16Type(struct Options* options,
                                const uint8_t* begin,
                                uint32_t size) {
@@ -2041,23 +2066,11 @@ static void icc_dump_lut16Type(struct Options* options,
     offset += 2 * num_output_channels * num_clut_grid_points *
               num_clut_grid_points * num_clut_grid_points;
   } else if (num_input_channels == 3 && options->dump_luts) {
-    for (unsigned r = 0; r < num_clut_grid_points; ++r) {
-      for (unsigned g = 0; g < num_clut_grid_points; ++g) {
-        iprintf(options, "");
-        for (unsigned b = 0; b < num_clut_grid_points; ++b) {
-          printf(" ");
-          for (unsigned i = 0; i < num_output_channels; ++i) {
-            uint16_t value = be_uint16(begin + offset);
-            offset += 2;
-            printf("%u", value);
-            if (i != num_output_channels - 1)
-              printf(",");
-          }
-        }
-        printf("\n");
-      }
-      printf("\n");
-    }
+    icc_dump_clut_values(options, num_clut_grid_points, num_clut_grid_points,
+                         num_clut_grid_points, num_output_channels,
+                         begin + offset);
+    offset += 2 * num_output_channels * num_clut_grid_points *
+              num_clut_grid_points * num_clut_grid_points;
   } else {
     iprintf(options, "not dumping lut.");
     if (num_input_channels == 3) {
@@ -2189,6 +2202,9 @@ static void icc_dump_lutAToBType(struct Options* options,
       icc_dump_clut_3_3_truecolor(options, clut_begin[0], clut_begin[1],
                                   clut_begin[2], clut_begin + 20,
                                   icc_colored_lut_row_rgb_16);
+    } else if (num_input_channels == 3 && options->dump_luts) {
+      icc_dump_clut_values(options, clut_begin[0], clut_begin[1], clut_begin[2],
+                           num_output_channels, clut_begin + 20);
     }
   }
 
