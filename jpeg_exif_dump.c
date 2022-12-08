@@ -2120,8 +2120,31 @@ static void icc_dump_lutAToBType(struct Options* options,
   (void)offset_to_clut;
 
   // 10.12.4 “M” curves
-  // FIXME
-  (void)offset_to_m_curves;
+  if (offset_to_m_curves) {
+    const uint8_t* m_curves_begin = begin + offset_to_m_curves;
+    for (unsigned i = 0; i < num_output_channels; ++i) {
+      iprintf(options, "'M' curve for output channel %u:\n", i);
+      increase_indent(options);
+      // FIXME: bounds checking
+      uint32_t size_left = size - (uint32_t)(m_curves_begin - begin);
+      uint32_t curve_type = be_uint32(m_curves_begin);
+      uint32_t bytes_read = 0;
+      if (curve_type == 0x63757276) {  // 'curv'
+        bytes_read = icc_dump_curveType(options, m_curves_begin, size_left,
+                                        /*want_exact_size_match=*/false);
+      } else if (curve_type == 0x70617261) {  // 'para'
+        bytes_read =
+            icc_dump_parametricCurveType(options, m_curves_begin, size_left,
+                                         /*want_exact_size_match=*/false);
+      } else {
+        iprintf(options, "unexpected type, expected 'curv' or 'para'\n");
+      }
+      if (bytes_read == 0)
+        return;
+      m_curves_begin += pad_to_4(bytes_read);
+      decrease_indent(options);
+    }
+  }
 
   // 10.12.5 Matrix
   double e[12];
@@ -2138,8 +2161,31 @@ static void icc_dump_lutAToBType(struct Options* options,
   }
 
   // 10.12.6 “B” curves
-  (void)offset_to_b_curves;
-  // FIXME
+  if (offset_to_b_curves) {
+    const uint8_t* b_curves_begin = begin + offset_to_b_curves;
+    for (unsigned i = 0; i < num_output_channels; ++i) {
+      iprintf(options, "'B' curve for output channel %u:\n", i);
+      increase_indent(options);
+      // FIXME: bounds checking
+      uint32_t size_left = size - (uint32_t)(b_curves_begin - begin);
+      uint32_t curve_type = be_uint32(b_curves_begin);
+      uint32_t bytes_read = 0;
+      if (curve_type == 0x63757276) {  // 'curv'
+        bytes_read = icc_dump_curveType(options, b_curves_begin, size_left,
+                                        /*want_exact_size_match=*/false);
+      } else if (curve_type == 0x70617261) {  // 'para'
+        bytes_read =
+            icc_dump_parametricCurveType(options, b_curves_begin, size_left,
+                                         /*want_exact_size_match=*/false);
+      } else {
+        iprintf(options, "unexpected type, expected 'curv' or 'para'\n");
+      }
+      if (bytes_read == 0)
+        return;
+      b_curves_begin += pad_to_4(bytes_read);
+      decrease_indent(options);
+    }
+  }
 }
 
 static void icc_dump_header(struct Options* options,
