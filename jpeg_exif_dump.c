@@ -1703,32 +1703,41 @@ static void icc_dump_XYZType(struct Options* options,
   }
 }
 
-static void icc_dump_curveType(struct Options* options,
-                               const uint8_t* begin,
-                               uint32_t size) {
+static uint32_t icc_dump_curveType(struct Options* options,
+                                   const uint8_t* begin,
+                                   uint32_t size,
+                                   bool want_exact_size_match) {
   // ICC.1:2022, 10.6 curveType
   if (size < 12) {
     printf("curveType must be at least 12 bytes, was %d\n", size);
-    return;
+    return 0;
   }
 
   uint32_t type_signature = be_uint32(begin);
   if (type_signature != 0x63757276) {  // 'curv'
     printf("curveType expected type 'curv', got '%.4s'\n", begin);
-    return;
+    return 0;
   }
 
   uint32_t reserved = be_uint32(begin + 4);
   if (reserved != 0) {
     printf("curveType expected reserved 0, got %d\n", reserved);
-    return;
+    return 0;
   }
 
   uint32_t num_entries = be_uint32(begin + 8);
-  if (size - 12 != num_entries * 2) {
-    printf("curveType with %d entries must be %u bytes, was %d\n", num_entries,
-           12 + num_entries * 2, size);
-    return;
+  if (want_exact_size_match) {
+    if (size - 12 != num_entries * 2) {
+      printf("curveType with %d entries must be %u bytes, was %d\n",
+             num_entries, 12 + num_entries * 2, size);
+      return 0;
+    }
+  } else {
+    if (size - 12 < num_entries * 2) {
+      printf("curveType with %d entries needs at least %u bytes, was %d\n",
+             num_entries, 12 + num_entries * 2, size);
+      return 0;
+    }
   }
 
   iprintf(options, "%d entries:", num_entries);
@@ -1745,34 +1754,36 @@ static void icc_dump_curveType(struct Options* options,
     }
   }
   printf("\n");
+  return 12 + num_entries * 2;
 }
 
-static void icc_dump_parametricCurveType(struct Options* options,
-                                         const uint8_t* begin,
-                                         uint32_t size) {
+static uint32_t icc_dump_parametricCurveType(struct Options* options,
+                                             const uint8_t* begin,
+                                             uint32_t size,
+                                             bool want_exact_size_match) {
   // ICC.1:2022, 10.18 parametricCurveType
   if (size < 12) {
     printf("parametricCurveType must be at least 12 bytes, was %d\n", size);
-    return;
+    return 0;
   }
 
   uint32_t type_signature = be_uint32(begin);
   if (type_signature != 0x70617261) {  // 'para'
     printf("parametricCurveType expected type 'para', got '%.4s'\n", begin);
-    return;
+    return 0;
   }
 
   uint32_t reserved = be_uint32(begin + 4);
   if (reserved != 0) {
     printf("parametricCurveType expected reserved 0, got %d\n", reserved);
-    return;
+    return 0;
   }
 
   uint16_t function_type = be_uint16(begin + 8);
   uint16_t reserved2 = be_uint16(begin + 10);
   if (reserved != 0) {
     printf("parametricCurveType expected reserved2 0, got %d\n", reserved2);
-    return;
+    return 0;
   }
 
   unsigned n;
@@ -1803,12 +1814,22 @@ static void icc_dump_parametricCurveType(struct Options* options,
       break;
     default:
       iprintf(options, "unknown function type %d\n", function_type);
-      return;
+      return 0;
   }
 
-  if (size - 12 != n * 4) {
-    printf("parametricCurveType with %d params must be %u bytes, was %d\n", n,
-           12 + n * 2, size);
+  if (want_exact_size_match) {
+    if (size - 12 != n * 4) {
+      printf("parametricCurveType with %d params must be %u bytes, was %d\n", n,
+             12 + n * 4, size);
+      return 0;
+    }
+  } else {
+    if (size - 12 < n * 4) {
+      printf(
+          "parametricCurveType with %d parms needs at least %u bytes, was %d\n",
+          n, 12 + n * 4, size);
+      return 0;
+    }
   }
 
   const char names[] = {'g', 'a', 'b', 'c', 'd', 'e', 'f'};
@@ -1820,6 +1841,7 @@ static void icc_dump_parametricCurveType(struct Options* options,
       printf(", ");
   }
   printf("\n");
+  return 12 + n * 4;
 }
 
 static uint8_t icc_saturate_u8(double d) {
@@ -2023,6 +2045,10 @@ static void icc_dump_lut16Type(struct Options* options,
   }
 }
 
+static uint32_t pad_to_4(uint32_t v) {
+  return v + (4 - v % 4) % 4;
+}
+
 static void icc_dump_lutAToBType(struct Options* options,
                                  const uint8_t* begin,
                                  uint32_t size) {
@@ -2063,8 +2089,31 @@ static void icc_dump_lutAToBType(struct Options* options,
   iprintf(options, "num output channels: %u\n", num_output_channels);
 
   // 10.12.2 “A” curves
-  // FIXME
-  (void)offset_to_a_curves;
+  if (offset_to_a_curves) {
+    const uint8_t* a_curves_begin = begin + offset_to_a_curves;
+    for (unsigned i = 0; i < num_input_channels; ++i) {
+      iprintf(options, "'A' curve for input channel %u:\n", i);
+      increase_indent(options);
+      // FIXME: bounds checking
+      uint32_t size_left = size - (uint32_t)(a_curves_begin - begin);
+      uint32_t curve_type = be_uint32(a_curves_begin);
+      uint32_t bytes_read = 0;
+      if (curve_type == 0x63757276) {  // 'curv'
+        bytes_read = icc_dump_curveType(options, a_curves_begin, size_left,
+                                        /*want_exact_size_match=*/false);
+      } else if (curve_type == 0x70617261) {  // 'para'
+        bytes_read =
+            icc_dump_parametricCurveType(options, a_curves_begin, size_left,
+                                         /*want_exact_size_match=*/false);
+      } else {
+        iprintf(options, "unexpected type, expected 'curv' or 'para'\n");
+      }
+      if (bytes_read == 0)
+        return;
+      a_curves_begin += pad_to_4(bytes_read);
+      decrease_indent(options);
+    }
+  }
 
   // 10.12.3 CLUT
   // FIXME
@@ -2340,11 +2389,12 @@ static void icc_dump_tag_table(struct Options* options,
       case 0x67545243:  // 'gTRC', greenTRCTag
       case 0x72545243:  // 'rTRC', redTRCTag
         if (type_signature == 0x63757276) {  // 'curv'
-          icc_dump_curveType(options, icc_header + offset_to_data,
-                             size_of_data);
+          icc_dump_curveType(options, icc_header + offset_to_data, size_of_data,
+                             /*want_exact_size_match=*/true);
         } else if (type_signature == 0x70617261) {  // 'para'
           icc_dump_parametricCurveType(options, icc_header + offset_to_data,
-                                       size_of_data);
+                                       size_of_data,
+                                       /*want_exact_size_match=*/true);
         } else {
           iprintf(options, "unexpected type, expected 'curv' or 'para'\n");
         }
