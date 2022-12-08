@@ -1920,7 +1920,7 @@ static void icc_dump_clut_3_3_truecolor(struct Options* options,
       iprintf(options, "");
       for (unsigned i = 0; i < grids_this_line; ++i) {
         const uint8_t* line = clut_data;
-        line += (r + i) * clut_size_r * clut_size_g * 6;
+        line += ((r + i) * clut_size_g + g) * clut_size_b * 6;
         icc_colored_lut_row(line, clut_size_b,
                             i == grids_this_line - 1 ? '\n' : ' ');
       }
