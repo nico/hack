@@ -2063,14 +2063,10 @@ static void icc_dump_lut16Type(struct Options* options,
                                 num_clut_grid_points, num_clut_grid_points,
                                 begin + offset,
                                 icc_colored_lut_row_xyz_to_rgb_16);
-    offset += 2 * num_output_channels * num_clut_grid_points *
-              num_clut_grid_points * num_clut_grid_points;
   } else if (num_input_channels == 3 && options->dump_luts) {
     icc_dump_clut_values(options, num_clut_grid_points, num_clut_grid_points,
                          num_clut_grid_points, num_output_channels,
                          begin + offset);
-    offset += 2 * num_output_channels * num_clut_grid_points *
-              num_clut_grid_points * num_clut_grid_points;
   } else {
     iprintf(options, "not dumping lut.");
     if (num_input_channels == 3) {
@@ -2078,11 +2074,11 @@ static void icc_dump_lut16Type(struct Options* options,
         printf(" run in a truecolor terminal, or");
       printf(" pass '--dump-luts'.\n");
     }
-    size_t clut_values_size = 2 * num_output_channels;
-    for (unsigned i = 0; i < num_input_channels; ++i)
-      clut_values_size *= num_clut_grid_points;
-    offset += clut_values_size;
   }
+  size_t clut_values_size = 2 * num_output_channels;
+  for (unsigned i = 0; i < num_input_channels; ++i)
+    clut_values_size *= num_clut_grid_points;
+  offset += clut_values_size;
 
   iprintf(options, "output tables:\n");
   for (unsigned c = 0; c < num_output_channels; ++c) {
