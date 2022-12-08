@@ -1915,9 +1915,9 @@ static void icc_dump_lut16Type(struct Options* options,
   iprintf(options, "num output channels: %u\n", num_output_channels);
   iprintf(options, "num CLUT grid points: %u\n", num_clut_grid_points);
 
-  iprintf(options, "e matrix: %.4f %.4f %.4f\n", e[0], e[1], e[2]);
-  iprintf(options, "          %.4f %.4f %.4f\n", e[3], e[4], e[5]);
-  iprintf(options, "          %.4f %.4f %.4f\n", e[6], e[7], e[8]);
+  iprintf(options, "e matrix %.4f %.4f %.4f\n", e[0], e[1], e[2]);
+  iprintf(options, "         %.4f %.4f %.4f\n", e[3], e[4], e[5]);
+  iprintf(options, "         %.4f %.4f %.4f\n", e[6], e[7], e[8]);
 
   iprintf(options, "num input table entries: %u\n", num_input_table_entries);
   if (num_input_table_entries < 2 || num_input_table_entries > 4096) {
@@ -2021,6 +2021,76 @@ static void icc_dump_lut16Type(struct Options* options,
     }
     printf("\n");
   }
+}
+
+static void icc_dump_lutAToBType(struct Options* options,
+                                 const uint8_t* begin,
+                                 uint32_t size) {
+  // https://www.color.org/specification/ICC.1-2022-05.pdf
+  // 10.12 lutAToBType
+  if (size < 32) {
+    printf("lutAToBType must be at least 32 bytes, was %d\n", size);
+    return;
+  }
+
+  uint32_t type_signature = be_uint32(begin);
+  if (type_signature != 0x6D414220) {  // 'mAB '
+    printf("lutAToBType expected type 'mAB ', got '%.4s'\n", begin);
+    return;
+  }
+
+  uint32_t reserved = be_uint32(begin + 4);
+  if (reserved != 0) {
+    printf("lutAToBType expected reserved 0, got %d\n", reserved);
+    return;
+  }
+
+  uint8_t num_input_channels = begin[8];
+  uint8_t num_output_channels = begin[9];
+  uint16_t reserved2 = be_uint16(begin + 10);
+  if (reserved2 != 0) {
+    printf("lutAToBType expected reserved2 0, got %d\n", reserved2);
+    return;
+  }
+
+  uint32_t offset_to_b_curves = be_uint32(begin + 12);
+  uint32_t offset_to_matrix = be_uint32(begin + 16);
+  uint32_t offset_to_m_curves = be_uint32(begin + 20);
+  uint32_t offset_to_clut = be_uint32(begin + 24);
+  uint32_t offset_to_a_curves = be_uint32(begin + 28);
+
+  iprintf(options, "num input channels: %u\n", num_input_channels);
+  iprintf(options, "num output channels: %u\n", num_output_channels);
+
+  // 10.12.2 “A” curves
+  // FIXME
+  (void)offset_to_a_curves;
+
+  // 10.12.3 CLUT
+  // FIXME
+  (void)offset_to_clut;
+
+  // 10.12.4 “M” curves
+  // FIXME
+  (void)offset_to_m_curves;
+
+  // 10.12.5 Matrix
+  double e[12];
+  if (offset_to_matrix) {
+    const uint8_t* matrix_begin = begin + offset_to_matrix;
+    for (int i = 0; i < 12; ++i)
+      e[i] = icc_s15fixed16((int32_t)be_uint32(matrix_begin + i * 4));
+  }
+
+  if (offset_to_matrix) {
+    iprintf(options, "e matrix %.4f %.4f %.4f %.4f\n", e[0], e[1], e[2], e[9]);
+    iprintf(options, "         %.4f %.4f %.4f %.4f\n", e[3], e[4], e[5], e[10]);
+    iprintf(options, "         %.4f %.4f %.4f %.4f\n", e[6], e[7], e[8], e[11]);
+  }
+
+  // 10.12.6 “B” curves
+  (void)offset_to_b_curves;
+  // FIXME
 }
 
 static void icc_dump_header(struct Options* options,
@@ -2227,7 +2297,8 @@ static void icc_dump_tag_table(struct Options* options,
           icc_dump_lut16Type(options, icc_header + offset_to_data,
                              size_of_data);
         } else if (type_signature == 0x6D414220) {  // 'mAB '
-          // TODO: icc_dump_lutAToBType
+          icc_dump_lutAToBType(options, icc_header + offset_to_data,
+                               size_of_data);
         } else {
           iprintf(options,
                   "unexpected type, expected 'mtf1', 'mtf2', or 'mAB '\n");
