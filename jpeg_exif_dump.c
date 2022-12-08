@@ -2000,6 +2000,12 @@ static void icc_dump_lut16Type(struct Options* options,
       printf("\n");
     }
   } else {
+    iprintf(options, "not dumping lut.");
+    if (num_input_channels == 3) {
+      if (num_output_channels == 3)
+        printf(" run in a truecolor terminal, or");
+      printf(" pass '--dump-luts'.\n");
+    }
     size_t clut_values_size = 2 * num_output_channels;
     for (unsigned i = 0; i < num_input_channels; ++i)
       clut_values_size *= num_clut_grid_points;
