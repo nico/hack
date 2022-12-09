@@ -2438,9 +2438,7 @@ static void icc_dump_header(struct Options* options,
   for (int i = 100; i < 128; ++i)
     if (icc_header[i] != 0)
       reserved_fields_are_zero = false;
-  if (reserved_fields_are_zero)
-    iprintf(options, "reserved header bytes are zero\n");
-  else
+  if (!reserved_fields_are_zero)
     iprintf(options, "reserved header bytes are unexpectedly not zero\n");
 }
 
