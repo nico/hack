@@ -1892,18 +1892,16 @@ static uint8_t icc_saturate_u8(double d) {
   return (uint8_t)d8;
 }
 
-static void icc_xyz_to_rgb(uint16_t x16,
-                           uint16_t y16,
-                           uint16_t z16,
+static void icc_xyz_to_rgb(double x,
+                           double y,
+                           double z,
                            uint8_t* r8,
                            uint8_t* g8,
                            uint8_t* b8) {
-  double x = x16 / 65535.0;
-  double y = y16 / 65535.0;
-  double z = z16 / 65535.0;
-
   // This uses the sRGB D50 reference white value.
   // Assuming an rgb output color space here is a bit silly, but hey.
+  // See http://www.brucelindbloom.com/index.html?Eqn_RGB_XYZ_Matrix.html
+  // FIXME: Do chromatic adaptation.
   double r = 3.1338561 * x + -1.6168667 * y + -0.4906146 * z;
   double g = -0.9787684 * x + 1.9161415 * y + 0.0334540 * z;
   double b = 0.0719453 * x + -0.2289914 * y + 1.4052427 * z;
@@ -1911,6 +1909,21 @@ static void icc_xyz_to_rgb(uint16_t x16,
   *r8 = icc_saturate_u8(r);
   *g8 = icc_saturate_u8(g);
   *b8 = icc_saturate_u8(b);
+}
+
+static void icc_xyz16_to_rgb(uint16_t x16,
+                             uint16_t y16,
+                             uint16_t z16,
+                             uint8_t* r8,
+                             uint8_t* g8,
+                             uint8_t* b8) {
+  // FIXME: This is off, see 6.3.4.2 General PCS encoding:
+  // "For the 16-bit integer based PCSXYZ encoding, each component is
+  // encoded as a u1Fixed15Number".
+  double x = x16 / 65535.0;
+  double y = y16 / 65535.0;
+  double z = z16 / 65535.0;
+  icc_xyz_to_rgb(x, y, z, r8, g8, b8);
 }
 
 static bool icc_is_truecolor_terminal(void) {
@@ -1929,30 +1942,79 @@ static void icc_colored_lut_row_xyz_to_rgb_16(const uint8_t* begin,
     begin += 6;
 
     uint8_t r8, g8, b8;
-    icc_xyz_to_rgb(x, y, z, &r8, &g8, &b8);
+    icc_xyz16_to_rgb(x, y, z, &r8, &g8, &b8);
 
     printf("\033[48;2;%u;%u;%um.", r8, g8, b8);
   }
   printf("\033[0m%c", end);
 }
 
-static uint8_t icc_16_to_8(uint16_t i) {
-  return (i * 255u + 32767) / 65535u;
+static void icc_lab16_to_xyz(uint16_t l16,
+                             uint16_t a16,
+                             uint16_t b16,
+                             double* x,
+                             double* y,
+                             double* z) {
+  // 6.3.4.2 General PCS encoding describes how Lab is encoded in 16 bit.
+  double L = 100 * (l16 / 65535.0);
+  double a = 255 * (a16 / 65535.0) - 128;
+  double b = 255 * (b16 / 65535.0) - 128;
+
+  // See http://www.brucelindbloom.com/Eqn_Lab_to_XYZ.html
+  double fy = (L + 16) / 116;
+  double fx = a / 500 + fy;
+  double fz = fy - b / 200;
+
+  const double EPS = 0.008856;
+  const double KAPPA = 903.3;
+
+  double xr;
+  double fx3 = fx * fx * fx;
+  if (fx3 > EPS)
+    xr = fx3;
+  else
+    xr = (116 * fx - 16) / KAPPA;
+
+  double yr;
+  if (L > KAPPA * EPS) {
+    yr = ((L + 16) / 116);
+    yr = yr * yr * yr;
+  } else {
+    yr = L / KAPPA;
+  }
+
+  double zr;
+  double fz3 = fz * fz * fz;
+  if (fz3 > EPS)
+    zr = fz3;
+  else
+    zr = (116 * fz - 16) / KAPPA;
+
+  // D50
+  // FIXME: Get this from profile instead of hardcoding (?)
+  const double ref_white_x = 0.9642;
+  const double ref_white_y = 1.0000;
+  const double ref_white_z = 0.8249;
+
+  *x = xr * ref_white_x;
+  *y = yr * ref_white_y;
+  *z = zr * ref_white_z;
 }
 
 // Assumes 3 output colors.
-static void icc_colored_lut_row_rgb_16(const uint8_t* begin,
-                                       uint8_t n,
-                                       char end) {
-  for (unsigned b = 0; b < n; ++b) {
-    uint16_t r16 = be_uint16(begin);
-    uint16_t g16 = be_uint16(begin + 2);
-    uint16_t b16 = be_uint16(begin + 4);
+static void icc_colored_lut_row_lab_to_rgb_16(const uint8_t* begin,
+                                              uint8_t n,
+                                              char end) {
+  for (unsigned blue = 0; blue < n; ++blue) {
+    uint16_t L = be_uint16(begin);
+    uint16_t a = be_uint16(begin + 2);
+    uint16_t b = be_uint16(begin + 4);
     begin += 6;
 
-    uint8_t r8 = icc_16_to_8(r16);
-    uint8_t g8 = icc_16_to_8(g16);
-    uint8_t b8 = icc_16_to_8(b16);
+    double x, y, z;
+    icc_lab16_to_xyz(L, a, b, &x, &y, &z);
+    uint8_t r8, g8, b8;
+    icc_xyz_to_rgb(x, y, z, &r8, &g8, &b8);
 
     printf("\033[48;2;%u;%u;%um.", r8, g8, b8);
   }
@@ -2135,6 +2197,7 @@ static uint32_t pad_to_4(uint32_t v) {
 }
 
 static void icc_dump_lutAToBType(struct Options* options,
+                                 const struct ICCHeader* icc,
                                  const uint8_t* begin,
                                  uint32_t size) {
   // https://www.color.org/specification/ICC.1-2022-05.pdf
@@ -2234,9 +2297,18 @@ static void icc_dump_lutAToBType(struct Options* options,
     // FIXME: dump actual CLUT
     if (num_input_channels == 3 && num_output_channels == 3 &&
         bytes_per_entry == 2 && icc_is_truecolor_terminal()) {
-      icc_dump_clut_3_3_truecolor(options, clut_begin[0], clut_begin[1],
-                                  clut_begin[2], clut_begin + 20,
-                                  icc_colored_lut_row_rgb_16);
+      void (*dump)(const uint8_t* begin, uint8_t n, char end) = NULL;
+      if (icc->pcs == 0x58595A20 /* 'XYZ ' */)
+        dump = icc_colored_lut_row_xyz_to_rgb_16;
+      else if (icc->pcs == 0x4C616220 /* 'Lab ' */)
+        dump = icc_colored_lut_row_lab_to_rgb_16;
+
+      if (!dump) {
+        printf("(not dumping CLUT due to invalid PCS\n");
+      } else {
+        icc_dump_clut_3_3_truecolor(options, clut_begin[0], clut_begin[1],
+                                    clut_begin[2], clut_begin + 20, dump);
+      }
     } else if (num_input_channels == 3 && options->dump_luts) {
       icc_dump_clut_values(options, clut_begin[0], clut_begin[1], clut_begin[2],
                            num_output_channels, clut_begin + 20);
@@ -2317,7 +2389,7 @@ static void icc_read_header(const uint8_t* icc_header,
                             struct ICCHeader* icc) {
   // https://www.color.org/specification/ICC.1-2022-05.pdf
   // 7.2 Profile header
-  assert (size >= 128);
+  assert(size >= 128);
 
   icc->profile_size = be_uint32(icc_header);
   icc->preferred_cmm_type = be_uint32(icc_header + 4);
@@ -2513,6 +2585,7 @@ static void icc_dump_header(struct Options* options,
 }
 
 static void icc_dump_tag_table(struct Options* options,
+                               const struct ICCHeader* icc,
                                const uint8_t* icc_header,
                                uint32_t size) {
   // https://www.color.org/specification/ICC.1-2022-05.pdf
@@ -2554,7 +2627,7 @@ static void icc_dump_tag_table(struct Options* options,
           icc_dump_lut16Type(options, icc_header + offset_to_data,
                              size_of_data);
         } else if (type_signature == 0x6D414220) {  // 'mAB '
-          icc_dump_lutAToBType(options, icc_header + offset_to_data,
+          icc_dump_lutAToBType(options, icc, icc_header + offset_to_data,
                                size_of_data);
         } else {
           iprintf(options,
@@ -2630,7 +2703,7 @@ static void icc_dump(struct Options* options,
   struct ICCHeader icc;
   icc_read_header(icc_header, size, &icc);
   icc_dump_header(options, &icc);
-  icc_dump_tag_table(options, icc_header, size);
+  icc_dump_tag_table(options, &icc, icc_header, size);
 }
 
 // IPTC dumping ///////////////////////////////////////////////////////////////
