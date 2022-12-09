@@ -2322,6 +2322,15 @@ static void icc_dump_header(struct Options* options,
   if (pcc_description)
     printf(" (%s)", pcc_description);
   printf("\n");
+  if (profile_device_class != 0x6C696E6B) {  // 'link'
+    // "For all profile classes (see Table 18), other than a DeviceLink
+    // profile, the PCS encoding shall be either PCSXYZ or PCSLAB"
+    if (pcs != 0x58595A20 /* 'XYZ '*/ && pcs != 0x4C616220 /* 'Lab '*/) {
+      iprintf(options,
+              "Invalid: Only PCSXYZ or PCSLAB valid for '%.4s' profile\n",
+              icc_header + 12);
+    }
+  }
 
   uint16_t year = be_uint16(icc_header + 24);
   uint16_t month = be_uint16(icc_header + 26);
