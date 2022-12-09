@@ -1917,12 +1917,12 @@ static void icc_xyz16_to_rgb(uint16_t x16,
                              uint8_t* r8,
                              uint8_t* g8,
                              uint8_t* b8) {
-  // FIXME: This is off, see 6.3.4.2 General PCS encoding:
+  // 6.3.4.2 General PCS encoding:
   // "For the 16-bit integer based PCSXYZ encoding, each component is
   // encoded as a u1Fixed15Number".
-  double x = x16 / 65535.0;
-  double y = y16 / 65535.0;
-  double z = z16 / 65535.0;
+  double x = x16 / (double)0x8000;
+  double y = y16 / (double)0x8000;
+  double z = z16 / (double)0x8000;
   icc_xyz_to_rgb(x, y, z, r8, g8, b8);
 }
 
