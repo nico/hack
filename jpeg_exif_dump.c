@@ -1384,6 +1384,45 @@ static void tiff_dump(struct Options* options,
 // ICC dumping ////////////////////////////////////////////////////////////////
 // ICC spec: https://www.color.org/specification/ICC.1-2022-05.pdf
 
+struct ICCHeader {
+  uint32_t profile_size;
+  uint32_t preferred_cmm_type;
+
+  uint8_t profile_version_major;
+  uint8_t profile_version_minor_bugfix;
+  uint16_t profile_version_zero;
+
+  uint32_t profile_device_class;
+  uint32_t data_color_space;
+  uint32_t pcs;  // "Profile Connection Space"
+
+  uint16_t year;
+  uint16_t month;
+  uint16_t day;
+  uint16_t hour;
+  uint16_t minutes;
+  uint16_t seconds;
+
+  uint32_t profile_file_signature;
+  uint32_t primary_platform;
+
+  uint32_t profile_flags;
+  uint32_t device_manufacturer;
+  uint32_t device_model;
+  uint64_t device_attributes;
+  uint32_t rendering_intent;
+
+  int32_t pcs_illuminant_x;
+  int32_t pcs_illuminant_y;
+  int32_t pcs_illuminant_z;
+
+  uint32_t profile_creator;
+
+  uint8_t profile_md5[16];
+  uint8_t reserved[28];
+};
+_Static_assert(sizeof(struct ICCHeader) == 128, "");
+
 static const char* icc_profile_device_class_description(
     uint32_t profile_device_class) {
   switch (profile_device_class) {
@@ -2273,118 +2312,150 @@ static void icc_dump_lutAToBType(struct Options* options,
   }
 }
 
-static void icc_dump_header(struct Options* options,
-                            const uint8_t* icc_header,
-                            uint32_t size) {
+static void icc_read_header(const uint8_t* icc_header,
+                            uint32_t size,
+                            struct ICCHeader* icc) {
   // https://www.color.org/specification/ICC.1-2022-05.pdf
   // 7.2 Profile header
-  if (size < 128) {
-    printf("ICC header must be at least 128 bytes, was %d\n", size);
-    return;
+  assert (size >= 128);
+
+  icc->profile_size = be_uint32(icc_header);
+  icc->preferred_cmm_type = be_uint32(icc_header + 4);
+  icc->profile_version_major = icc_header[8];
+  icc->profile_version_minor_bugfix = icc_header[9];
+  icc->profile_version_zero = be_uint16(icc_header + 8 + 2);
+  icc->profile_device_class = be_uint32(icc_header + 12);
+  icc->data_color_space = be_uint32(icc_header + 16);
+  icc->pcs = be_uint32(icc_header + 20);
+  icc->year = be_uint16(icc_header + 24);
+  icc->month = be_uint16(icc_header + 26);
+  icc->day = be_uint16(icc_header + 28);
+  icc->hour = be_uint16(icc_header + 30);
+  icc->minutes = be_uint16(icc_header + 32);
+  icc->seconds = be_uint16(icc_header + 34);
+  icc->profile_file_signature = be_uint32(icc_header + 36);
+  icc->primary_platform = be_uint32(icc_header + 40);
+  icc->profile_flags = be_uint32(icc_header + 44);
+  icc->device_manufacturer = be_uint32(icc_header + 48);
+  icc->device_model = be_uint32(icc_header + 52);
+  icc->device_attributes = be_uint64(icc_header + 56);
+  icc->rendering_intent = be_uint32(icc_header + 64);
+  icc->pcs_illuminant_x = (int32_t)be_uint32(icc_header + 68);
+  icc->pcs_illuminant_y = (int32_t)be_uint32(icc_header + 72);
+  icc->pcs_illuminant_z = (int32_t)be_uint32(icc_header + 76);
+  icc->profile_creator = be_uint32(icc_header + 80);
+
+  // This is the MD5 of the entire profile, with profile flags, rendering
+  // intent, and profile ID temporarily set to 0.
+  memcpy(icc->profile_md5, icc_header + 84, 16);
+
+  memcpy(icc->reserved, icc_header + 100, 28);
+}
+
+// clang-format off
+#define FOUR_CC_STR(f)          \
+  (const char[]) {              \
+    (char) ((f) >> 24u)         , \
+    (char)(((f) >> 16u) & 0xffu), \
+    (char)(((f) >>  8u) & 0xffu), \
+    (char)( (f)         & 0xffu), \
   }
+// clang-format on
 
-  uint32_t profile_size = be_uint32(icc_header);
-  iprintf(options, "Profile size: %u\n", profile_size);
+static void icc_dump_header(struct Options* options,
+                            const struct ICCHeader* icc) {
+  // https://www.color.org/specification/ICC.1-2022-05.pdf
+  // 7.2 Profile header
+  iprintf(options, "Profile size: %u\n", icc->profile_size);
 
-  uint32_t preferred_cmm_type = be_uint32(icc_header + 4);
-  if (preferred_cmm_type == 0)
+  if (icc->preferred_cmm_type == 0)
     iprintf(options, "Preferred CMM type: (not set)\n");
   else {
-    iprintf(options, "Preferred CMM type: '%.4s'\n", icc_header + 4);
+    iprintf(options, "Preferred CMM type: '%.4s'\n",
+            FOUR_CC_STR(icc->preferred_cmm_type));
   }
 
-  uint8_t profile_version_major = icc_header[8];
-  uint8_t profile_version_minor = icc_header[9] >> 4;
-  uint8_t profile_version_bugfix = icc_header[9] & 0xf;
-  uint16_t profile_version_zero = be_uint16(icc_header + 8 + 2);
-  iprintf(options, "Profile version: %d.%d.%d.%d\n", profile_version_major,
-          profile_version_minor, profile_version_bugfix, profile_version_zero);
+  uint8_t profile_version_minor = icc->profile_version_minor_bugfix >> 4;
+  uint8_t profile_version_bugfix = icc->profile_version_minor_bugfix & 0xf;
+  iprintf(options, "Profile version: %d.%d.%d.%d\n", icc->profile_version_major,
+          profile_version_minor, profile_version_bugfix,
+          icc->profile_version_zero);
 
-  uint32_t profile_device_class = be_uint32(icc_header + 12);
-  iprintf(options, "Profile/Device class: '%.4s'", icc_header + 12);
+  iprintf(options, "Profile/Device class: '%.4s'",
+          FOUR_CC_STR(icc->profile_device_class));
   const char* profile_device_class_description =
-      icc_profile_device_class_description(profile_device_class);
+      icc_profile_device_class_description(icc->profile_device_class);
   if (profile_device_class_description)
     printf(" (%s)", profile_device_class_description);
   printf("\n");
 
-  uint32_t data_color_space = be_uint32(icc_header + 16);
-  iprintf(options, "Data color space: '%.4s'", icc_header + 16);
+  iprintf(options, "Data color space: '%.4s'",
+          FOUR_CC_STR(icc->data_color_space));
   const char* color_space_description =
-      icc_color_space_description(data_color_space);
+      icc_color_space_description(icc->data_color_space);
   if (color_space_description)
     printf(" (%s)", color_space_description);
   printf("\n");
 
-  uint32_t pcs = be_uint32(icc_header + 20);
-  iprintf(options, "Profile connection space (PCS): '%.4s'", icc_header + 20);
-  const char* pcc_description = icc_color_space_description(pcs);
+  iprintf(options, "Profile connection space (PCS): '%.4s'",
+          FOUR_CC_STR(icc->pcs));
+  const char* pcc_description = icc_color_space_description(icc->pcs);
   if (pcc_description)
     printf(" (%s)", pcc_description);
   printf("\n");
-  if (profile_device_class != 0x6C696E6B) {  // 'link'
+  if (icc->profile_device_class != 0x6C696E6B) {  // 'link'
     // "For all profile classes (see Table 18), other than a DeviceLink
     // profile, the PCS encoding shall be either PCSXYZ or PCSLAB"
-    if (pcs != 0x58595A20 /* 'XYZ '*/ && pcs != 0x4C616220 /* 'Lab '*/) {
+    if (icc->pcs != 0x58595A20 /* 'XYZ '*/ &&
+        icc->pcs != 0x4C616220 /* 'Lab '*/) {
       iprintf(options,
               "Invalid: Only PCSXYZ or PCSLAB valid for '%.4s' profile\n",
-              icc_header + 12);
+              FOUR_CC_STR(icc->profile_device_class));
     }
   }
 
-  uint16_t year = be_uint16(icc_header + 24);
-  uint16_t month = be_uint16(icc_header + 26);
-  uint16_t day = be_uint16(icc_header + 28);
-  uint16_t hour = be_uint16(icc_header + 30);
-  uint16_t minutes = be_uint16(icc_header + 32);
-  uint16_t seconds = be_uint16(icc_header + 34);
-  iprintf(options, "Profile created: %d-%02d-%02dT%02d:%02d:%02dZ\n", year,
-          month, day, hour, minutes, seconds);
+  iprintf(options, "Profile created: %d-%02d-%02dT%02d:%02d:%02dZ\n", icc->year,
+          icc->month, icc->day, icc->hour, icc->minutes, icc->seconds);
 
-  uint32_t profile_file_signature = be_uint32(icc_header + 36);
-  iprintf(options, "Profile file signature: '%.4s'", icc_header + 36);
-  if (profile_file_signature != 0x61637370)
+  iprintf(options, "Profile file signature: '%.4s'",
+          FOUR_CC_STR(icc->profile_file_signature));
+  if (icc->profile_file_signature != 0x61637370)
     printf(" (expected 'acsp', but got something else?");
   printf("\n");
 
-  uint32_t primary_platform = be_uint32(icc_header + 40);
   iprintf(options, "Primary platform: ");
-  if (primary_platform == 0)
+  if (icc->primary_platform == 0)
     printf("none");
   else {
-    printf("'%.4s'", icc_header + 40);
+    printf("'%.4s'", FOUR_CC_STR(icc->primary_platform));
     const char* primary_platform_description =
-        icc_platform_description(primary_platform);
+        icc_platform_description(icc->primary_platform);
     if (primary_platform_description)
       printf(" (%s)", primary_platform_description);
   }
   printf("\n");
 
-  uint32_t profile_flags = be_uint32(icc_header + 44);
-  iprintf(options, "Profile flags: 0x%08x\n", profile_flags);
+  iprintf(options, "Profile flags: 0x%08x\n", icc->profile_flags);
 
-  uint32_t device_manufacturer = be_uint32(icc_header + 48);
   iprintf(options, "Device manufacturer: ");
-  if (device_manufacturer == 0)
+  if (icc->device_manufacturer == 0)
     printf("none");
   else
-    printf("'%.4s'", icc_header + 48);
+    printf("'%.4s'", FOUR_CC_STR(icc->device_manufacturer));
   printf("\n");
 
-  uint32_t device_model = be_uint32(icc_header + 52);
   iprintf(options, "Device model: ");
-  if (device_model == 0)
+  if (icc->device_model == 0)
     printf("none");
   else
-    printf("'%.4s'", icc_header + 52);
+    printf("'%.4s'", FOUR_CC_STR(icc->device_model));
   printf("\n");
 
-  uint64_t device_attributes = be_uint64(icc_header + 56);
-  iprintf(options, "Device attributes: 0x%016" PRIx64 "\n", device_attributes);
+  iprintf(options, "Device attributes: 0x%016" PRIx64 "\n",
+          icc->device_attributes);
 
-  uint32_t rendering_intent = be_uint32(icc_header + 64);
-  iprintf(options, "Rendering intent: %d", rendering_intent);
-  switch (rendering_intent & 0xffff) {
+  iprintf(options, "Rendering intent: %d", icc->rendering_intent);
+  switch (icc->rendering_intent & 0xffff) {
     case 0:
       printf(" (Perceptual)");
       break;
@@ -2398,13 +2469,13 @@ static void icc_dump_header(struct Options* options,
       printf(" (ICC-absolute colorimetric)");
       break;
   }
-  if (rendering_intent >> 16 != 0)
+  if (icc->rendering_intent >> 16 != 0)
     printf(" (top 16-bit unexpectedly not zero)");
   printf("\n");
 
-  int32_t xyz_x = (int32_t)be_uint32(icc_header + 68);
-  int32_t xyz_y = (int32_t)be_uint32(icc_header + 72);
-  int32_t xyz_z = (int32_t)be_uint32(icc_header + 76);
+  int32_t xyz_x = icc->pcs_illuminant_x;
+  int32_t xyz_y = icc->pcs_illuminant_y;
+  int32_t xyz_z = icc->pcs_illuminant_z;
   char xyz_buf[1024];
   snprintf(xyz_buf, sizeof(xyz_buf), "X = %.4f, Y = %.4f, Z = %.4f",
            icc_s15fixed16(xyz_x), icc_s15fixed16(xyz_y), icc_s15fixed16(xyz_z));
@@ -2414,18 +2485,17 @@ static void icc_dump_header(struct Options* options,
     printf("(unexpected; expected %s)", expected_xyz);
   printf("\n");
 
-  uint32_t profile_creator = be_uint32(icc_header + 80);
   iprintf(options, "Profile creator: ");
-  if (profile_creator == 0)
+  if (icc->profile_creator == 0)
     printf("none");
   else
-    printf("'%.4s'", icc_header + 80);
+    printf("'%.4s'", FOUR_CC_STR(icc->profile_creator));
   printf("\n");
 
   // This is the MD5 of the entire profile, with profile flags, rendering
   // intent, and profile ID temporarily set to 0.
-  uint64_t profile_id_part_1 = be_uint64(icc_header + 84);
-  uint64_t profile_id_part_2 = be_uint64(icc_header + 92);
+  uint64_t profile_id_part_1 = be_uint64(icc->profile_md5);
+  uint64_t profile_id_part_2 = be_uint64(icc->profile_md5 + 8);
   iprintf(options, "Profile ID: ");
   if (profile_id_part_1 == 0 && profile_id_part_2 == 0)
     printf("not computed");
@@ -2435,8 +2505,8 @@ static void icc_dump_header(struct Options* options,
   printf("\n");
 
   bool reserved_fields_are_zero = true;
-  for (int i = 100; i < 128; ++i)
-    if (icc_header[i] != 0)
+  for (int i = 0; i < 28; ++i)
+    if (icc->reserved[i] != 0)
       reserved_fields_are_zero = false;
   if (!reserved_fields_are_zero)
     iprintf(options, "reserved header bytes are unexpectedly not zero\n");
@@ -2552,7 +2622,14 @@ static void icc_dump(struct Options* options,
     fclose(f);
   }
 
-  icc_dump_header(options, icc_header, size);
+  if (size < 128) {
+    printf("ICC header must be at least 128 bytes, was %d\n", size);
+    return;
+  }
+
+  struct ICCHeader icc;
+  icc_read_header(icc_header, size, &icc);
+  icc_dump_header(options, &icc);
   icc_dump_tag_table(options, icc_header, size);
 }
 
