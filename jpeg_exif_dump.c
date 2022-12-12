@@ -2230,6 +2230,36 @@ static uint32_t pad_to_4(uint32_t v) {
   return v + (4 - v % 4) % 4;
 }
 
+static void icc_dump_curves(struct Options* options,
+                            uint8_t num_curves,
+                            const uint8_t* begin,
+                            uint32_t size,
+                            const uint8_t* curves_begin,
+                            const char* format_string) {
+  for (unsigned i = 0; i < num_curves; ++i) {
+    iprintf(options, format_string, i);
+    increase_indent(options);
+    // FIXME: bounds checking
+    uint32_t size_left = size - (uint32_t)(curves_begin - begin);
+    uint32_t curve_type = be_uint32(curves_begin);
+    uint32_t bytes_read = 0;
+    if (curve_type == 0x63757276) {  // 'curv'
+      bytes_read = icc_dump_curveType(options, curves_begin, size_left,
+                                      /*want_exact_size_match=*/false);
+    } else if (curve_type == 0x70617261) {  // 'para'
+      bytes_read =
+          icc_dump_parametricCurveType(options, curves_begin, size_left,
+                                       /*want_exact_size_match=*/false);
+    } else {
+      iprintf(options, "unexpected type, expected 'curv' or 'para'\n");
+    }
+    if (bytes_read == 0)
+      return;
+    curves_begin += pad_to_4(bytes_read);
+    decrease_indent(options);
+  }
+}
+
 static void icc_dump_lutAToBType(struct Options* options,
                                  const struct ICCHeader* icc,
                                  const uint8_t* begin,
@@ -2272,29 +2302,9 @@ static void icc_dump_lutAToBType(struct Options* options,
 
   // 10.12.2 “A” curves
   if (offset_to_a_curves) {
-    const uint8_t* a_curves_begin = begin + offset_to_a_curves;
-    for (unsigned i = 0; i < num_input_channels; ++i) {
-      iprintf(options, "'A' curve for input channel %u:\n", i);
-      increase_indent(options);
-      // FIXME: bounds checking
-      uint32_t size_left = size - (uint32_t)(a_curves_begin - begin);
-      uint32_t curve_type = be_uint32(a_curves_begin);
-      uint32_t bytes_read = 0;
-      if (curve_type == 0x63757276) {  // 'curv'
-        bytes_read = icc_dump_curveType(options, a_curves_begin, size_left,
-                                        /*want_exact_size_match=*/false);
-      } else if (curve_type == 0x70617261) {  // 'para'
-        bytes_read =
-            icc_dump_parametricCurveType(options, a_curves_begin, size_left,
-                                         /*want_exact_size_match=*/false);
-      } else {
-        iprintf(options, "unexpected type, expected 'curv' or 'para'\n");
-      }
-      if (bytes_read == 0)
-        return;
-      a_curves_begin += pad_to_4(bytes_read);
-      decrease_indent(options);
-    }
+    icc_dump_curves(options, num_input_channels, begin, size,
+                    begin + offset_to_a_curves,
+                    "'A' curve for input channel %u:\n");
   }
 
   // 10.12.3 CLUT
@@ -2334,29 +2344,9 @@ static void icc_dump_lutAToBType(struct Options* options,
 
   // 10.12.4 “M” curves
   if (offset_to_m_curves) {
-    const uint8_t* m_curves_begin = begin + offset_to_m_curves;
-    for (unsigned i = 0; i < num_output_channels; ++i) {
-      iprintf(options, "'M' curve for output channel %u:\n", i);
-      increase_indent(options);
-      // FIXME: bounds checking
-      uint32_t size_left = size - (uint32_t)(m_curves_begin - begin);
-      uint32_t curve_type = be_uint32(m_curves_begin);
-      uint32_t bytes_read = 0;
-      if (curve_type == 0x63757276) {  // 'curv'
-        bytes_read = icc_dump_curveType(options, m_curves_begin, size_left,
-                                        /*want_exact_size_match=*/false);
-      } else if (curve_type == 0x70617261) {  // 'para'
-        bytes_read =
-            icc_dump_parametricCurveType(options, m_curves_begin, size_left,
-                                         /*want_exact_size_match=*/false);
-      } else {
-        iprintf(options, "unexpected type, expected 'curv' or 'para'\n");
-      }
-      if (bytes_read == 0)
-        return;
-      m_curves_begin += pad_to_4(bytes_read);
-      decrease_indent(options);
-    }
+    icc_dump_curves(options, num_output_channels, begin, size,
+                    begin + offset_to_m_curves,
+                    "'M' curve for output channel %u:\n");
   }
 
   // 10.12.5 Matrix
@@ -2375,29 +2365,9 @@ static void icc_dump_lutAToBType(struct Options* options,
 
   // 10.12.6 “B” curves
   if (offset_to_b_curves) {
-    const uint8_t* b_curves_begin = begin + offset_to_b_curves;
-    for (unsigned i = 0; i < num_output_channels; ++i) {
-      iprintf(options, "'B' curve for output channel %u:\n", i);
-      increase_indent(options);
-      // FIXME: bounds checking
-      uint32_t size_left = size - (uint32_t)(b_curves_begin - begin);
-      uint32_t curve_type = be_uint32(b_curves_begin);
-      uint32_t bytes_read = 0;
-      if (curve_type == 0x63757276) {  // 'curv'
-        bytes_read = icc_dump_curveType(options, b_curves_begin, size_left,
-                                        /*want_exact_size_match=*/false);
-      } else if (curve_type == 0x70617261) {  // 'para'
-        bytes_read =
-            icc_dump_parametricCurveType(options, b_curves_begin, size_left,
-                                         /*want_exact_size_match=*/false);
-      } else {
-        iprintf(options, "unexpected type, expected 'curv' or 'para'\n");
-      }
-      if (bytes_read == 0)
-        return;
-      b_curves_begin += pad_to_4(bytes_read);
-      decrease_indent(options);
-    }
+    icc_dump_curves(options, num_output_channels, begin, size,
+                    begin + offset_to_b_curves,
+                    "'B' curve for output channel %u:\n");
   }
 }
 
