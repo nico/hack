@@ -2082,7 +2082,45 @@ static void icc_dump_clut_values(struct Options* options,
   }
 }
 
+static void icc_dump_clut(struct Options* options,
+                          const struct ICCHeader* icc,
+                          uint8_t num_input_channels,
+                          uint8_t num_output_channels,
+                          uint8_t bytes_per_entry,
+                          const uint8_t* clut_sizes,
+                          const uint8_t* clut_data) {
+  // num_input_channels-dimensional space with clut_sizes[i] along axis i.
+  // Each point contains num_output_channels points.
+  if (num_input_channels == 3 && num_output_channels == 3 &&
+      bytes_per_entry == 2 && icc_is_truecolor_terminal()) {
+    void (*dump)(const uint8_t* begin, uint8_t n, char end) = NULL;
+    if (icc->pcs == 0x58595A20 /* 'XYZ ' */)
+      dump = icc_colored_lut_row_xyz_to_rgb_16;
+    else if (icc->pcs == 0x4C616220 /* 'Lab ' */)
+      dump = icc_colored_lut_row_lab_to_rgb_16;
+
+    if (!dump) {
+      printf("(not dumping CLUT due to invalid PCS\n");
+    } else {
+      icc_dump_clut_3_3_truecolor(options, clut_sizes[0], clut_sizes[1],
+                                  clut_sizes[2], clut_data, dump);
+    }
+  } else if (num_input_channels == 3 && bytes_per_entry == 2 &&
+             options->dump_luts) {
+    icc_dump_clut_values(options, clut_sizes[0], clut_sizes[1], clut_sizes[2],
+                         num_output_channels, clut_data);
+  } else {
+    iprintf(options, "not dumping lut.");
+    if (num_input_channels == 3) {
+      if (num_output_channels == 3)
+        printf(" run in a truecolor terminal, or");
+      printf(" pass '--dump-luts'.\n");
+    }
+  }
+}
+
 static void icc_dump_lut16Type(struct Options* options,
+                               const struct ICCHeader* icc,
                                const uint8_t* begin,
                                uint32_t size) {
   // https://www.color.org/specification/ICC.1-2022-05.pdf
@@ -2110,6 +2148,15 @@ static void icc_dump_lut16Type(struct Options* options,
   uint8_t reserved2 = begin[11];
   if (reserved2 != 0) {
     printf("lut16Type expected reserved2 0, got %d\n", reserved2);
+    return;
+  }
+
+  // This limitation doesn't exist in the spec. But it does exist in
+  // icc_dump_lutAToBType in the spec, it'll probably always be true in
+  // practice, and it allows us to not allocate on the heap below.
+  if (num_input_channels > 16) {
+    printf("this program assumes most 16 input channels, got %u\n",
+           num_input_channels);
     return;
   }
 
@@ -2158,24 +2205,11 @@ static void icc_dump_lut16Type(struct Options* options,
   // num_input_channels-dimensional space with num_clut_grid_points along
   // each axis, for a total of num_clut_grid_points ** num_input_channels
   // points. Each point contains num_output_channels points.
-  if (num_input_channels == 3 && num_output_channels == 3 &&
-      icc_is_truecolor_terminal()) {
-    icc_dump_clut_3_3_truecolor(options, num_clut_grid_points,
-                                num_clut_grid_points, num_clut_grid_points,
-                                begin + offset,
-                                icc_colored_lut_row_xyz_to_rgb_16);
-  } else if (num_input_channels == 3 && options->dump_luts) {
-    icc_dump_clut_values(options, num_clut_grid_points, num_clut_grid_points,
-                         num_clut_grid_points, num_output_channels,
-                         begin + offset);
-  } else {
-    iprintf(options, "not dumping lut.");
-    if (num_input_channels == 3) {
-      if (num_output_channels == 3)
-        printf(" run in a truecolor terminal, or");
-      printf(" pass '--dump-luts'.\n");
-    }
-  }
+  uint8_t clut_sizes[16];
+  for (unsigned i = 0; i < num_input_channels; ++i)
+    clut_sizes[i] = num_clut_grid_points;
+  icc_dump_clut(options, icc, num_input_channels, num_output_channels,
+                /*bytes_per_entry=*/2, clut_sizes, begin + offset);
   size_t clut_values_size = 2 * num_output_channels;
   for (unsigned i = 0; i < num_input_channels; ++i)
     clut_values_size *= num_clut_grid_points;
@@ -2294,25 +2328,8 @@ static void icc_dump_lutAToBType(struct Options* options,
       return;
     }
 
-    // FIXME: dump actual CLUT
-    if (num_input_channels == 3 && num_output_channels == 3 &&
-        bytes_per_entry == 2 && icc_is_truecolor_terminal()) {
-      void (*dump)(const uint8_t* begin, uint8_t n, char end) = NULL;
-      if (icc->pcs == 0x58595A20 /* 'XYZ ' */)
-        dump = icc_colored_lut_row_xyz_to_rgb_16;
-      else if (icc->pcs == 0x4C616220 /* 'Lab ' */)
-        dump = icc_colored_lut_row_lab_to_rgb_16;
-
-      if (!dump) {
-        printf("(not dumping CLUT due to invalid PCS\n");
-      } else {
-        icc_dump_clut_3_3_truecolor(options, clut_begin[0], clut_begin[1],
-                                    clut_begin[2], clut_begin + 20, dump);
-      }
-    } else if (num_input_channels == 3 && options->dump_luts) {
-      icc_dump_clut_values(options, clut_begin[0], clut_begin[1], clut_begin[2],
-                           num_output_channels, clut_begin + 20);
-    }
+    icc_dump_clut(options, icc, num_input_channels, num_output_channels,
+                  bytes_per_entry, clut_begin, clut_begin + 20);
   }
 
   // 10.12.4 “M” curves
@@ -2624,7 +2641,7 @@ static void icc_dump_tag_table(struct Options* options,
         if (type_signature == 0x6D667431) {  // 'mft1'
           // TODO: icc_dump_lut8Type
         } else if (type_signature == 0x6D667432) {  // 'mft2'
-          icc_dump_lut16Type(options, icc_header + offset_to_data,
+          icc_dump_lut16Type(options, icc, icc_header + offset_to_data,
                              size_of_data);
         } else if (type_signature == 0x6D414220) {  // 'mAB '
           icc_dump_lutAToBType(options, icc, icc_header + offset_to_data,
