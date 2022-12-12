@@ -91,7 +91,7 @@ def parse_output(log, meta):
 
 
 def parse_buildlog(logfile, metafile):
-    with open(logfile) as f:
+    with open(logfile, errors='backslashreplace') as f:
         log = f.read().replace('\r\n', '\n')
     with open(metafile) as f:
         meta = f.read()
@@ -419,7 +419,7 @@ fetch(url).then(response => response.json()).then(json => {
             with open(build_html, 'w') as f:
                 has_next = i + 1 != build_list.num_builds()
                 f.write(template % build_details(info, has_next))
-            with open(info['log_file']) as f:
+            with open(info['log_file'], errors='backslashreplace') as f:
                 log = f.read().replace('\r\n', '\n')
             with open(os.path.join(build_dir, 'log.txt'), 'w') as f:
                 f.write(log)
