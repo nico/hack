@@ -2355,9 +2355,6 @@ static void icc_dump_lutAToBType(struct Options* options,
     const uint8_t* matrix_begin = begin + offset_to_matrix;
     for (int i = 0; i < 12; ++i)
       e[i] = icc_s15fixed16((int32_t)be_uint32(matrix_begin + i * 4));
-  }
-
-  if (offset_to_matrix) {
     iprintf(options, "e matrix %.4f %.4f %.4f %.4f\n", e[0], e[1], e[2], e[9]);
     iprintf(options, "         %.4f %.4f %.4f %.4f\n", e[3], e[4], e[5], e[10]);
     iprintf(options, "         %.4f %.4f %.4f %.4f\n", e[6], e[7], e[8], e[11]);
