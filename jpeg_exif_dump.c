@@ -3268,13 +3268,11 @@ static bool jpeg_icc_ensure_multi_chunk_state(struct Options* options,
 
   // FIXME: Need to free jpeg_icc_chunks and its arrays somewhere.
   // But they're tiny and this is a one-shot program anyways, so fine for now.
-  struct JpegIccChunks* jpeg_icc_chunks =
-      (struct JpegIccChunks*)malloc(sizeof(struct JpegIccChunks));
+  struct JpegIccChunks* jpeg_icc_chunks = malloc(sizeof(struct JpegIccChunks));
   jpeg_icc_chunks->num_chunks = num_chunks;
   jpeg_icc_chunks->num_completed_chunks = 0;
-  jpeg_icc_chunks->datas =
-      (const uint8_t**)calloc(num_chunks, sizeof(const uint8_t*));
-  jpeg_icc_chunks->sizes = (uint16_t*)calloc(num_chunks, sizeof(uint16_t));
+  jpeg_icc_chunks->datas = calloc(num_chunks, sizeof(const uint8_t*));
+  jpeg_icc_chunks->sizes = calloc(num_chunks, sizeof(uint16_t));
   options->jpeg_icc_chunks = jpeg_icc_chunks;
   return true;
 }
@@ -3327,7 +3325,8 @@ static void jpeg_icc_dump(struct Options* options) {
 
   uint32_t offset = 0;
   for (uint8_t i = 0; i < jpeg_icc_chunks->num_chunks; ++i) {
-    memcpy(icc_data + offset, jpeg_icc_chunks->datas[i], jpeg_icc_chunks->sizes[i]);
+    memcpy(icc_data + offset, jpeg_icc_chunks->datas[i],
+           jpeg_icc_chunks->sizes[i]);
     offset += jpeg_icc_chunks->sizes[i];
   }
 
