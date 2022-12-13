@@ -2118,8 +2118,9 @@ static void icc_dump_clut(struct Options* options,
     if (num_input_channels == 3) {
       if (num_output_channels == 3)
         printf(" run in a truecolor terminal, or");
-      printf(" pass '--dump-luts'.\n");
+      printf(" pass '--dump-luts'.");
     }
+    printf("\n");
   }
 }
 
