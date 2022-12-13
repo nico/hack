@@ -2725,7 +2725,7 @@ static void icc_dump_tag_table(struct Options* options,
           // size_of_data);
         } else {
           iprintf(options,
-                  "unexpected type, expected 'mtf1', 'mtf2', or 'mAB '\n");
+                  "unexpected type, expected 'mtf1', 'mtf2', or 'mBA '\n");
         }
         break;
       case 0x63707274:  // 'cprt', copyrightTag
