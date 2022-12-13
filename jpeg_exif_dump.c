@@ -3268,11 +3268,11 @@ static bool jpeg_icc_ensure_multi_chunk_state(struct Options* options,
 
   // FIXME: Need to free jpeg_icc_chunks and its arrays somewhere.
   // But they're tiny and this is a one-shot program anyways, so fine for now.
-  struct JpegIccChunks* jpeg_icc_chunks = malloc(sizeof(struct JpegIccChunks));
+  struct JpegIccChunks* jpeg_icc_chunks = malloc(sizeof *jpeg_icc_chunks);
   jpeg_icc_chunks->num_chunks = num_chunks;
   jpeg_icc_chunks->num_completed_chunks = 0;
-  jpeg_icc_chunks->datas = calloc(num_chunks, sizeof(const uint8_t*));
-  jpeg_icc_chunks->sizes = calloc(num_chunks, sizeof(uint16_t));
+  jpeg_icc_chunks->datas = calloc(num_chunks, sizeof *jpeg_icc_chunks->datas);
+  jpeg_icc_chunks->sizes = calloc(num_chunks, sizeof *jpeg_icc_chunks->sizes);
   options->jpeg_icc_chunks = jpeg_icc_chunks;
   return true;
 }
