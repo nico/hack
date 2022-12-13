@@ -96,7 +96,7 @@ def parse_buildlog(logfile, metafile):
     with open(metafile) as f:
         meta = f.read()
 
-    # The mini started sending files every now and then :/
+    # The mini started sending empty files every now and then :/
     if not log and not meta:
       log = 'INFO:1970-01-01T00:00:00Z:root:pulling...\nempty file workaround\n'
       meta = '{ "elapsed_s": 0, "exit_code": 1 }'
