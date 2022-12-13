@@ -83,6 +83,8 @@ static uint32_t le_uint32(const uint8_t* p) {
   return (uint32_t)(le_uint16(p + 2) << 16) | le_uint16(p);
 }
 
+struct JpegIccChunks;
+
 struct Options {
   int current_indent;
   bool jpeg_scan;
@@ -90,6 +92,8 @@ struct Options {
   bool dump_luts;
   bool dump_jpegs;
   int num_jpegs;
+
+  struct JpegIccChunks* jpeg_icc_chunks;
 };
 
 static void increase_indent(struct Options* options) {
@@ -3242,6 +3246,95 @@ static void jpeg_dump_exif(struct Options* options,
   tiff_dump(options, begin + sizeof(uint16_t) + sizeof("Exif") + 1,
             begin + size);
 }
+
+struct JpegIccChunks {
+  uint8_t num_chunks;
+  uint8_t num_completed_chunks;
+  const uint8_t** datas;
+  uint16_t* sizes;
+};
+
+static bool jpeg_icc_ensure_multi_chunk_state(struct Options* options,
+                                              uint8_t num_chunks) {
+  if (options->jpeg_icc_chunks) {
+    if (options->jpeg_icc_chunks->num_chunks == num_chunks)
+      return true;
+    // FIXME: dealloc?
+    printf("num_chunks %u doesn't match previous num_chunks %u\n", num_chunks,
+           options->jpeg_icc_chunks->num_chunks);
+    return false;
+  }
+
+  // FIXME: Need to free jpeg_icc_chunks and its arrays somewhere.
+  // But they're tiny and this is a one-shot program anyways, so fine for now.
+  struct JpegIccChunks* jpeg_icc_chunks =
+      (struct JpegIccChunks*)malloc(sizeof(struct JpegIccChunks));
+  jpeg_icc_chunks->num_chunks = num_chunks;
+  jpeg_icc_chunks->num_completed_chunks = 0;
+  jpeg_icc_chunks->datas =
+      (const uint8_t**)calloc(num_chunks, sizeof(const uint8_t*));
+  jpeg_icc_chunks->sizes = (uint16_t*)calloc(num_chunks, sizeof(uint16_t));
+  options->jpeg_icc_chunks = jpeg_icc_chunks;
+  return true;
+}
+
+static void jpeg_icc_add_chunk(struct Options* options,
+                               uint8_t sequence_number,
+                               const uint8_t* data,
+                               uint16_t size) {
+  if (sequence_number == 0) {
+    printf("sequence-numbers are 1-based, but got 0\n");
+    return;
+  }
+  uint8_t index = sequence_number - 1;
+
+  assert(options->jpeg_icc_chunks);
+  struct JpegIccChunks* jpeg_icc_chunks = options->jpeg_icc_chunks;
+
+  if (index >= jpeg_icc_chunks->num_chunks) {
+    printf("got sequence number %u but only have %u chunks\n", sequence_number,
+           jpeg_icc_chunks->num_chunks);
+    return;
+  }
+
+  if (jpeg_icc_chunks->datas[index]) {
+    printf("duplicate entry for sequence number %u\n", sequence_number);
+    return;
+  }
+
+  assert(data);
+  jpeg_icc_chunks->datas[index] = data;
+  jpeg_icc_chunks->sizes[index] = size;
+  ++jpeg_icc_chunks->num_completed_chunks;
+}
+
+static bool jpeg_icc_have_all_chunks(struct Options* options) {
+  assert(options->jpeg_icc_chunks);
+  struct JpegIccChunks* jpeg_icc_chunks = options->jpeg_icc_chunks;
+  return jpeg_icc_chunks->num_chunks == jpeg_icc_chunks->num_completed_chunks;
+}
+
+static void jpeg_icc_dump(struct Options* options) {
+  assert(options->jpeg_icc_chunks);
+  struct JpegIccChunks* jpeg_icc_chunks = options->jpeg_icc_chunks;
+
+  uint32_t total_size = 0;
+  for (uint8_t i = 0; i < jpeg_icc_chunks->num_chunks; ++i)
+    total_size += jpeg_icc_chunks->sizes[i];
+
+  uint8_t* icc_data = malloc(total_size);
+
+  uint32_t offset = 0;
+  for (uint8_t i = 0; i < jpeg_icc_chunks->num_chunks; ++i) {
+    memcpy(icc_data + offset, jpeg_icc_chunks->datas[i], jpeg_icc_chunks->sizes[i]);
+    offset += jpeg_icc_chunks->sizes[i];
+  }
+
+  icc_dump(options, icc_data, total_size);
+
+  free(icc_data);
+}
+
 static void jpeg_dump_icc(struct Options* options,
                           const uint8_t* begin,
                           uint16_t size) {
@@ -3260,12 +3353,19 @@ static void jpeg_dump_icc(struct Options* options,
   uint8_t num_chunks = begin[prefix_size + 1];
   iprintf(options, "chunk %u/%u\n", chunk_sequence_number, num_chunks);
 
-  if (chunk_sequence_number != 1 || num_chunks != 1) {
-    printf("cannot handle ICC profiles spread over several chunks yet\n");
+  if (chunk_sequence_number == 1 && num_chunks == 1) {
+    icc_dump(options, begin + header_size, size - header_size);
     return;
   }
 
-  icc_dump(options, begin + header_size, size - header_size);
+  if (!jpeg_icc_ensure_multi_chunk_state(options, num_chunks))
+    return;
+
+  jpeg_icc_add_chunk(options, chunk_sequence_number, begin + header_size,
+                     size - header_size);
+
+  if (jpeg_icc_have_all_chunks(options))
+    jpeg_icc_dump(options);
 }
 
 static void jpeg_dump_mpf(struct Options* options,
@@ -3606,6 +3706,7 @@ int main(int argc, char* argv[]) {
       .dump_jpegs = false,
       .num_jpegs = 0,
       .dump_luts = false,
+      .jpeg_icc_chunks = NULL,
   };
 #define kDumpLuts 512
   struct option getopt_options[] = {
