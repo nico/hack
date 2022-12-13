@@ -2710,6 +2710,24 @@ static void icc_dump_tag_table(struct Options* options,
                   "unexpected type, expected 'mtf1', 'mtf2', or 'mAB '\n");
         }
         break;
+      case 0x42324130:                       // 'B2A0', BToA0Tag
+      case 0x42324131:                       // 'B2A1', BToA1Tag
+      case 0x42324132:                       // 'B2A2', BToA2Tag
+        if (type_signature == 0x6D667431) {  // 'mft1'
+          icc_dump_lut8Type(options, icc, icc_header + offset_to_data,
+                            size_of_data);
+        } else if (type_signature == 0x6D667432) {  // 'mft2'
+          icc_dump_lut16Type(options, icc, icc_header + offset_to_data,
+                             size_of_data);
+        } else if (type_signature == 0x6D424120) {  // 'mBA '
+          // FIXME
+          // icc_dump_lutBToAType(options, icc, icc_header + offset_to_data,
+          // size_of_data);
+        } else {
+          iprintf(options,
+                  "unexpected type, expected 'mtf1', 'mtf2', or 'mAB '\n");
+        }
+        break;
       case 0x63707274:  // 'cprt', copyrightTag
         // Per ICC.1:2022 9.2.22, the type of copyrightTag must be
         // multiLocalizedUnicodeType. But Sony RAW files exported by Lightroom
