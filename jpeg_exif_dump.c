@@ -2231,6 +2231,92 @@ static void icc_dump_lut16Type(struct Options* options,
   }
 }
 
+static void icc_dump_lut8Type(struct Options* options,
+                              const struct ICCHeader* icc,
+                              const uint8_t* begin,
+                              uint32_t size) {
+  // https://www.color.org/specification/ICC.1-2022-05.pdf
+  // 10.11 lut8Type
+  if (size < 52) {
+    printf("lut8Type must be at least 52 bytes, was %d\n", size);
+    return;
+  }
+
+  uint32_t type_signature = be_uint32(begin);
+  if (type_signature != 0x6D667431) {  // 'mft1'
+    printf("lut8Type expected type 'mft1', got '%.4s'\n", begin);
+    return;
+  }
+
+  uint32_t reserved = be_uint32(begin + 4);
+  if (reserved != 0) {
+    printf("lut8Type expected reserved 0, got %d\n", reserved);
+    return;
+  }
+
+  uint8_t num_input_channels = begin[8];
+  uint8_t num_output_channels = begin[9];
+  uint8_t num_clut_grid_points = begin[10];
+  uint8_t reserved2 = begin[11];
+  if (reserved2 != 0) {
+    printf("lut8Type expected reserved2 0, got %d\n", reserved2);
+    return;
+  }
+
+  // This limitation doesn't exist in the spec. But it does exist in
+  // icc_dump_lutAToBType in the spec, it'll probably always be true in
+  // practice, and it allows us to not allocate on the heap below.
+  if (num_input_channels > 16) {
+    printf("this program assumes most 16 input channels, got %u\n",
+           num_input_channels);
+    return;
+  }
+
+  double e[9];
+  for (int i = 0; i < 9; ++i)
+    e[i] = icc_s15fixed16((int32_t)be_uint32(begin + 12 + i * 4));
+
+  iprintf(options, "num input channels: %u\n", num_input_channels);
+  iprintf(options, "num output channels: %u\n", num_output_channels);
+  iprintf(options, "num CLUT grid points: %u\n", num_clut_grid_points);
+
+  iprintf(options, "e matrix %.4f %.4f %.4f\n", e[0], e[1], e[2]);
+  iprintf(options, "         %.4f %.4f %.4f\n", e[3], e[4], e[5]);
+  iprintf(options, "         %.4f %.4f %.4f\n", e[6], e[7], e[8]);
+
+  // FIXME: bounds checking
+  size_t offset = 48;
+
+  iprintf(options, "input tables:\n");
+  for (unsigned c = 0; c < num_input_channels; ++c) {
+    iprintf(options, "  channel %u:", c);
+    for (unsigned i = 0; i < 255; ++i)
+      printf(" %u", begin[offset++]);
+    printf("\n");
+  }
+
+  // num_input_channels-dimensional space with num_clut_grid_points along
+  // each axis, for a total of num_clut_grid_points ** num_input_channels
+  // points. Each point contains num_output_channels points.
+  uint8_t clut_sizes[16];
+  for (unsigned i = 0; i < num_input_channels; ++i)
+    clut_sizes[i] = num_clut_grid_points;
+  icc_dump_clut(options, icc, num_input_channels, num_output_channels,
+                /*bytes_per_entry=*/1, clut_sizes, begin + offset);
+  size_t clut_values_size = num_output_channels;
+  for (unsigned i = 0; i < num_input_channels; ++i)
+    clut_values_size *= num_clut_grid_points;
+  offset += clut_values_size;
+
+  iprintf(options, "output tables:\n");
+  for (unsigned c = 0; c < num_output_channels; ++c) {
+    iprintf(options, "  channel %u:", c);
+    for (unsigned i = 0; i < 255; ++i)
+      printf(" %u", begin[offset++]);
+    printf("\n");
+  }
+}
+
 static uint32_t pad_to_4(uint32_t v) {
   return v + (4 - v % 4) % 4;
 }
@@ -2611,7 +2697,8 @@ static void icc_dump_tag_table(struct Options* options,
       case 0x41324231:                       // 'A2B1', AToB1Tag
       case 0x41324232:                       // 'A2B2', AToB2Tag
         if (type_signature == 0x6D667431) {  // 'mft1'
-          // TODO: icc_dump_lut8Type
+          icc_dump_lut8Type(options, icc, icc_header + offset_to_data,
+                            size_of_data);
         } else if (type_signature == 0x6D667432) {  // 'mft2'
           icc_dump_lut16Type(options, icc, icc_header + offset_to_data,
                              size_of_data);
