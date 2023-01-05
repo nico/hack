@@ -614,9 +614,9 @@ static void tiff_dump_flash(const struct TiffState* tiff_state,
   printf(" (");
 
   if (flash_fired)
-    printf("flash fired");
+    printf("fired");
   else
-    printf("flash did not fire");
+    printf("did not fire");
 
   switch (flash_return) {
     case no_strobe_return_function:
@@ -633,7 +633,7 @@ static void tiff_dump_flash(const struct TiffState* tiff_state,
       break;
   }
 
-  printf(", flash mode ");
+  printf(", mode ");
   switch (flash_mode) {
     case unknown:
       printf("unknown");
