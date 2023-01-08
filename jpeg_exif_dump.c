@@ -1526,6 +1526,34 @@ static double icc_s15fixed16(int32_t i) {
   return i / (double)0x10000;
 }
 
+// clang-format off
+// Use with '%.4s' format string.
+#define FOUR_CC_STR(f)          \
+  (const char[]) {              \
+    (char) ((f) >> 24u)         , \
+    (char)(((f) >> 16u) & 0xffu), \
+    (char)(((f) >>  8u) & 0xffu), \
+    (char)( (f)         & 0xffu), \
+  }
+// clang-format on
+
+static bool icc_check_type(const uint8_t* begin,
+                           const char* name,
+                           uint32_t expected_signature) {
+  uint32_t type_signature = be_uint32(begin);
+  if (type_signature != expected_signature) {
+    printf("%s expected type '%.4s', got '%.4s'\n", name,
+           FOUR_CC_STR(expected_signature), begin);
+    return false;
+  }
+  uint32_t reserved = be_uint32(begin + 4);
+  if (reserved != 0) {
+    printf("%s expected reserved 0, got %d\n", name, reserved);
+    return false;
+  }
+  return true;
+}
+
 static void icc_dump_textType(struct Options* options,
                               const uint8_t* begin,
                               uint32_t size) {
@@ -1535,17 +1563,8 @@ static void icc_dump_textType(struct Options* options,
     return;
   }
 
-  uint32_t type_signature = be_uint32(begin);
-  if (type_signature != 0x74657874) {  // 'text'
-    printf("textType expected type 'text', got '%.4s'\n", begin);
+  if (!icc_check_type(begin, "textType", 0x74657874))  // 'text'
     return;
-  }
-
-  uint32_t reserved = be_uint32(begin + 4);
-  if (reserved != 0) {
-    printf("textType expected reserved 0, got %d\n", reserved);
-    return;
-  }
 
   if (begin[size] != '\0') {
     printf("textType not 0-terminated\n");
@@ -1581,17 +1600,8 @@ static void icc_dump_textDescriptionType(struct Options* options,
     return;
   }
 
-  uint32_t type_signature = be_uint32(begin);
-  if (type_signature != 0x64657363) {  // 'desc'
-    printf("textDescriptionType expected type 'desc', got '%.4s'\n", begin);
+  if (!icc_check_type(begin, "textDescriptionType", 0x64657363))  // 'desc'
     return;
-  }
-
-  uint32_t reserved = be_uint32(begin + 4);
-  if (reserved != 0) {
-    printf("textDescriptionType expected reserved 0, got %d\n", reserved);
-    return;
-  }
 
   uint32_t ascii_invariant_size = be_uint32(begin + 8);
   if (ascii_invariant_size == 0) {
@@ -1657,18 +1667,9 @@ static void icc_dump_multiLocalizedUnicodeType(struct Options* options,
     return;
   }
 
-  uint32_t type_signature = be_uint32(begin);
-  if (type_signature != 0x6D6C7563) {  // 'mluc'
-    printf("multiLocalizedUnicodeType expected type 'mluc', got '%.4s'\n",
-           begin);
+  if (!icc_check_type(begin, "multiLocalizedUnicodeType",
+                      0x6D6C7563))  // 'mluc'
     return;
-  }
-
-  uint32_t reserved = be_uint32(begin + 4);
-  if (reserved != 0) {
-    printf("multiLocalizedUnicodeType expected reserved 0, got %d\n", reserved);
-    return;
-  }
 
   uint32_t num_records = be_uint32(begin + 8);
   if (size - 16 < num_records * 12) {
@@ -1716,17 +1717,8 @@ static void icc_dump_XYZType(struct Options* options,
     return;
   }
 
-  uint32_t type_signature = be_uint32(begin);
-  if (type_signature != 0x58595A20) {  // 'XYZ '
-    printf("XYZType expected type 'XYZ ', got '%.4s'\n", begin);
+  if (!icc_check_type(begin, "XYZType", 0x58595A20))  // 'XYZ '
     return;
-  }
-
-  uint32_t reserved = be_uint32(begin + 4);
-  if (reserved != 0) {
-    printf("XYZType expected reserved 0, got %d\n", reserved);
-    return;
-  }
 
   uint32_t xyz_size = size - 8;
   if (xyz_size % 12 != 0) {
@@ -1756,17 +1748,8 @@ static uint32_t icc_dump_curveType(struct Options* options,
     return 0;
   }
 
-  uint32_t type_signature = be_uint32(begin);
-  if (type_signature != 0x63757276) {  // 'curv'
-    printf("curveType expected type 'curv', got '%.4s'\n", begin);
+  if (!icc_check_type(begin, "curveType", 0x63757276))  // 'curv'
     return 0;
-  }
-
-  uint32_t reserved = be_uint32(begin + 4);
-  if (reserved != 0) {
-    printf("curveType expected reserved 0, got %d\n", reserved);
-    return 0;
-  }
 
   uint32_t num_entries = be_uint32(begin + 8);
   if (want_exact_size_match) {
@@ -1810,21 +1793,12 @@ static uint32_t icc_dump_parametricCurveType(struct Options* options,
     return 0;
   }
 
-  uint32_t type_signature = be_uint32(begin);
-  if (type_signature != 0x70617261) {  // 'para'
-    printf("parametricCurveType expected type 'para', got '%.4s'\n", begin);
+  if (!icc_check_type(begin, "parametricCurveType", 0x70617261))  // 'para'
     return 0;
-  }
-
-  uint32_t reserved = be_uint32(begin + 4);
-  if (reserved != 0) {
-    printf("parametricCurveType expected reserved 0, got %d\n", reserved);
-    return 0;
-  }
 
   uint16_t function_type = be_uint16(begin + 8);
   uint16_t reserved2 = be_uint16(begin + 10);
-  if (reserved != 0) {
+  if (reserved2 != 0) {
     printf("parametricCurveType expected reserved2 0, got %d\n", reserved2);
     return 0;
   }
@@ -2135,17 +2109,8 @@ static void icc_dump_lut16Type(struct Options* options,
     return;
   }
 
-  uint32_t type_signature = be_uint32(begin);
-  if (type_signature != 0x6D667432) {  // 'mft2'
-    printf("lut16Type expected type 'mft2', got '%.4s'\n", begin);
+  if (!icc_check_type(begin, "lut16Type", 0x6D667432))  // 'mft2'
     return;
-  }
-
-  uint32_t reserved = be_uint32(begin + 4);
-  if (reserved != 0) {
-    printf("lut16Type expected reserved 0, got %d\n", reserved);
-    return;
-  }
 
   uint8_t num_input_channels = begin[8];
   uint8_t num_output_channels = begin[9];
@@ -2242,17 +2207,8 @@ static void icc_dump_lut8Type(struct Options* options,
     return;
   }
 
-  uint32_t type_signature = be_uint32(begin);
-  if (type_signature != 0x6D667431) {  // 'mft1'
-    printf("lut8Type expected type 'mft1', got '%.4s'\n", begin);
+  if (!icc_check_type(begin, "lut8Type", 0x6D667431))  // 'mft1'
     return;
-  }
-
-  uint32_t reserved = be_uint32(begin + 4);
-  if (reserved != 0) {
-    printf("lut8Type expected reserved 0, got %d\n", reserved);
-    return;
-  }
 
   uint8_t num_input_channels = begin[8];
   uint8_t num_output_channels = begin[9];
@@ -2362,17 +2318,8 @@ static void icc_dump_lutAToBType(struct Options* options,
     return;
   }
 
-  uint32_t type_signature = be_uint32(begin);
-  if (type_signature != 0x6D414220) {  // 'mAB '
-    printf("lutAToBType expected type 'mAB ', got '%.4s'\n", begin);
+  if (!icc_check_type(begin, "lutAToBType", 0x6D414220))  // 'mAB '
     return;
-  }
-
-  uint32_t reserved = be_uint32(begin + 4);
-  if (reserved != 0) {
-    printf("lutAToBType expected reserved 0, got %d\n", reserved);
-    return;
-  }
 
   uint8_t num_input_channels = begin[8];
   uint8_t num_output_channels = begin[9];
@@ -2470,17 +2417,8 @@ static void icc_dump_lutBToAType(struct Options* options,
     return;
   }
 
-  uint32_t type_signature = be_uint32(begin);
-  if (type_signature != 0x6D424120) {  // 'mBA '
-    printf("lutBToAType expected type 'mBA ', got '%.4s'\n", begin);
+  if (!icc_check_type(begin, "lutBToAType", 0x6D424120))  // 'mBA '
     return;
-  }
-
-  uint32_t reserved = be_uint32(begin + 4);
-  if (reserved != 0) {
-    printf("lutBToAType expected reserved 0, got %d\n", reserved);
-    return;
-  }
 
   uint8_t num_input_channels = begin[8];
   uint8_t num_output_channels = begin[9];
@@ -2606,16 +2544,6 @@ static void icc_read_header(const uint8_t* icc_header,
 
   memcpy(icc->reserved, icc_header + 100, 28);
 }
-
-// clang-format off
-#define FOUR_CC_STR(f)          \
-  (const char[]) {              \
-    (char) ((f) >> 24u)         , \
-    (char)(((f) >> 16u) & 0xffu), \
-    (char)(((f) >>  8u) & 0xffu), \
-    (char)( (f)         & 0xffu), \
-  }
-// clang-format on
 
 static void icc_dump_header(struct Options* options,
                             const struct ICCHeader* icc) {
