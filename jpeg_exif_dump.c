@@ -2733,7 +2733,7 @@ static void icc_dump_lutBToAType(struct Options* options,
 }
 
 static void icc_read_header(const uint8_t* icc_header,
-                            uint32_t size,
+                            size_t size,
                             struct ICCHeader* icc) {
   // https://www.color.org/specification/ICC.1-2022-05.pdf
   // 7.2 Profile header
@@ -3056,7 +3056,7 @@ static void icc_dump_tag_table(struct Options* options,
 
 static void icc_dump(struct Options* options,
                      const uint8_t* icc_header,
-                     uint32_t size) {
+                     size_t size) {
   if (options->dump_jpegs) {
     FILE* f = fopen("jpeg.icc", "wb");
     fwrite(icc_header, size, 1, f);
@@ -3064,14 +3064,21 @@ static void icc_dump(struct Options* options,
   }
 
   if (size < 128) {
-    printf("ICC header must be at least 128 bytes, was %d\n", size);
+    printf("ICC header must be at least 128 bytes, was %zu\n", size);
     return;
   }
 
   struct ICCHeader icc;
   icc_read_header(icc_header, size, &icc);
   icc_dump_header(options, &icc);
-  icc_dump_tag_table(options, &icc, icc_header, size);
+
+  if (size < icc.profile_size) {
+    printf("ICC data needs %d bytes, but only %zu present\n", icc.profile_size,
+           size);
+    return;
+  }
+
+  icc_dump_tag_table(options, &icc, icc_header, icc.profile_size);
 }
 
 // IPTC dumping ///////////////////////////////////////////////////////////////
@@ -4143,7 +4150,17 @@ int main(int argc, char* argv[]) {
   if (contents == MAP_FAILED)
     fatal("Failed to mmap: %d (%s)\n", errno, strerror(errno));
 
-  jpeg_dump(&options, contents, (uint8_t*)contents + in_stat.st_size);
+  enum { Jpeg, ICC } file_type = Jpeg;
+  if (!options.jpeg_scan) {
+    if (in_stat.st_size >= 128 + 4 &&
+        strncmp((char*)contents + 36, "acsp", 4) == 0)
+      file_type = ICC;
+  }
+
+  if (file_type == ICC)
+    icc_dump(&options, contents, (size_t)in_stat.st_size);
+  else if (file_type == Jpeg)
+    jpeg_dump(&options, contents, (uint8_t*)contents + in_stat.st_size);
 
   munmap(contents, (size_t)in_stat.st_size);
   close(in_file);
