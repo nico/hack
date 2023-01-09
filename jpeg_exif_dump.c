@@ -1861,6 +1861,93 @@ static uint32_t icc_dump_parametricCurveType(struct Options* options,
   return 12 + n * 4;
 }
 
+static const char* icc_technology_description(uint32_t tech) {
+  // Table 29 — Technology signatures
+  switch (tech) {
+    case 0x6673636E:  // 'fscn'
+      return "Film scanner";
+    case 0x6463616D:  // 'dcam'
+      return "Digital camera";
+    case 0x7273636E:  // 'rscn'
+      return "Reflective scanner";
+    case 0x696A6574:  // 'ijet'
+      return "Ink jet printer";
+    case 0x74776178:  // 'twax'
+      return "Thermal wax printer";
+    case 0x6570686F:  // 'epho'
+      return "Electrophotographic printer";
+    case 0x65737461:  // 'esta'
+      return "Electrostatic printer";
+    case 0x64737562:  // 'dsub'
+      return "Dye sublimation printer";
+    case 0x7270686F:  // 'rpho'
+      return "Photographic paper printer";
+    case 0x6670726E:  // 'fprn'
+      return "Film writer";
+    case 0x7669646D:  // 'vidm'
+      return "Video monitor";
+    case 0x76696463:  // 'vidc'
+      return "Video camera";
+    case 0x706A7476:  // 'pjtv'
+      return "Projection television";
+    case 0x43525420:  // 'CRT '
+      return "Cathode ray tube display";
+    case 0x504D4420:  // 'PMD '
+      return "Passive matrix display";
+    case 0x414D4420:  // 'AMD '
+      return "Active matrix display";
+    case 0x4C434420:  // 'LCD '
+      return "Liquid crystal display";
+    case 0x4F4C4544:  // 'OLED'
+      return "Organic LED display";
+    case 0x4B504344:  // 'KPCD'
+      return "Photo CD";
+    case 0x696D6773:  // 'imgs'
+      return "Photographic image setter";
+    case 0x67726176:  // 'grav'
+      return "Gravure";
+    case 0x6F666673:  // 'offs'
+      return "Offset lithography";
+    case 0x73696C6B:  // 'silk'
+      return "Silkscreen";
+    case 0x666C6578:  // 'flex'
+      return "Flexography";
+    case 0x6D706673:  // 'mpfs'
+      return "Motion picture film scanner";
+    case 0x6D706672:  // 'mpfr'
+      return "Motion picture film recorder";
+    case 0x646D7063:  // 'dmpc'
+      return "Digital motion picture camera";
+    case 0x64636A70:  // 'dcpj'
+      return "Digital cinema projector";
+    default:
+      return NULL;
+  }
+}
+
+static void icc_dumpSignatureType(struct Options* options,
+                                  const uint8_t* begin,
+                                  uint32_t size,
+                                  const char* (*details)(uint32_t)) {
+  // 10.23 signatureType
+  if (size != 12) {
+    printf("tech signatureType must be 12 bytes, was %d\n", size);
+    return;
+  }
+
+  if (!icc_check_type(begin, "tech signatureType", 0x73696720))  // 'sig '
+    return;
+
+  // 9.2.49 technologyTag
+  uint32_t tag = be_uint32(begin + 8);
+  iprintf(options, "signature: '%.4s'", FOUR_CC_STR(tag));
+
+  const char* description = details(tag);
+  if (description)
+    printf(" (%s)", description);
+  printf("\n");
+}
+
 static uint8_t icc_saturate_u8(double d) {
   double d8 = round(d * 255);
   if (d8 < 0)
@@ -2808,6 +2895,10 @@ static void icc_dump_tag_table(struct Options* options,
         } else {
           iprintf(options, "unexpected type, expected 'curv' or 'para'\n");
         }
+        break;
+      case 0x74656368:  // 'tech', technologyTag
+        icc_dumpSignatureType(options, icc_header + offset_to_data,
+                              size_of_data, icc_technology_description);
         break;
     }
     decrease_indent(options);
