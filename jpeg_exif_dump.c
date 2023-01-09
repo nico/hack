@@ -1929,17 +1929,118 @@ static const char* icc_technology_description(uint32_t tech) {
   }
 }
 
+static void icc_dumpMeasurementType(struct Options* options,
+                                    const uint8_t* begin,
+                                    uint32_t size) {
+  // 10.14 measurementType
+  if (size != 36) {
+    printf("measurementType must be 36 bytes, was %d\n", size);
+    return;
+  }
+
+  if (!icc_check_type(begin, "measurementType", 0x6D656173))  // 'meas'
+    return;
+
+  uint32_t standard_observer = be_uint32(begin + 8);
+  int32_t xyz_x = (int32_t)be_uint32(begin + 12);
+  int32_t xyz_y = (int32_t)be_uint32(begin + 16 + 4);
+  int32_t xyz_z = (int32_t)be_uint32(begin + 20);
+  uint32_t measurement_geometry = be_uint32(begin + 24);
+  uint32_t measurement_flare = be_uint32(begin + 28);
+  uint32_t standard_illuminant = be_uint32(begin + 32);
+
+  // Table 50 — Standard observer encodings
+  iprintf(options, "standard observer: %u", standard_observer);
+  switch (standard_observer) {
+    case 0:
+      printf(" (Unknown)");
+      break;
+    case 1:
+      printf(" (CIE 1931 standard colorimetric observer)");
+      break;
+    case 2:
+      printf(" (CIE 1964 standard colorimetric observer )");
+      break;
+    default:
+      printf(" (Invalid value)");
+      break;
+  }
+  printf("\n");
+
+  iprintf(options,
+          "tristimulus values for measurement backing: "
+          "X = %.4f, Y = %.4f, Z = %.4f\n",
+          icc_s15fixed16(xyz_x), icc_s15fixed16(xyz_y), icc_s15fixed16(xyz_z));
+
+  // Table 51 — Measurement geometry encodings
+  iprintf(options, "measurement geometry: %u", measurement_geometry);
+  switch (measurement_geometry) {
+    case 0:
+      printf(" (Unknown)");
+      break;
+    case 1:
+      printf(" (0°:45° or 45°:0°)");
+      break;
+    case 2:
+      printf(" (0°:d or d:0° )");
+      break;
+    default:
+      printf(" (Invalid value)");
+      break;
+  }
+  printf("\n");
+
+  iprintf(options, "measurement flare: %f%%\n",
+          100 * (measurement_flare / (double)0x10000));
+
+  // Table 53 — Standard illuminant encodings
+  iprintf(options, "standard illuminant: %u", standard_illuminant);
+  switch (standard_illuminant) {
+    case 0:
+      printf(" (Unknown)");
+      break;
+    case 1:
+      printf(" (D50)");
+      break;
+    case 2:
+      printf(" (D65)");
+      break;
+    case 3:
+      printf(" (D93)");
+      break;
+    case 4:
+      printf(" (F2)");
+      break;
+    case 5:
+      printf(" (D55)");
+      break;
+    case 6:
+      printf(" (A)");
+      break;
+    case 7:
+      printf(" (E)");
+      break;
+    case 8:
+      printf(" (F8)");
+      break;
+    default:
+      printf(" (Invalid value)");
+      break;
+  }
+  printf("\n");
+}
+
 static void icc_dumpSignatureType(struct Options* options,
                                   const uint8_t* begin,
                                   uint32_t size,
                                   const char* (*details)(uint32_t)) {
   // 10.23 signatureType
   if (size != 12) {
-    printf("tech signatureType must be 12 bytes, was %d\n", size);
+    printf("signatureType must be 12 bytes, was %d\n", size);
     return;
   }
 
-  if (!icc_check_type(begin, "tech signatureType", 0x73696720))  // 'sig '
+  if (!icc_check_type(begin, "signatureType", 0x73696720))  // 'sig '
     return;
 
   // 9.2.49 technologyTag
@@ -2899,6 +3000,10 @@ static void icc_dump_tag_table(struct Options* options,
         } else {
           iprintf(options, "unexpected type, expected 'curv' or 'para'\n");
         }
+        break;
+      case 0x6d656173:  // 'meas', measurementTag
+        icc_dumpMeasurementType(options, icc_header + offset_to_data,
+                                size_of_data);
         break;
       case 0x74656368:  // 'tech', technologyTag
         icc_dumpSignatureType(options, icc_header + offset_to_data,
