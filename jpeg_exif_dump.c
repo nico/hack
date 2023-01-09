@@ -1566,12 +1566,11 @@ static void icc_dump_textType(struct Options* options,
   if (!icc_check_type(begin, "textType", 0x74657874))  // 'text'
     return;
 
-  if (begin[size] != '\0') {
-    printf("textType not 0-terminated\n");
-    return;
-  }
-
   iprintf(options, "%.*s\n", size - 9, begin + 8);
+
+  // This is invalid per spec.
+  if (begin[size - 1] != '\0')
+    iprintf(options, "(textType not 0-terminated!)\n");
 }
 
 static void dump_ucs2be(const uint8_t* utf16_be, size_t num_codepoints) {
