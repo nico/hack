@@ -1647,7 +1647,8 @@ static void icc_dump_textDescriptionType(struct Options* options,
   }
 
   if (size != 23 + ascii_invariant_size + unicode_size + 67)
-    iprintf(options, "surprising size\n");
+    iprintf(options, "surprising size %d, expected %d\n", size,
+            23 + ascii_invariant_size + unicode_size + 67);
 }
 
 static void dump_utf16be(const uint8_t* utf16_be, size_t num_codepoints) {
