@@ -1638,6 +1638,10 @@ static void icc_dump_textDescriptionType(struct Options* options,
   if (scriptcode_code == 0 && scriptcode_count == 0) {
     iprintf(options, "(no scriptcode data)\n");
     // TODO: Could verify that the following 67 bytes are all zero.
+  } else if (scriptcode_code == 0 && scriptcode_count <= 67) {
+    // scriptcode_code is apparently just ASCII (?)
+    iprintf(options, "Scriptcode: \"%.*s\"\n", scriptcode_count,
+            begin + 23 + ascii_invariant_size + unicode_size);
   } else {
     iprintf(options, "Scriptcode: TODO %u %u\n", scriptcode_code,
             scriptcode_count);
