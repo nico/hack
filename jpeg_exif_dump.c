@@ -4144,7 +4144,7 @@ int main(int argc, char* argv[]) {
   if (in_stat.st_size < 0)
     fatal("Negative st_size?? (%jd)\n", (intmax_t)in_stat.st_size);
 
-  void* contents = mmap(
+  uint8_t* contents = mmap(
       /*addr=*/0, (size_t)in_stat.st_size, PROT_READ, MAP_SHARED, in_file,
       /*offset=*/0);
   if (contents == MAP_FAILED)
@@ -4160,7 +4160,7 @@ int main(int argc, char* argv[]) {
   if (file_type == ICC)
     icc_dump(&options, contents, (size_t)in_stat.st_size);
   else if (file_type == Jpeg)
-    jpeg_dump(&options, contents, (uint8_t*)contents + in_stat.st_size);
+    jpeg_dump(&options, contents, contents + in_stat.st_size);
 
   munmap(contents, (size_t)in_stat.st_size);
   close(in_file);
