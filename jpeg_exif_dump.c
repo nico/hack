@@ -1865,6 +1865,34 @@ static uint32_t icc_dump_parametricCurveType(struct Options* options,
   return 12 + n * 4;
 }
 
+static void icc_dumpS15Fixed16ArrayType(struct Options* options,
+                                        const uint8_t* begin,
+                                        uint32_t size) {
+  // 10.22 s15Fixed16ArrayType
+  if (size < 8) {
+    printf("s15Fixed16ArrayType must be at least 8 bytes, was %d\n", size);
+    return;
+  }
+  if (size % 4 != 0) {
+    printf("s15Fixed16ArrayType must be multiple of 4, was %d\n", size);
+    return;
+  }
+
+  if (!icc_check_type(begin, "s15Fixed16ArrayType", 0x73663332))  // 'sf32'
+    return;
+
+  int count = (size - 8) / 4;
+  iprintf(options, "[ ");
+  for (int i = 0; i < count; ++i) {
+    int32_t n = (int32_t)be_uint32(begin + 8 + i * 4);
+    printf("%.4f", icc_s15fixed16(n));
+    if (i != count - 1)
+      printf(",");
+    printf(" ");
+  }
+  printf("]\n");
+}
+
 static const char* icc_technology_description(uint32_t tech) {
   // Table 29 — Technology signatures
   switch (tech) {
@@ -3000,6 +3028,10 @@ static void icc_dump_tag_table(struct Options* options,
         } else {
           iprintf(options, "unexpected type, expected 'curv' or 'para'\n");
         }
+        break;
+      case 0x63686164:  // 'chad', chromaticAdaptationTag
+        icc_dumpS15Fixed16ArrayType(options, icc_header + offset_to_data,
+                                    size_of_data);
         break;
       case 0x6d656173:  // 'meas', measurementTag
         icc_dumpMeasurementType(options, icc_header + offset_to_data,
