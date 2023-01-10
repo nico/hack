@@ -1900,6 +1900,35 @@ static void icc_dumpS15Fixed16ArrayType(struct Options* options,
   printf(" ]\n");
 }
 
+static void icc_dumpCicpType(struct Options* options,
+                             const uint8_t* begin,
+                             uint32_t size) {
+  // 9.2.17 cicpTag
+  // "This tag defines Coding-Independent Code Points (CICP) for video signal
+  // type identification."
+  if (size != 12) {
+    printf("cicpType must be 12 bytes, was %d\n", size);
+    return;
+  }
+
+  if (!icc_check_type(begin, "cicpType", 0x63696370))  // 'cicp'
+    return;
+
+  uint8_t color_primaries = begin[8];
+  uint8_t transfer_characteristics = begin[9];
+  uint8_t matrix_coefficients = begin[10];
+  uint8_t video_full_range_flag = begin[11];
+
+  // "The fields ColourPrimaries, TransferCharacteristics, MatrixCoefficients,
+  // and VideoFullRangeFlag shall be encoded as specified in Recommendation
+  // ITU-T H.273."
+
+  iprintf(options, "color primaries: %d\n", color_primaries);
+  iprintf(options, "transfer characteristics: %d\n", transfer_characteristics);
+  iprintf(options, "matrix coefficients: %d\n", matrix_coefficients);
+  iprintf(options, "video full range flag: %d\n", video_full_range_flag);
+}
+
 static const char* icc_technology_description(uint32_t tech) {
   // Table 29 — Technology signatures
   switch (tech) {
@@ -3039,6 +3068,9 @@ static void icc_dump_tag_table(struct Options* options,
       case 0x63686164:  // 'chad', chromaticAdaptationTag
         icc_dumpS15Fixed16ArrayType(options, icc_header + offset_to_data,
                                     size_of_data, 3);
+        break;
+      case 0x63696370:  // 'cicp', cicpTag
+        icc_dumpCicpType(options, icc_header + offset_to_data, size_of_data);
         break;
       case 0x6d656173:  // 'meas', measurementTag
         icc_dumpMeasurementType(options, icc_header + offset_to_data,
