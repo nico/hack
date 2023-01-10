@@ -219,6 +219,11 @@ def main():
         datefmt='%Y-%m-%dT%H:%M:%SZ')  # ISO 8601, trailing 'Z' for UTC.
     logging.Formatter.converter = time.gmtime  # UTC.
 
+    # Work around https://openradar.appspot.com/radar?id=5608755232243712
+    os.environ.pop("CPATH", None)
+    os.environ.pop("LIBRARY_PATH", None)
+    os.environ.pop("SDKROOT", None)
+
     # XXX: loop
     run(args.last_exit)
 
