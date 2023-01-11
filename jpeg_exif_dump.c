@@ -15,6 +15,12 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+/*
+clang jpeg_exif_dump.c -isysroot $(xcrun -show-sdk-path) -fuse-ld=lld \
+   -Weverything -Wno-declaration-after-statement -Wno-padded \
+   -Wno-unsafe-buffer-usage
+*/
+
 // Dumps metadata in jpeg files.
 // Fairly complete:
 // * Exif
