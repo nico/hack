@@ -1,2 +1,6 @@
 *~
 .*.sw?
+
+buildlog/
+buildlog_cache/
+html/
