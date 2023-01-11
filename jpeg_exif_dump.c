@@ -1579,13 +1579,41 @@ static void icc_dump_textType(struct Options* options,
     iprintf(options, "(textType not 0-terminated!)\n");
 }
 
-static void dump_ucs2be(const uint8_t* utf16_be, size_t num_codepoints) {
+// rfc2781
+static const int kLowSurrogateStart = 0xdc00;
+static const int kLowSurrogateEnd = 0xdfff;
+static const int kHighSurrogateStart = 0xd800;
+static const int kHighSurrogateEnd = 0xdbff;
+
+static void dump_as_utf8(uint32_t codepoint) {
+  if (codepoint <= 0x7f) {
+    putchar((int)codepoint);
+  } else if (codepoint <= 0x7ff) {
+    putchar(0xc0 | ((codepoint >> 6) & 0x1f));
+    putchar(0x80 | (codepoint & 0x3f));
+  } else if (codepoint <= 0xffff) {
+    putchar(0xe0 | ((codepoint >> 12) & 0xf));
+    putchar(0x80 | ((codepoint >> 6) & 0x3f));
+    putchar(0x80 | (codepoint & 0x3f));
+  } else if (codepoint <= 0x10ffff) {
+    putchar(0xf0 | ((codepoint >> 18) & 0x7));
+    putchar(0x80 | ((codepoint >> 12) & 0x3f));
+    putchar(0x80 | ((codepoint >> 6) & 0x3f));
+    putchar(0x80 | (codepoint & 0x3f));
+  } else {
+    printf("(outside of utf-8 range; 0x%x)", codepoint);
+  }
+}
+
+static void dump_ucs2be(const uint8_t* ucs2_be, size_t num_codepoints) {
   // UCS2-BE text :/
   // And no uchar.h / c16rtomb() on macOS either (as of macOS 12.5) :/
-  // TODO: Do actual UCS2-to-UTF8 conversion.
-  for (unsigned i = 0; i < num_codepoints; ++i, utf16_be += 2) {
-    uint16_t cur = be_uint16(utf16_be);
-    printf("%c", cur & 0x7f);
+  for (unsigned i = 0; i < num_codepoints; ++i, ucs2_be += 2) {
+    uint16_t cur = be_uint16(ucs2_be);
+    if (cur < kHighSurrogateStart || cur > kLowSurrogateEnd)
+      dump_as_utf8(cur);
+    else
+      printf("(surrogate 0x%x invalid in UCS-2)", cur);
   }
 }
 
@@ -1660,10 +1688,25 @@ static void icc_dump_textDescriptionType(struct Options* options,
 static void dump_utf16be(const uint8_t* utf16_be, size_t num_codepoints) {
   // UTF-16BE text :/
   // And no uchar.h / c16rtomb() on macOS either (as of macOS 12.5) :/
-  // TODO: Do actual UTF16-to-UTF8 conversion.
   for (unsigned i = 0; i < num_codepoints; ++i, utf16_be += 2) {
     uint16_t cur = be_uint16(utf16_be);
-    printf("%c", cur & 0x7f);
+    if (cur < kHighSurrogateStart || cur > kLowSurrogateEnd)
+      dump_as_utf8(cur);
+    else if (cur >= kHighSurrogateStart && cur <= kHighSurrogateEnd) {
+      if (i + 1 < num_codepoints) {
+        ++i;
+        utf16_be += 2;
+        uint16_t next = be_uint16(utf16_be);
+        if (next >= kLowSurrogateStart && next <= kLowSurrogateEnd) {
+          dump_as_utf8(0x10000 + (((uint32_t)(cur - kHighSurrogateStart) << 10) | (uint32_t)(next - kLowSurrogateStart)));
+        } else {
+          printf("(high surrogate 0x%x followed by 0x%x instead of by low surrogate in UTF-16)", cur, next);
+        }
+      } else {
+        printf("(high surrogate 0x%x followed by end-of-data instead of by low surrogate in UTF-16)", cur);
+      }
+    } else
+      printf("(low surrogate 0x%x not following high surrogate in UTF-16)", cur);
   }
 }
 
