@@ -3049,6 +3049,10 @@ static void icc_dump_tag_table(struct Options* options,
         icc_dump_multiLocalizedUnicodeType(options, icc_header + offset_to_data,
                                            size_of_data);
         break;
+      case 0x6473636d:  // 'dscm', Apple extension profileDescMultiLocalized
+        icc_dump_multiLocalizedUnicodeType(options, icc_header + offset_to_data,
+                                           size_of_data);
+        break;
       case 0x6258595A:  // 'bXYZ', blueMatrixColumnTag
       case 0x626B7074:  // 'btpt', mediaBlackPointTag (v2 only, not in v4)
       case 0x6758595A:  // 'gXYZ', greenMatrixColumnTag
