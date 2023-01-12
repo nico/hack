@@ -1708,14 +1708,15 @@ static void dump_utf16be(const uint8_t* utf16_be, size_t num_codepoints) {
       continue;
     }
 
+    uint16_t next = be_uint16(utf16_be + 2);
+    if (!(next >= kLowSurrogateStart && next <= kLowSurrogateEnd)) {
+      printf("(high surrogate 0x%x followed by 0x%x instead of by low surrogate in UTF-16)", cur, next);
+      continue;
+    }
+
     ++i;
     utf16_be += 2;
-    uint16_t next = be_uint16(utf16_be);
-    if (next >= kLowSurrogateStart && next <= kLowSurrogateEnd) {
-      dump_as_utf8(0x10000 + (((uint32_t)(cur - kHighSurrogateStart) << 10) | (uint32_t)(next - kLowSurrogateStart)));
-    } else {
-      printf("(high surrogate 0x%x followed by 0x%x instead of by low surrogate in UTF-16)", cur, next);
-    }
+    dump_as_utf8((0x10000 + ((uint32_t)(cur - kHighSurrogateStart) << 10) | (uint32_t)(next - kLowSurrogateStart)));
   }
 }
 
