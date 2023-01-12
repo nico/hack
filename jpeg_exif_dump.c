@@ -1712,8 +1712,8 @@ static void dump_utf16be(const uint8_t* utf16_be, size_t num_codepoints) {
 
     ++i;
     utf16_be += 2;
-    dump_as_utf8(0x10000 + (((uint32_t)(cur - kHighSurrogateStart) << 10) |
-                            (uint32_t)(next - kLowSurrogateStart)));
+    dump_as_utf8(0x10000 +
+                 (((uint32_t)(cur & 0x3ff) << 10) | (uint32_t)(next & 0x3ff)));
   }
 }
 
