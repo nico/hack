@@ -1690,23 +1690,32 @@ static void dump_utf16be(const uint8_t* utf16_be, size_t num_codepoints) {
   // And no uchar.h / c16rtomb() on macOS either (as of macOS 12.5) :/
   for (unsigned i = 0; i < num_codepoints; ++i, utf16_be += 2) {
     uint16_t cur = be_uint16(utf16_be);
-    if (cur < kHighSurrogateStart || cur > kLowSurrogateEnd)
+    if (cur < kHighSurrogateStart || cur > kLowSurrogateEnd) {
       dump_as_utf8(cur);
-    else if (cur >= kHighSurrogateStart && cur <= kHighSurrogateEnd) {
-      if (i + 1 < num_codepoints) {
-        ++i;
-        utf16_be += 2;
-        uint16_t next = be_uint16(utf16_be);
-        if (next >= kLowSurrogateStart && next <= kLowSurrogateEnd) {
-          dump_as_utf8(0x10000 + (((uint32_t)(cur - kHighSurrogateStart) << 10) | (uint32_t)(next - kLowSurrogateStart)));
-        } else {
-          printf("(high surrogate 0x%x followed by 0x%x instead of by low surrogate in UTF-16)", cur, next);
-        }
-      } else {
-        printf("(high surrogate 0x%x followed by end-of-data instead of by low surrogate in UTF-16)", cur);
-      }
-    } else
+      continue;
+    }
+
+    // cur is now guaranteed to be in [kHighSurrogateStart..kLowSurrogateEnd].
+    // That range consists of [kHighSurrogateStart..kHighSurrogateEnd] followed
+    // by [kLowSurrogateStart..kLowSurrogateEnd].
+    if (cur > kHighSurrogateEnd) {
       printf("(low surrogate 0x%x not following high surrogate in UTF-16)", cur);
+      continue;
+    }
+
+    if (i + 1 == num_codepoints) {
+      printf("(high surrogate 0x%x followed by end-of-data instead of by low surrogate in UTF-16)", cur);
+      continue;
+    }
+
+    ++i;
+    utf16_be += 2;
+    uint16_t next = be_uint16(utf16_be);
+    if (next >= kLowSurrogateStart && next <= kLowSurrogateEnd) {
+      dump_as_utf8(0x10000 + (((uint32_t)(cur - kHighSurrogateStart) << 10) | (uint32_t)(next - kLowSurrogateStart)));
+    } else {
+      printf("(high surrogate 0x%x followed by 0x%x instead of by low surrogate in UTF-16)", cur, next);
+    }
   }
 }
 
