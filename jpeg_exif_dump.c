@@ -1697,14 +1697,24 @@ static void dump_utf16be(const uint8_t* utf16_be, size_t num_codepoints) {
   // UTF-16BE text :/
   // And no uchar.h / c16rtomb() on macOS either (as of macOS 12.5) :/
   for (unsigned i = 0; i < num_codepoints; ++i, utf16_be += 2) {
-    uint16_t cur = be_uint16(utf16_be), next;
-    if (!is_in_range(cur, kHighSurrogateStart, kLowSurrogateEnd)) {
-      dump_as_utf8(cur);
+    // rfc2781, 2.2 Decoding UTF-16
+    uint16_t w1 = be_uint16(utf16_be), w2;
+
+    // 1) If W1 < 0xD800 or W1 > 0xDFFF, the character value U is the value
+    //    of W1. Terminate.
+    if (!is_in_range(w1, kHighSurrogateStart, kLowSurrogateEnd)) {
+      dump_as_utf8(w1);
       continue;
     }
 
-    if (cur > kHighSurrogateEnd || i + 1 == num_codepoints ||
-        !is_in_range((next = be_uint16(utf16_be + 2)), kLowSurrogateStart,
+    // 2) Determine if W1 is between 0xD800 and 0xDBFF. If not, the sequence
+    //    is in error and no valid character can be obtained using W1.
+    //    Terminate.
+    // 3) If there is no W2 (that is, the sequence ends with W1), or if W2
+    //    is not between 0xDC00 and 0xDFFF, the sequence is in error.
+    //    Terminate.
+    if (w1 > kHighSurrogateEnd || i + 1 == num_codepoints ||
+        !is_in_range((w2 = be_uint16(utf16_be + 2)), kLowSurrogateStart,
                      kLowSurrogateEnd)) {
       dump_as_utf8(kReplacementCharacter);
       continue;
@@ -1712,8 +1722,13 @@ static void dump_utf16be(const uint8_t* utf16_be, size_t num_codepoints) {
 
     ++i;
     utf16_be += 2;
+
+    // 4) Construct a 20-bit unsigned integer U', taking the 10 low-order
+    //    bits of W1 as its 10 high-order bits and the 10 low-order bits of
+    //    W2 as its 10 low-order bits.
+    // 5) Add 0x10000 to U' to obtain the character value U. Terminate.
     dump_as_utf8(0x10000 +
-                 (((uint32_t)(cur & 0x3ff) << 10) | (uint32_t)(next & 0x3ff)));
+                 (((uint32_t)(w1 & 0x3ff) << 10) | (uint32_t)(w2 & 0x3ff)));
   }
 }
 
