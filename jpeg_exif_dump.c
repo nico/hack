@@ -2165,6 +2165,57 @@ static void icc_dumpMeasurementType(struct Options* options,
   printf("\n");
 }
 
+static void icc_dumpNamedColor2Type(struct Options* options,
+                                    const uint8_t* begin,
+                                    uint32_t size) {
+  // 10.17 namedColor2Type
+  if (size < 16) {
+    printf("namedColor2Type must be at least 16 bytes, was %d\n", size);
+    return;
+  }
+
+  if (!icc_check_type(begin, "namedColor2Type", 0x6E636C32))  // 'ncl2'
+    return;
+
+  uint32_t vendor_specific_flag = be_uint32(begin + 8);
+  uint32_t count_of_named_colors = be_uint32(begin + 12);
+  uint32_t number_of_device_coordinates = be_uint32(begin + 16);
+
+  const char* prefix = (const char*)(begin + 20);
+  const char* suffix = (const char*)(begin + 52);
+
+  iprintf(options, "vendor specific flag: 0x%08x\n", vendor_specific_flag);
+  iprintf(options, "count of named colors: %d\n", count_of_named_colors);
+  iprintf(options, "number of device coordinates: %d\n", number_of_device_coordinates);
+  iprintf(options, "prefix: \"%.32s\"\n", prefix);
+  iprintf(options, "suffix: \"%.32s\"\n", suffix);
+
+  // FIXME: bounds checking of size vs count_of_named_colors
+  for (unsigned i = 0; i < count_of_named_colors; ++i) {
+    uint32_t offset = 84 + i * (32 + 6 + 2 * number_of_device_coordinates);
+
+    const char* root = (const char*)(begin + offset);
+
+    iprintf(options, "root: \"%.32s\"\n", root);
+
+    uint16_t pcs_1 = be_uint16(begin + offset + 32);
+    uint16_t pcs_2 = be_uint16(begin + offset + 34);
+    uint16_t pcs_3 = be_uint16(begin + offset + 36);
+
+    // FIXME: better
+    iprintf(options, "pcs: 0x%x 0x%x 0x%x\n", pcs_1, pcs_2, pcs_3);
+
+    if (number_of_device_coordinates > 0) {
+      iprintf(options, "device coordinates:");
+      for (unsigned j = 0; j < number_of_device_coordinates; ++j) {
+        uint16_t coord = be_uint16(begin + offset + 38 + j * 2);
+        printf(" 0x%x", coord);
+      }
+      printf("\n");
+    }
+  }
+}
+
 static void icc_dumpSignatureType(struct Options* options,
                                   const uint8_t* begin,
                                   uint32_t size,
@@ -3149,6 +3200,10 @@ static void icc_dump_tag_table(struct Options* options,
         break;
       case 0x6d656173:  // 'meas', measurementTag
         icc_dumpMeasurementType(options, icc_header + offset_to_data,
+                                size_of_data);
+        break;
+      case 0x6E636C32:  // 'ncl2', namedColor2Tag
+        icc_dumpNamedColor2Type(options, icc_header + offset_to_data,
                                 size_of_data);
         break;
       case 0x74656368:  // 'tech', technologyTag
