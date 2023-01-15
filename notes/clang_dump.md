@@ -32,6 +32,10 @@ $ cat demo.cc
 ```
 
 ```
+__builtin_dump_struct
+```
+
+```
 % clang -Xclang -fdump-vtable-layouts demo.cc -std=c++17 -c
 ```
 
@@ -46,6 +50,10 @@ debug.DumpDominators
 debug.DumpLiveVars
 debug.DumpLiveExprs
 debug.ViewExplodedGraph
+```
+
+```
+-Xclang -analyzer-checker-help
 ```
 
 ```
