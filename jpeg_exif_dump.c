@@ -2186,7 +2186,8 @@ static void icc_dumpNamedColor2Type(struct Options* options,
 
   iprintf(options, "vendor specific flag: 0x%08x\n", vendor_specific_flag);
   iprintf(options, "count of named colors: %d\n", count_of_named_colors);
-  iprintf(options, "number of device coordinates: %d\n", number_of_device_coordinates);
+  iprintf(options, "number of device coordinates: %d\n",
+          number_of_device_coordinates);
   iprintf(options, "prefix: \"%.32s\"\n", prefix);
   iprintf(options, "suffix: \"%.32s\"\n", suffix);
 
@@ -3092,19 +3093,22 @@ static void icc_dump_tag_table(struct Options* options,
     uint32_t tag_signature = be_uint32(tag_table + this_offset);
     uint32_t offset_to_data = be_uint32(tag_table + this_offset + 4);
     uint32_t size_of_data = be_uint32(tag_table + this_offset + 8);
-    iprintf(options, "signature 0x%08x ('%.4s') offset %d size %d\n",
-            tag_signature, tag_table + this_offset, offset_to_data,
-            size_of_data);
+
+    if (size_of_data < 4) {
+      printf("icc tag needs at least 4 bytes of data, got %d\n", size_of_data);
+      continue;
+    }
+
+    uint32_t type_signature = be_uint32(icc_header + offset_to_data);
+
+    iprintf(options,
+            "signature '%.4s' (0x%08x): type '%.4s' offset %d size %d\n",
+            tag_table + this_offset, tag_signature, icc_header + offset_to_data,
+            offset_to_data, size_of_data);
 
     // TODO: range checking for offset_to_data, size_of_data
 
     increase_indent(options);
-
-    uint32_t type_signature = 0;
-    if (size_of_data >= 4) {
-      type_signature = be_uint32(icc_header + offset_to_data);
-      iprintf(options, "type '%.4s'\n", icc_header + offset_to_data);
-    }
 
     switch (tag_signature) {
       case 0x41324230:                       // 'A2B0', AToB0Tag
