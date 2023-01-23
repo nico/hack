@@ -1956,14 +1956,14 @@ static void icc_dumpS15Fixed16ArrayType(struct Options* options,
   int count = (size - 8) / 4;
   iprintf(options, "[");
   for (int i = 0; i < count; ++i) {
-    if (i > 0)
+    if (i > 0) {
       printf(",");
-    if (newline_after > 0 && i > 0 && i % newline_after == 0) {
-      printf("\n");
-      iprintf(options, "  ");
-    } else {
-      printf(" ");
+      if (newline_after > 0 && i % newline_after == 0) {
+        printf("\n");
+        iprintf(options, " ");
+      }
     }
+    printf(" ");
 
     int32_t n = (int32_t)be_uint32(begin + 8 + i * 4);
     printf("%.4f", icc_s15fixed16(n));
