@@ -53,6 +53,11 @@ debug.ViewExplodedGraph
 ```
 
 ```
+-Xclang -analyzer-dump-egraph=foo.dot
+-analyzer-viz-egraph-graphviz
+```
+
+```
 -Xclang -analyzer-checker-help
 ```
 
