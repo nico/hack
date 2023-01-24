@@ -1,129 +1,116 @@
 9.2 Tag listing
 
-9.2.1
-AToB0Tag
+9.2.1 AToB0Tag
 Tag signature: ‘A2B0’ (41324230h)
 Permitted tag types: lut8Type or lut16Type or lutAToBType
 
-9.2.2
-
-AToB1Tag
+9.2.2 AToB1Tag
 Tag signature: ‘A2B1’ (41324231h)
 Permitted tag types: lut8Type or lut16Type or lutAToBType
 
-9.2.3
-AToB2Tag
+9.2.3 AToB2Tag
 Tag signature: ‘A2B2’ (41324232h)
 Permitted tag types: lut8Type or lut16Type or lutAToBType
 
-9.2.4
-blueMatrixColumnTag
+9.2.4 blueMatrixColumnTag
 Tag signature: ‘bXYZ’ (6258595Ah)
-Permitted tag type: XYZType
+Permitted tag types: XYZType
 
-9.2.5
-blueTRCTag
+9.2.5 blueTRCTag
 Tag signature: ‘bTRC’ (62545243h)
 Permitted tag types: curveType or parametricCurveType
 
-9.2.6
-BToA0Tag
+9.2.6 BToA0Tag
 Tag signature: ‘B2A0’ (42324130h)
 Permitted tag types: lut8Type or lut16Type or lutBToAType
 
-9.2.7
-BToA1Tag
+9.2.7 BToA1Tag
 Tag signature: ‘B2A1’ (42324131h)
 Permitted tag types: lut8Type or lut16Type or lutBToAType
 
-9.2.8
-BToA2Tag
+9.2.8 BToA2Tag
 Tag signature: ‘B2A2’ (42324132h)
 Permitted tag types: lut8Type or lut16Type or lutBToAType
 
-9.2.9
-BToD0Tag
-Tag signature ‘B2D0’ (42324430h)
-Allowed tag types: multiProcessElementsType
+9.2.9 BToD0Tag
+Tag signature: ‘B2D0’ (42324430h)
+Permitted tag types: multiProcessElementsType
 
-9.2.10
-BToD1Tag
-Tag signature ‘B2D1’ (42324431h)
-Allowed tag types: multiProcessElementsType
+9.2.10 BToD1Tag
+Tag signature: ‘B2D1’ (42324431h)
+Permitted tag types: multiProcessElementsType
 
-9.2.11
-BToD2Tag
-Tag signature ‘B2D2’ (42324432h)
-Allowed tag types: multiProcessElementsType
+9.2.11 BToD2Tag
+Tag signature: ‘B2D2’ (42324432h)
+Permitted tag types: multiProcessElementsType
 
 9.2.12 BToD3Tag
-Tag signature ‘B2D3’ (42324433h)
-Allowed tag types: multiProcessElementsType
+Tag signature: ‘B2D3’ (42324433h)
+Permitted tag types: multiProcessElementsType
 
 9.2.13 calibrationDateTimeTag
 Tag signature: ‘calt’ (63616C74h)
-Permitted tag type: dateTimeType
+Permitted tag types: dateTimeType
 
 9.2.14 charTargetTag
 Tag signature: ‘targ’ (74617267h)
-Permitted tag type: textType
+Permitted tag types: textType
 
 9.2.15 chromaticAdaptationTag
 Tag signature: 'chad' (63686164h)
-Permitted tag type: s15Fixed16ArrayType
+Permitted tag types: s15Fixed16ArrayType
 
 9.2.16 chromaticityTag
 Tag signature: ‘chrm’ (6368726Dh)
-Permitted tag type: chromaticityType
-
+Permitted tag types: chromaticityType
 
 9.2.17 cicpTag
 Tag signature: ‘cicp’ (63696370h)
-Permitted tag type: cicpType
+Permitted tag types: cicpType
 
 9.2.18 colorantOrderTag
 Tag signature: ’clro’ (636C726Fh)
-Permitted tag type: colorantOrderType
+Permitted tag types: colorantOrderType
 
 9.2.19 colorantTableTag
 Tag signature: ’clrt’ (636C7274h)
-Permitted tag type: colorantTableType
+Permitted tag types: colorantTableType
 
 9.2.20 colorantTableOutTag
 Tag signature: ‘clot’ (636C6F74h)
-Permitted tag type: colorantTableType
+Permitted tag types: colorantTableType
 
 9.2.21 colorimetricIntentImageStateTag
 Tag signature: ‘ciis’ (63696973h)
-Permitted tag type: signatureType
+Permitted tag types: signatureType
 
 9.2.22 copyrightTag
 Tag signature: ‘cprt’ (63707274h)
-Permitted tag type: multiLocalizedUnicodeType
+Permitted tag types: multiLocalizedUnicodeType
 
 9.2.23 deviceMfgDescTag
 Tag signature: ‘dmnd’ (646D6E64h)
-Permitted tag type: multiLocalizedUnicodeType
+Permitted tag types: multiLocalizedUnicodeType
 
 9.2.24 deviceModelDescTag
 Tag signature: ‘dmdd’ (646D6464h)
-Permitted tag type: multiLocalizedUnicodeType
+Permitted tag types: multiLocalizedUnicodeType
 
 9.2.25 DToB0Tag
-Tag signature ‘D2B0’ (44324230h)
-Allowed tag types: multiProcessElementsType
+Tag signature: ‘D2B0’ (44324230h)
+Permitted tag types: multiProcessElementsType
 
 9.2.26 DToB1Tag
-Tag signature ‘D2B1’ (44324231h)
-Allowed tag types: multiProcessElementsType
+Tag signature: ‘D2B1’ (44324231h)
+Permitted tag types: multiProcessElementsType
 
 9.2.27 DToB2Tag
-Tag signature ‘D2B2’ (44324232h)
-Allowed tag types: multiProcessElementsType
+Tag signature: ‘D2B2’ (44324232h)
+Permitted tag types: multiProcessElementsType
 
 9.2.28 DToB3Tag
-Tag signature ‘D2B3’ (44324233h)
-Allowed tag types: multiProcessElementsType
+Tag signature: ‘D2B3’ (44324233h)
+Permitted tag types: multiProcessElementsType
 
 9.2.29 gamutTag
 Tag signature: ‘gamt’ (67616D74h)
@@ -135,7 +122,7 @@ Permitted tag types: curveType or parametricCurveType
 
 9.2.31 greenMatrixColumnTag
 Tag signature: ‘gXYZ’ (6758595Ah)
-Permitted tag type: XYZType
+Permitted tag types: XYZType
 
 9.2.32 greenTRCTag
 Tag signature: ‘gTRC’ (67545243h)
@@ -143,31 +130,31 @@ Permitted tag types: curveType or parametricCurveType
 
 9.2.33 luminanceTag
 Tag signature: ‘lumi’ (6C756D69h)
-Permitted tag type: XYZType
+Permitted tag types: XYZType
 
 9.2.34 measurementTag
 Tag signature: ‘meas’ (6D656173h)
-Permitted tag type: measurementType
+Permitted tag types: measurementType
 
 9.2.35 metadataTag
 Tag signature: ‘meta’ (6D657461h)
-Allowed tag types: dictType
+Permitted tag types: dictType
 
 9.2.36 mediaWhitePointTag
 Tag signature: ‘wtpt’ (77747074h)
-Permitted tag type: XYZType
+Permitted tag types: XYZType
 
 9.2.37 namedColor2Tag
 Tag signature: ‘ncl2’ (6E636C32h)
-Permitted tag type: namedColor2Type
+Permitted tag types: namedColor2Type
 
 9.2.38 outputResponseTag
 Tag signature: ‘resp’ (72657370h)
-Permitted tag type: responseCurveSet16Type
+Permitted tag types: responseCurveSet16Type
 
 9.2.39 perceptualRenderingIntentGamutTag
 Tag signature: ‘rig0’ (72696730h)
-Permitted tag type: signatureType
+Permitted tag types: signatureType
 
 9.2.40 preview0Tag
 Tag signature: ‘pre0’ (70726530h)
@@ -183,19 +170,19 @@ Permitted tag types: lut8Type or lut16Type or lutBToAType
 
 9.2.43 profileDescriptionTag
 Tag signature: ‘desc’ (64657363h)
-Permitted tag type: multiLocalizedUnicodeType
+Permitted tag types: multiLocalizedUnicodeType
 
 9.2.44 profileSequenceDescTag
 Tag signature: ‘pseq’ (70736571h)
-Permitted tag type: profileSequenceDescType
+Permitted tag types: profileSequenceDescType
 
 9.2.45 profileSequenceIdentifierTag
 Tag signature: ‘psid’ (70736964h)
-Permitted tag type: profileSequenceIdentifierType
+Permitted tag types: profileSequenceIdentifierType
 
 9.2.46 redMatrixColumnTag
 Tag signature: ‘rXYZ’ (7258595Ah)
-Permitted tag type: XYZType
+Permitted tag types: XYZType
 
 9.2.47 redTRCTag
 Tag signature: ‘rTRC’ (72545243h)
@@ -203,16 +190,16 @@ Permitted tag types: curveType or parametricCurveType
 
 9.2.48 saturationRenderingIntentGamutTag
 Tag signature: ‘rig2’ (72696732h)
-Permitted tag type: signatureType
+Permitted tag types: signatureType
 
 9.2.49 technologyTag
 Tag signature: ‘tech’ (74656368h)
-Permitted tag type: signatureType
+Permitted tag types: signatureType
 
 9.2.50 viewingCondDescTag
 Tag signature: ‘vued’ (76756564h)
-Permitted tag type: multiLocalizedUnicodeType
+Permitted tag types: multiLocalizedUnicodeType
 
 9.2.51 viewingConditionsTag
 Tag signature: ‘view’ (76696577h)
-Permitted tag type: viewingConditionsType
+Permitted tag types: viewingConditionsType
