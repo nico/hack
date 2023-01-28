@@ -148,6 +148,22 @@ static void png_dump_chunk_cHRM(const uint8_t* begin, uint32_t size) {
   printf("  blue: %f %f\n", blue_x / 100000.0, blue_y / 100000.0);
 }
 
+static void png_dump_chunk_cICP(const uint8_t* begin, uint32_t size) {
+  // https://www.w3.org/TR/png/#cICP-chunk
+  if (!png_check_size("cICP", size, 4))
+    return;
+
+  uint8_t color_primaries = begin[0];
+  uint8_t transfer_function = begin[1];
+  uint8_t matrix_coefficients = begin[2];
+  uint8_t video_full_range_flag = begin[3];
+
+  printf("  color primaries: %d\n", color_primaries);
+  printf("  transfer function: %d\n", transfer_function);
+  printf("  matrix coefficients: %d\n", matrix_coefficients);
+  printf("  video full range flag: %d\n", video_full_range_flag);
+}
+
 static void png_dump_chunk_eXIf(const uint8_t* begin, uint32_t size) {
   if (size > 0xffff - 8)
     printf("  (larger than what fits in a jpeg APP1 Exif segment)\n");
@@ -446,6 +462,9 @@ static uint32_t png_dump_chunk(const uint8_t* begin, const uint8_t* end) {
       break;
     case 0x6348524d:  // 'cHRM'
       png_dump_chunk_cHRM(begin + 8, length);
+      break;
+    case 0x63494350:  // 'cICP'
+      png_dump_chunk_cICP(begin + 8, length);
       break;
     case 0x65584966:  // 'eXIf'
       png_dump_chunk_eXIf(begin + 8, length);
