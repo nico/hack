@@ -49,8 +49,10 @@ def parse_output(log, meta):
         del annot_lines[-1]
         # This should be tiny (<= 1), and was tiny for years, but on macm1
         # it was 28 in build 37656 :/
-        time_error = abs(sum(elapsed_s) - meta['elapsed_s'])
-        assert time_error <= 60, 'time diff %d' % time_error
+        # ...and in win/73749, the error is 187s -- big enough that having
+        # this check no longer adds any value.
+        # time_error = abs(sum(elapsed_s) - meta['elapsed_s'])
+        # assert time_error <= 200, 'time diff %d' % time_error
     else:
         assert meta.get('exit_code', 0) != 0
         elapsed_s.append(meta['elapsed_s'] - sum(elapsed_s))
