@@ -3784,7 +3784,9 @@ static void jpeg_dump_sos(struct Options* options,
 
   iprintf(options, "Ss: %d, ", begin[1 + num_components * 2]);
   printf("Se: %d\n", begin[1 + num_components * 2 + 1]);
-  iprintf(options, "A: %d\n", begin[1 + num_components * 2 + 2]);
+
+  uint8_t a = begin[1 + num_components * 2 + 2];
+  iprintf(options, "Ah: %d, Al: %d\n", a >> 4, a & 0xf);
 }
 static void jpeg_dump_jfif(struct Options* options,
                            const uint8_t* begin,
