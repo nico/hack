@@ -3721,13 +3721,14 @@ static void photoshop_dump_resource_blocks(struct Options* options,
 // EXIF spec: https://www.cipa.jp/std/documents/e/DC-008-2012_E.pdf
 //            https://www.cipa.jp/std/documents/e/DC-X008-Translation-2019-E.pdf
 
-static void jpeg_dump_sof0(struct Options* options,
-                           const uint8_t* begin,
-                           uint16_t size) {
+static void jpeg_dump_regular_sof(struct Options* options,
+                                  const uint8_t* begin,
+                                  uint16_t size) {
   // https://www.w3.org/Graphics/JPEG/itu-t81.pdf section B.2.2 on page 25, or
   // https://mykb.cipindanci.com/archive/SuperKB/1294/JPEG%20File%20Layout%20and%20Format.htm
+  // or https://www.w3.org/Graphics/JPEG/itu-t81.pdf B.2.2
   if (size < 8) {
-    printf("SOF0 should be at least 8 bytes, is %u\n", size);
+    printf("SOFn should be at least 8 bytes, is %u\n", size);
     return;
   }
 
@@ -3739,7 +3740,7 @@ static void jpeg_dump_sof0(struct Options* options,
 
   uint8_t num_components = begin[5];
   if (size - 8 < 3 * num_components) {
-    printf("SOF0 with %d components should be at least %d bytes, is %u\n",
+    printf("SOFn with %d components should be at least %d bytes, is %u\n",
            num_components, 8 + 3 * num_components, size);
     return;
   }
@@ -4089,6 +4090,35 @@ static const char* jpeg_dump_app_id(struct Options* options,
   return app_id;
 }
 
+static const char* sof_name(int i) {
+  // https://www.w3.org/Graphics/JPEG/itu-t81.pdf
+  // Table B.1 – Marker code assignments, SOF symbols
+  // clang-format off
+  switch (i) {
+    case 0: return "Baseline DCT, huffman";
+    case 1: return "Extended sequential DCT, huffman";
+    case 2: return "Progressive DCT, huffman";
+    case 3: return "Lossless (sequential), huffman";
+
+    case 4: assert(false && "0xc4 is DHT, not SOF");
+    case 5: return "Differential sequential DCT, huffman";
+    case 6: return "Differential progressive DCT, huffman";
+    case 7: return "Differential lossless (sequential), huffman";
+
+    case 8: return "Reserved for JPEG extensions";
+    case 9: return "Extended sequential DCT, arithmetic";
+    case 10: return "Progressive DCT, arithmetic";
+    case 11: return "Lossless (sequential), arithmetic";
+
+    case 12: assert(false && "0xcc is DAC, not SOF");
+    case 13: return "Differential sequential DCT, arithmetic";
+    case 14: return "Differential progressive DCT, arithmetic";
+    case 15: return "Differential lossless (sequential), arithmetic";
+  }
+  // clang-format on
+  assert(false);
+}
+
 static void jpeg_dump(struct Options* options,
                       const uint8_t* begin,
                       const uint8_t* end) {
@@ -4123,16 +4153,24 @@ static void jpeg_dump(struct Options* options,
     }
 
     // https://www.disktuna.com/list-of-jpeg-markers/
+    // Or, more officially:
+    // https://www.w3.org/Graphics/JPEG/itu-t81.pdf
+    // Table B.1 – Marker code assignments
     switch (b1) {
       case 0xc0:
-        assert(has_size);
-        printf(": Start Of Frame, baseline DCT (SOF0)\n");
-        increase_indent(options);
-        jpeg_dump_sof0(options, cur, size);
-        decrease_indent(options);
-        break;
+      case 0xc1:
       case 0xc2:
-        printf(": Start Of Frame, progressive DCT (SOF2)\n");
+      case 0xc3:
+      case 0xc8:
+      case 0xc9:
+      case 0xca:
+      case 0xcb:
+        assert(has_size);
+        printf(": Start Of Frame, %s (SOF%d)\n", sof_name(b1 - 0xc0),
+               b1 - 0xc0);
+        increase_indent(options);
+        jpeg_dump_regular_sof(options, cur, size);
+        decrease_indent(options);
         break;
       case 0xc4:
         printf(": Define Huffman Tables (DHT)\n");
