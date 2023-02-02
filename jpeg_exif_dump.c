@@ -3788,6 +3788,48 @@ static void jpeg_dump_sos(struct Options* options,
   uint8_t a = begin[1 + num_components * 2 + 2];
   iprintf(options, "Ah: %d, Al: %d\n", a >> 4, a & 0xf);
 }
+
+static void jpeg_dump_dht(struct Options* options,
+                          const uint8_t* begin,
+                          uint16_t size) {
+  // https://www.w3.org/Graphics/JPEG/itu-t81.pdf
+  // B.2.4.2 Huffman table-specification syntax
+  if (size < 19) {
+    printf("DHT should be at least 19 bytes, is %u\n", size);
+    return;
+  }
+
+  begin += sizeof(uint16_t);
+  size -= 2;
+
+  while (size) {
+    if (size < 17) {
+      printf("DHT entry should be at least 17 bytes, is %u\n", size);
+      return;
+    }
+    uint8_t t = begin[0];
+    uint8_t table_class = t >> 4;
+    uint8_t destination_identifier = t & 0xf;
+
+    iprintf(options, "class %d (%-16s), destination %d, ", table_class,
+            table_class == 0 ? "DC (or lossless)" : "AC",
+            destination_identifier);
+
+    printf("code at length:");
+    int number_of_codes = 0;
+    for (int i = 0; i < 16; ++i) {
+      printf(" %d", begin[1 + i]);
+      number_of_codes += begin[1 + i];
+    }
+    printf(", skipping %d code bytes\n", number_of_codes);
+
+    // Skip codes.
+
+    begin += 17 + number_of_codes;
+    size -= 17 + number_of_codes;
+  }
+}
+
 static void jpeg_dump_jfif(struct Options* options,
                            const uint8_t* begin,
                            uint16_t size) {
@@ -4206,6 +4248,9 @@ static void jpeg_dump(struct Options* options,
         break;
       case 0xc4:
         printf(": Define Huffman Tables (DHT)\n");
+        increase_indent(options);
+        jpeg_dump_dht(options, cur, size);
+        decrease_indent(options);
         break;
       case 0xd0:
       case 0xd1:
