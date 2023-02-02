@@ -3746,13 +3746,12 @@ static void jpeg_dump_regular_sof(struct Options* options,
   }
 
   for (int i = 0; i < num_components; ++i) {
-    iprintf(options, "components %d/%d\n", i + 1, num_components);
-    iprintf(options, "  component id: %d\n", begin[6 + 3 * i]);
+    iprintf(options, "component id: %d, ", begin[6 + 3 * i]);
 
     uint8_t sampling_factors = begin[6 + 3 * i + 1];
-    iprintf(options, "  sampling factors: %d horizontal, %d vertical\n",
-            sampling_factors >> 4, sampling_factors & 0xf);
-    iprintf(options, "  quantization table number: %d\n", begin[6 + 3 * i + 2]);
+    printf("sampling factors: %d horizontal, %d vertical, ",
+           sampling_factors >> 4, sampling_factors & 0xf);
+    printf("quantization table number: %d\n", begin[6 + 3 * i + 2]);
   }
 }
 
@@ -3776,16 +3775,15 @@ static void jpeg_dump_sos(struct Options* options,
   }
 
   for (int i = 0; i < num_components; ++i) {
-    iprintf(options, "components %d/%d\n", i + 1, num_components);
-    iprintf(options, "  scan component: %d\n", begin[1 + 2 * i]);
+    iprintf(options, "scan component: %d, ", begin[1 + 2 * i]);
 
     uint8_t selector = begin[1 + 2 * i + 1];
-    iprintf(options, "  entropy coding table: %d dc, %d ac\n", selector >> 4,
-            selector & 0xf);
+    printf("entropy coding table: %d dc, %d ac\n", selector >> 4,
+           selector & 0xf);
   }
 
-  iprintf(options, "Ss: %d\n", begin[1 + num_components * 2]);
-  iprintf(options, "Se: %d\n", begin[1 + num_components * 2 + 1]);
+  iprintf(options, "Ss: %d, ", begin[1 + num_components * 2]);
+  printf("Se: %d\n", begin[1 + num_components * 2 + 1]);
   iprintf(options, "A: %d\n", begin[1 + num_components * 2 + 2]);
 }
 static void jpeg_dump_jfif(struct Options* options,
