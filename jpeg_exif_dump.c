@@ -3756,6 +3756,38 @@ static void jpeg_dump_regular_sof(struct Options* options,
   }
 }
 
+static void jpeg_dump_sos(struct Options* options,
+                          const uint8_t* begin,
+                          uint16_t size) {
+  // https://www.w3.org/Graphics/JPEG/itu-t81.pdf B.2.3 Scan header syntax
+  if (size < 6) {
+    printf("SOS should be at least 6 bytes, is %u\n", size);
+    return;
+  }
+
+  begin += sizeof(uint16_t);
+
+  uint8_t num_components = begin[0];
+
+  if (size - 6 < 2 * num_components) {
+    printf("SOS with %d components should be at least %d bytes, is %u\n",
+           num_components, 8 + 2 * num_components, size);
+    return;
+  }
+
+  for (int i = 0; i < num_components; ++i) {
+    iprintf(options, "components %d/%d\n", i + 1, num_components);
+    iprintf(options, "  scan component: %d\n", begin[1 + 2 * i]);
+
+    uint8_t selector = begin[1 + 2 * i + 1];
+    iprintf(options, "  entropy coding table: %d dc, %d ac\n", selector >> 4,
+            selector & 0xf);
+  }
+
+  iprintf(options, "Ss: %d\n", begin[1 + num_components * 2]);
+  iprintf(options, "Se: %d\n", begin[1 + num_components * 2 + 1]);
+  iprintf(options, "A: %d\n", begin[1 + num_components * 2 + 2]);
+}
 static void jpeg_dump_jfif(struct Options* options,
                            const uint8_t* begin,
                            uint16_t size) {
@@ -4209,6 +4241,9 @@ static void jpeg_dump(struct Options* options,
         break;
       case 0xda:
         printf(": Start Of Scan (SOS)\n");
+        increase_indent(options);
+        jpeg_dump_sos(options, cur, size);
+        decrease_indent(options);
         break;
       case 0xdb:
         printf(": Define Quantization Table(s) (DQT)\n");
