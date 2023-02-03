@@ -3789,6 +3789,53 @@ static void jpeg_dump_sos(struct Options* options,
   iprintf(options, "Ah: %d, Al: %d\n", a >> 4, a & 0xf);
 }
 
+static void jpeg_dump_dqt(struct Options* options,
+                          const uint8_t* begin,
+                          uint16_t size) {
+  // https://www.w3.org/Graphics/JPEG/itu-t81.pdf
+  // B.2.4.1 Quantization table-specification syntax
+  if (size < 67) {
+    printf("DQT should be at least 67 bytes, is %u\n", size);
+    return;
+  }
+
+  begin += sizeof(uint16_t);
+  size -= 2;
+
+  while (size) {
+    if (size < 65) {
+      printf("DQT entry should be at least 65 bytes, is %u\n", size);
+      return;
+    }
+
+    uint8_t t = begin[0];
+    uint8_t element_precision = t >> 4;  // 0: 8-bit, 1: 16-bit
+    uint8_t destination_identifier = t & 0xf;
+
+    iprintf(options, "%d-byte entries, destination %d\n", element_precision + 1,
+            destination_identifier);
+
+    if (element_precision != 0 && element_precision != 1) {
+      printf("unexpected precision %d, expected 0 or 1", element_precision);
+      return;
+    }
+
+    if (element_precision == 1 && size < 129) {
+      printf("16-bit DQT entry should be at least 129 bytes, is %u\n", size);
+      return;
+    }
+
+    int entry_size = 64 * (element_precision + 1);
+
+    iprintf(options, "skipping %d bytes\n", entry_size);
+
+    // Skip codes.
+
+    begin += 1 + entry_size;
+    size -= 1 + entry_size;
+  }
+}
+
 static void jpeg_dump_dht(struct Options* options,
                           const uint8_t* begin,
                           uint16_t size) {
@@ -4292,6 +4339,9 @@ static void jpeg_dump(struct Options* options,
         break;
       case 0xdb:
         printf(": Define Quantization Table(s) (DQT)\n");
+        increase_indent(options);
+        jpeg_dump_dqt(options, cur, size);
+        decrease_indent(options);
         break;
       case 0xdd:
         printf(": Define Restart Interval (DRI)\n");
