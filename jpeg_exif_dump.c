@@ -4301,6 +4301,9 @@ static void jpeg_dump(struct Options* options,
         jpeg_dump_dht(options, cur, size);
         decrease_indent(options);
         break;
+      case 0xcc:
+        printf(": Define Arithmetic Coding Conditioning (DAC)\n");
+        break;
       case 0xd0:
       case 0xd1:
       case 0xd2:
