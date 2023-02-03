@@ -107,4 +107,40 @@ GPS
 
 [5]: https://en.wikipedia.org/wiki/JPEG_File_Interchange_Format#JFIF_APP0_marker_segment
 
+Exotic JPEG formats
+-------------------
 
+This document is mostly about _metadata_, but this section is about the actual
+jpeg data itself.
+
+The official JPEG spec is https://www.w3.org/Graphics/JPEG/itu-t81.pdf. It
+specifies quite a few different modes:
+
+* Baseline DCT (Discrete Cosine Transform); SOF0
+* Extended sequential DCT; SOF1, SOF5, SOF9, SOF13
+* Progresive DCT; SOF2, SOF6, SOF10, SOF14
+* Lossless; SOF3, SOF7, SOF11, SOF15
+
+(There is no SOF4 or SOF8.)
+
+Each of these can use huffman (SOF0, SOF1, SOF2, SOF3, SOF5, SOF6) or
+arithmetic (SOF9, SOF10, SOF11, SOF13, SOF14, SOF15) codign.
+
+Each of these can be hierarchical/differential
+(SOF5, SOF6, SOF7, SOF13, SOF14, SOF15) or not
+(SOF0, SOF1, SOF2, SOF3, SOF9, SOF10, SOF11).
+
+Baseline DCT is very common.
+
+Huffman-coded non-hierarchical progressive DCT can be seen on the web but is
+somewhat rare.
+
+Arithmetic coding isn't supported by most web browsers, so it doesn't exist
+on the internet.
+
+Hierarchical/differential mode is very rare.
+
+Lossless jpegs are also rare.
+
+That is, the most common frame type is SOF0, second most is SOF2. All others
+are fairly rare. (XXX check SOF1 more.)
