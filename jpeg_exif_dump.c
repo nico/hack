@@ -3782,11 +3782,13 @@ static void jpeg_dump_sos(struct Options* options,
            selector & 0xf);
   }
 
-  iprintf(options, "Ss: %d, ", begin[1 + num_components * 2]);
-  printf("Se: %d\n", begin[1 + num_components * 2 + 1]);
+  iprintf(options, "spectral range: %d-%d\n", begin[1 + num_components * 2],
+          begin[1 + num_components * 2 + 1]);
 
   uint8_t a = begin[1 + num_components * 2 + 2];
-  iprintf(options, "Ah: %d, Al: %d\n", a >> 4, a & 0xf);
+  iprintf(options, "successive approximation high: %d\n", a >> 4);
+  iprintf(options, "successive approximation low, or point transform: %d\n",
+          a & 0xf);
 }
 
 static void jpeg_dump_dqt(struct Options* options,
