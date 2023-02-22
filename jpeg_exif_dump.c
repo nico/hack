@@ -2719,6 +2719,7 @@ static void icc_dump_lutAToBType(struct Options* options,
 
   // 10.12.2 “A” curves
   if (offset_to_a_curves) {
+    iprintf(options, "'A' curve offset: %d\n", offset_to_a_curves);
     icc_dump_curves(options, num_input_channels, begin, size,
                     begin + offset_to_a_curves,
                     "'A' curve for input channel %u:\n");
@@ -2761,6 +2762,7 @@ static void icc_dump_lutAToBType(struct Options* options,
 
   // 10.12.4 “M” curves
   if (offset_to_m_curves) {
+    iprintf(options, "'M' curve offset: %d\n", offset_to_m_curves);
     icc_dump_curves(options, num_output_channels, begin, size,
                     begin + offset_to_m_curves,
                     "'M' curve for output channel %u:\n");
@@ -2779,6 +2781,7 @@ static void icc_dump_lutAToBType(struct Options* options,
 
   // 10.12.6 “B” curves
   if (offset_to_b_curves) {
+    iprintf(options, "'B' curve offset: %d\n", offset_to_b_curves);
     icc_dump_curves(options, num_output_channels, begin, size,
                     begin + offset_to_b_curves,
                     "'B' curve for output channel %u:\n");
@@ -2818,6 +2821,7 @@ static void icc_dump_lutBToAType(struct Options* options,
 
   // 10.13.2 “B” curves
   if (offset_to_b_curves) {
+    iprintf(options, "'B' curve offset: %d\n", offset_to_b_curves);
     icc_dump_curves(options, num_input_channels, begin, size,
                     begin + offset_to_b_curves,
                     "'B' curve for input channel %u:\n");
@@ -2836,6 +2840,7 @@ static void icc_dump_lutBToAType(struct Options* options,
 
   // 10.13.4 “M” curves
   if (offset_to_m_curves) {
+    iprintf(options, "'M' curve offset: %d\n", offset_to_m_curves);
     icc_dump_curves(options, num_input_channels, begin, size,
                     begin + offset_to_m_curves,
                     "'M' curve for output channel %u:\n");
@@ -2878,6 +2883,7 @@ static void icc_dump_lutBToAType(struct Options* options,
 
   // 10.13.6 “A” curves
   if (offset_to_a_curves) {
+    iprintf(options, "'A' curve offset: %d\n", offset_to_a_curves);
     icc_dump_curves(options, num_output_channels, begin, size,
                     begin + offset_to_a_curves,
                     "'A' curve for output channel %u:\n");
