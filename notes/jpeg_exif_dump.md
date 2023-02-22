@@ -114,33 +114,58 @@ This document is mostly about _metadata_, but this section is about the actual
 jpeg data itself.
 
 The official JPEG spec is https://www.w3.org/Graphics/JPEG/itu-t81.pdf. It
-specifies quite a few different modes:
+specifies quite a few different modes.
+
+The modes can be grouped into the 12 combinations
+`{sequential DCT, progressive DCT, lossless} x {huffman, arithmetic} x
+{non-hierarchical, hierarchical}`, plus "baseline" (which is non-hierarchical
+huffman sequential DCT with additional restrictions, from what I understand).
+That makes for a total of 13 modes:
 
 * Baseline DCT (Discrete Cosine Transform); SOF0
 * Extended sequential DCT; SOF1, SOF5, SOF9, SOF13
 * Progresive DCT; SOF2, SOF6, SOF10, SOF14
 * Lossless; SOF3, SOF7, SOF11, SOF15
 
-(There is no SOF4 or SOF8.)
+(There is no SOF4, SOF8, or SOF12. Would-be SOF4 is DHT, would-be SOF12 is DAC,
+and SOF8 is called 'JPG' in the spec and is reserved for future use by the
+spec.)
 
 Each of these can use huffman (SOF0, SOF1, SOF2, SOF3, SOF5, SOF6) or
-arithmetic (SOF9, SOF10, SOF11, SOF13, SOF14, SOF15) codign.
+arithmetic (SOF9, SOF10, SOF11, SOF13, SOF14, SOF15) coding for entropy coding.
 
 Each of these can be hierarchical/differential
 (SOF5, SOF6, SOF7, SOF13, SOF14, SOF15) or not
 (SOF0, SOF1, SOF2, SOF3, SOF9, SOF10, SOF11).
 
-Baseline DCT is very common.
+libjpeg, which most programs processing jpegs use, does not support hierarchical
+and lossless jpegs. So `{sequential DCT, progressive DCT, lossless} x
+{huffman, arithmetic} x {non-hierarchical, hierarchical}` collapses to
+`{sequential DCT, progressive DCT} x {huffman, arithmetic} x
+{non-hierarchical}` -- 4 modes plus baseline. libjpeg supports 5 out of 13
+modes. It only supports SOF0, SOF1, SOF2, SOF9, and SOF10. It does not support
+SOF3, SOF5, SOF6, SOF7, SOF11, SOF13, SOF14, SOF15.
+
+[libjpeg-turbo _does_ support lossless jpegs](
+https://github.com/libjpeg-turbo/libjpeg-turbo/issues/402) -- behind an
+ifdef, but it's on by default. Support was added in 2022. It doesn't
+support hierarchical jpegs.
+
+Baseline DCT is very common in practice.
 
 Huffman-coded non-hierarchical progressive DCT can be seen on the web but is
 somewhat rare.
 
 Arithmetic coding isn't supported by most web browsers, so it doesn't exist
-on the internet.
+on the internet. Arithmetic coding is behind a build-time flag in both
+libjpeg and libjpeg-turbo, and browsers turn it off.
 
-Hierarchical/differential mode is very rare.
+Lossless jpegs are rare.
 
-Lossless jpegs are also rare.
+Hierarchical/differential mode is very rare and not implemented in the most
+popular jpeg libraries. (https://github.com/thorfdbg/libjpeg seems to have
+support for it, but despite having the same name it has nothing to do
+with [libjpeg](https://en.wikipedia.org/wiki/Libjpeg).)
 
-That is, the most common frame type is SOF0, second most is SOF2. All others
+In summary, the most common frame type is SOF0, second most is SOF2. All others
 are fairly rare. (XXX check SOF1 more.)
