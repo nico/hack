@@ -2679,10 +2679,10 @@ static void icc_dump_curves(struct Options* options,
     } else {
       iprintf(options, "unexpected type, expected 'curv' or 'para'\n");
     }
+    decrease_indent(options);
     if (bytes_read == 0)
       return;
     curves_begin += pad_to_4(bytes_read);
-    decrease_indent(options);
   }
 }
 
