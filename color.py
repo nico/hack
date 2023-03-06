@@ -221,7 +221,9 @@ def m1_m2(T):
     # "In order to match all significant digits of the published data of the
     #  canonical illuminants the values of M1 and M2 have to be rounded to three
     #  decimal places before calculation of S_D."
-    return round(M1, 3), round(M2, 3)
+    M1, M2 = round(M1, 3), round(M2, 3)
+
+    return M1, M2
 
 
 # spd: "spectral power distribution"
@@ -238,5 +240,24 @@ d65_cct = 6504 # noon light
 d50_spd = spd(d50_cct)
 d65_spd = spd(d65_cct)
 
-print(d50_spd)
-print(d65_spd)
+
+def XYZ_from_spectrum(spectrum):
+    cie_1931_dict = dict((λ, (X, Y, Z)) for λ, X, Y, Z in cie_1931)
+    X, Y, Z = 0, 0, 0
+    for λ, power in spectrum:
+        Xn, Yn, Zn = cie_1931_dict.get(λ, (0, 0, 0))
+        X += Xn * power
+        Y += Yn * power
+        Z += Zn * power
+    return X, Y, Z
+
+
+def xy_from_XYZ(X, Y, Z):
+    return X / (X + Y + Z), Y / (X + Y + Z)
+
+
+print('D50 xy from spectrum:   ', xy_from_XYZ(*XYZ_from_spectrum(d50_spd)))
+print('D50 xy from temperature:', d_x_y(d50_cct))
+
+print('D65 xy from spectrum:   ', xy_from_XYZ(*XYZ_from_spectrum(d65_spd)))
+print('D65 xy from temperature:', d_x_y(d65_cct))
