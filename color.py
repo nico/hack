@@ -373,3 +373,10 @@ print('D50 xy from temperature:', d_x_y(d50_cct))
 print('D65 xy from computed spectrum: ', xy_from_XYZ(*XYZ_from_spectrum(d65_spd)))
 print('D65 xy from tabulated spectrum:', xy_from_XYZ(*XYZ_from_spectrum(d65_table)))
 print('D65 xy from temperature:       ', d_x_y(d65_cct))
+
+
+horseshoe = [xy_from_XYZ(X, Y, Z) for λ, X, Y, Z in cie_1931]
+print(f'M {horseshoe[0][0]},{horseshoe[0][1]}', end='')
+for c in horseshoe[1:]:
+    print(f'L {c[0]},{c[1]}', end='')
+print()
