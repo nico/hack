@@ -4220,7 +4220,7 @@ static void jpeg_dump_adobe(struct Options* options,
   //     three components; i.e., the APP14 marker does not specify a transform
   //     applied to the image data.
   // 1 – An image encoded with three components using YCbCr colour encoding.
-  // 2 – An image encoded with four components using YCCK colour encoding. "
+  // 2 – An image encoded with four components using YCCK colour encoding."
   uint8_t version = begin[prefix_size];
   uint16_t flags0 = be_uint16(begin + prefix_size + 1);
   uint16_t flags1 = be_uint16(begin + prefix_size + 3);
