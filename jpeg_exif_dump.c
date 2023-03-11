@@ -4187,6 +4187,50 @@ static void jpeg_dump_photoshop_3(struct Options* options,
                                  size - prefix_size);
 }
 
+static void jpeg_dump_adobe(struct Options* options,
+                            const uint8_t* begin,
+                            uint16_t size) {
+  const size_t prefix_size = sizeof(uint16_t) + sizeof("Adobe");
+  if (size < prefix_size) {
+    printf("Adobe header should be at least %zu bytes, is %u\n",
+           prefix_size, size);
+    return;
+  }
+  // https://www.pdfa.org/norm-refs/5116.DCT_Filter.pdf,
+  // 18 Adobe Application-Specific JPEG Marker
+  // And also T-REC-T.872-201206-I!!PDF-E.pdf which says:
+  // "6.1 Colour encodings and associated values to define white and black:
+  //  * Images encoded with three components are assumed to be RGB data encoded
+  //    as YCbCr unless the image contains an APP14 marker segment as specified
+  //    in 6.5.3, in which case the colour encoding is considered either RGB
+  //    or YCbCr according to the application data of the APP14 marker segment.
+  //  * Images encoded with four components are assumed to be CMYK, with
+  //    (0,0,0,0) indicating white unless the image contains an APP14 marker
+  //    segment as specified in 6.5.3, in which case the colour encoding is
+  //    considered either CMYK or YCCK according to the application data of
+  //    the APP14 marker segment."
+  // (Component indexes of RGB can also indicate an RBG jpeg in practice, see
+  // https://github.com/mozilla/pdf.js/pull/11967 -- but e.g. Preview.app and
+  // Safari don't honor that.)
+  // "6.5.3 APP14 marker segment for colour encoding
+  // Transform flag values of 0, 1 and 2 shall be supported and are interpreted
+  // as follows:
+  // 0 – CMYK for images that are encoded with four components in which all four
+  //     CMYK values are complemented; RGB for images that are encoded with
+  //     three components; i.e., the APP14 marker does not specify a transform
+  //     applied to the image data.
+  // 1 – An image encoded with three components using YCbCr colour encoding.
+  // 2 – An image encoded with four components using YCCK colour encoding. "
+  uint8_t version = begin[prefix_size];
+  uint16_t flags0 = be_uint16(begin + prefix_size + 1);
+  uint16_t flags1 = be_uint16(begin + prefix_size + 3);
+  uint8_t color_transform = begin[prefix_size + 4];
+  iprintf(options, "version 0x%x\n", version);
+  iprintf(options, "flags0 0x%x\n", flags0);
+  iprintf(options, "flags1 0x%x\n", flags1);
+  iprintf(options, "color_transform %d\n", color_transform);
+}
+
 static const char* jpeg_dump_app_id(struct Options* options,
                                     const uint8_t* begin,
                                     const uint8_t* end,
@@ -4402,6 +4446,9 @@ static void jpeg_dump(struct Options* options,
         } else if (b1 == 0xed) {  // APP13
           if (strcmp(app_id, "Photoshop 3.0") == 0)
             jpeg_dump_photoshop_3(options, cur, size);
+        } else if (b1 == 0xee) {  // APP14
+          if (strcmp(app_id, "Adobe") == 0)
+            jpeg_dump_adobe(options, cur, size);
         }
         decrease_indent(options);
         break;
