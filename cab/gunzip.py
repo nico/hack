@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """a deflate implementation (in the .gz container format)"""
 
@@ -13,44 +13,44 @@ else:
   if sys.platform == 'win32':
     import os, msvcrt
     msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
-  source = sys.stdin
+  source = sys.stdin.buffer
 gz = source.read()
 
 # rfc1952 describes the gzip header and footer.
-assert gz[0:2] == '\x1f\x8b'
-assert ord(gz[2]) == 8  # compression method deflate
-flags = ord(gz[3])
+assert gz[0:2] == b'\x1f\x8b'
+assert gz[2] == 8  # compression method deflate
+flags = gz[3]
 mtime = struct.unpack_from('<I', gz, 4)[0]
-extra_flags = ord(gz[8])
-os = ord(gz[9])
+extra_flags = gz[8]
+os = gz[9]
 off = 10
 
-print 'flags', flags
-print 'mtime', datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
-print 'extra_flags', extra_flags
-print 'os', os
+print('flags', flags)
+print('mtime', datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S'))
+print('extra_flags', extra_flags)
+print('os', os)
 
 if flags & 4:  # extra
   extra_size = struct.unpack_from('<I', gz, off)
   off += 4 + extra_size
-  print 'extra size', extra_size
+  print('extra size', extra_size)
 
 if flags & 8:  # filename
   nul = gz.index('\0', off)
   assert nul != -1
   name = gz[off:nul]  # latin-1
   off = nul + 1
-  print 'name', name
+  print('name', name)
 
 if flags & 16:  # comment
   nul = gz.index('\0', off)
   assert nul != -1
   comment = gz[off:nul]  # latin-1
   off = nul + 1
-  print 'comment', comment
+  print('comment', comment)
 
 if flags & 2:  # crc16 of gzip header
-  print 'header crc16', struct.unpack_from('<H', gz, off)
+  print('header crc16', struct.unpack_from('<H', gz, off))
   off += 2
 
 # deflate data starts at off. last 8 bytes of file are crc32 of uncompressed
@@ -113,20 +113,21 @@ class HuffTree(object):
   # The canonical huffman trees match rfc1951.
   @staticmethod
   def _canon_tree(lengths):
+    print(lengths)
     # Given the lengths of the nodes in a canonical huffman tree,
     # returns a (last_code, codes) tuple, where last_code[n] returns the
     # last prefix of length n, and codes[n] contains a list of all values of
     # prefixes with length n.
     maxlen = max(lengths)
     bl_count = [0] * (maxlen + 1)
-    codes = [[] for _ in xrange(maxlen + 1)]
+    codes = [[] for _ in range(maxlen + 1)]
     for i, len_i in enumerate(lengths):
       if len_i != 0:
         bl_count[len_i] += 1
         codes[len_i].append(i)
     code = 0
     last_code = [0] * (maxlen + 1)
-    for i in xrange(1, maxlen + 1):
+    for i in range(1, maxlen + 1):
       code = (code + bl_count[i - 1]) << 1
       last_code[i] = code + bl_count[i] - 1
     return last_code, codes
@@ -147,7 +148,6 @@ class Window(object):
   def output_block(self, data):
     if len(data) > self.win_size:
       data = data[len(data) - self.win_size:]
-    data = map(ord, data)
     rightspace = self.win_size - self.win_write
     if rightspace >= len(data):
       self.window[self.win_write:self.win_write+len(data)] = data
@@ -172,7 +172,7 @@ class Window(object):
     if match_offset < 0:
       match_offset += self.win_size
     # Max match length is 258, win size is 32768, match will always fit.
-    for i in xrange(match_length):
+    for i in range(match_length):
       self.output_literal(self.window[match_offset])  # FIXME: chunkier?
       match_offset += 1
       if match_offset >= self.win_size:
@@ -180,10 +180,10 @@ class Window(object):
 
   def write_from(self, outfile, win_start):
     if self.win_write >= win_start:
-      outfile.write(''.join(map(chr, self.window[win_start:self.win_write])))
+      outfile.write(bytes(self.window[win_start:self.win_write]))
     else:
-      outfile.write(''.join(map(chr, self.window[win_start:] +
-                                     self.window[:self.win_write])))
+      outfile.write(bytes(self.window[win_start:] +
+                          self.window[:self.win_write]))
 
 
 def deflate_decode_pretree(pretree, bitstream, num_lengths):
@@ -214,7 +214,7 @@ def deflate_decode_pretree(pretree, bitstream, num_lengths):
   return lengths
 
 # XXX explain.
-extra_len_bits = [0]*4 + [i/4 for i in range(6*4)] + [0]
+extra_len_bits = [0]*4 + [i//4 for i in range(6*4)] + [0]
 base_length = 3
 base_lengths = []
 for extra in extra_len_bits:
@@ -225,7 +225,7 @@ for extra in extra_len_bits:
 # as code 284 (base position 227) + 31 in the 5 extra bits. The construction
 # in the loop above would assign 259 to code 285 instead.
 base_lengths[-1] = 258
-extra_dist_bits = [0, 0] + [i/2 for i in range(28)]
+extra_dist_bits = [0, 0] + [i//2 for i in range(28)]
 base_dist = 1
 base_dists = []
 for extra in extra_dist_bits:
@@ -240,7 +240,7 @@ is_last_block = False
 while not is_last_block:
   is_last_block = bitstream.getbit()
   block_type = bitstream.getbits(2)
-  #print is_last_block, block_type
+  #print(is_last_block, block_type)
   assert block_type != 3, 'invalid block'
   if block_type == 0:
     data = bitstream.parse_uncompressed_block()
@@ -254,7 +254,7 @@ while not is_last_block:
     num_pretree = bitstream.getbits(4) + 4
     pretree_order = [16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15]  # per rfc
     pretree_lengths = [0]*19
-    for i in xrange(num_pretree):
+    for i in range(num_pretree):
       v = bitstream.getbits(3)
       pretree_lengths[pretree_order[i]] = v
     pretree = HuffTree(pretree_lengths)
@@ -279,7 +279,7 @@ while not is_last_block:
     if code < 256:
       # literal
       window.output_literal(code)
-      #print 'lit', code
+      #print('lit', code)
     else:
       # match. codes 257..285 represent lengths 3..258 (hence some bits might
       # have to follow the mapped code).
@@ -288,7 +288,7 @@ while not is_last_block:
       dist = disttree.readsym(bitstream)
       match_offset = base_dists[dist] + bitstream.getbits(extra_dist_bits[dist])
       window.copy_match(match_offset, match_len)
-      #print 'match', match_offset, match_len
+      #print('match', match_offset, match_len)
     # We could write to disk right after each literal and match, but instead
     # just write every 16kB. Since the max match is 258 bytes, we won't miss
     # data in the window after a long match: long matches are still short
