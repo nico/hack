@@ -95,7 +95,7 @@ class Bitstream(object):
     self.curbit = 0
     self.curword = start + 4 + size
     if self.curword < len(self.source):
-     self.curword_val = struct.unpack_from('<H', self.source, self.curword)[0]
+      self.curword_val = struct.unpack_from('<H', self.source, self.curword)[0]
     return data
 
 
