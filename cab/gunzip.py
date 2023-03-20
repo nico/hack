@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 
-"""a deflate implementation (in the .gz container format)"""
+"""a deflate implementation (in the .gz container format)
+
+% echo 'hello hahahahahaha' | gzip | python3 cab/gunzip.py && cat gunzip.out
+"""
 
 from datetime import datetime
 import struct
