@@ -2,7 +2,7 @@
 
 """a deflate implementation (in the .gz container format)
 
-% echo 'hello hahahahahaha' | gzip | python3 cab/gunzip.py && cat gunzip.out
+% echo 'hello hahahahahaha' | gzip | cab/gunzip.py && cat gunzip.out
 """
 
 from datetime import datetime
