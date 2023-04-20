@@ -56,7 +56,7 @@ Other similar things
    [3](https://github.com/google/llvm-propeller/blob/main/ArtifactEvaluation/Scripts/optimize_clang.sh)
 
 
-Interesting thread:
+Interesting thread (more about Propeller):
 <https://lists.llvm.org/pipermail/llvm-dev/2019-October/135616.html>
 
 eg
@@ -64,6 +64,8 @@ eg
 <https://docs.google.com/document/d/1jqjUZc8sEoNl6_lrVD6ZkITyFBFqhUOZ6ZaDm_XVbb8/edit>
 
 <https://lists.llvm.org/pipermail/llvm-dev/2019-October/136102.html>
+
+<https://lists.llvm.org/pipermail/llvm-dev/2020-January/138426.html>
 
 LLVM upstream profile data formats
 ----------------------------------
