@@ -70,5 +70,7 @@ LLVM upstream profile data formats
 
 * Frontend (`-fprofile-instr-generate`, for coverage)
 * IR (`-fprofile-generate`, for PGO)
-* CS-IR (for CSPGO)
+* CS-IR (`fprofile-use=pass1.profdata -fcs-profile-generate`, for CSPGO)
 * Sampling (eg for profiles collected by `perf`)
+
+(See also `pgotest/build.sh` and `notes/llvm_pgo.md` in this repo.)
