@@ -128,8 +128,8 @@ Per-function, we have:
 
 1. The filename the function is in, and its symbol name (`c.c:c1`)
 
-2. A hash of the function's IR. When compiling the file with profile
-   generation, LLVM computes a hash of the function's IR (before inserting
+2. A hash of the function's CFG structure. When compiling the file with profile
+   generation, LLVM computes a hash of the function's CFG (before inserting
    profiling instrumentation), and stores in the (instrumented) output .o
    file. The linker copies it to the (instrumented) output executable, and
    when the binary runs, the profiling runtime extracts that data and writes
@@ -155,7 +155,7 @@ the code?
 [PGOInstrumentation.cpp][1] has a comment at the top that explains how it works:
 Both when instrumenting and when using the profiling data, LLVM computes where
 in each function the edges between basic blocks should have a counter. Since
-the function IR is exactly identical (because the function hashes match),
+the function's CFG shape is exactly identical (because the hashes match),
 the counter locations are the same when the instrumentation was inserted and
 now when the profiling data is used: LLVM can associate the counter values
 with the IR locations by index. (Here's a [PDF of the "Optimal measurement of
