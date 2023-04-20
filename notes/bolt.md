@@ -67,6 +67,10 @@ eg
 
 <https://lists.llvm.org/pipermail/llvm-dev/2020-January/138426.html>
 
+<https://reviews.llvm.org/D68062> -- but looks like currently the thinking
+is to use `create_llvm_prof` from the autofdo repo to convert it to an llvm
+sample profile.
+
 LLVM upstream profile data formats
 ----------------------------------
 
