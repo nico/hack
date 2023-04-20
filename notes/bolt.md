@@ -71,6 +71,22 @@ eg
 is to use `create_llvm_prof` from the autofdo repo to convert it to an llvm
 sample profile.
 
+[Propeller RFC](https://github.com/google/llvm-propeller/blob/424c3b885e60d8ff9446b16df39d84fbf6596aec/Propeller_RFC.pdf)
+"Can this be done with PGO itself in the compiler?" section compares to PGO and
+CS-PGO.
+
+It claims that instrumentation-based profiles are noticeably worse than
+sampling-based ones, at least for post-link optimization ("PLO").
+
+XXX: measure impact of sampling vs instrumentation, using llvm-propeller's
+measurement script.
+
+Apparently someone figured out how to do `perf` on macOS:
+<https://gist.github.com/ibireme/173517c208c7dc333ba962c1f0d67d12>
+
+(Instruments.app can read performance counters, but it can't be driven from
+a script as far as I know.)
+
 LLVM upstream profile data formats
 ----------------------------------
 
