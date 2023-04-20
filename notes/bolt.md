@@ -42,3 +42,33 @@ bin/llvm-bolt your_program -o your_program.opt -data merged.fdata \
     -split-functions -split-all-cold -split-eh -dyno-stats' \
     -icf=1 -use-gnu-stack -use-old-text
 ```
+
+Other similar things
+--------------------
+
+(All work with ThinLTO.)
+
+1. PGO
+2. [CSPGO](https://reviews.llvm.org/D54175) (2018)
+3. Propeller (2019)
+   [1](https://github.com/google/llvm-propeller/blob/424c3b885e60d8ff9446b16df39d84fbf6596aec/Propeller_RFC.pdf)
+   [2](https://lists.llvm.org/pipermail/llvm-dev/2019-September/135393.html)
+   [3](https://github.com/google/llvm-propeller/blob/main/ArtifactEvaluation/Scripts/optimize_clang.sh)
+
+
+Interesting thread:
+<https://lists.llvm.org/pipermail/llvm-dev/2019-October/135616.html>
+
+eg
+<https://lists.llvm.org/pipermail/llvm-dev/2019-October/136097.html> =>
+<https://docs.google.com/document/d/1jqjUZc8sEoNl6_lrVD6ZkITyFBFqhUOZ6ZaDm_XVbb8/edit>
+
+<https://lists.llvm.org/pipermail/llvm-dev/2019-October/136102.html>
+
+LLVM upstream profile data formats
+----------------------------------
+
+* Frontend (`-fprofile-instr-generate`, for coverage)
+* IR (`-fprofile-generate`, for PGO)
+* CS-IR (for CSPGO)
+* Sampling (eg for profiles collected by `perf`)
