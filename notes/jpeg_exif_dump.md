@@ -190,8 +190,8 @@ SOF0 only supports huffman coding, SOF1 also allows arithmetic coding.
 (But many decoders don't support arithmetic decoding even for SOF1 and
 SOF2, even though it's in the spec.)
 
-SOF2 allows all the values that that SOF1 allows, so a jpeg decoder that
-fully supports SOF2 and SOF0 can support SOF1 with close to no code changes
+SOF2 allows all the values that SOF1 allows, so a jpeg decoder that fully
+supports SOF2 and SOF0 can support SOF1 with close to no code changes
 (just need to allow the SOF1 marker).
 
 Having said that, SOF1 is very rare in practice.
