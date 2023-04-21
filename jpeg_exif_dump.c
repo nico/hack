@@ -4428,27 +4428,29 @@ static void jpeg_dump(struct Options* options,
         increase_indent(options);
         const char* app_id =
             jpeg_dump_app_id(options, cur, end, has_size, size);
-        if (b1 == 0xe0) {  // APP0
-          if (strcmp(app_id, "JFIF") == 0)
-            jpeg_dump_jfif(options, cur, size);
-        } else if (b1 == 0xe1) {  // APP1
-          if (strcmp(app_id, "Exif") == 0)
-            jpeg_dump_exif(options, cur, size);
-          else if (strcmp(app_id, "http://ns.adobe.com/xap/1.0/") == 0)
-            jpeg_dump_xmp(options, cur, size);
-          else if (strcmp(app_id, "http://ns.adobe.com/xmp/extension/") == 0)
-            jpeg_dump_xmp_extension(options, cur, size);
-        } else if (b1 == 0xe2) {  // APP2
-          if (strcmp(app_id, "ICC_PROFILE") == 0)
-            jpeg_dump_icc(options, cur, size);
-          else if (strcmp(app_id, "MPF") == 0)
-            jpeg_dump_mpf(options, cur, size);
-        } else if (b1 == 0xed) {  // APP13
-          if (strcmp(app_id, "Photoshop 3.0") == 0)
-            jpeg_dump_photoshop_3(options, cur, size);
-        } else if (b1 == 0xee) {  // APP14
-          if (strcmp(app_id, "Adobe") == 0)
-            jpeg_dump_adobe(options, cur, size);
+        if (app_id) {
+          if (b1 == 0xe0) {  // APP0
+            if (strcmp(app_id, "JFIF") == 0)
+              jpeg_dump_jfif(options, cur, size);
+          } else if (b1 == 0xe1) {  // APP1
+            if (strcmp(app_id, "Exif") == 0)
+              jpeg_dump_exif(options, cur, size);
+            else if (strcmp(app_id, "http://ns.adobe.com/xap/1.0/") == 0)
+              jpeg_dump_xmp(options, cur, size);
+            else if (strcmp(app_id, "http://ns.adobe.com/xmp/extension/") == 0)
+              jpeg_dump_xmp_extension(options, cur, size);
+          } else if (b1 == 0xe2) {  // APP2
+            if (strcmp(app_id, "ICC_PROFILE") == 0)
+              jpeg_dump_icc(options, cur, size);
+            else if (strcmp(app_id, "MPF") == 0)
+              jpeg_dump_mpf(options, cur, size);
+          } else if (b1 == 0xed) {  // APP13
+            if (strcmp(app_id, "Photoshop 3.0") == 0)
+              jpeg_dump_photoshop_3(options, cur, size);
+          } else if (b1 == 0xee) {  // APP14
+            if (strcmp(app_id, "Adobe") == 0)
+              jpeg_dump_adobe(options, cur, size);
+          }
         }
         decrease_indent(options);
         break;
