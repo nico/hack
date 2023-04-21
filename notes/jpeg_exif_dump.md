@@ -168,4 +168,30 @@ support for it, but despite having the same name it has nothing to do
 with [libjpeg](https://en.wikipedia.org/wiki/Libjpeg).)
 
 In summary, the most common frame type is SOF0, second most is SOF2. All others
-are fairly rare. (XXX check SOF1 more.)
+are fairly rare.
+
+## SOF0 vs SOF1
+
+SOF0 and SOF1 are very similar, except that SOF1 allows higher limits for
+a bunch of things (cf section B.2 in the official spec):
+
+* Frame header (SOFn):
+  * sample precision ("P"): SOF0 allows 8bpp, SOF1 also allows 12
+* Scan header (SOS):
+  * DC and AC selector ("Tdj", "Taj"): SOF0 allows 0-1, SOF1 allows 0-3
+* Quantization table-specification ("DQT")
+  * Quatization table element precision ("Pq"): SOF0 allows 0 (8bit values),
+    SOF1 allows 0 and 1 (16bit values).
+* Huffman table-specification ("DHT")
+  * Huffman table destination identifier ("Th"): SOF0 allows 0-1,
+    SOF1 allows 0-3.
+
+SOF0 only supports huffman coding, SOF1 also allows arithmetic coding.
+(But many decoders don't support arithmetic decoding even for SOF1 and
+SOF2, even though it's in the spec.)
+
+SOF2 allows all the values that that SOF1 allows, so a jpeg decoder that
+fully supports SOF2 and SOF0 can support SOF1 with close to no code changes
+(just need to allow the SOF1 marker).
+
+Having said that, SOF1 is very rare in practice.
