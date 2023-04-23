@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+
+import math
+
 # all data from
 # https://web.archive.org/web/20170131100357/http://files.cie.co.at/204.xls
 
@@ -382,6 +386,50 @@ for c in horseshoe[1:]:
     print(f'L {c[0]},{c[1]}', end='')
 print()
 
-# XXX planckian locus
+
+# planckian locus
+# https://www.fourmilab.ch/documents/specrend/, "Example and Application: Black
+# Body Radiation" (the formula there has an incorrect `pi` for `c1` though --
+# it cancels out for xyz, but c1 is wrong I think).
+def black_body_spectral_radiance(wavelength_in_nm, temperature_in_K):
+    # https://en.wikipedia.org/wiki/Planck%27s_law#Different_forms, "Wavelength",
+    c = 299_792_458     # speed of light, in m/s
+    h = 6.62607015e-34  # planck constant, in m**2 kg / s
+    kB = 1.380649e-23   # boltzmann constant, in m**2 kg / (s**2 K)
+
+    wavelength_in_m = wavelength_in_nm * 1e-9
+    c1 = 2 * h * c**2
+    c2 = h * c / kB
+    factor1 = c1 / wavelength_in_m**5
+    factor2 = math.exp(c2 / (wavelength_in_m * temperature_in_K)) - 1
+    return factor1 / factor2
+
+
+def black_body_XYZ(temperature_in_K):
+    # https://en.wikipedia.org/wiki/CIE_1931_color_space#Emissive_case
+    # Omits the multiplication by dλ (== 5nm) since it cancels out when passing
+    # the result to xy_from_XYZ().
+    X, Y, Z = 0, 0, 0
+    for λ, Xλ, Yλ, Zλ in cie_1931:
+        spectral_radiance_at_wavelength = black_body_spectral_radiance(λ, temperature_in_K)
+        X += spectral_radiance_at_wavelength * Xλ
+        Y += spectral_radiance_at_wavelength * Yλ
+        Z += spectral_radiance_at_wavelength * Zλ
+    return X, Y, Z
+
+
+def black_body_xy(temperature_in_K):
+    return xy_from_XYZ(*black_body_XYZ(temperature_in_K))
+
+
+for T in range(1_000, 10_000 + 1, 500):
+    print(f'{T:5} K, {black_body_xy(T)}')
+
+
+planckian_locus = [black_body_xy(T) for T in range(1_000, 10_000 + 1, 500)]
+print(f'M {planckian_locus[0][0]},{planckian_locus[0][1]}', end='')
+for c in planckian_locus[1:]:
+    print(f'L {c[0]},{c[1]}', end='')
+print()
 
 # XXX chromatic adaptation
