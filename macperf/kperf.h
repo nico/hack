@@ -2,6 +2,8 @@
 
 #include "types.h"
 
+extern "C" {
+
 // From https://gist.github.com/ibireme/173517c208c7dc333ba962c1f0d67d12
 
 // -----------------------------------------------------------------------------
@@ -69,36 +71,36 @@ typedef u64 kpc_config_t;
 /// @note This method does not requires root privileges.
 /// @details sysctl get(hw.cputype), get(hw.cpusubtype),
 ///                 get(hw.cpufamily), get(machdep.cpu.model)
-static int (*kpc_cpu_string)(char *buf, usize buf_size);
+int kpc_cpu_string(char *buf, usize buf_size);
 
 /// Get the version of KPC that's being run.
 /// @return See `PMU version constants` above.
 /// @details sysctl get(kpc.pmu_version)
-static u32 (*kpc_pmu_version)(void);
+u32 kpc_pmu_version(void);
 
 /// Get running PMC classes.
 /// @return See `class mask constants` above,
 ///         0 if error occurs or no class is set.
 /// @details sysctl get(kpc.counting)
-static u32 (*kpc_get_counting)(void);
+u32 kpc_get_counting(void);
 
 /// Set PMC classes to enable counting.
 /// @param classes See `class mask constants` above, set 0 to shutdown counting.
 /// @return 0 for success.
 /// @details sysctl set(kpc.counting)
-static int (*kpc_set_counting)(u32 classes);
+int kpc_set_counting(u32 classes);
 
 /// Get running PMC classes for current thread.
 /// @return See `class mask constants` above,
 ///         0 if error occurs or no class is set.
 /// @details sysctl get(kpc.thread_counting)
-static u32 (*kpc_get_thread_counting)(void);
+u32 kpc_get_thread_counting(void);
 
 /// Set PMC classes to enable counting for current thread.
 /// @param classes See `class mask constants` above, set 0 to shutdown counting.
 /// @return 0 for success.
 /// @details sysctl set(kpc.thread_counting)
-static int (*kpc_set_thread_counting)(u32 classes);
+int kpc_set_thread_counting(u32 classes);
 
 /// Get how many config registers there are for a given mask.
 /// For example: Intel may returns 1 for `KPC_CLASS_FIXED_MASK`,
@@ -107,7 +109,7 @@ static int (*kpc_set_thread_counting)(u32 classes);
 /// @return 0 if error occurs or no class is set.
 /// @note This method does not requires root privileges.
 /// @details sysctl get(kpc.config_count)
-static u32 (*kpc_get_config_count)(u32 classes);
+u32 kpc_get_config_count(u32 classes);
 
 /// Get config registers.
 /// @param classes see `class mask constants` above.
@@ -115,7 +117,7 @@ static u32 (*kpc_get_config_count)(u32 classes);
 ///               kpc_get_config_count(classes) * sizeof(kpc_config_t).
 /// @return 0 for success.
 /// @details sysctl get(kpc.config_count), get(kpc.config)
-static int (*kpc_get_config)(u32 classes, kpc_config_t *config);
+int kpc_get_config(u32 classes, kpc_config_t *config);
 
 /// Set config registers.
 /// @param classes see `class mask constants` above.
@@ -123,7 +125,7 @@ static int (*kpc_get_config)(u32 classes, kpc_config_t *config);
 ///               kpc_get_config_count(classes) * sizeof(kpc_config_t).
 /// @return 0 for success.
 /// @details sysctl get(kpc.config_count), set(kpc.config)
-static int (*kpc_set_config)(u32 classes, kpc_config_t *config);
+int kpc_set_config(u32 classes, kpc_config_t *config);
 
 /// Get how many counters there are for a given mask.
 /// For example: Intel may returns 3 for `KPC_CLASS_FIXED_MASK`,
@@ -131,7 +133,7 @@ static int (*kpc_set_config)(u32 classes, kpc_config_t *config);
 /// @param classes See `class mask constants` above.
 /// @note This method does not requires root privileges.
 /// @details sysctl get(kpc.counter_count)
-static u32 (*kpc_get_counter_count)(u32 classes);
+u32 kpc_get_counter_count(u32 classes);
 
 /// Get counter accumulations.
 /// If `all_cpus` is true, the buffer count should not smaller than
@@ -144,7 +146,7 @@ static u32 (*kpc_get_counter_count)(u32 classes);
 /// @param buf Buffer to receive counter's value.
 /// @return 0 for success.
 /// @details sysctl get(hw.ncpu), get(kpc.counter_count), get(kpc.counters)
-static int (*kpc_get_cpu_counters)(bool all_cpus, u32 classes, int *curcpu, u64 *buf);
+int kpc_get_cpu_counters(bool all_cpus, u32 classes, int *curcpu, u64 *buf);
 
 /// Get counter accumulations for current thread.
 /// @param tid Thread id, should be 0.
@@ -153,92 +155,94 @@ static int (*kpc_get_cpu_counters)(bool all_cpus, u32 classes, int *curcpu, u64 
 /// @param buf Buffer to receive counter's value.
 /// @return 0 for success.
 /// @details sysctl get(kpc.thread_counters)
-static int (*kpc_get_thread_counters)(u32 tid, u32 buf_count, u64 *buf);
+int kpc_get_thread_counters(u32 tid, u32 buf_count, u64 *buf);
 
 /// Acquire/release the counters used by the Power Manager.
 /// @param val 1:acquire, 0:release
 /// @return 0 for success.
 /// @details sysctl set(kpc.force_all_ctrs)
-static int (*kpc_force_all_ctrs_set)(int val);
+int kpc_force_all_ctrs_set(int val);
 
 /// Get the state of all_ctrs.
 /// @return 0 for success.
 /// @details sysctl get(kpc.force_all_ctrs)
-static int (*kpc_force_all_ctrs_get)(int *val_out);
+int kpc_force_all_ctrs_get(int *val_out);
 
 /// Set number of actions, should be `KPERF_ACTION_MAX`.
 /// @details sysctl set(kperf.action.count)
-static int (*kperf_action_count_set)(u32 count);
+int kperf_action_count_set(u32 count);
 
 /// Get number of actions.
 /// @details sysctl get(kperf.action.count)
-static int (*kperf_action_count_get)(u32 *count);
+int kperf_action_count_get(u32 *count);
 
 /// Set what to sample when a trigger fires an action, e.g. `KPERF_SAMPLER_PMC_CPU`.
 /// @details sysctl set(kperf.action.samplers)
-static int (*kperf_action_samplers_set)(u32 actionid, u32 sample);
+int kperf_action_samplers_set(u32 actionid, u32 sample);
 
 /// Get what to sample when a trigger fires an action.
 /// @details sysctl get(kperf.action.samplers)
-static int (*kperf_action_samplers_get)(u32 actionid, u32 *sample);
+int kperf_action_samplers_get(u32 actionid, u32 *sample);
 
 /// Apply a task filter to the action, -1 to disable filter.
 /// @details sysctl set(kperf.action.filter_by_task)
-static int (*kperf_action_filter_set_by_task)(u32 actionid, i32 port);
+int kperf_action_filter_set_by_task(u32 actionid, i32 port);
 
 /// Apply a pid filter to the action, -1 to disable filter.
 /// @details sysctl set(kperf.action.filter_by_pid)
-static int (*kperf_action_filter_set_by_pid)(u32 actionid, i32 pid);
+int kperf_action_filter_set_by_pid(u32 actionid, i32 pid);
 
 /// Set number of time triggers, should be `KPERF_TIMER_MAX`.
 /// @details sysctl set(kperf.timer.count)
-static int (*kperf_timer_count_set)(u32 count);
+int kperf_timer_count_set(u32 count);
 
 /// Get number of time triggers.
 /// @details sysctl get(kperf.timer.count)
-static int (*kperf_timer_count_get)(u32 *count);
+int kperf_timer_count_get(u32 *count);
 
 /// Set timer number and period.
 /// @details sysctl set(kperf.timer.period)
-static int (*kperf_timer_period_set)(u32 actionid, u64 tick);
+int kperf_timer_period_set(u32 actionid, u64 tick);
 
 /// Get timer number and period.
 /// @details sysctl get(kperf.timer.period)
-static int (*kperf_timer_period_get)(u32 actionid, u64 *tick);
+int kperf_timer_period_get(u32 actionid, u64 *tick);
 
 /// Set timer number and actionid.
 /// @details sysctl set(kperf.timer.action)
-static int (*kperf_timer_action_set)(u32 actionid, u32 timerid);
+int kperf_timer_action_set(u32 actionid, u32 timerid);
 
 /// Get timer number and actionid.
 /// @details sysctl get(kperf.timer.action)
-static int (*kperf_timer_action_get)(u32 actionid, u32 *timerid);
+int kperf_timer_action_get(u32 actionid, u32 *timerid);
 
 /// Set which timer ID does PET (Profile Every Thread).
 /// @details sysctl set(kperf.timer.pet_timer)
-static int (*kperf_timer_pet_set)(u32 timerid);
+int kperf_timer_pet_set(u32 timerid);
 
 /// Get which timer ID does PET (Profile Every Thread).
 /// @details sysctl get(kperf.timer.pet_timer)
-static int (*kperf_timer_pet_get)(u32 *timerid);
+int kperf_timer_pet_get(u32 *timerid);
 
 /// Enable or disable sampling.
 /// @details sysctl set(kperf.sampling)
-static int (*kperf_sample_set)(u32 enabled);
+int kperf_sample_set(u32 enabled);
 
 /// Get is currently sampling.
 /// @details sysctl get(kperf.sampling)
-static int (*kperf_sample_get)(u32 *enabled);
+int kperf_sample_get(u32 *enabled);
 
 /// Reset kperf: stop sampling, kdebug, timers and actions.
 /// @return 0 for success.
-static int (*kperf_reset)(void);
+int kperf_reset(void);
 
 /// Nanoseconds to CPU ticks.
-static u64 (*kperf_ns_to_ticks)(u64 ns);
+u64 kperf_ns_to_ticks(u64 ns);
 
 /// CPU ticks to nanoseconds.
-static u64 (*kperf_ticks_to_ns)(u64 ticks);
+u64 kperf_ticks_to_ns(u64 ticks);
 
 /// CPU ticks frequency (mach_absolute_time).
-static u64 (*kperf_tick_frequency)(void);
+u64 kperf_tick_frequency(void);
+
+}

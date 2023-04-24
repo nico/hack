@@ -2,6 +2,8 @@
 
 #include "types.h"
 
+extern "C" {
+
 // From https://gist.github.com/ibireme/173517c208c7dc333ba962c1f0d67d12
 
 // -----------------------------------------------------------------------------
@@ -123,10 +125,10 @@ static const char *kpep_config_error_desc(int code) {
 /// @param db A kpep db, see kpep_db_create()
 /// @param cfg_ptr A pointer to receive the new config.
 /// @return kpep_config_error_code, 0 for success.
-static int (*kpep_config_create)(kpep_db *db, kpep_config **cfg_ptr);
+int kpep_config_create(kpep_db *db, kpep_config **cfg_ptr);
 
 /// Free the config.
-static void (*kpep_config_free)(kpep_config *cfg);
+void kpep_config_free(kpep_config *cfg);
 
 /// Add an event to config.
 /// @param cfg The config.
@@ -136,102 +138,104 @@ static void (*kpep_config_free)(kpep_config *cfg);
 ///            If return value is `CONFLICTING_EVENTS`, this bitmap contains
 ///            the conflicted event indices, e.g. "1 << 2" means index 2.
 /// @return kpep_config_error_code, 0 for success.
-static int (*kpep_config_add_event)(kpep_config *cfg, kpep_event **ev_ptr, u32 flag, u32 *err);
+int kpep_config_add_event(kpep_config *cfg, kpep_event **ev_ptr, u32 flag, u32 *err);
 
 /// Remove event at index.
 /// @return kpep_config_error_code, 0 for success.
-static int (*kpep_config_remove_event)(kpep_config *cfg, usize idx);
+int kpep_config_remove_event(kpep_config *cfg, usize idx);
 
 /// Force all counters.
 /// @return kpep_config_error_code, 0 for success.
-static int (*kpep_config_force_counters)(kpep_config *cfg);
+int kpep_config_force_counters(kpep_config *cfg);
 
 /// Get events count.
 /// @return kpep_config_error_code, 0 for success.
-static int (*kpep_config_events_count)(kpep_config *cfg, usize *count_ptr);
+int kpep_config_events_count(kpep_config *cfg, usize *count_ptr);
 
 /// Get all event pointers.
 /// @param buf A buffer to receive event pointers.
 /// @param buf_size The buffer's size in bytes, should not smaller than
 ///                 kpep_config_events_count() * sizeof(void *).
 /// @return kpep_config_error_code, 0 for success.
-static int (*kpep_config_events)(kpep_config *cfg, kpep_event **buf, usize buf_size);
+int kpep_config_events(kpep_config *cfg, kpep_event **buf, usize buf_size);
 
 /// Get kpc register configs.
 /// @param buf A buffer to receive kpc register configs.
 /// @param buf_size The buffer's size in bytes, should not smaller than
 ///                 kpep_config_kpc_count() * sizeof(kpc_config_t).
 /// @return kpep_config_error_code, 0 for success.
-static int (*kpep_config_kpc)(kpep_config *cfg, kpc_config_t *buf, usize buf_size);
+int kpep_config_kpc(kpep_config *cfg, kpc_config_t *buf, usize buf_size);
 
 /// Get kpc register config count.
 /// @return kpep_config_error_code, 0 for success.
-static int (*kpep_config_kpc_count)(kpep_config *cfg, usize *count_ptr);
+int kpep_config_kpc_count(kpep_config *cfg, usize *count_ptr);
 
 /// Get kpc classes.
 /// @param classes See `class mask constants` above.
 /// @return kpep_config_error_code, 0 for success.
-static int (*kpep_config_kpc_classes)(kpep_config *cfg, u32 *classes_ptr);
+int kpep_config_kpc_classes(kpep_config *cfg, u32 *classes_ptr);
 
 /// Get the index mapping from event to counter.
 /// @param buf A buffer to receive indexes.
 /// @param buf_size The buffer's size in bytes, should not smaller than
 ///                 kpep_config_events_count() * sizeof(kpc_config_t).
 /// @return kpep_config_error_code, 0 for success.
-static int (*kpep_config_kpc_map)(kpep_config *cfg, usize *buf, usize buf_size);
+int kpep_config_kpc_map(kpep_config *cfg, usize *buf, usize buf_size);
 
 /// Open a kpep database file in "/usr/share/kpep/" or "/usr/local/share/kpep/".
 /// @param name File name, for example "haswell", "cpu_100000c_1_92fb37c8".
 ///             Pass NULL for current CPU.
 /// @return kpep_config_error_code, 0 for success.
-static int (*kpep_db_create)(const char *name, kpep_db **db_ptr);
+int kpep_db_create(const char *name, kpep_db **db_ptr);
 
 /// Free the kpep database.
-static void (*kpep_db_free)(kpep_db *db);
+void kpep_db_free(kpep_db *db);
 
 /// Get the database's name.
 /// @return kpep_config_error_code, 0 for success.
-static int (*kpep_db_name)(kpep_db *db, const char **name);
+int kpep_db_name(kpep_db *db, const char **name);
 
 /// Get the event alias count.
 /// @return kpep_config_error_code, 0 for success.
-static int (*kpep_db_aliases_count)(kpep_db *db, usize *count);
+int kpep_db_aliases_count(kpep_db *db, usize *count);
 
 /// Get all alias.
 /// @param buf A buffer to receive all alias strings.
 /// @param buf_size The buffer's size in bytes,
 ///        should not smaller than kpep_db_aliases_count() * sizeof(void *).
 /// @return kpep_config_error_code, 0 for success.
-static int (*kpep_db_aliases)(kpep_db *db, const char **buf, usize buf_size);
+int kpep_db_aliases(kpep_db *db, const char **buf, usize buf_size);
 
 /// Get counters count for given classes.
 /// @param classes 1: Fixed, 2: Configurable.
 /// @return kpep_config_error_code, 0 for success.
-static int (*kpep_db_counters_count)(kpep_db *db, u8 classes, usize *count);
+int kpep_db_counters_count(kpep_db *db, u8 classes, usize *count);
 
 /// Get all event count.
 /// @return kpep_config_error_code, 0 for success.
-static int (*kpep_db_events_count)(kpep_db *db, usize *count);
+int kpep_db_events_count(kpep_db *db, usize *count);
 
 /// Get all events.
 /// @param buf A buffer to receive all event pointers.
 /// @param buf_size The buffer's size in bytes,
 ///        should not smaller than kpep_db_events_count() * sizeof(void *).
 /// @return kpep_config_error_code, 0 for success.
-static int (*kpep_db_events)(kpep_db *db, kpep_event **buf, usize buf_size);
+int kpep_db_events(kpep_db *db, kpep_event **buf, usize buf_size);
 
 /// Get one event by name.
 /// @return kpep_config_error_code, 0 for success.
-static int (*kpep_db_event)(kpep_db *db, const char *name, kpep_event **ev_ptr);
+int kpep_db_event(kpep_db *db, const char *name, kpep_event **ev_ptr);
 
 /// Get event's name.
 /// @return kpep_config_error_code, 0 for success.
-static int (*kpep_event_name)(kpep_event *ev, const char **name_ptr);
+int kpep_event_name(kpep_event *ev, const char **name_ptr);
 
 /// Get event's alias.
 /// @return kpep_config_error_code, 0 for success.
-static int (*kpep_event_alias)(kpep_event *ev, const char **alias_ptr);
+int kpep_event_alias(kpep_event *ev, const char **alias_ptr);
 
 /// Get event's description.
 /// @return kpep_config_error_code, 0 for success.
-static int (*kpep_event_description)(kpep_event *ev, const char **str_ptr);
+int kpep_event_description(kpep_event *ev, const char **str_ptr);
+
+}
