@@ -390,7 +390,12 @@ print()
 # planckian locus
 # https://www.fourmilab.ch/documents/specrend/, "Example and Application: Black
 # Body Radiation" (the formula there has an incorrect `pi` for `c1` though --
-# it cancels out for xyz, but c1 is wrong I think).
+# it cancels out for xyz, but c1 is wrong I think. Looks like it's using
+# https://en.wikipedia.org/wiki/Planck%27s_law#First_and_second_radiation_constants
+# but https://en.wikipedia.org/wiki/CIE_1931_color_space#Emissive_case wants
+# the original `c_1` as far as I understand).
+# https://en.wikipedia.org/wiki/Planckian_locus#International_Temperature_Scale
+# is relevant too, though.
 def black_body_spectral_radiance(wavelength_in_nm, temperature_in_K):
     # https://en.wikipedia.org/wiki/Planck%27s_law#Different_forms, "Wavelength",
     c = 299_792_458     # speed of light, in m/s
