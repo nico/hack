@@ -10,6 +10,9 @@ clang++ macperf.cc -o macperf -std=c++11 -Wall -Wextra -Wconversion \
 // https://gist.github.com/ibireme/173517c208c7dc333ba962c1f0d67d12
 // Currently only adds code to launch the subprocess from this program.
 
+#include <errno.h>
+#include <getopt.h>
+#include <spawn.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -72,9 +75,6 @@ static kpep_event* get_event(kpep_db* db, const event_alias* alias) {
   return NULL;
 }
 
-/// Target process pid, -1 for all thread.
-static int target_pid = -1;
-
 /// Profile time in seconds.
 static double total_profile_time = 0.1;
 
@@ -91,7 +91,50 @@ static double get_timestamp(void) {
 #define PERF_KPC (6)
 #define PERF_KPC_DATA_THREAD (8)
 
+static void print_usage(FILE* stream, const char* program_name) {
+  fprintf(stream, "usage: %s [ options ] [ -- ] [ command ]\n", program_name);
+  fprintf(stream,
+          "\n"
+          "options:\n"
+          "  -h  --help   print this message\n"
+          "  -p  --pid    attach to PID\n");
+}
+
+char **environ;
+
 int main(int argc, char* argv[]) {
+  // Parse options.
+  const char* program_name = argv[0];
+  struct option getopt_options[] = {
+      {"help", no_argument, NULL, 'h'},
+      {"pid", required_argument, NULL, 'p'},
+      {0, 0, 0, 0},
+  };
+  int opt;
+  int pid;
+  bool has_pid = false;
+  while ((opt = getopt_long(argc, argv, "hp:", getopt_options, NULL)) != -1) {
+    switch (opt) {
+      case 'h':
+        print_usage(stdout, program_name);
+        return 0;
+      case 'p':
+        pid = atoi(optarg);
+        has_pid = true;
+        break;
+      case '?':
+        print_usage(stderr, program_name);
+        return 1;
+    }
+  }
+  argv += optind;
+  argc -= optind;
+  if (argc == 0 && !has_pid) {
+    fprintf(stderr, "need either command or -p flag\n");
+    print_usage(stderr, program_name);
+    return 1;
+  }
+
   // check permission
   int force_ctrs = 0;
   if (kpc_force_all_ctrs_get(&force_ctrs)) {
@@ -197,6 +240,20 @@ int main(int argc, char* argv[]) {
   if ((ret = kpc_set_thread_counting(classes))) {
     printf("Failed set thread counting: %d.\n", ret);
     return 1;
+  }
+
+  pid_t target_pid;
+  if (has_pid) {
+    // use -p arg
+    target_pid = pid;
+  } else {
+    // launch subprocess
+    int err = posix_spawnp(&target_pid, *argv, nullptr, nullptr, argv, environ);
+    if (err != 0) {
+      errno = err;
+      perror("posix_spawnp");
+      return 1;
+    }
   }
 
   // action id and timer id
