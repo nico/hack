@@ -292,7 +292,10 @@ int main(int argc, char* argv[]) {
 
     // read trace buffer from kernel
     usize count = 0;
-    kdebug_trace_read(buf_cur, sizeof(kd_buf) * nbufs, &count);
+    if (kdebug_trace_read(buf_cur, sizeof(kd_buf) * nbufs, &count) < 0) {
+      perror("kdebug_trace_read");
+      return 1;
+    }
     for (kd_buf *buf = buf_cur, *end = buf_cur + count; buf < end; buf++) {
       u32 debugid = buf->debugid;
       u32 cls = KDBG_EXTRACT_CLASS(debugid);
