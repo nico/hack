@@ -13,23 +13,23 @@ extern "C" {
 // -----------------------------------------------------------------------------
 
 // Cross-platform class constants.
-#define KPC_CLASS_FIXED         (0)
-#define KPC_CLASS_CONFIGURABLE  (1)
-#define KPC_CLASS_POWER         (2)
-#define KPC_CLASS_RAWPMU        (3)
+#define KPC_CLASS_FIXED (0)
+#define KPC_CLASS_CONFIGURABLE (1)
+#define KPC_CLASS_POWER (2)
+#define KPC_CLASS_RAWPMU (3)
 
 // Cross-platform class mask constants.
-#define KPC_CLASS_FIXED_MASK         (1u << KPC_CLASS_FIXED)        // 1
-#define KPC_CLASS_CONFIGURABLE_MASK  (1u << KPC_CLASS_CONFIGURABLE) // 2
-#define KPC_CLASS_POWER_MASK         (1u << KPC_CLASS_POWER)        // 4
-#define KPC_CLASS_RAWPMU_MASK        (1u << KPC_CLASS_RAWPMU)       // 8
+#define KPC_CLASS_FIXED_MASK (1u << KPC_CLASS_FIXED)                // 1
+#define KPC_CLASS_CONFIGURABLE_MASK (1u << KPC_CLASS_CONFIGURABLE)  // 2
+#define KPC_CLASS_POWER_MASK (1u << KPC_CLASS_POWER)                // 4
+#define KPC_CLASS_RAWPMU_MASK (1u << KPC_CLASS_RAWPMU)              // 8
 
 // PMU version constants.
-#define KPC_PMU_ERROR     (0) // Error
-#define KPC_PMU_INTEL_V3  (1) // Intel
-#define KPC_PMU_ARM_APPLE (2) // ARM64
-#define KPC_PMU_INTEL_V2  (3) // Old Intel
-#define KPC_PMU_ARM_V2    (4) // Old ARM
+#define KPC_PMU_ERROR (0)      // Error
+#define KPC_PMU_INTEL_V3 (1)   // Intel
+#define KPC_PMU_ARM_APPLE (2)  // ARM64
+#define KPC_PMU_INTEL_V2 (3)   // Old Intel
+#define KPC_PMU_ARM_V2 (4)     // Old ARM
 
 // The maximum number of counters we could read from every class in one go.
 // ARMV7: FIXED: 1, CONFIGURABLE: 4
@@ -40,20 +40,20 @@ extern "C" {
 
 // Bits for defining what to do on an action.
 // Defined in https://github.com/apple/darwin-xnu/blob/main/osfmk/kperf/action.h
-#define KPERF_SAMPLER_TH_INFO       (1U << 0)
-#define KPERF_SAMPLER_TH_SNAPSHOT   (1U << 1)
-#define KPERF_SAMPLER_KSTACK        (1U << 2)
-#define KPERF_SAMPLER_USTACK        (1U << 3)
-#define KPERF_SAMPLER_PMC_THREAD    (1U << 4)
-#define KPERF_SAMPLER_PMC_CPU       (1U << 5)
-#define KPERF_SAMPLER_PMC_CONFIG    (1U << 6)
-#define KPERF_SAMPLER_MEMINFO       (1U << 7)
+#define KPERF_SAMPLER_TH_INFO (1U << 0)
+#define KPERF_SAMPLER_TH_SNAPSHOT (1U << 1)
+#define KPERF_SAMPLER_KSTACK (1U << 2)
+#define KPERF_SAMPLER_USTACK (1U << 3)
+#define KPERF_SAMPLER_PMC_THREAD (1U << 4)
+#define KPERF_SAMPLER_PMC_CPU (1U << 5)
+#define KPERF_SAMPLER_PMC_CONFIG (1U << 6)
+#define KPERF_SAMPLER_MEMINFO (1U << 7)
 #define KPERF_SAMPLER_TH_SCHEDULING (1U << 8)
-#define KPERF_SAMPLER_TH_DISPATCH   (1U << 9)
-#define KPERF_SAMPLER_TK_SNAPSHOT   (1U << 10)
-#define KPERF_SAMPLER_SYS_MEM       (1U << 11)
-#define KPERF_SAMPLER_TH_INSCYC     (1U << 12)
-#define KPERF_SAMPLER_TK_INFO       (1U << 13)
+#define KPERF_SAMPLER_TH_DISPATCH (1U << 9)
+#define KPERF_SAMPLER_TK_SNAPSHOT (1U << 10)
+#define KPERF_SAMPLER_SYS_MEM (1U << 11)
+#define KPERF_SAMPLER_TH_INSCYC (1U << 12)
+#define KPERF_SAMPLER_TK_INFO (1U << 13)
 
 // Maximum number of kperf action ids.
 #define KPERF_ACTION_MAX (32)
@@ -71,7 +71,7 @@ typedef u64 kpc_config_t;
 /// @note This method does not requires root privileges.
 /// @details sysctl get(hw.cputype), get(hw.cpusubtype),
 ///                 get(hw.cpufamily), get(machdep.cpu.model)
-int kpc_cpu_string(char *buf, usize buf_size);
+int kpc_cpu_string(char* buf, usize buf_size);
 
 /// Get the version of KPC that's being run.
 /// @return See `PMU version constants` above.
@@ -117,7 +117,7 @@ u32 kpc_get_config_count(u32 classes);
 ///               kpc_get_config_count(classes) * sizeof(kpc_config_t).
 /// @return 0 for success.
 /// @details sysctl get(kpc.config_count), get(kpc.config)
-int kpc_get_config(u32 classes, kpc_config_t *config);
+int kpc_get_config(u32 classes, kpc_config_t* config);
 
 /// Set config registers.
 /// @param classes see `class mask constants` above.
@@ -125,7 +125,7 @@ int kpc_get_config(u32 classes, kpc_config_t *config);
 ///               kpc_get_config_count(classes) * sizeof(kpc_config_t).
 /// @return 0 for success.
 /// @details sysctl get(kpc.config_count), set(kpc.config)
-int kpc_set_config(u32 classes, kpc_config_t *config);
+int kpc_set_config(u32 classes, kpc_config_t* config);
 
 /// Get how many counters there are for a given mask.
 /// For example: Intel may returns 3 for `KPC_CLASS_FIXED_MASK`,
@@ -146,7 +146,7 @@ u32 kpc_get_counter_count(u32 classes);
 /// @param buf Buffer to receive counter's value.
 /// @return 0 for success.
 /// @details sysctl get(hw.ncpu), get(kpc.counter_count), get(kpc.counters)
-int kpc_get_cpu_counters(bool all_cpus, u32 classes, int *curcpu, u64 *buf);
+int kpc_get_cpu_counters(bool all_cpus, u32 classes, int* curcpu, u64* buf);
 
 /// Get counter accumulations for current thread.
 /// @param tid Thread id, should be 0.
@@ -155,7 +155,7 @@ int kpc_get_cpu_counters(bool all_cpus, u32 classes, int *curcpu, u64 *buf);
 /// @param buf Buffer to receive counter's value.
 /// @return 0 for success.
 /// @details sysctl get(kpc.thread_counters)
-int kpc_get_thread_counters(u32 tid, u32 buf_count, u64 *buf);
+int kpc_get_thread_counters(u32 tid, u32 buf_count, u64* buf);
 
 /// Acquire/release the counters used by the Power Manager.
 /// @param val 1:acquire, 0:release
@@ -166,7 +166,7 @@ int kpc_force_all_ctrs_set(int val);
 /// Get the state of all_ctrs.
 /// @return 0 for success.
 /// @details sysctl get(kpc.force_all_ctrs)
-int kpc_force_all_ctrs_get(int *val_out);
+int kpc_force_all_ctrs_get(int* val_out);
 
 /// Set number of actions, should be `KPERF_ACTION_MAX`.
 /// @details sysctl set(kperf.action.count)
@@ -174,15 +174,16 @@ int kperf_action_count_set(u32 count);
 
 /// Get number of actions.
 /// @details sysctl get(kperf.action.count)
-int kperf_action_count_get(u32 *count);
+int kperf_action_count_get(u32* count);
 
-/// Set what to sample when a trigger fires an action, e.g. `KPERF_SAMPLER_PMC_CPU`.
+/// Set what to sample when a trigger fires an action, e.g.
+/// `KPERF_SAMPLER_PMC_CPU`.
 /// @details sysctl set(kperf.action.samplers)
 int kperf_action_samplers_set(u32 actionid, u32 sample);
 
 /// Get what to sample when a trigger fires an action.
 /// @details sysctl get(kperf.action.samplers)
-int kperf_action_samplers_get(u32 actionid, u32 *sample);
+int kperf_action_samplers_get(u32 actionid, u32* sample);
 
 /// Apply a task filter to the action, -1 to disable filter.
 /// @details sysctl set(kperf.action.filter_by_task)
@@ -198,7 +199,7 @@ int kperf_timer_count_set(u32 count);
 
 /// Get number of time triggers.
 /// @details sysctl get(kperf.timer.count)
-int kperf_timer_count_get(u32 *count);
+int kperf_timer_count_get(u32* count);
 
 /// Set timer number and period.
 /// @details sysctl set(kperf.timer.period)
@@ -206,7 +207,7 @@ int kperf_timer_period_set(u32 actionid, u64 tick);
 
 /// Get timer number and period.
 /// @details sysctl get(kperf.timer.period)
-int kperf_timer_period_get(u32 actionid, u64 *tick);
+int kperf_timer_period_get(u32 actionid, u64* tick);
 
 /// Set timer number and actionid.
 /// @details sysctl set(kperf.timer.action)
@@ -214,7 +215,7 @@ int kperf_timer_action_set(u32 actionid, u32 timerid);
 
 /// Get timer number and actionid.
 /// @details sysctl get(kperf.timer.action)
-int kperf_timer_action_get(u32 actionid, u32 *timerid);
+int kperf_timer_action_get(u32 actionid, u32* timerid);
 
 /// Set which timer ID does PET (Profile Every Thread).
 /// @details sysctl set(kperf.timer.pet_timer)
@@ -222,7 +223,7 @@ int kperf_timer_pet_set(u32 timerid);
 
 /// Get which timer ID does PET (Profile Every Thread).
 /// @details sysctl get(kperf.timer.pet_timer)
-int kperf_timer_pet_get(u32 *timerid);
+int kperf_timer_pet_get(u32* timerid);
 
 /// Enable or disable sampling.
 /// @details sysctl set(kperf.sampling)
@@ -230,7 +231,7 @@ int kperf_sample_set(u32 enabled);
 
 /// Get is currently sampling.
 /// @details sysctl get(kperf.sampling)
-int kperf_sample_get(u32 *enabled);
+int kperf_sample_get(u32* enabled);
 
 /// Reset kperf: stop sampling, kdebug, timers and actions.
 /// @return 0 for success.
@@ -244,5 +245,4 @@ u64 kperf_ticks_to_ns(u64 ticks);
 
 /// CPU ticks frequency (mach_absolute_time).
 u64 kperf_tick_frequency(void);
-
 }

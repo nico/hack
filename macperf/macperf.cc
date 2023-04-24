@@ -13,9 +13,9 @@ clang++ macperf.cc -o macperf -std=c++11 -Wall -Wextra -Wconversion \
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
+#include <sys/kdebug.h>  // for kdebug trace decode
 #include <sys/sysctl.h>
-#include <sys/kdebug.h>     // for kdebug trace decode
+#include <sys/types.h>
 #include <unistd.h>
 #include "kdebug_utils.h"
 #include "kperf.h"
@@ -23,7 +23,7 @@ clang++ macperf.cc -o macperf -std=c++11 -Wall -Wextra -Wconversion \
 
 /// Set lightweight PET mode (not in kperf.framework).
 static int kperf_lightweight_pet_set(u32 enabled) {
-    return sysctlbyname("kperf.lightweight_pet", NULL, NULL, &enabled, 4);
+  return sysctlbyname("kperf.lightweight_pet", NULL, NULL, &enabled, 4);
 }
 
 constexpr int EVENT_NAME_MAX = 8;
