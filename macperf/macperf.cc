@@ -376,7 +376,7 @@ int main(int argc, char* argv[]) {
     err = waitpid(child_pid, &status, WNOHANG);
     if (err < 0) {
       perror("waitpid");
-      return 1;
+      break;
     }
     if (err == 0) {
       // still running
@@ -395,8 +395,8 @@ int main(int argc, char* argv[]) {
     } else if (WIFSTOPPED(status)) {
       // Should only happen with WUNTRACED, which we don't pass to waitpid.
       fprintf(stderr, "unexpected WIFSTOPPED\n");
-      return 1;
     }
+    break;
   }
 
   // stop tracing
