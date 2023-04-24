@@ -75,7 +75,7 @@ static kpep_event* get_event(kpep_db* db, const event_alias* alias) {
   return NULL;
 }
 
-/// Profile sampler period in seconds (default 10ms).
+// Profile sampler period in seconds (default 1ms).
 static double sample_period = 0.001;
 
 static double get_timestamp(void) {
