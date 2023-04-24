@@ -75,9 +75,6 @@ static kpep_event* get_event(kpep_db* db, const event_alias* alias) {
   return NULL;
 }
 
-/// Profile time in seconds.
-static double total_profile_time = 0.1;
-
 /// Profile sampler period in seconds (default 10ms).
 static double sample_period = 0.001;
 
@@ -92,7 +89,7 @@ static double get_timestamp(void) {
 #define PERF_KPC_DATA_THREAD (8)
 
 static void print_usage(FILE* stream, const char* program_name) {
-  fprintf(stream, "usage: %s [ options ] [ -- ] [ command ]\n", program_name);
+  fprintf(stream, "usage: %s [ options ] [ -- ] command\n", program_name);
   fprintf(stream,
           "\n"
           "options:\n"
@@ -129,7 +126,7 @@ int main(int argc, char* argv[]) {
   }
   argv += optind;
   argc -= optind;
-  if (argc == 0 && !has_pid) {
+  if (argc == 0) {
     fprintf(stderr, "need either command or -p flag\n");
     print_usage(stderr, program_name);
     return 1;
@@ -242,18 +239,22 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
+  // launch subprocess
+  pid_t child_pid;
+  int err = posix_spawnp(&child_pid, *argv, nullptr, nullptr, argv, environ);
+  if (err != 0) {
+    errno = err;
+    perror("posix_spawnp");
+    return 1;
+  }
+
   pid_t target_pid;
   if (has_pid) {
     // use -p arg
     target_pid = pid;
   } else {
-    // launch subprocess
-    int err = posix_spawnp(&target_pid, *argv, nullptr, nullptr, argv, environ);
-    if (err != 0) {
-      errno = err;
-      perror("posix_spawnp");
-      return 1;
-    }
+    // use subprocess pid
+    target_pid = child_pid;
   }
 
   // action id and timer id
@@ -370,10 +371,32 @@ int main(int argc, char* argv[]) {
       buf_cur++;
     }
 
-    // stop when time is up
-    double now = get_timestamp();
-    if (now - begin > total_profile_time + sample_period)
-      break;
+    // stop when subprocess is done
+    int status;
+    err = waitpid(child_pid, &status, WNOHANG);
+    if (err < 0) {
+      perror("waitpid");
+      return 1;
+    }
+    if (err == 0) {
+      // still running
+      continue;
+    }
+
+    if (err != child_pid) {
+      fprintf(stderr, "unexpected waitpid() result\n");
+      return 1;
+    }
+
+    if (WIFEXITED(status)) {
+      printf("exit status %d\n", WEXITSTATUS(status));
+    } else if (WIFSIGNALED(status)) {
+      printf("interrupted by signal %d\n", WTERMSIG(status));
+    } else if (WIFSTOPPED(status)) {
+      // Should only happen with WUNTRACED, which we don't pass to waitpid.
+      fprintf(stderr, "unexpected WIFSTOPPED\n");
+      return 1;
+    }
   }
 
   // stop tracing
