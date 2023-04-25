@@ -50,11 +50,19 @@ Other similar things
 
 1. PGO
 2. [CSPGO](https://reviews.llvm.org/D54175) (2018)
-3. Propeller (2019)
+3. [CSSPGO](https://reviews.llvm.org/D90125) (2020) (review links to RFC)
+4. Propeller (2019)
    [1](https://github.com/google/llvm-propeller/blob/424c3b885e60d8ff9446b16df39d84fbf6596aec/Propeller_RFC.pdf)
    [2](https://lists.llvm.org/pipermail/llvm-dev/2019-September/135393.html)
    [3](https://github.com/google/llvm-propeller/blob/main/ArtifactEvaluation/Scripts/optimize_clang.sh)
 
+CSPGO is context-sensitive PGO, which does a second profile-generaation and
+PGO-link step after the first, to get profiles of code after inlining done
+during the first PGO pass.
+
+CSSPGO is context-sensitive sampling PGO, that is CSPGO using sampling to
+collect data for the second pass instead of instrumentation, like in vanilla
+CSPGO. Currently, the only sampling input seems to be perf.data information.
 
 Interesting thread (more about Propeller):
 <https://lists.llvm.org/pipermail/llvm-dev/2019-October/135616.html>
