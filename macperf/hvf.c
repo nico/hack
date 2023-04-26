@@ -75,6 +75,28 @@ int main() {
   err = hv_vcpu_run(vcpu);
   printf("run %x\n", err);
 
+  if (exit) {
+    printf("reason: %x ", exit->reason);
+    switch (exit->reason) {
+    case HV_EXIT_REASON_CANCELED:
+      printf("(HV_EXIT_REASON_CANCELED)");
+      break;
+    case HV_EXIT_REASON_EXCEPTION:
+      printf("(HV_EXIT_REASON_EXCEPTION)");
+      break;
+    case HV_EXIT_REASON_VTIMER_ACTIVATED:
+      printf("(HV_EXIT_REASON_VTIMER_ACTIVATED)");
+      break;
+    case HV_EXIT_REASON_UNKNOWN:
+      printf("(HV_EXIT_REASON_UNKNOWN)");
+      break;
+    default:
+      printf("(unknown value)");
+      break;
+    }
+    printf("\n");
+  }
+
   uint64_t result_out = *((uint64_t*)(vm_ram + kMemResultOutOffset));
   printf("The result of (2 + 2) - 1 is %d\n", (int)result_out);
 }
