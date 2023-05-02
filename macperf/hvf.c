@@ -26,6 +26,8 @@ const char kVMCode[] = {
     // (Just having nothing works too, then I guess the exception is from
     // the vCPU executing null bytes, which is an invalid instruction?)
 
+    //0x03, 0x00, 0x00, 0xD4, // smc #0
+
     //0x00, 0x00, 0x40, 0xd4, // hlt #0
 
     //0x01, 0x00, 0x00, 0xd4, // svc #0
