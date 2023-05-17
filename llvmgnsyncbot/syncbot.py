@@ -225,7 +225,11 @@ def main():
     os.environ.pop("SDKROOT", None)
 
     # XXX: loop
-    run(args.last_exit)
+    try:
+        run(args.last_exit)
+    except subprocess.CalledProcessError as e:
+        step_output(e)
+        return 1
 
 
 if __name__ == '__main__':
