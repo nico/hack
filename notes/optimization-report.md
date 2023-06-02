@@ -17,6 +17,7 @@ Summary:
     If passing an absolute path to the source file to clang in step 2 (*cough*
     cmake), pass `-s ../..` (or similar) to opt-viewer.py.
 4. `open html/index.html`
+5. Click on one of the filenames in the first column to get annotated source.
 
 <https://johnnysswlab.com/loop-optimizations-interpreting-the-compiler-optimization-report/>
 has lots of details.
