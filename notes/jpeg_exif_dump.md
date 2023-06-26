@@ -67,6 +67,10 @@ that part.  As a very short summary, there are a few markers to:
 [3]: https://parametric.press/issue-01/unraveling-the-jpeg/
 [4]: https://yasoob.me/posts/understanding-and-writing-jpeg-decoder-in-python/
  
+[This](https://github.com/corkami/formats/blob/master/image/jpeg.md) is an
+excellent, concise summary of just the file format. It doesn't describe
+how to decode the image data.
+
 Metadata, and thumbnails
 ------------------------
 
