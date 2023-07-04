@@ -12,7 +12,7 @@ Spec notes
 ----------
 
 Spec:
-http://www.adobe.com/content/dam/Adobe/en/devnet/acrobat/pdfs/pdf_reference_1-7.pdf
+https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/PDF32000_2008.pdf
 
 page 50:
 whitespace: \0, \t, \n\, \f (form feed), \r, ' '
