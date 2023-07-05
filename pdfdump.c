@@ -19,6 +19,12 @@ or
 https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/PDF32000_2008.pdf
 
 (Or jump through hoops at https://pdfa.org/resource/pdf-specification-index/)
+
+Normally you'd read a PDF using the lookup structures at the end of the file
+(trailer and xref), and read only the objects needed for rendering the currently
+visible page.
+This here is for dumping all the data in a PDF, so it starts at the start and
+reads all the data. Normally you wouldn't do that.
 */
 
 static noreturn void fatal(const char* msg, ...) {
