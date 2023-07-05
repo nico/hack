@@ -190,7 +190,8 @@ static bool is_keyword(const struct Span* data, const char* keyword) {
   if (strncmp((char*)data->data, keyword, n))
     return false;
 
-  return data->size == n || is_whitespace(data->data[n]);
+  return data->size == n || is_whitespace(data->data[n]) ||
+         is_delimiter(data->data[n]);
 }
 
 static enum TokenKind classify_current(struct Span* data) {
@@ -343,6 +344,7 @@ static void advance_to_end_of_token(struct Span* data, struct Token* token) {
 
             // "If the character following the backslash is not one of those
             //  shown in the table, the backslash is ignored."
+            continue;
           }
 
           if (data->data[0] == ')')
@@ -501,7 +503,8 @@ static void dump_body(struct Span* data) {
     //        use `Length` from the info dict?
     if (token.kind == kw_stream) {
       // 3.2.7 Stream Objects
-      const uint8_t* e = (const uint8_t*)strstr((char*)data->data, "endstream");
+      const uint8_t* e = memmem(data->data, data->size,
+                                "endstream", strlen("endstream"));
       if (!e)
         fatal("missing `endstream`\n");
       span_advance(data, e - data->data);
