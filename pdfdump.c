@@ -84,6 +84,38 @@ static void span_advance(struct Span* span, size_t s) {
   span->size -= s;
 }
 
+struct SpanReader {
+  struct Span span;
+  size_t pos;
+};
+
+static size_t reader_size(const struct SpanReader* reader) {
+  return reader->span.size - reader->pos;
+}
+
+static bool reader_empty(const struct SpanReader* reader) {
+  return reader_size(reader) == 0;
+}
+
+static uint8_t* reader_data(const struct SpanReader* reader) {
+  assert(reader->pos + offset < reader->span.size);
+  return reader->span.data + reader->pos;
+}
+
+static uint8_t reader_get(const struct SpanReader* reader, size_t offset) {
+  assert(reader->pos + offset < reader->span.size);
+  return reader->span.data[reader->pos + offset];
+}
+
+static uint8_t reader_cur(const struct SpanReader* reader) {
+  return reader_get(reader, 0);
+}
+
+static void reader_advance(struct SpanReader* reader, size_t s) {
+  assert(s <= reader_size(reader));
+  reader->pos += s;
+}
+
 static bool is_whitespace(uint8_t c) {
   // 3.1.1 Character Set
   // TABLE 3.1 White-space characters
@@ -180,77 +212,77 @@ enum ObjectKind {
   IndirectObject,  // 4 0 Obj
 };
 
-static void consume_newline(struct Span* data) {
-  if (data->size == 0)
+static void consume_newline(struct SpanReader* reader) {
+  if (reader_empty(reader))
     fatal("not enough data for newline\n");
 
-  if (data->data[0] == '\n') {
-    span_advance(data, 1);
+  if (reader_cur(reader) == '\n') {
+    reader_advance(reader, 1);
     return;
   }
 
-  if (data->data[0] != '\r')
+  if (reader_cur(reader) != '\r')
     fatal("not a newline\n");
 
-  if (data->size >= 1 && data->data[1] == '\n')
-    span_advance(data, 1);
-  span_advance(data, 1);
+  if (reader_size(reader) > 1 && reader_get(reader, 1) == '\n')
+    reader_advance(reader, 1);
+  reader_advance(reader, 1);
 }
 
-static void dump_header(struct Span* data) {
-  if (data->size < strlen("%PDF-a.b\n"))
+static void dump_header(struct SpanReader* reader) {
+  if (reader_size(reader) < strlen("%PDF-a.b\n"))
     fatal("not enough data for header\n");
 
-  if (strncmp("%PDF-", (char*)data->data, strlen("%PDF-")))
+  if (strncmp("%PDF-", (char*)reader_data(reader), strlen("%PDF-")))
     fatal("wrong file start: no %%PDF-\n");
 
-  if (data->data[strlen("%PDF-a")] != '.')
+  if (reader_get(reader, strlen("%PDF-a")) != '.')
     fatal("wrong file start: no dot?\n");
 
-  uint8_t v0 = data->data[strlen("%PDF-")] - '0';
-  uint8_t v1 = data->data[strlen("%PDF-a.")] - '0';
+  uint8_t v0 = reader_get(reader, strlen("%PDF-")) - '0';
+  uint8_t v1 = reader_get(reader, strlen("%PDF-a.")) - '0';
 
-  span_advance(data, strlen("%PDF-a.b"));
-  consume_newline(data);
+  reader_advance(reader, strlen("%PDF-a.b"));
+  consume_newline(reader);
 
   printf("v %d.%d\n", v0, v1);
 }
 
-static void advance_to_next_token(struct Span* data) {
-  while (data->size && is_whitespace(data->data[0]))
-    span_advance(data, 1);
+static void advance_to_next_token(struct SpanReader* reader) {
+  while (!reader_empty(reader) && is_whitespace(reader_cur(reader)))
+    reader_advance(reader, 1);
 }
 
-static bool is_keyword(const struct Span* data, const char* keyword) {
+static bool is_keyword(const struct SpanReader* reader, const char* keyword) {
   size_t n = strlen(keyword);
-  if (data->size < n)
+  if (reader_size(reader) < n)
     return false;
 
-  if (strncmp((char*)data->data, keyword, n))
+  if (strncmp((char*)reader_data(reader), keyword, n))
     return false;
 
-  return data->size == n || is_whitespace(data->data[n]) ||
-         is_delimiter(data->data[n]);
+  return reader_size(reader) == n || is_whitespace(reader_get(reader, n)) ||
+         is_delimiter(reader_get(reader, n));
 }
 
-static enum TokenKind classify_current(struct Span* data) {
-  if (data->size == 0)
+static enum TokenKind classify_current(struct SpanReader* reader) {
+  if (reader_empty(reader))
     return tok_eof;
 
-  uint8_t c = data->data[0];
+  uint8_t c = reader_cur(reader);
   assert(!is_whitespace(c));
 
   if (is_number_start(c))
     return tok_number;
 
   if (c == '<') {
-    if (data->size > 1 && data->data[1] == '<')
+    if (reader_size(reader) > 1 && reader_get(reader, 1) == '<')
       return tok_dict;
     return tok_string;
   }
 
   if (c == '>') {
-    if (data->size > 1 && data->data[1] == '>')
+    if (reader_size(reader) > 1 && reader_get(reader, 1) == '>')
       return tok_enddict;
   }
 
@@ -268,67 +300,68 @@ static enum TokenKind classify_current(struct Span* data) {
   if (c == '%')
     return tok_comment;
 
-  if (is_keyword(data, "obj"))
+  if (is_keyword(reader, "obj"))
     return kw_obj;
-  if (is_keyword(data, "endobj"))
+  if (is_keyword(reader, "endobj"))
     return kw_endobj;
-  if (is_keyword(data, "stream"))
+  if (is_keyword(reader, "stream"))
     return kw_stream;
-  if (is_keyword(data, "endstream"))
+  if (is_keyword(reader, "endstream"))
     return kw_endstream;
-  if (is_keyword(data, "R"))
+  if (is_keyword(reader, "R"))
     return kw_R;
-  if (is_keyword(data, "f"))
+  if (is_keyword(reader, "f"))
     return kw_f;
-  if (is_keyword(data, "n"))
+  if (is_keyword(reader, "n"))
     return kw_n;
-  if (is_keyword(data, "xref"))
+  if (is_keyword(reader, "xref"))
     return kw_xref;
-  if (is_keyword(data, "trailer"))
+  if (is_keyword(reader, "trailer"))
     return kw_trailer;
-  if (is_keyword(data, "startxref"))
+  if (is_keyword(reader, "startxref"))
     return kw_startxref;
-  if (is_keyword(data, "true"))
+  if (is_keyword(reader, "true"))
     return kw_true;
-  if (is_keyword(data, "false"))
+  if (is_keyword(reader, "false"))
     return kw_false;
-  if (is_keyword(data, "null"))
+  if (is_keyword(reader, "null"))
     return kw_null;
 
   fatal("unknown token type %d (%c)\n", c, c);
 }
 
-static void advance_to_end_of_token(struct Span* data, struct Token* token) {
+static void advance_to_end_of_token(struct SpanReader* reader,
+                                    struct Token* token) {
   switch (token->kind) {
     case kw_obj:
-      span_advance(data, strlen("obj"));
+      reader_advance(reader, strlen("obj"));
       break;
     case kw_endobj:
-      span_advance(data, strlen("endobj"));
+      reader_advance(reader, strlen("endobj"));
       break;
     case kw_stream:
-      span_advance(data, strlen("stream"));
+      reader_advance(reader, strlen("stream"));
       break;
     case kw_endstream:
-      span_advance(data, strlen("endstream"));
+      reader_advance(reader, strlen("endstream"));
       break;
     case kw_xref:
-      span_advance(data, strlen("xref"));
+      reader_advance(reader, strlen("xref"));
       break;
     case kw_trailer:
-      span_advance(data, strlen("trailer"));
+      reader_advance(reader, strlen("trailer"));
       break;
     case kw_startxref:
-      span_advance(data, strlen("startxref"));
+      reader_advance(reader, strlen("startxref"));
       break;
     case kw_true:
-      span_advance(data, strlen("true"));
+      reader_advance(reader, strlen("true"));
       break;
     case kw_false:
-      span_advance(data, strlen("false"));
+      reader_advance(reader, strlen("false"));
       break;
     case kw_null:
-      span_advance(data, strlen("null"));
+      reader_advance(reader, strlen("null"));
       break;
 
     case tok_eof:
@@ -339,36 +372,36 @@ static void advance_to_end_of_token(struct Span* data, struct Token* token) {
     case kw_n:
     case tok_array:
     case tok_endarray:
-      span_advance(data, 1);
+      reader_advance(reader, 1);
       break;
 
     case tok_name:
-      span_advance(data, 1); // Skip '/'.
-      while (data->size && is_name_continuation(data->data[0]))
-        span_advance(data, 1);
+      reader_advance(reader, 1); // Skip '/'.
+      while (!reader_empty(reader) && is_name_continuation(reader_cur(reader)))
+        reader_advance(reader, 1);
       break;
 
     case tok_string:
-      if (data->data[0] == '(') {
+      if (reader_cur(reader) == '(') {
         // 3.2.3 String Objects, Literal Strings
-        span_advance(data, 1); // Skip '('.
+        reader_advance(reader, 1); // Skip '('.
 
-        while (data->size) {
-          if (data->data[0] == '\\') {
-            span_advance(data, 1);
-            if (!data->size)
+        while (!reader_empty(reader)) {
+          if (reader_cur(reader) == '\\') {
+            reader_advance(reader, 1);
+            if (reader_empty(reader))
               break;
 
-            if (is_octal_digit(data->data[0])) {
-              if (data->size < 3)
+            if (is_octal_digit(reader_cur(reader))) {
+              if (reader_size(reader) < 3)
                 fatal("incomplete octal escape\n");
-              if (!is_octal_digit(data->data[1]) ||
-                  !is_octal_digit(data->data[2]))
+              if (!is_octal_digit(reader_get(reader, 1)) ||
+                  !is_octal_digit(reader_get(reader, 2)))
                 fatal("invalid octal escape\n");
-              span_advance(data, 3);
+              reader_advance(reader, 3);
             } else {
               // Table 3.2 Escape sequences in literal strings
-              switch(data->data[0]) {
+              switch(reader_cur(reader)) {
               case 'n':
               case 'r':
               case 't':
@@ -377,7 +410,7 @@ static void advance_to_end_of_token(struct Span* data, struct Token* token) {
               case '(':
               case ')':
               case '\\':
-                span_advance(data, 1);
+                reader_advance(reader, 1);
               }
             }
 
@@ -386,59 +419,60 @@ static void advance_to_end_of_token(struct Span* data, struct Token* token) {
             continue;
           }
 
-          if (data->data[0] == ')')
+          if (reader_cur(reader) == ')')
             break;
 
-          span_advance(data, 1);
+          reader_advance(reader, 1);
         }
 
-        if (!data->size)
+        if (reader_empty(reader))
           fatal("unterminated () string\n");
-        span_advance(data, 1); // Skip ')'.
+        reader_advance(reader, 1); // Skip ')'.
       } else {
         // 3.2.3 String Objects, Hexadecimal Strings
-        assert(data->data[0] == '<');
-        span_advance(data, 1); // Skip '<'.
-        while (data->size && data->data[0] != '>')
-          span_advance(data, 1);
-        if (!data->size)
+        assert(reader_cur(reader) == '<');
+        reader_advance(reader, 1); // Skip '<'.
+        while (!reader_empty(reader) && reader_cur(reader) != '>')
+          reader_advance(reader, 1);
+        if (reader_empty(reader))
           fatal("unterminated <> string\n");
-        span_advance(data, 1); // Skip '>'.
+        reader_advance(reader, 1); // Skip '>'.
       }
       break;
 
     case tok_dict:
     case tok_enddict:
-      span_advance(data, 2);
+      reader_advance(reader, 2);
       break;
 
     case tok_comment:
-      span_advance(data, 1); // Skip '%'.
-      while (data->size && !is_newline(data->data[0]))
-        span_advance(data, 1);
-      if (data->size)
-        consume_newline(data);
+      reader_advance(reader, 1); // Skip '%'.
+      while (!reader_empty(reader) && !is_newline(reader_cur(reader)))
+        reader_advance(reader, 1);
+      if (!reader_empty(reader))
+        consume_newline(reader);
       break;
 
     case tok_number:
       // Accepts `4.`, `-.02`, `0.0`, `1234`.
-      span_advance(data, 1); // Skip number start.
+      reader_advance(reader, 1); // Skip number start.
       // FIXME: Accepts multiple periods too. Can that ever happen in valid
       //        PDF files?
-      while (data->size && is_number_continuation(data->data[0]))
-        span_advance(data, 1);
+      while (!reader_empty(reader) &&
+             is_number_continuation(reader_cur(reader)))
+        reader_advance(reader, 1);
       break;
   }
 }
 
-static void read_token(struct Span* data, struct Token* token) {
-  advance_to_next_token(data);
-  token->payload.data = data->data;
+static void read_token(struct SpanReader* reader, struct Token* token) {
+  advance_to_next_token(reader);
+  token->payload.data = reader_data(reader);
 
-  token->kind = classify_current(data);
+  token->kind = classify_current(reader);
 
-  advance_to_end_of_token(data, token);
-  token->payload.size = data->data - token->payload.data;
+  advance_to_end_of_token(reader, token);
+  token->payload.size = reader_data(reader) - token->payload.data;
 }
 
 static void dump_token(const struct Token* token) {
@@ -521,12 +555,12 @@ static void dump_token(const struct Token* token) {
   }
 }
 
-static void dump_body(struct Span* data) {
+static void dump_body(struct SpanReader* reader) {
   while (true) {
     struct Token token;
-    read_token(data, &token);
+    read_token(reader, &token);
 
-    dump_token(&token);
+    //dump_token(&token);
 
     if (token.kind == tok_eof)
       break;
@@ -542,19 +576,20 @@ static void dump_body(struct Span* data) {
     //        use `Length` from the info dict?
     if (token.kind == kw_stream) {
       // 3.2.7 Stream Objects
-      const uint8_t* e = memmem(data->data, data->size,
+      const uint8_t* e = memmem(reader_data(reader), reader_size(reader),
                                 "endstream", strlen("endstream"));
       if (!e)
         fatal("missing `endstream`\n");
-      span_advance(data, e - data->data);
+      reader_advance(reader, e - reader_data(reader));
     }
   }
 }
 
 static void dump(struct Span data) {
   // 3.4 File Structure
-  dump_header(&data);
-  dump_body(&data);
+  struct SpanReader reader = { data, 0 };
+  dump_header(&reader);
+  dump_body(&reader);
 }
 
 int main(int argc, char* argv[]) {
