@@ -31,7 +31,7 @@ ideas:
   - (re)compress streams
   - remove spaces between names
   - convert to object streams
-  - remove remnants of incremental edits (multiple %EOF, etc)
+  - remove remnants of incremental edits (multiple %%EOF, etc)
   - gc unused indirect objects
     - gc old unref'd generetations of indirect objects
   - gc unused direct objects (harder)
