@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <getopt.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -68,10 +69,17 @@ static noreturn void fatal(const char* msg, ...) {
   exit(1);
 }
 
-struct Range {
-  uint8_t* begin;
-  uint8_t* end;
-};
+static void print_usage(FILE* stream, const char* program_name) {
+  fprintf(stream, "usage: %s [ options ] filename\n", program_name);
+  fprintf(stream,
+          "\n"
+          "options:\n"
+          "  --dump-tokens  Dump output of tokenizer\n"
+          "  -h  --help   print this message\n");
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Lexer
 
 struct Span {
   uint8_t* data;
@@ -195,25 +203,6 @@ static void consume_newline(struct Span* data) {
   if (data->size >= 1 && data->data[1] == '\n')
     span_advance(data, 1);
   span_advance(data, 1);
-}
-
-static void dump_header(struct Span* data) {
-  if (data->size < strlen("%PDF-a.b\n"))
-    fatal("not enough data for header\n");
-
-  if (strncmp("%PDF-", (char*)data->data, strlen("%PDF-")))
-    fatal("wrong file start: no %%PDF-\n");
-
-  if (data->data[strlen("%PDF-a")] != '.')
-    fatal("wrong file start: no dot?\n");
-
-  uint8_t v0 = data->data[strlen("%PDF-")] - '0';
-  uint8_t v1 = data->data[strlen("%PDF-a.")] - '0';
-
-  span_advance(data, strlen("%PDF-a.b"));
-  consume_newline(data);
-
-  printf("v %d.%d\n", v0, v1);
 }
 
 static void advance_to_next_token(struct Span* data) {
@@ -521,11 +510,10 @@ static void dump_token(const struct Token* token) {
   }
 }
 
-static void dump_body(struct Span* data) {
+static void dump_tokens(struct Span* data) {
   while (true) {
     struct Token token;
     read_token(data, &token);
-
     dump_token(&token);
 
     if (token.kind == tok_eof)
@@ -551,17 +539,75 @@ static void dump_body(struct Span* data) {
   }
 }
 
-static void dump(struct Span data) {
+struct PDFVersion {
+  uint8_t major;
+  uint8_t minor;
+};
+
+struct PDF {
+  struct PDFVersion version;
+};
+
+static void parse_header(struct Span* data, struct PDFVersion* version) {
+  if (data->size < strlen("%PDF-a.b\n"))
+    fatal("not enough data for header\n");
+
+  if (strncmp("%PDF-", (char*)data->data, strlen("%PDF-")))
+    fatal("wrong file start: no %%PDF-\n");
+
+  if (data->data[strlen("%PDF-a")] != '.')
+    fatal("wrong file start: no dot?\n");
+
+  uint8_t v0 = data->data[strlen("%PDF-")] - '0';
+  uint8_t v1 = data->data[strlen("%PDF-a.")] - '0';
+
+  span_advance(data, strlen("%PDF-a.b"));
+  consume_newline(data);
+
+  version->major = v0;
+  version->minor = v1;
+}
+
+static void parse(struct Span data) {
+  struct PDF pdf;
+
   // 3.4 File Structure
-  dump_header(&data);
-  dump_body(&data);
+  parse_header(&data, &pdf.version);
+
+  printf("v %d.%d\n", pdf.version.major, pdf.version.minor);
 }
 
 int main(int argc, char* argv[]) {
-  if (argc != 2)
-    fatal("expected 1 arg, got %d\n", argc - 1);
+  const char* program_name = argv[0];
 
-  const char* in_name = argv[1];
+  // Parse options.
+  bool opt_dump_tokens = false;
+#define kDumpTokens 512
+  struct option getopt_options[] = {
+      {"dump-tokens", no_argument, NULL, kDumpTokens},
+      {0, 0, 0, 0},
+  };
+  int opt;
+  while ((opt = getopt_long(argc, argv, "", getopt_options, NULL)) != -1) {
+    switch (opt) {
+      case '?':
+        print_usage(stderr, program_name);
+        return 1;
+      case kDumpTokens:
+        opt_dump_tokens = true;
+        break;
+    }
+  }
+  argv += optind;
+  argc -= optind;
+  if (argc != 1) {
+    fprintf(stderr, "expected 1 arg, got %d\n", argc);
+    print_usage(stderr, program_name);
+
+    return 1;
+  }
+
+  const char* in_name = argv[0];
 
   // Read input.
   int in_file = open(in_name, O_RDONLY);
@@ -579,7 +625,10 @@ int main(int argc, char* argv[]) {
   if (contents == MAP_FAILED)
     fatal("Failed to mmap: %d (%s)\n", errno, strerror(errno));
 
-  dump((struct Span){ contents, in_stat.st_size });
+  if (opt_dump_tokens)
+    dump_tokens(&(struct Span){ contents, in_stat.st_size });
+  else
+    parse((struct Span){ contents, in_stat.st_size });
 
   munmap(contents, in_stat.st_size);
   close(in_file);
