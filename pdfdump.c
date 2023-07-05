@@ -87,7 +87,7 @@ static void span_advance(struct Span* span, size_t s) {
 static bool is_whitespace(uint8_t c) {
   // 3.1.1 Character Set
   // TABLE 3.1 White-space characters
-  return c == 0 || c == '\t' || c == '\n' || c == 10 || c == '\r' || c == ' ';
+  return c == 0 || c == '\t' || c == '\n' || c == '\f' || c == '\r' || c == ' ';
 }
 
 static bool is_newline(uint8_t c) {
