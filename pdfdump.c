@@ -25,6 +25,39 @@ Normally you'd read a PDF using the lookup structures at the end of the file
 visible page.
 This here is for dumping all the data in a PDF, so it starts at the start and
 reads all the data. Normally you wouldn't do that.
+
+ideas:
+- crunch
+  - (re)compress streams
+  - remove spaces between names
+  - convert to object streams
+  - remove remnants of incremental edits (multiple %EOF, etc)
+  - gc unused indirect objects
+    - gc old unref'd generetations of indirect objects
+  - gc unused direct objects (harder)
+  - gc objects that have no visual/selection/a11y effect (even harder)
+  - dedup multiple objects with identical contents (?)
+
+- spy
+  - show only hidden / unref'd contents
+
+- compile
+  - (re)compress streams
+  - fill in binary comment at start
+  - fill in stream lengths
+  - fill in xref table / startxref offset
+
+- linearize / delinearize
+
+- tool
+  - pretty print (consistent newlines, indent dict contents, etc)
+  - validate input
+    - stream /Lengths consistent with contents / offset
+    - stream /Lengths consistent with contents / offset
+  - extract images
+  - extract text (by file order and by paint order on page; and from selection
+    data)
+  - fill in form data
 */
 
 static noreturn void fatal(const char* msg, ...) {
