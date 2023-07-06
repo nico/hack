@@ -81,6 +81,7 @@ static void print_usage(FILE* stream, const char* program_name) {
           "\n"
           "options:\n"
           "  --dump-tokens  Dump output of tokenizer\n"
+          "  --no-indent    Disable auto-indentation of pretty-printer\n"
           "  -h  --help   print this message\n");
 }
 
@@ -1262,6 +1263,8 @@ static struct Object parse_object(struct PDF* pdf, struct Span* data,
 // Pretty-printer
 
 struct OutputOptions {
+  bool indent_output;
+
   unsigned current_indent;
   bool is_on_new_line;
 };
@@ -1288,7 +1291,8 @@ static void print_indent(const struct OutputOptions* options) {
 PRINTF(2, 3)
 static void iprintf(struct OutputOptions* options, const char* msg, ...) {
   if (options->is_on_new_line) {
-    print_indent(options);
+    if (options->indent_output)
+      print_indent(options);
     options->is_on_new_line = false;
   }
 
@@ -1417,13 +1421,14 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
   }
 }
 
-static void parse(struct Span data) {
+static void pretty_print(struct Span data, bool indent_output) {
   struct PDF pdf;
   init_pdf(&pdf);
 
   struct OutputOptions options;
   options.current_indent = 0;
   options.is_on_new_line = true;
+  options.indent_output = indent_output;
 
   // 3.4 File Structure
   // 1. Header
@@ -1480,9 +1485,12 @@ int main(int argc, char* argv[]) {
 
   // Parse options.
   bool opt_dump_tokens = false;
+  bool indent_output = true;
 #define kDumpTokens 512
+#define kNoIndent 513
   struct option getopt_options[] = {
       {"dump-tokens", no_argument, NULL, kDumpTokens},
+      {"no-indent", no_argument, NULL, kNoIndent},
       {0, 0, 0, 0},
   };
   int opt;
@@ -1493,6 +1501,9 @@ int main(int argc, char* argv[]) {
         return 1;
       case kDumpTokens:
         opt_dump_tokens = true;
+        break;
+      case kNoIndent:
+        indent_output = false;
         break;
     }
   }
@@ -1525,7 +1536,7 @@ int main(int argc, char* argv[]) {
   if (opt_dump_tokens)
     dump_tokens(&(struct Span){ contents, in_stat.st_size });
   else
-    parse((struct Span){ contents, in_stat.st_size });
+    pretty_print((struct Span){ contents, in_stat.st_size }, indent_output);
 
   munmap(contents, in_stat.st_size);
   close(in_file);
