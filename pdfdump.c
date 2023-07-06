@@ -1081,13 +1081,29 @@ static struct XRefObject parse_xref(struct PDF* pdf, struct Span* data) {
 
   for (int i = 0; i < count; ++i) {
     struct XRefEntry entry;
-    char flag;
 
-    sscanf((char*)data->data, "%010zu %05zu %c\r\n",
-           &entry.offset, &entry.generation, &flag);
+    char* end;
+    entry.offset = strtol((char*)data->data, &end, 10);
+    if (end != (char*)data->data + 10)
+      fatal("failed to parse xref offset\n");
+
+    if (data->data[10] != ' ')
+      fatal("xref missing first space\n");
+
+    entry.generation = strtol((char*)data->data + 11, &end, 10);
+    if (end != (char*)data->data + 16)
+      fatal("failed to parse xref generation\n");
+
+    if (data->data[16] != ' ')
+      fatal("xref missing second space\n");
+
+    char flag = data->data[17];
     if (flag != 'f' && flag != 'n')
       fatal("unexpected xref flag\n");
     entry.is_free = flag == 'f';
+
+    if (!is_newline(data->data[18]) || !is_newline(data->data[19]))
+      fatal("xref bad newline\n");
 
     span_advance(data, 20);
     entries[i] = entry;
