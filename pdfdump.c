@@ -1102,7 +1102,12 @@ static struct XRefObject parse_xref(struct PDF* pdf, struct Span* data) {
       fatal("unexpected xref flag\n");
     entry.is_free = flag == 'f';
 
-    if (!is_newline(data->data[18]) || !is_newline(data->data[19]))
+    // 3.4.3 Cross-Reference Table:
+    // "If the file's end-of-line marker is a single character ([...]), it is
+    //  preceded by a single space; if the marker is 2 characters (both a carriage
+    //  return and a line feed), it is not preceded by a space."
+    if ((!is_newline(data->data[18]) && data->data[18] != ' ') ||
+        !is_newline(data->data[19]))
       fatal("xref bad newline\n");
 
     span_advance(data, 20);
@@ -1392,9 +1397,9 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
     iprintf(options, "xref\n%zu %zu\n", xref.start_id, xref.count);
     for (size_t i = 0; i < xref.count; ++i) {
       // FIXME: Reopen stdout as binary on windows :/
-      printf("%010zu %05zu %c\r\n", xref.entries[i].offset,
-                                    xref.entries[i].generation,
-                                    xref.entries[i].is_free ? 'f' : 'n');
+      printf("%010zu %05zu %c \n", xref.entries[i].offset,
+                                   xref.entries[i].generation,
+                                   xref.entries[i].is_free ? 'f' : 'n');
     }
     break;
   }
