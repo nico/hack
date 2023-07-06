@@ -865,6 +865,7 @@ static struct StreamObject parse_stream(struct PDF* pdf, struct Span* data,
   // Ignore everything inside a `stream`.
   // FIXME: Use /Length from stream_dict if present.
   // 3.2.7 Stream Objects
+  uint8_t* data_start = data->data; // FIXME: skip 1 newline byte at start
   const uint8_t* e = memmem(data->data, data->size,
                             "endstream", strlen("endstream"));
   if (!e)
@@ -875,10 +876,12 @@ static struct StreamObject parse_stream(struct PDF* pdf, struct Span* data,
   read_non_eof_token(data, &token);
   assert(token.kind == kw_endstream);
 
+  // FIXME: skip newline in front of `endline` if present.
+  struct Span stream_data = { data_start, e - data_start };
+
   struct StreamObject stream;
   stream.dict = stream_dict;
-  // FIXME: Set stream.value
-
+  stream.data = stream_data;
   return stream;
 }
 
@@ -1207,6 +1210,7 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
     decrease_indent(options);
     iprintf(options, "stream\n");
     // FIXME: print stream contents
+    iprintf(options, "(%zu bytes)\n", stream.data.size);
     iprintf(options, "endstream\n");
     break;
   }
