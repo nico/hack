@@ -1102,78 +1102,136 @@ static struct Object parse_object(struct PDF* pdf, struct Span* data,
   }
 }
 
-static void ast_print(const struct PDF* pdf, const struct Object* object);
+///////////////////////////////////////////////////////////////////////////////
+// Pretty-printer
 
-static void ast_print_name(const struct NameObject* name) {
-  printf("Name '%.*s'\n", (int)name->value.size, name->value.data);
+struct OutputOptions {
+  unsigned current_indent;
+  bool is_on_new_line;
+};
+
+static void increase_indent(struct OutputOptions* options) {
+  options->current_indent += 2;
 }
 
-static void ast_print_dict(const struct PDF* pdf,
-                           const struct DictionaryObject* dict) {
-  printf("Dict <<\n");
-  for (size_t i = 0; i < dict->count; ++i) {
-    ast_print_name(&dict->elements[i].name);
-    ast_print(pdf, &dict->elements[i].value);
+static void decrease_indent(struct OutputOptions* options) {
+  options->current_indent -= 2;
+}
+
+static void print_indent(const struct OutputOptions* options) {
+  for (unsigned i = 0; i < options->current_indent; ++i)
+    printf(" ");
+}
+
+#if defined(__clang__) || defined(__GNUC__)
+#define PRINTF(a, b) __attribute__((format(printf, a, b)))
+#else
+#define PRINTF(a, b)
+#endif
+
+PRINTF(2, 3)
+static void iprintf(struct OutputOptions* options, const char* msg, ...) {
+  if (options->is_on_new_line) {
+    print_indent(options);
+    options->is_on_new_line = false;
   }
-  printf("Dict >>\n");
+
+  va_list args;
+  va_start(args, msg);
+  vprintf(msg, args);
+  va_end(args);
+
+  if (msg[strlen(msg) - 1] == '\n')
+    options->is_on_new_line = true;
 }
 
-// FIXME: pass indentation level
-static void ast_print(const struct PDF* pdf, const struct Object* object) {
+static void ast_print(struct OutputOptions*, const struct PDF* pdf,
+                      const struct Object* object);
+
+static void ast_print_name(struct OutputOptions* options,
+                           const struct NameObject* name, bool print_newline) {
+  iprintf(options, "%.*s", (int)name->value.size, name->value.data);
+  if (print_newline)
+    iprintf(options, "\n");
+}
+
+static void ast_print_dict(struct OutputOptions* options, const struct PDF* pdf,
+                           const struct DictionaryObject* dict) {
+  iprintf(options, "<<\n");
+  increase_indent(options);
+  for (size_t i = 0; i < dict->count; ++i) {
+    ast_print_name(options, &dict->elements[i].name, /*print_newline=*/false);
+    printf(" ");
+    ast_print(options, pdf, &dict->elements[i].value);
+  }
+  decrease_indent(options);
+  iprintf(options, ">>\n");
+}
+
+static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
+                      const struct Object* object) {
   switch (object->kind) {
   case Boolean:
-    printf("Boolean '%d'\n", pdf->booleans[object->index].value);
+    iprintf(options, "%s\n", pdf->booleans[object->index].value ? "true" : "false");
     break;
   case Integer:
-    printf("Integer '%d'\n", pdf->integers[object->index].value);
+    iprintf(options, "%d\n", pdf->integers[object->index].value);
     break;
   case Real:
-    printf("Real '%f'\n", pdf->reals[object->index].value);
+    iprintf(options, "%f\n", pdf->reals[object->index].value);
     break;
   case String:
-    printf("String '%.*s'\n", (int)pdf->strings[object->index].value.size,
-                              pdf->strings[object->index].value.data);
+    iprintf(options, "%.*s\n", (int)pdf->strings[object->index].value.size,
+                               pdf->strings[object->index].value.data);
     break;
   case Name:
-    ast_print_name(&pdf->names[object->index]);
+    ast_print_name(options, &pdf->names[object->index], /*print_newline=*/true);
     break;
   case Array: {
     struct ArrayObject array = pdf->arrays[object->index];
-    printf("Array [\n");
+    iprintf(options, "[\n");
+    increase_indent(options);
     for (size_t i = 0; i < array.count; ++i)
-      ast_print(pdf, &array.elements[i]);
-    printf("Array ]\n");
+      ast_print(options, pdf, &array.elements[i]);
+    decrease_indent(options);
+    iprintf(options, "]\n");
     break;
   }
   case Dictionary:
-    ast_print_dict(pdf, &pdf->dicts[object->index]);
+    ast_print_dict(options, pdf, &pdf->dicts[object->index]);
     break;
   case Stream: {
     struct StreamObject stream = pdf->streams[object->index];
-    printf("Stream\n");
-    ast_print_dict(pdf, &stream.dict);
+    increase_indent(options);
+    ast_print_dict(options, pdf, &stream.dict);
+    decrease_indent(options);
+    iprintf(options, "stream\n");
     // FIXME: print stream contents
-    printf("Stream end\n");
+    iprintf(options, "endstream\n");
     break;
   }
   case Null:
-    printf("Null\n");
+    iprintf(options, "null\n");
     break;
   case IndirectObject: {
     struct IndirectObjectObject indirect = pdf->indirect_objects[object->index];
-    printf("IndirectObjectRef %zu %zu obj\n", indirect.id, indirect.generation);
-    ast_print(pdf, &indirect.value);
-    printf("IndirectObjectRef endobj\n");
+    iprintf(options, "%zu %zu obj\n", indirect.id, indirect.generation);
+    if (indirect.value.kind != Stream)
+      increase_indent(options);
+    ast_print(options, pdf, &indirect.value);
+    if (indirect.value.kind != Stream)
+      decrease_indent(options);
+    iprintf(options, "endobj\n");
     break;
   }
   case IndirectObjectRef:
-    printf("IndirectObjectRef %zu %zu\n",
+    iprintf(options, "%zu %zu R\n",
       pdf->indirect_object_refs[object->index].id,
       pdf->indirect_object_refs[object->index].generation);
     break;
   case Comment:
     // Don't print trailing newline.
-    printf("Comment: %.*s\n", (int)pdf->comments[object->index].value.size - 1,
+    iprintf(options, "%.*s\n", (int)pdf->comments[object->index].value.size - 1,
                                pdf->comments[object->index].value.data);
     break;
   }
@@ -1182,6 +1240,10 @@ static void ast_print(const struct PDF* pdf, const struct Object* object) {
 static void parse(struct Span data) {
   struct PDF pdf;
   init_pdf(&pdf);
+
+  struct OutputOptions options;
+  options.current_indent = 0;
+  options.is_on_new_line = true;
 
   // 3.4 File Structure
   // 1. Header
@@ -1214,8 +1276,6 @@ static void parse(struct Span data) {
     // FIXME: maybe not even necessary to store all the toplevels;
     // instead just process them as they come in?
     append_toplevel_object(&pdf, object);
-
-    ast_print(&pdf, &object);
   }
 
   // 3. Cross-reference table
@@ -1229,7 +1289,9 @@ static void parse(struct Span data) {
 
   // 5. %%EOF
 
-  printf("v %d.%d\n", pdf.version.major, pdf.version.minor);
+  printf("%%PDF-%d.%d\n", pdf.version.major, pdf.version.minor);
+  for (size_t i = 0; i < pdf.toplevel_objects_count; ++i)
+    ast_print(&options, &pdf, &pdf.toplevel_objects[i]);
 }
 
 int main(int argc, char* argv[]) {
