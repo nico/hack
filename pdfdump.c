@@ -114,12 +114,16 @@ static bool is_delimiter(uint8_t c) {
          c == '{' || c == '}' || c == '/' || c == '%';
 }
 
+static bool is_digit(uint8_t c) {
+  return c >= '0' && c <= '9';
+}
+
 static bool is_number_start(uint8_t c) {
-  return c == '+' || c == '-' || c == '.' || (c >= '0' && c <= '9');
+  return c == '+' || c == '-' || c == '.' || is_digit(c);
 }
 
 static bool is_number_continuation(uint8_t c) {
-  return (c >= '0' && c <= '9') || c == '.';
+  return c == '.' || is_digit(c);
 }
 
 static bool is_name_continuation(uint8_t c) {
@@ -558,6 +562,15 @@ enum ObjectKind {
   //        for dicts? Where if the comment is between the indirect obj or
   //        indirect obj ref tokens?
   Comment, // For pretty-printing
+
+  // In traditional PDFs, the `xref` table is at the end of the file.
+  // But for incremental updates, and for linearized PDFs, the xref table
+  // can appear multiple times, sometimes in the middle of the file; or it might
+  // be hidden away in an object stream, and only `startxref` might be visible.
+  // So represent `xref`, `startxref`, and `trailer` as normal objects.
+  XRef,
+  Trailer,
+  StartXRef,
 };
 
 struct Object {
@@ -622,6 +635,26 @@ struct CommentObject {
   struct Span value;
 };
 
+struct XRefEntry {
+  size_t offset;
+  size_t generation;
+  bool is_free; // true for 'f', false for 'n'
+};
+
+struct XRefObject {
+  size_t start_id;
+  size_t count;
+  struct XRefEntry* entries;
+};
+
+struct TrailerObject {
+  struct DictionaryObject dict;
+};
+
+struct StartXRefObject {
+  size_t offset;
+};
+
 struct PDFVersion {
   uint8_t major;
   uint8_t minor;
@@ -676,6 +709,18 @@ struct PDF {
   size_t comments_count;
   size_t comments_capacity;
 
+  struct XRefObject* xrefs;
+  size_t xrefs_count;
+  size_t xrefs_capacity;
+
+  struct TrailerObject* trailers;
+  size_t trailers_count;
+  size_t trailers_capacity;
+
+  struct StartXRefObject* start_xrefs;
+  size_t start_xrefs_count;
+  size_t start_xrefs_capacity;
+
   // Only stores toplevel objects.
   // The indices in these Objects refer to the arrays above.
   struct Object* toplevel_objects;
@@ -701,6 +746,9 @@ static void init_pdf(struct PDF* pdf) {
   INIT(indirect_objects, IndirectObjectObject);
   INIT(indirect_object_refs, IndirectObjectRefObject);
   INIT(comments, CommentObject);
+  INIT(xrefs, XRefObject);
+  INIT(trailers, TrailerObject);
+  INIT(start_xrefs, StartXRefObject);
 
   INIT(toplevel_objects, Object);
 #undef INIT
@@ -810,6 +858,34 @@ static void append_comment(struct PDF* pdf, struct CommentObject value) {
   pdf->comments[pdf->comments_count++] = value;
 }
 
+static void append_xref(struct PDF* pdf, struct XRefObject value) {
+  if (pdf->xrefs_count >= pdf->xrefs_capacity) {
+    pdf->xrefs_capacity *= 2;
+    pdf->xrefs = realloc(pdf->xrefs,
+                         pdf->xrefs_capacity * sizeof(struct XRefObject));
+  }
+  pdf->xrefs[pdf->xrefs_count++] = value;
+}
+
+static void append_trailer(struct PDF* pdf, struct TrailerObject value) {
+  if (pdf->trailers_count >= pdf->trailers_capacity) {
+    pdf->trailers_capacity *= 2;
+    pdf->trailers = realloc(pdf->trailers,
+                            pdf->trailers_capacity * sizeof(struct TrailerObject));
+  }
+  pdf->trailers[pdf->trailers_count++] = value;
+}
+
+static void append_start_xref(struct PDF* pdf, struct StartXRefObject value) {
+  if (pdf->start_xrefs_count >= pdf->start_xrefs_capacity) {
+    pdf->start_xrefs_capacity *= 2;
+    pdf->start_xrefs = realloc(
+      pdf->start_xrefs,
+      pdf->start_xrefs_capacity * sizeof(struct StartXRefObject));
+  }
+  pdf->start_xrefs[pdf->start_xrefs_count++] = value;
+}
+
 static void append_toplevel_object(struct PDF* pdf, struct Object value) {
   if (pdf->toplevel_objects_count >= pdf->toplevel_objects_capacity) {
     pdf->toplevel_objects_capacity *= 2;
@@ -898,7 +974,7 @@ static struct DictionaryObject parse_dict(struct PDF* pdf, struct Span* data) {
       break;
 
     if (i >= N)
-      fatal("XXX too many dict entries"); // XXX
+      fatal("XXX too many dict entries\n"); // XXX
 
     if (token.kind != tok_name)
       fatal("expected name\n");
@@ -933,7 +1009,7 @@ static struct ArrayObject parse_array(struct PDF* pdf, struct Span* data) {
       break;
 
     if (i >= N)
-      fatal("XXX too many array entries"); // XXX
+      fatal("XXX too many array entries\n"); // XXX
 
     // FIXME: This gets confused about comments within a dict.
 
@@ -985,6 +1061,48 @@ static double real_value(const struct Token* token) {
   return value;
 }
 
+static struct XRefObject parse_xref(struct PDF* pdf, struct Span* data) {
+  (void)pdf;
+
+  struct Token token;
+  read_non_eof_token(data, &token);
+  int32_t start_id = integer_value(&token); // XXX check >= 0
+
+  read_non_eof_token(data, &token);
+  int32_t count = integer_value(&token); // XXX check >= 0
+
+  while (data->size && !is_digit(data->data[0]))
+    span_advance(data, 1);
+
+  if (data->size < 20 * (unsigned)count)
+    fatal("not enough data for xref entries\n");
+
+  struct XRefEntry* entries = malloc(count * sizeof(struct XRefEntry));
+
+  for (int i = 0; i < count; ++i) {
+    struct XRefEntry entry;
+    char flag;
+
+    sscanf((char*)data->data, "%010zu %05zu %c\r\n",
+           &entry.offset, &entry.generation, &flag);
+    if (flag != 'f' && flag != 'n')
+      fatal("unexpected xref flag\n");
+    entry.is_free = flag == 'f';
+
+    span_advance(data, 20);
+    entries[i] = entry;
+  }
+
+  // FIXME: Store entries inline, or at least in a bumpptr allocator?
+  struct XRefObject xref;
+  xref.start_id = start_id;
+  xref.count = count;
+  xref.entries = entries;
+  return xref;
+#undef N
+}
+
+
 static struct Object parse_object(struct PDF* pdf, struct Span* data,
                                   struct Token token) {
   switch (token.kind) {
@@ -1005,11 +1123,24 @@ static struct Object parse_object(struct PDF* pdf, struct Span* data,
   case kw_n:
     fatal("unexpected `n`\n");
   case kw_xref:
-    fatal("unexpected `xref`\n"); // FIXME: probably wrong for incr update
-  case kw_trailer:
-    fatal("unexpected `trailer`\n"); // FIXME: probably wrong for incr update
-  case kw_startxref:
-    fatal("unexpected `startxref`\n"); // FIXME: probably wrong for incr update
+    append_xref(pdf, parse_xref(pdf, data));
+    return (struct Object){ XRef, pdf->xrefs_count - 1 };
+  case kw_trailer: {
+    read_token(data, &token);
+    if (token.kind != tok_dict)
+      fatal("expected << after trailer");
+    struct DictionaryObject dict = parse_dict(pdf, data);
+    append_trailer(pdf, (struct TrailerObject){ dict });
+    return (struct Object){ Trailer, pdf->trailers_count - 1 };
+  }
+  case kw_startxref: {
+    // FIXME: only allow at toplevel
+    // FIXME: startxrefs probably isn't limited to INT_MAX.
+    read_token(data, &token);
+    int32_t offset = integer_value(&token);
+    append_start_xref(pdf, (struct StartXRefObject){ offset });
+    return (struct Object){ StartXRef, pdf->start_xrefs_count - 1 };
+  }
 
   case kw_true:
     append_boolean(pdf, (struct BooleanObject){ true });
@@ -1097,6 +1228,7 @@ static struct Object parse_object(struct PDF* pdf, struct Span* data,
     return (struct Object){ String, pdf->strings_count - 1 };
 
   case tok_comment:
+    // FIXME: normalize newline to \n (...or should the lexer do that)
     append_comment(pdf, (struct CommentObject){ token.payload });
     return (struct Object){ Comment, pdf->comments_count - 1 };
 
@@ -1238,6 +1370,27 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
     iprintf(options, "%.*s\n", (int)pdf->comments[object->index].value.size - 1,
                                pdf->comments[object->index].value.data);
     break;
+  case XRef: {
+    struct XRefObject xref = pdf->xrefs[object->index];
+    // FIXME: optionally recompute so that it's correct for pretty-printed output.
+    iprintf(options, "xref\n%zu %zu\n", xref.start_id, xref.count);
+    for (size_t i = 0; i < xref.count; ++i) {
+      // FIXME: Reopen stdout as binary on windows :/
+      printf("%010zu %05zu %c\r\n", xref.entries[i].offset,
+                                    xref.entries[i].generation,
+                                    xref.entries[i].is_free ? 'f' : 'n');
+    }
+    break;
+  }
+  case Trailer:
+    // FIXME: does anything in the trailer need optional recomputing?
+    iprintf(options, "trailer\n");
+    ast_print_dict(options, pdf, &pdf->trailers[object->index].dict);
+    break;
+  case StartXRef:
+    // FIXME: optionally recompute so that it's correct for pretty-printed output.
+    iprintf(options, "startxref\n%zu\n", pdf->start_xrefs[object->index].offset);
+    break;
   }
 }
 
@@ -1261,27 +1414,6 @@ static void parse(struct Span data) {
   //   (any pdfobject)
   // `endobj`
 
-  // Initial value of kind doesn't matter as long as it's not kw_xref.
-  struct Token token;
-  while (true) {
-    read_token(&data, &token);
-
-    if (token.kind == kw_xref)
-      break;
-    if (token.kind == tok_eof)
-      fatal("premature eof\n");
-
-    struct Object object = parse_object(&pdf, &data, token);
-
-    // FIXME: is this true?
-    if (object.kind != IndirectObject && object.kind != Comment)
-      fatal("expected indirect object or comment at toplevel\n");
-
-    // FIXME: maybe not even necessary to store all the toplevels;
-    // instead just process them as they come in?
-    append_toplevel_object(&pdf, object);
-  }
-
   // 3. Cross-reference table
   // `xref`
   // 0 n
@@ -1292,6 +1424,28 @@ static void parse(struct Span data) {
   // `trailer`
 
   // 5. %%EOF
+
+  // Initial value of kind doesn't matter as long as it's not kw_xref.
+  struct Token token;
+  while (true) {
+    read_token(&data, &token);
+
+    if (token.kind == tok_eof)
+      break;
+
+    struct Object object = parse_object(&pdf, &data, token);
+
+    // FIXME: is this true?
+    if (object.kind != IndirectObject && object.kind != Comment &&
+        object.kind != XRef && object.kind != Trailer && object.kind != StartXRef) {
+      fatal("expected indirect object or comment or xref or trailer or startxref "
+            "at toplevel\n");
+    }
+
+    // FIXME: maybe not even necessary to store all the toplevels;
+    // instead just process them as they come in?
+    append_toplevel_object(&pdf, object);
+  }
 
   printf("%%PDF-%d.%d\n", pdf.version.major, pdf.version.minor);
   for (size_t i = 0; i < pdf.toplevel_objects_count; ++i)
