@@ -175,25 +175,6 @@ struct Token {
   struct Span payload;
 };
 
-// 3.2 Objects
-enum ObjectKind {
-  Boolean,
-  Integer,
-  Real,
-  String,  // (hi) or <6869>
-  Name,    // /hi
-  Array,  // [0 1 2]
-  Dictionary,  //  <</Name1 (val1) /Name2 (val2)>>
-
-  // 3.2.7 Steam Objects
-  // "All streams must be indirect objects and the stream dictionary must
-  //  be a direct object."
-  Stream,
-
-  Null,
-  IndirectObject,  // 4 0 Obj
-};
-
 static void consume_newline(struct Span* data) {
   if (data->size == 0)
     fatal("not enough data for newline\n");
@@ -436,6 +417,12 @@ static void read_token(struct Span* data, struct Token* token) {
   token->payload.size = data->data - token->payload.data;
 }
 
+static void read_non_eof_token(struct Span* data, struct Token* token) {
+  read_token(data, token);
+  if (token->kind == tok_eof)
+    fatal("unexpected eof\n");
+}
+
 static void dump_token(const struct Token* token) {
   switch (token->kind) {
   case kw_obj:
@@ -545,6 +532,96 @@ static void dump_tokens(struct Span* data) {
   }
 }
 
+///////////////////////////////////////////////////////////////////////////////
+// AST
+
+// 3.2 Objects
+enum ObjectKind {
+  Boolean,
+  Integer,
+  Real,
+  String,  // (hi) or <6869>
+  Name,    // /hi
+  Array,  // [0 1 2]
+  Dictionary,  //  <</Name1 (val1) /Name2 (val2)>>
+
+  // 3.2.7 Stream Objects
+  // "All streams must be indirect objects and the stream dictionary must
+  //  be a direct object."
+  Stream,
+
+  Null,
+  IndirectObject,  // 4 0 obj ... endobj
+  IndirectObjectRef,  // 4 0 R
+
+  // FIXME: Having an AST node for comments is a bit weird: where should it go
+  //        for dicts? Where if the comment is between the indirect obj or
+  //        indirect obj ref tokens?
+  Comment, // For pretty-printing
+};
+
+struct Object {
+  enum ObjectKind kind;
+
+  // Array-of-Structures design; pick array to index into based on `kind`.
+  size_t index;
+};
+
+struct BooleanObject {
+  bool value;
+};
+
+struct IntegerObject {
+  int32_t value;
+};
+
+struct RealObject {
+  double value;
+};
+
+struct StringObject {
+  struct Span value;
+};
+
+struct NameObject {
+  struct Span value;
+};
+
+struct ArrayObject {
+  size_t count;
+  struct Object* elements;
+};
+
+struct NameObjectPair {
+  struct NameObject name;
+  struct Object value;
+};
+
+struct DictionaryObject {
+  size_t count;
+  struct NameObjectPair* elements;
+};
+
+struct StreamObject {
+  struct DictionaryObject dict;
+  struct Span data;
+};
+
+struct IndirectObjectObject {
+  size_t id;
+  size_t generation;
+  struct Object value;
+};
+
+struct IndirectObjectRefObject {
+  size_t id;
+  size_t generation;
+};
+
+struct CommentObject {
+  struct Span value;
+};
+
 struct PDFVersion {
   uint8_t major;
   uint8_t minor;
@@ -552,7 +629,198 @@ struct PDFVersion {
 
 struct PDF {
   struct PDFVersion version;
+
+  // AST storage.
+  // Stores all objects of a type, including nested direct objects.
+  struct BooleanObject* booleans;
+  size_t booleans_count;
+  size_t booleans_capacity;
+
+  struct IntegerObject* integers;
+  size_t integers_count;
+  size_t integers_capacity;
+
+  struct RealObject* reals;
+  size_t reals_count;
+  size_t reals_capacity;
+
+  struct StringObject* strings;
+  size_t strings_count;
+  size_t strings_capacity;
+
+  struct NameObject* names;
+  size_t names_count;
+  size_t names_capacity;
+
+  struct ArrayObject* arrays;
+  size_t arrays_count;
+  size_t arrays_capacity;
+
+  struct DictionaryObject* dicts;
+  size_t dicts_count;
+  size_t dicts_capacity;
+
+  struct StreamObject* streams;
+  size_t streams_count;
+  size_t streams_capacity;
+
+  struct IndirectObjectObject* indirect_objects;
+  size_t indirect_objects_count;
+  size_t indirect_objects_capacity;
+
+  struct IndirectObjectRefObject* indirect_object_refs;
+  size_t indirect_object_refs_count;
+  size_t indirect_object_refs_capacity;
+
+  struct CommentObject* comments;
+  size_t comments_count;
+  size_t comments_capacity;
+
+  // Only stores toplevel objects.
+  // The indices in these Objects refer to the arrays above.
+  struct Object* toplevel_objects;
+  size_t toplevel_objects_count;
+  size_t toplevel_objects_capacity;
 };
+
+static void init_pdf(struct PDF* pdf) {
+#define N 5
+#define INIT(name, type) \
+  pdf->name = malloc(N * sizeof(struct type)); \
+  pdf->name##_count = 0; \
+  pdf->name##_capacity = N
+
+  INIT(booleans, BooleanObject);
+  INIT(integers, IntegerObject);
+  INIT(reals, RealObject);
+  INIT(strings, StringObject);
+  INIT(arrays, ArrayObject);
+  INIT(dicts, DictionaryObject);
+  INIT(streams, StreamObject);
+  INIT(indirect_objects, IndirectObjectObject);
+  INIT(indirect_object_refs, IndirectObjectRefObject);
+  INIT(comments, CommentObject);
+
+  INIT(toplevel_objects, Object);
+#undef INIT
+#undef N
+}
+
+static void append_boolean(struct PDF* pdf, struct BooleanObject value) {
+  if (pdf->booleans_count >= pdf->booleans_capacity) {
+    pdf->booleans_capacity *= 2;
+    pdf->booleans = realloc(pdf->booleans,
+                            pdf->booleans_capacity * sizeof(struct BooleanObject));
+  }
+  pdf->booleans[pdf->booleans_count++] = value;
+}
+
+static void append_integer(struct PDF* pdf, struct IntegerObject value) {
+  if (pdf->integers_count >= pdf->integers_capacity) {
+    pdf->integers_capacity *= 2;
+    pdf->integers = realloc(pdf->integers,
+                            pdf->integers_capacity * sizeof(struct IntegerObject));
+  }
+  pdf->integers[pdf->integers_count++] = value;
+}
+
+static void append_real(struct PDF* pdf, struct RealObject value) {
+  if (pdf->reals_count >= pdf->reals_capacity) {
+    pdf->reals_capacity *= 2;
+    pdf->reals = realloc(pdf->reals,
+                         pdf->reals_capacity * sizeof(struct RealObject));
+  }
+  pdf->reals[pdf->reals_count++] = value;
+}
+
+static void append_name(struct PDF* pdf, struct NameObject value) {
+  if (pdf->names_count >= pdf->names_capacity) {
+    pdf->names_capacity *= 2;
+    pdf->names = realloc(pdf->names,
+                         pdf->names_capacity * sizeof(struct NameObject));
+  }
+  pdf->names[pdf->names_count++] = value;
+}
+
+static void append_string(struct PDF* pdf, struct StringObject value) {
+  if (pdf->strings_count >= pdf->strings_capacity) {
+    pdf->strings_capacity *= 2;
+    pdf->strings = realloc(pdf->strings,
+                           pdf->strings_capacity * sizeof(struct StringObject));
+  }
+  pdf->strings[pdf->strings_count++] = value;
+}
+
+static void append_array(struct PDF* pdf, struct ArrayObject value) {
+  if (pdf->arrays_count >= pdf->arrays_capacity) {
+    pdf->arrays_capacity *= 2;
+    pdf->arrays = realloc(pdf->arrays,
+                          pdf->arrays_capacity * sizeof(struct ArrayObject));
+  }
+  pdf->arrays[pdf->arrays_count++] = value;
+}
+
+static void append_dict(struct PDF* pdf, struct DictionaryObject value) {
+  if (pdf->dicts_count >= pdf->dicts_capacity) {
+    pdf->dicts_capacity *= 2;
+    pdf->dicts = realloc(pdf->dicts,
+                         pdf->dicts_capacity * sizeof(struct DictionaryObject));
+  }
+  pdf->dicts[pdf->dicts_count++] = value;
+}
+
+static void append_stream(struct PDF* pdf, struct StreamObject value) {
+  if (pdf->streams_count >= pdf->streams_capacity) {
+    pdf->streams_capacity *= 2;
+    pdf->streams = realloc(pdf->streams,
+                           pdf->streams_capacity * sizeof(struct StreamObject));
+  }
+  pdf->streams[pdf->streams_count++] = value;
+}
+
+static void append_indirect_object(struct PDF* pdf,
+                                   struct IndirectObjectObject value) {
+  if (pdf->indirect_objects_count >= pdf->indirect_objects_capacity) {
+    pdf->indirect_objects_capacity *= 2;
+    pdf->indirect_objects = realloc(
+      pdf->indirect_objects,
+      pdf->indirect_objects_capacity * sizeof(struct IndirectObjectObject));
+  }
+  pdf->indirect_objects[pdf->indirect_objects_count++] = value;
+}
+
+static void append_indirect_object_ref(struct PDF* pdf,
+                                       struct IndirectObjectRefObject value) {
+  if (pdf->indirect_object_refs_count >= pdf->indirect_object_refs_capacity) {
+    pdf->indirect_object_refs_capacity *= 2;
+    pdf->indirect_object_refs = realloc(
+      pdf->indirect_object_refs,
+      pdf->indirect_object_refs_capacity * sizeof(struct IndirectObjectRefObject));
+  }
+  pdf->indirect_object_refs[pdf->indirect_object_refs_count++] = value;
+}
+
+static void append_comment(struct PDF* pdf, struct CommentObject value) {
+  if (pdf->comments_count >= pdf->comments_capacity) {
+    pdf->comments_capacity *= 2;
+    pdf->comments = realloc(pdf->comments,
+                            pdf->comments_capacity * sizeof(struct CommentObject));
+  }
+  pdf->comments[pdf->comments_count++] = value;
+}
+
+static void append_toplevel_object(struct PDF* pdf, struct Object value) {
+  if (pdf->toplevel_objects_count >= pdf->toplevel_objects_capacity) {
+    pdf->toplevel_objects_capacity *= 2;
+    pdf->toplevel_objects = realloc(
+      pdf->toplevel_objects,
+      pdf->toplevel_objects_capacity * sizeof(struct Object));
+  }
+  pdf->toplevel_objects[pdf->toplevel_objects_count++] = value;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Parser
 
 static void parse_header(struct Span* data, struct PDFVersion* version) {
   if (data->size < strlen("%PDF-a.b\n"))
@@ -574,11 +842,391 @@ static void parse_header(struct Span* data, struct PDFVersion* version) {
   version->minor = v1;
 }
 
+static struct Object parse_object(struct PDF* pdf, struct Span* data, struct Token);
+
+static struct Object parse_indirect_object(struct PDF* pdf, struct Span* data) {
+  struct Token token;
+
+  read_non_eof_token(data, &token);
+  struct Object object = parse_object(pdf, data, token);
+
+  read_non_eof_token(data, &token);
+  if (token.kind != kw_endobj)
+    fatal("expected `endobj`\n");
+
+  return object;
+}
+
+static struct StreamObject parse_stream(struct PDF* pdf, struct Span* data,
+                                        struct DictionaryObject stream_dict) {
+  (void)pdf;
+
+  // Ignore everything inside a `stream`.
+  // FIXME: Use /Length from stream_dict if present.
+  // 3.2.7 Stream Objects
+  const uint8_t* e = memmem(data->data, data->size,
+                            "endstream", strlen("endstream"));
+  if (!e)
+    fatal("missing `endstream`\n");
+  span_advance(data, e - data->data);
+
+  struct Token token;
+  read_non_eof_token(data, &token);
+  assert(token.kind == kw_endstream);
+
+  struct StreamObject stream;
+  stream.dict = stream_dict;
+  // FIXME: Set stream.value
+
+  return stream;
+}
+
+static struct DictionaryObject parse_dict(struct PDF* pdf, struct Span* data) {
+#define N 50 // FIXME: jank; good enough for now
+  struct NameObjectPair entries[N];
+
+  size_t i = 0;
+  while (true) {
+    struct Token token;
+    read_non_eof_token(data, &token);
+
+    if (token.kind == tok_enddict)
+      break;
+
+    if (i >= N)
+      fatal("XXX too many dict entries"); // XXX
+
+    if (token.kind != tok_name)
+      fatal("expected name\n");
+
+    entries[i].name.value = token.payload;
+
+    read_non_eof_token(data, &token);
+    entries[i].value = parse_object(pdf, data, token);
+
+    i++;
+  }
+
+  // FIXME: Store entries inline, or at least in a bumpptr allocator?
+  struct DictionaryObject dict;
+  dict.count = i;
+  dict.elements = malloc(i * sizeof(struct NameObjectPair));
+  memcpy(dict.elements, entries, i * sizeof(struct NameObjectPair));
+  return dict;
+#undef N
+}
+
+static struct ArrayObject parse_array(struct PDF* pdf, struct Span* data) {
+#define N 50 // FIXME: jank; good enough for now
+  struct Object entries[N];
+
+  size_t i = 0;
+  while (true) {
+    struct Token token;
+    read_non_eof_token(data, &token);
+
+    if (token.kind == tok_endarray)
+      break;
+
+    if (i >= N)
+      fatal("XXX too many array entries"); // XXX
+
+    // FIXME: This gets confused about comments within a dict.
+
+    entries[i++] = parse_object(pdf, data, token);
+  }
+
+  // FIXME: Store entries inline, or at least in a bumpptr allocator?
+  struct ArrayObject array;
+  array.count = i;
+  array.elements = malloc(i * sizeof(struct Object));
+  memcpy(array.elements, entries, i * sizeof(struct Object));
+  return array;
+#undef N
+}
+
+static bool is_integer_token(const struct Token* token) {
+  if (token->kind != tok_number)
+    return false;
+  return !memchr(token->payload.data, '.', token->payload.size);
+}
+
+static int32_t integer_value(const struct Token* token) {
+  if (!is_integer_token(token))
+    fatal("expected integer\n");
+
+  // This works even though `payload` isn't nul-terminated because strtol()
+  // stops on the first invalid character, and the lexer guarantees that
+  // exactly the chars within `payload` are valid.
+  char* endptr = NULL;
+  int32_t value = (int32_t)strtol((char*)token->payload.data, &endptr, 10);
+  if (endptr != (char*)token->payload.data + token->payload.size)
+    fatal("invalid integer number\n");
+
+  return value;
+}
+
+static double real_value(const struct Token* token) {
+  if (token->kind != tok_number)
+    fatal("expected number\n");
+
+  // This works even though `payload` isn't nul-terminated because strtod()
+  // stops on the first invalid character, and the lexer guarantees that
+  // exactly the chars within `payload` are valid.
+  char* endptr = NULL;
+  double value = strtod((char*)token->payload.data, &endptr);
+  if (endptr != (char*)token->payload.data + token->payload.size)
+    fatal("invalid real number\n");
+
+  return value;
+}
+
+static struct Object parse_object(struct PDF* pdf, struct Span* data,
+                                  struct Token token) {
+  switch (token.kind) {
+  case kw_obj:
+    fatal("unexpected `obj`\n");
+  case kw_endobj:
+    fatal("unexpected `endobj`\n");
+
+  case kw_stream:
+    fatal("unexpected `stream`\n");
+  case kw_endstream:
+    fatal("unexpected `endstream`\n");
+
+  case kw_R:
+    fatal("unexpected `R`\n");
+  case kw_f:
+    fatal("unexpected `f`\n");
+  case kw_n:
+    fatal("unexpected `n`\n");
+  case kw_xref:
+    fatal("unexpected `xref`\n"); // FIXME: probably wrong for incr update
+  case kw_trailer:
+    fatal("unexpected `trailer`\n"); // FIXME: probably wrong for incr update
+  case kw_startxref:
+    fatal("unexpected `startxref`\n"); // FIXME: probably wrong for incr update
+
+  case kw_true:
+    append_boolean(pdf, (struct BooleanObject){ true });
+    return (struct Object){ Boolean, pdf->booleans_count - 1 };
+  case kw_false:
+    append_boolean(pdf, (struct BooleanObject){ false });
+    return (struct Object){ Boolean, pdf->booleans_count - 1 };
+  case kw_null:
+    return (struct Object){ Null, -1 };
+
+  case tok_number: {
+    if (is_integer_token(&token)) {
+      int32_t value = integer_value(&token);
+
+      // Peek two tokens in the future, make an IndirectObjectRef if 'num' 'R',
+      // or an IndirectObject if 'num' 'obj'.
+      // FIXME: This gets confused about comments between tokens.
+      struct Span backtrack_position = *data;
+      read_token(data, &token);
+
+      if (is_integer_token(&token)) {
+        int32_t generation = integer_value(&token);
+
+        // FIXME: does PDF allow non-indirect obj at toplevel, and does it allow
+        //        indirect objs at non-toplevel?
+        read_token(data, &token);
+        if (token.kind == kw_obj) {
+          struct Object object = parse_indirect_object(pdf, data);
+          append_indirect_object(
+            pdf, (struct IndirectObjectObject){ value, generation, object });
+          return (struct Object){ IndirectObject,
+                                  pdf->indirect_objects_count - 1 };
+        } else if (token.kind == kw_R) {
+          append_indirect_object_ref(
+            pdf, (struct IndirectObjectRefObject){ value, generation });
+          return (struct Object){ IndirectObjectRef,
+                                  pdf->indirect_object_refs_count - 1 };
+        }
+      }
+      *data = backtrack_position;
+
+      append_integer(pdf, (struct IntegerObject){ value });
+      return (struct Object){ Integer, pdf->integers_count - 1 };
+    }
+
+    append_real(pdf, (struct RealObject){ real_value(&token) });
+    return (struct Object){ Real, pdf->reals_count - 1 };
+  }
+
+  case tok_dict: {
+    struct DictionaryObject dict = parse_dict(pdf, data);
+    // Check if followed by `stream`, if so parse stream body and add stream,
+    // else add dict.
+    struct Span backtrack_position = *data;
+
+    // FIXME: This gets confused about comments before `stream`.
+    read_token(data, &token);
+    if (token.kind == kw_stream) {
+      append_stream(pdf, parse_stream(pdf, data, dict));
+      return (struct Object){ Stream, pdf->streams_count - 1 };
+    }
+
+    *data = backtrack_position;
+
+    append_dict(pdf, dict);
+    return (struct Object){ Dictionary, pdf->dicts_count - 1 };
+  }
+
+  case tok_enddict:
+    fatal("unexpected `enddict`\n");
+
+  case tok_array:
+    append_array(pdf, parse_array(pdf, data));
+    return (struct Object){ Array, pdf->arrays_count - 1 };
+
+  case tok_endarray:
+    fatal("unexpected `]`\n");
+
+  case tok_name:
+    append_name(pdf, (struct NameObject){ token.payload });
+    return (struct Object){ Name, pdf->names_count - 1 };
+
+  case tok_string:
+    append_string(pdf, (struct StringObject){ token.payload });
+    return (struct Object){ String, pdf->strings_count - 1 };
+
+  case tok_comment:
+    append_comment(pdf, (struct CommentObject){ token.payload });
+    return (struct Object){ Comment, pdf->comments_count - 1 };
+
+  case tok_eof:
+    fatal("premature EOF\n");
+  }
+}
+
+static void ast_print(const struct PDF* pdf, const struct Object* object);
+
+static void ast_print_name(const struct NameObject* name) {
+  printf("Name '%.*s'\n", (int)name->value.size, name->value.data);
+}
+
+static void ast_print_dict(const struct PDF* pdf,
+                           const struct DictionaryObject* dict) {
+  printf("Dict <<\n");
+  for (size_t i = 0; i < dict->count; ++i) {
+    ast_print_name(&dict->elements[i].name);
+    ast_print(pdf, &dict->elements[i].value);
+  }
+  printf("Dict >>\n");
+}
+
+// FIXME: pass indentation level
+static void ast_print(const struct PDF* pdf, const struct Object* object) {
+  switch (object->kind) {
+  case Boolean:
+    printf("Boolean '%d'\n", pdf->booleans[object->index].value);
+    break;
+  case Integer:
+    printf("Integer '%d'\n", pdf->integers[object->index].value);
+    break;
+  case Real:
+    printf("Real '%f'\n", pdf->reals[object->index].value);
+    break;
+  case String:
+    printf("String '%.*s'\n", (int)pdf->strings[object->index].value.size,
+                              pdf->strings[object->index].value.data);
+    break;
+  case Name:
+    ast_print_name(&pdf->names[object->index]);
+    break;
+  case Array: {
+    struct ArrayObject array = pdf->arrays[object->index];
+    printf("Array [\n");
+    for (size_t i = 0; i < array.count; ++i)
+      ast_print(pdf, &array.elements[i]);
+    printf("Array ]\n");
+    break;
+  }
+  case Dictionary:
+    ast_print_dict(pdf, &pdf->dicts[object->index]);
+    break;
+  case Stream: {
+    struct StreamObject stream = pdf->streams[object->index];
+    printf("Stream\n");
+    ast_print_dict(pdf, &stream.dict);
+    // FIXME: print stream contents
+    printf("Stream end\n");
+    break;
+  }
+  case Null:
+    printf("Null\n");
+    break;
+  case IndirectObject: {
+    struct IndirectObjectObject indirect = pdf->indirect_objects[object->index];
+    printf("IndirectObjectRef %zu %zu obj\n", indirect.id, indirect.generation);
+    ast_print(pdf, &indirect.value);
+    printf("IndirectObjectRef endobj\n");
+    break;
+  }
+  case IndirectObjectRef:
+    printf("IndirectObjectRef %zu %zu\n",
+      pdf->indirect_object_refs[object->index].id,
+      pdf->indirect_object_refs[object->index].generation);
+    break;
+  case Comment:
+    // Don't print trailing newline.
+    printf("Comment: %.*s\n", (int)pdf->comments[object->index].value.size - 1,
+                               pdf->comments[object->index].value.data);
+    break;
+  }
+}
+
 static void parse(struct Span data) {
   struct PDF pdf;
+  init_pdf(&pdf);
 
   // 3.4 File Structure
+  // 1. Header
+  // %PDF-1.0
   parse_header(&data, &pdf.version);
+
+  // %nonasciichars
+
+  // 2. Body
+  // `objnum` gennum obj
+  //   (any pdfobject)
+  // `endobj`
+
+  // Initial value of kind doesn't matter as long as it's not kw_xref.
+  struct Token token;
+  while (true) {
+    read_token(&data, &token);
+
+    if (token.kind == kw_xref)
+      break;
+    if (token.kind == tok_eof)
+      fatal("premature eof\n");
+
+    struct Object object = parse_object(&pdf, &data, token);
+
+    // FIXME: is this true?
+    if (object.kind != IndirectObject && object.kind != Comment)
+      fatal("expected indirect object or comment at toplevel\n");
+
+    // FIXME: maybe not even necessary to store all the toplevels;
+    // instead just process them as they come in?
+    append_toplevel_object(&pdf, object);
+
+    ast_print(&pdf, &object);
+  }
+
+  // 3. Cross-reference table
+  // `xref`
+  // 0 n
+  // 0000000000 65535 f
+  // 0000000015 00000 `n`   n times (offset, size, `n`)
+
+  // 4. Trailer
+  // `trailer`
+
+  // 5. %%EOF
 
   printf("v %d.%d\n", pdf.version.major, pdf.version.minor);
 }
