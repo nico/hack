@@ -694,6 +694,7 @@ static void init_pdf(struct PDF* pdf) {
   INIT(integers, IntegerObject);
   INIT(reals, RealObject);
   INIT(strings, StringObject);
+  INIT(names, NameObject);
   INIT(arrays, ArrayObject);
   INIT(dicts, DictionaryObject);
   INIT(streams, StreamObject);
@@ -882,7 +883,7 @@ static struct StreamObject parse_stream(struct PDF* pdf, struct Span* data,
 }
 
 static struct DictionaryObject parse_dict(struct PDF* pdf, struct Span* data) {
-#define N 50 // FIXME: jank; good enough for now
+#define N 1000 // FIXME: jank; good enough for now
   struct NameObjectPair entries[N];
 
   size_t i = 0;
@@ -917,7 +918,7 @@ static struct DictionaryObject parse_dict(struct PDF* pdf, struct Span* data) {
 }
 
 static struct ArrayObject parse_array(struct PDF* pdf, struct Span* data) {
-#define N 50 // FIXME: jank; good enough for now
+#define N 10000 // FIXME: jank; good enough for now
   struct Object entries[N];
 
   size_t i = 0;
