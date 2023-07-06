@@ -27,6 +27,12 @@ visible page.
 This here is for dumping all the data in a PDF, so it starts at the start and
 reads all the data. Normally you wouldn't do that.
 
+The file format is conceptually somewhat simple, but made harder by additions:
+- Linearization
+- Incremental Updates
+- Object Streams
+All three of those aren't implemented yet.
+
 ideas:
 - crunch
   - (re)compress streams
@@ -618,7 +624,6 @@ int main(int argc, char* argv[]) {
   if (fstat(in_file, &in_stat))
     fatal("Failed to stat \'%s\'\n", in_name);
 
-  // Casting memory like this is not portable.
   void* contents = mmap(
       /*addr=*/0, in_stat.st_size,
       PROT_READ, MAP_SHARED, in_file, /*offset=*/0);
