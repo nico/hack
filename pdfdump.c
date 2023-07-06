@@ -1406,7 +1406,9 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
   case Trailer:
     // FIXME: does anything in the trailer need optional recomputing?
     iprintf(options, "trailer\n");
+    increase_indent(options);
     ast_print_dict(options, pdf, &pdf->trailers[object->index].dict);
+    decrease_indent(options);
     break;
   case StartXRef:
     // FIXME: optionally recompute so that it's correct for pretty-printed output.
