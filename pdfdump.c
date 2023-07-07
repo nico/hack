@@ -1342,6 +1342,8 @@ struct OutputOptions {
 
   unsigned current_indent;
   bool is_on_start_of_line;
+
+  size_t bytes_written;
 };
 
 static void init_output_options(struct OutputOptions* options) {
@@ -1349,6 +1351,7 @@ static void init_output_options(struct OutputOptions* options) {
 
   options->current_indent = 0;
   options->is_on_start_of_line = true;
+  options->bytes_written = 0;
 }
 
 static void increase_indent(struct OutputOptions* options) {
@@ -1359,9 +1362,10 @@ static void decrease_indent(struct OutputOptions* options) {
   options->current_indent -= 2;
 }
 
-static void print_indent(const struct OutputOptions* options) {
+static int print_indent(const struct OutputOptions* options) {
   for (unsigned i = 0; i < options->current_indent; ++i)
     printf(" ");
+  return options->current_indent;
 }
 
 #if defined(__clang__) || defined(__GNUC__)
@@ -1370,17 +1374,34 @@ static void print_indent(const struct OutputOptions* options) {
 #define PRINTF(a, b)
 #endif
 
+static void nvprintf(struct OutputOptions* options, const char* msg, va_list args) {
+  int vprintf_result = vprintf(msg, args);
+
+  if (vprintf_result < 0)
+    fatal("error writing output");
+
+  options->is_on_start_of_line = false;
+  options->bytes_written += vprintf_result;
+}
+
+PRINTF(2, 3)
+static void nprintf(struct OutputOptions* options, const char* msg, ...) {
+  va_list args;
+  va_start(args, msg);
+  nvprintf(options, msg, args);
+  va_end(args);
+}
+
 PRINTF(2, 3)
 static void iprintf(struct OutputOptions* options, const char* msg, ...) {
   if (options->is_on_start_of_line) {
     if (options->indent_output)
-      print_indent(options);
-    options->is_on_start_of_line = false;
+      options->bytes_written += print_indent(options);
   }
 
   va_list args;
   va_start(args, msg);
-  vprintf(msg, args);
+  nvprintf(options, msg, args);
   va_end(args);
 
   if (msg[strlen(msg) - 1] == '\n')
@@ -1403,7 +1424,7 @@ static void ast_print_dict(struct OutputOptions* options, const struct PDF* pdf,
   increase_indent(options);
   for (size_t i = 0; i < dict->count; ++i) {
     ast_print_name(options, &dict->elements[i].name, /*print_newline=*/false);
-    printf(" ");
+    nprintf(options, " ");
     ast_print(options, pdf, &dict->elements[i].value);
   }
   decrease_indent(options);
@@ -1483,9 +1504,9 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
     iprintf(options, "xref\n%zu %zu\n", xref.start_id, xref.count);
     for (size_t i = 0; i < xref.count; ++i) {
       // FIXME: Reopen stdout as binary on windows :/
-      printf("%010zu %05zu %c \n", xref.entries[i].offset,
-                                   xref.entries[i].generation,
-                                   xref.entries[i].is_free ? 'f' : 'n');
+      nprintf(options, "%010zu %05zu %c \n", xref.entries[i].offset,
+                                             xref.entries[i].generation,
+                                             xref.entries[i].is_free ? 'f' : 'n');
     }
     break;
   }
@@ -1556,7 +1577,7 @@ static void pretty_print(struct Span data, bool indent_output) {
     append_toplevel_object(&pdf, object);
   }
 
-  printf("%%PDF-%d.%d\n", pdf.version.major, pdf.version.minor);
+  nprintf(&options, "%%PDF-%d.%d\n", pdf.version.major, pdf.version.minor);
   for (size_t i = 0; i < pdf.toplevel_objects_count; ++i)
     ast_print(&options, &pdf, &pdf.toplevel_objects[i]);
 }
