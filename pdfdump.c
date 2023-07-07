@@ -397,8 +397,7 @@ static void advance_to_end_of_token(struct Span* data, struct Token* token) {
       span_advance(data, 1); // Skip '%'.
       while (data->size && !is_newline(data->data[0]))
         span_advance(data, 1);
-      if (data->size)
-        consume_newline(data);
+      // Make newline after the comment not part of the comment's payload.
       break;
 
     case tok_number:
@@ -1325,7 +1324,6 @@ static struct Object parse_object(struct PDF* pdf, struct Span* data,
     return (struct Object){ String, pdf->strings_count - 1 };
 
   case tok_comment:
-    // FIXME: normalize newline to \n (...or should the lexer do that)
     append_comment(pdf, (struct CommentObject){ token.payload });
     return (struct Object){ Comment, pdf->comments_count - 1 };
 
@@ -1494,8 +1492,7 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
       pdf->indirect_object_refs[object->index].generation);
     break;
   case Comment:
-    // Don't print trailing newline.
-    iprintf(options, "%.*s\n", (int)pdf->comments[object->index].value.size - 1,
+    iprintf(options, "%.*s\n", (int)pdf->comments[object->index].value.size,
                                pdf->comments[object->index].value.data);
     break;
   case XRef: {
