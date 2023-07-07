@@ -80,9 +80,10 @@ static void print_usage(FILE* stream, const char* program_name) {
   fprintf(stream,
           "\n"
           "options:\n"
-          "  --dump-tokens  Dump output of tokenizer\n"
-          "  --no-indent    Disable auto-indentation of pretty-printer\n"
-          "  -h  --help   print this message\n");
+          "  --dump-tokens     dump output of tokenizer\n"
+          "  --no-indent       disable auto-indentation of pretty-printer\n"
+          "  --update-offsets  update offsets to match pretty-printed output\n"
+          "  -h  --help        print this message\n");
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1337,15 +1338,18 @@ static struct Object parse_object(struct PDF* pdf, struct Span* data,
 
 struct OutputOptions {
   bool indent_output;
+  bool update_offsets;
 
   unsigned current_indent;
   bool is_on_start_of_line;
 
   size_t bytes_written;
+  size_t xref_offset;
 };
 
 static void init_output_options(struct OutputOptions* options) {
   options->indent_output = true;
+  options->update_offsets = false;
 
   options->current_indent = 0;
   options->is_on_start_of_line = true;
@@ -1442,6 +1446,7 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
     iprintf(options, "%f\n", pdf->reals[object->index].value);
     break;
   case String:
+    // FIXME: doesn't set bytes_written correctly for binary contents
     iprintf(options, "%.*s\n", (int)pdf->strings[object->index].value.size,
                                pdf->strings[object->index].value.data);
     break;
@@ -1467,7 +1472,9 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
     ast_print_dict(options, pdf, &stream.dict);
     decrease_indent(options);
     iprintf(options, "stream\n");
+    // FIXME: optionally filter or unfilter contents
     // FIXME: print stream contents
+    // FIXME: if options->update_offsets, update /Length value
     iprintf(options, "(%zu bytes)\n", stream.data.size);
     iprintf(options, "endstream\n");
     break;
@@ -1492,12 +1499,15 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
       pdf->indirect_object_refs[object->index].generation);
     break;
   case Comment:
+    // FIXME: doesn't set bytes_written correctly for binary contents
     iprintf(options, "%.*s\n", (int)pdf->comments[object->index].value.size,
                                pdf->comments[object->index].value.data);
     break;
   case XRef: {
+    options->xref_offset = options->bytes_written;
+
     struct XRefObject xref = pdf->xrefs[object->index];
-    // FIXME: optionally recompute so that it's correct for pretty-printed output.
+    // FIXME: if options->update_offsets, update offsets of all xref entries.
     iprintf(options, "xref\n%zu %zu\n", xref.start_id, xref.count);
     for (size_t i = 0; i < xref.count; ++i) {
       // FIXME: Reopen stdout as binary on windows :/
@@ -1514,10 +1524,16 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
     ast_print_dict(options, pdf, &pdf->trailers[object->index].dict);
     decrease_indent(options);
     break;
-  case StartXRef:
-    // FIXME: optionally recompute so that it's correct for pretty-printed output.
-    iprintf(options, "startxref\n%zu\n", pdf->start_xrefs[object->index].offset);
+  case StartXRef: {
+    size_t offset = pdf->start_xrefs[object->index].offset;
+
+    // Optionally recompute offset so that it's correct for pretty-printed output.
+    if (options->update_offsets)
+      offset = options->xref_offset;
+
+    iprintf(options, "startxref\n%zu\n", offset);
     break;
+  }
   }
 }
 
@@ -1581,11 +1597,14 @@ int main(int argc, char* argv[]) {
   // Parse options.
   bool opt_dump_tokens = false;
   bool indent_output = true;
+  bool update_offsets = false;
 #define kDumpTokens 512
 #define kNoIndent 513
+#define kUpdateOffsets 514
   struct option getopt_options[] = {
       {"dump-tokens", no_argument, NULL, kDumpTokens},
       {"no-indent", no_argument, NULL, kNoIndent},
+      {"update-offsets", no_argument, NULL, kUpdateOffsets},
       {0, 0, 0, 0},
   };
   int opt;
@@ -1599,6 +1618,9 @@ int main(int argc, char* argv[]) {
         break;
       case kNoIndent:
         indent_output = false;
+        break;
+      case kUpdateOffsets:
+        update_offsets = true;
         break;
     }
   }
@@ -1634,6 +1656,7 @@ int main(int argc, char* argv[]) {
     struct OutputOptions options;
     init_output_options(&options);
     options.indent_output = indent_output;
+    options.update_offsets = update_offsets;
 
     pretty_print((struct Span){ contents, in_stat.st_size }, &options);
   }
