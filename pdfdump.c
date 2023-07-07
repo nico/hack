@@ -1078,6 +1078,10 @@ static struct XRefObject parse_xref(struct PDF* pdf, struct Span* data) {
   if (data->size < 20 * (unsigned)count)
     fatal("not enough data for xref entries\n");
 
+  // Per 3.4.3 Cross-Reference Table:
+  // "Following this line are one or more cross-reference subsections"
+  // FIXME: this parses only a single cross-reference subsection at the moment.
+
   struct XRefEntry* entries = malloc(count * sizeof(struct XRefEntry));
 
   for (int i = 0; i < count; ++i) {
