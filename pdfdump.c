@@ -1344,6 +1344,12 @@ struct OutputOptions {
   bool is_on_new_line;
 };
 
+static void init_output_options(struct OutputOptions* options) {
+  options->current_indent = 0;
+  options->is_on_new_line = true;
+  options->indent_output = true;
+}
+
 static void increase_indent(struct OutputOptions* options) {
   options->current_indent += 2;
 }
@@ -1501,8 +1507,7 @@ static void pretty_print(struct Span data, bool indent_output) {
   init_pdf(&pdf);
 
   struct OutputOptions options;
-  options.current_indent = 0;
-  options.is_on_new_line = true;
+  init_output_options(&options);
   options.indent_output = indent_output;
 
   // 3.4 File Structure
