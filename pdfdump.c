@@ -1345,9 +1345,10 @@ struct OutputOptions {
 };
 
 static void init_output_options(struct OutputOptions* options) {
+  options->indent_output = true;
+
   options->current_indent = 0;
   options->is_on_start_of_line = true;
-  options->indent_output = true;
 }
 
 static void increase_indent(struct OutputOptions* options) {
