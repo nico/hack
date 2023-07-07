@@ -1500,10 +1500,17 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
     // FIXME: if options->update_offsets, update /Length value
 
     switch (options->stream_options) {
-    case PrintRawData:
-      // FIXME: doesn't set bytes_written correctly for binary contents
-      iprintf(options, "%.*s\n", (int)stream.data.size, stream.data.data);
+    case PrintRawData: {
+      size_t n = fwrite(stream.data.data, 1, stream.data.size, stdout);
+      if (n != stream.data.size)
+        fatal("failed to write binary data\n");
+      options->bytes_written += stream.data.size;
+
+      if (fputc('\n', stdout) == EOF)
+        fatal("failed to write newline\n");
+      options->bytes_written += 1;
       break;
+    }
     case PrintSummary:
       iprintf(options, "(%zu bytes)\n", stream.data.size);
       break;
