@@ -50,16 +50,17 @@ ideas:
 
 - compile
   - (re)compress streams
-  - fill in binary comment at start
-  - fill in stream lengths
+  - fill in binary comment at start (?)
   - fill in xref table / startxref offset
+  - fill in stream lengths
+  - renumber indirect objects (and refs to them)
+  - check that indirect object ref indices make sense
 
 - linearize / delinearize
 
 - tool
   - pretty print (consistent newlines, indent dict contents, etc)
   - validate input
-    - stream /Lengths consistent with contents / offset
     - stream /Lengths consistent with contents / offset
   - extract images
   - extract text (by file order and by paint order on page; and from selection
