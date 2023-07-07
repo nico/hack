@@ -1341,12 +1341,12 @@ struct OutputOptions {
   bool indent_output;
 
   unsigned current_indent;
-  bool is_on_new_line;
+  bool is_on_start_of_line;
 };
 
 static void init_output_options(struct OutputOptions* options) {
   options->current_indent = 0;
-  options->is_on_new_line = true;
+  options->is_on_start_of_line = true;
   options->indent_output = true;
 }
 
@@ -1371,10 +1371,10 @@ static void print_indent(const struct OutputOptions* options) {
 
 PRINTF(2, 3)
 static void iprintf(struct OutputOptions* options, const char* msg, ...) {
-  if (options->is_on_new_line) {
+  if (options->is_on_start_of_line) {
     if (options->indent_output)
       print_indent(options);
-    options->is_on_new_line = false;
+    options->is_on_start_of_line = false;
   }
 
   va_list args;
@@ -1383,7 +1383,7 @@ static void iprintf(struct OutputOptions* options, const char* msg, ...) {
   va_end(args);
 
   if (msg[strlen(msg) - 1] == '\n')
-    options->is_on_new_line = true;
+    options->is_on_start_of_line = true;
 }
 
 static void ast_print(struct OutputOptions*, const struct PDF* pdf,
