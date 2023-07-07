@@ -1336,6 +1336,11 @@ static struct Object parse_object(struct PDF* pdf, struct Span* data,
 ///////////////////////////////////////////////////////////////////////////////
 // Pretty-printer
 
+enum StreamOptions {
+  PrintRawData,
+  PrintSummary,
+};
+
 struct OutputOptions {
   bool indent_output;
   bool update_offsets;
@@ -1345,6 +1350,8 @@ struct OutputOptions {
 
   size_t bytes_written;
   size_t xref_offset;
+
+  enum StreamOptions stream_options;
 };
 
 static void init_output_options(struct OutputOptions* options) {
@@ -1354,6 +1361,8 @@ static void init_output_options(struct OutputOptions* options) {
   options->current_indent = 0;
   options->is_on_start_of_line = true;
   options->bytes_written = 0;
+
+  options->stream_options = PrintRawData;
 }
 
 static void increase_indent(struct OutputOptions* options) {
@@ -1473,9 +1482,18 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
     decrease_indent(options);
     iprintf(options, "stream\n");
     // FIXME: optionally filter or unfilter contents
-    // FIXME: print stream contents
     // FIXME: if options->update_offsets, update /Length value
-    iprintf(options, "(%zu bytes)\n", stream.data.size);
+
+    switch (options->stream_options) {
+    case PrintRawData:
+      // FIXME: doesn't set bytes_written correctly for binary contents
+      iprintf(options, "%.*s\n", (int)stream.data.size, stream.data.data);
+      break;
+    case PrintSummary:
+      iprintf(options, "(%zu bytes)\n", stream.data.size);
+      break;
+    }
+
     iprintf(options, "endstream\n");
     break;
   }
