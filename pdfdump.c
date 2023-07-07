@@ -1524,13 +1524,9 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
   }
 }
 
-static void pretty_print(struct Span data, bool indent_output) {
+static void pretty_print(struct Span data, struct OutputOptions* options) {
   struct PDF pdf;
   init_pdf(&pdf);
-
-  struct OutputOptions options;
-  init_output_options(&options);
-  options.indent_output = indent_output;
 
   // 3.4 File Structure
   // 1. Header
@@ -1577,9 +1573,9 @@ static void pretty_print(struct Span data, bool indent_output) {
     append_toplevel_object(&pdf, object);
   }
 
-  nprintf(&options, "%%PDF-%d.%d\n", pdf.version.major, pdf.version.minor);
+  nprintf(options, "%%PDF-%d.%d\n", pdf.version.major, pdf.version.minor);
   for (size_t i = 0; i < pdf.toplevel_objects_count; ++i)
-    ast_print(&options, &pdf, &pdf.toplevel_objects[i]);
+    ast_print(options, &pdf, &pdf.toplevel_objects[i]);
 }
 
 int main(int argc, char* argv[]) {
@@ -1637,8 +1633,13 @@ int main(int argc, char* argv[]) {
 
   if (opt_dump_tokens)
     dump_tokens(&(struct Span){ contents, in_stat.st_size });
-  else
-    pretty_print((struct Span){ contents, in_stat.st_size }, indent_output);
+  else {
+    struct OutputOptions options;
+    init_output_options(&options);
+    options.indent_output = indent_output;
+
+    pretty_print((struct Span){ contents, in_stat.st_size }, &options);
+  }
 
   munmap(contents, in_stat.st_size);
   close(in_file);
