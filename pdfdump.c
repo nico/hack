@@ -616,6 +616,23 @@ struct DictionaryObject {
   struct NameObjectPair* elements;
 };
 
+struct Object* dict_get(const struct DictionaryObject* dict, const char* key) {
+  // FIXME: maybe have a lazily-created hash table on the side?
+  size_t l = strlen(key);
+  for (size_t i = 0; i < dict->count; ++i) {
+    if (dict->elements[i].name.value.size != l ||
+        strncmp(key, (char*)dict->elements[i].name.value.data, l))
+      continue;
+
+    // 3.2.6 Dictionary Objects
+    // "A dictionary entry whose value is `null` is equivalent ot an absent entry."
+    if (dict->elements[i].value.kind == Null)
+      return NULL;
+    return &dict->elements[i].value;
+  }
+  return NULL;
+}
+
 struct StreamObject {
   struct DictionaryObject dict;
   struct Span data;
@@ -949,27 +966,43 @@ static struct StreamObject parse_stream(struct PDF* pdf, struct Span* data,
     span_advance(data, 1);
   else if (data->size >= 2 && data->data[0] == '\r' && data->data[1] == '\n')
     span_advance(data, 2);
+  uint8_t* data_start = data->data;
 
   // Ignore everything inside a `stream`.
-  // FIXME: Use /Length from stream_dict if present.
-  uint8_t* data_start = data->data;
-  const uint8_t* e = memmem(data->data, data->size,
-                            "endstream", strlen("endstream"));
-  if (!e)
-    fatal("missing `endstream`\n");
-  span_advance(data, e - data->data);
+  // Use /Length from stream_dict if present.
+  // ...but see example 3.1, /Length could be an indirect object that's
+  // defined only later in the file. In that case, need to scan too.
+  struct Object* length_object = dict_get(&stream_dict, "/Length");
 
-  // Skip newline in front of `endline` if present.
-  if (e > data_start && e[-1] == '\r') {
-    --e;
-  } else if (e > data_start && e[-1] == '\n') {
-    --e;
-    if (e > data_start && e[-1] == '\r')
+  size_t data_size;
+  if (!length_object || length_object->kind == IndirectObjectRef) {
+    const uint8_t* e = memmem(data->data, data->size,
+                              "endstream", strlen("endstream"));
+    if (!e)
+      fatal("missing `endstream`\n");
+    span_advance(data, e - data->data);
+
+    // Skip newline in front of `endline` if present.
+    if (e > data_start && e[-1] == '\r') {
       --e;
+    } else if (e > data_start && e[-1] == '\n') {
+      --e;
+      if (e > data_start && e[-1] == '\r')
+        --e;
+    }
+    data_size = e - data_start;
+  } else {
+    if (length_object->kind != Integer)
+      fatal("stream /Length unexpectedly not indirect object and not integer\n");
+    data_size = pdf->integers[length_object->index].value;
+    span_advance(data, data_size);
+
+    if (data->size && is_newline(data->data[0]))
+      consume_newline(data);
   }
-  size_t data_size = e - data_start;
 
-
+  // FIXME: This shouldn't skip whitespace; `endstream` must be at the start of
+  // `data` here, else things are awry.
   struct Token token;
   read_non_eof_token(data, &token);
   assert(token.kind == kw_endstream);
