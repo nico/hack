@@ -1295,6 +1295,7 @@ static struct Object parse_object(struct PDF* pdf, struct Span* data,
     // FIXME: This gets confused about comments before `stream`.
     read_token(data, &token);
     if (token.kind == kw_stream) {
+      // FIXME: only allow at toplevel
       append_stream(pdf, parse_stream(pdf, data, dict));
       return (struct Object){ Stream, pdf->streams_count - 1 };
     }
