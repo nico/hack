@@ -53,15 +53,24 @@ ideas:
   - fill in binary comment at start (?)
   - fill in xref table / startxref offset
   - fill in stream lengths
-  - renumber indirect objects (and refs to them)
+  - renumber indirect objects (and refs to them), and update trailer /Size
   - check that indirect object ref indices make sense
 
 - linearize / delinearize
 
 - tool
   - pretty print (consistent newlines, indent dict contents, etc)
-  - validate input
+  - validate
+    - everything parses (duh)
+    - all xref entries point at indirect objs
+    - xref entries have f / n set consistent with generation number
+    - all indirect objs are ref'd by an xref table
+    - startxref points at xref table
     - stream /Lengths consistent with contents / offset
+  - statistics
+    - number of each object type
+    - number of empty xref entries
+    - number of indirect objects obsoleted by newer generation
   - extract images
   - extract text (by file order and by paint order on page; and from selection
     data)
