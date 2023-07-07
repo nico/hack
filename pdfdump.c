@@ -28,9 +28,9 @@ This here is for dumping all the data in a PDF, so it starts at the start and
 reads all the data. Normally you wouldn't do that.
 
 The file format is conceptually somewhat simple, but made harder by additions:
-- Linearization
+- Linearization (1.2+)
 - Incremental Updates
-- Object Streams
+- Object Streams (1.5+)
 All three of those aren't implemented yet.
 
 ideas:
@@ -939,22 +939,42 @@ static struct StreamObject parse_stream(struct PDF* pdf, struct Span* data,
                                         struct DictionaryObject stream_dict) {
   (void)pdf;
 
+  // 3.2.7 Stream Objects
+  // "The keyword `stream` that follows the stream dictionary should be followed by
+  //  and end-of-line marker consisting of either a carriage return and a line feed
+  //  or just a line feed, and not by a carriage return alone. [...]
+  //  It is recommended that there be an end-of-line marker after the data and
+  //  before `endstream`; this marker is not included in the stream length."
+  if (data->size && data->data[0] == '\n')
+    span_advance(data, 1);
+  else if (data->size >= 2 && data->data[0] == '\r' && data->data[1] == '\n')
+    span_advance(data, 2);
+
   // Ignore everything inside a `stream`.
   // FIXME: Use /Length from stream_dict if present.
-  // 3.2.7 Stream Objects
-  uint8_t* data_start = data->data; // FIXME: skip 1 newline byte at start
+  uint8_t* data_start = data->data;
   const uint8_t* e = memmem(data->data, data->size,
                             "endstream", strlen("endstream"));
   if (!e)
     fatal("missing `endstream`\n");
   span_advance(data, e - data->data);
 
+  // Skip newline in front of `endline` if present.
+  if (e > data_start && e[-1] == '\r') {
+    --e;
+  } else if (e > data_start && e[-1] == '\n') {
+    --e;
+    if (e > data_start && e[-1] == '\r')
+      --e;
+  }
+  size_t data_size = e - data_start;
+
+
   struct Token token;
   read_non_eof_token(data, &token);
   assert(token.kind == kw_endstream);
 
-  // FIXME: skip newline in front of `endline` if present.
-  struct Span stream_data = { data_start, e - data_start };
+  struct Span stream_data = { data_start, data_size };
 
   struct StreamObject stream;
   stream.dict = stream_dict;
