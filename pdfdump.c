@@ -412,8 +412,7 @@ static void advance_to_end_of_token(struct Span* data, struct Token* token) {
   }
 }
 
-static void read_token(struct Span* data, struct Token* token) {
-  advance_to_next_token(data);
+static void read_token_at_current_position(struct Span* data, struct Token* token) {
   token->payload.data = data->data;
 
   token->kind = classify_current(data);
@@ -422,8 +421,20 @@ static void read_token(struct Span* data, struct Token* token) {
   token->payload.size = data->data - token->payload.data;
 }
 
+static void read_token(struct Span* data, struct Token* token) {
+  advance_to_next_token(data);
+  read_token_at_current_position(data, token);
+}
+
 static void read_non_eof_token(struct Span* data, struct Token* token) {
   read_token(data, token);
+  if (token->kind == tok_eof)
+    fatal("unexpected eof\n");
+}
+
+static void read_non_eof_token_at_current_position(struct Span* data,
+                                                   struct Token* token) {
+  read_token_at_current_position(data, token);
   if (token->kind == tok_eof)
     fatal("unexpected eof\n");
 }
@@ -1001,11 +1012,17 @@ static struct StreamObject parse_stream(struct PDF* pdf, struct Span* data,
       consume_newline(data);
   }
 
-  // FIXME: This shouldn't skip whitespace; `endstream` must be at the start of
-  // `data` here, else things are awry.
+  // This must not skip whitespace; `endstream` must be at the start of `data` here,
+  // else things are awry.
+  if (!data->size || is_whitespace(data->data[0]))
+    fatal("unexpected data after stream");
   struct Token token;
-  read_non_eof_token(data, &token);
-  assert(token.kind == kw_endstream);
+  read_non_eof_token_at_current_position(data, &token);
+
+  // This can fail if we get the length from /Length. In the fallback case, it's
+  // always true.
+  if (token.kind != kw_endstream)
+    fatal("missing `endstream` after stream");
 
   struct Span stream_data = { data_start, data_size };
 
