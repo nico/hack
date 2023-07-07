@@ -1351,6 +1351,8 @@ struct OutputOptions {
   size_t bytes_written;
   size_t xref_offset;
 
+  size_t* indirect_object_offsets;
+
   enum StreamOptions stream_options;
 };
 
@@ -1361,6 +1363,9 @@ static void init_output_options(struct OutputOptions* options) {
   options->current_indent = 0;
   options->is_on_start_of_line = true;
   options->bytes_written = 0;
+
+  options->xref_offset = 0;
+  options->indirect_object_offsets = NULL;
 
   options->stream_options = PrintRawData;
 }
@@ -1502,6 +1507,10 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
     break;
   case IndirectObject: {
     struct IndirectObjectObject indirect = pdf->indirect_objects[object->index];
+
+    // FIXME: Only if it has the highest generation number.
+    options->indirect_object_offsets[indirect.id] = options->bytes_written;
+
     iprintf(options, "%zu %zu obj\n", indirect.id, indirect.generation);
     if (indirect.value.kind != Stream)
       increase_indent(options);
@@ -1525,11 +1534,18 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
     options->xref_offset = options->bytes_written;
 
     struct XRefObject xref = pdf->xrefs[object->index];
-    // FIXME: if options->update_offsets, update offsets of all xref entries.
     iprintf(options, "xref\n%zu %zu\n", xref.start_id, xref.count);
     for (size_t i = 0; i < xref.count; ++i) {
+      size_t offset = xref.entries[i].offset;
+
+      // Optionally recompute offset so that it's correct for pretty-printed output.
+      if (options->update_offsets && !xref.entries[i].is_free) {
+        size_t id = xref.start_id + i;
+        offset = options->indirect_object_offsets[id];
+      }
+
       // FIXME: Reopen stdout as binary on windows :/
-      nprintf(options, "%010zu %05zu %c \n", xref.entries[i].offset,
+      nprintf(options, "%010zu %05zu %c \n", offset,
                                              xref.entries[i].generation,
                                              xref.entries[i].is_free ? 'f' : 'n');
     }
@@ -1582,7 +1598,7 @@ static void pretty_print(struct Span data, struct OutputOptions* options) {
 
   // 5. %%EOF
 
-  // Initial value of kind doesn't matter as long as it's not kw_xref.
+  size_t max_indirect_object_id = 0;
   struct Token token;
   while (true) {
     read_token(&data, &token);
@@ -1599,10 +1615,21 @@ static void pretty_print(struct Span data, struct OutputOptions* options) {
             "at toplevel\n");
     }
 
+    if (object.kind == IndirectObject) {
+      size_t id = pdf.indirect_objects[object.index].id;
+      if (id > max_indirect_object_id)
+        max_indirect_object_id = id;
+    }
+
     // FIXME: maybe not even necessary to store all the toplevels;
     // instead just process them as they come in?
+    // (Doesn't work with the current strategy of xref offset updating, so would
+    // have to tweak that.)
     append_toplevel_object(&pdf, object);
   }
+
+  options->indirect_object_offsets = calloc(max_indirect_object_id + 1,
+                                            sizeof(size_t));
 
   nprintf(options, "%%PDF-%d.%d\n", pdf.version.major, pdf.version.minor);
   for (size_t i = 0; i < pdf.toplevel_objects_count; ++i)
