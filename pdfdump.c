@@ -1591,14 +1591,11 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
   }
 }
 
-static void pretty_print(struct Span data, struct OutputOptions* options) {
-  struct PDF pdf;
-  init_pdf(&pdf);
-
+static void parse_pdf(struct Span data, struct PDF* pdf) {
   // 3.4 File Structure
   // 1. Header
   // %PDF-1.0
-  parse_header(&data, &pdf.version);
+  parse_header(&data, &pdf->version);
 
   // %nonasciichars
 
@@ -1625,7 +1622,7 @@ static void pretty_print(struct Span data, struct OutputOptions* options) {
     if (token.kind == tok_eof)
       break;
 
-    struct Object object = parse_object(&pdf, &data, token);
+    struct Object object = parse_object(pdf, &data, token);
 
     // FIXME: is this true?
     if (object.kind != IndirectObject && object.kind != Comment &&
@@ -1638,8 +1635,15 @@ static void pretty_print(struct Span data, struct OutputOptions* options) {
     // instead just process them as they come in?
     // (Doesn't work with the current strategy of xref offset updating, so would
     // have to tweak that.)
-    append_toplevel_object(&pdf, object);
+    append_toplevel_object(pdf, object);
   }
+}
+
+static void pretty_print(struct Span data, struct OutputOptions* options) {
+  struct PDF pdf;
+  init_pdf(&pdf);
+
+  parse_pdf(data, &pdf);
 
   if (options->quiet)
     return;
