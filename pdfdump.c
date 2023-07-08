@@ -994,6 +994,10 @@ static struct StreamObject parse_stream(struct PDF* pdf, struct Span* data,
   // Use /Length from stream_dict if present.
   // ...but see example 3.1, /Length could be an indirect object that's
   // defined only later in the file. In that case, need to scan too.
+  // FIXME: Parse `startxref` and `xref` early and get offset of indirect
+  //        length object from there instead in that case, like a regular
+  //        PDF viewer would do. (This won't work with update_offsets where
+  //        we're supposed to fill in /Length.)
   struct Object* length_object = dict_get(&stream_dict, "/Length");
 
   size_t data_size;
