@@ -1673,14 +1673,18 @@ int main(int argc, char* argv[]) {
 #define kQuiet 515
   struct option getopt_options[] = {
       {"dump-tokens", no_argument, NULL, kDumpTokens},
+      {"help", no_argument, NULL, 'h'},
       {"no-indent", no_argument, NULL, kNoIndent},
       {"update-offsets", no_argument, NULL, kUpdateOffsets},
       {"quiet", no_argument, NULL, kQuiet},
       {0, 0, 0, 0},
   };
   int opt;
-  while ((opt = getopt_long(argc, argv, "", getopt_options, NULL)) != -1) {
+  while ((opt = getopt_long(argc, argv, "h", getopt_options, NULL)) != -1) {
     switch (opt) {
+      case 'h':
+        print_usage(stdout, program_name);
+        return 0;
       case '?':
         print_usage(stderr, program_name);
         return 1;
