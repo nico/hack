@@ -1618,7 +1618,6 @@ static void pretty_print(struct Span data, struct OutputOptions* options) {
 
   // 5. %%EOF
 
-  size_t max_indirect_object_id = 0;
   struct Token token;
   while (true) {
     read_token(&data, &token);
@@ -1635,12 +1634,6 @@ static void pretty_print(struct Span data, struct OutputOptions* options) {
             "at toplevel\n");
     }
 
-    if (object.kind == IndirectObject) {
-      size_t id = pdf.indirect_objects[object.index].id;
-      if (id > max_indirect_object_id)
-        max_indirect_object_id = id;
-    }
-
     // FIXME: maybe not even necessary to store all the toplevels;
     // instead just process them as they come in?
     // (Doesn't work with the current strategy of xref offset updating, so would
@@ -1650,6 +1643,13 @@ static void pretty_print(struct Span data, struct OutputOptions* options) {
 
   if (options->quiet)
     return;
+
+  size_t max_indirect_object_id = 0;
+  for (size_t i = 0; i < pdf.indirect_objects_count; ++i) {
+    size_t id = pdf.indirect_objects[i].id;
+    if (id > max_indirect_object_id)
+      max_indirect_object_id = id;
+  }
 
   options->indirect_object_offsets = calloc(max_indirect_object_id + 1,
                                             sizeof(size_t));
