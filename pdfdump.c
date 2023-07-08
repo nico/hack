@@ -93,6 +93,7 @@ static void print_usage(FILE* stream, const char* program_name) {
           "  --dump-tokens     dump output of tokenizer\n"
           "  --no-indent       disable auto-indentation of pretty-printer\n"
           "  --update-offsets  update offsets to match pretty-printed output\n"
+          "  --quiet           print no output\n"
           "  -h  --help        print this message\n");
 }
 
@@ -1354,6 +1355,7 @@ enum StreamOptions {
 struct OutputOptions {
   bool indent_output;
   bool update_offsets;
+  bool quiet;
 
   unsigned current_indent;
   bool is_on_start_of_line;
@@ -1369,6 +1371,7 @@ struct OutputOptions {
 static void init_output_options(struct OutputOptions* options) {
   options->indent_output = true;
   options->update_offsets = false;
+  options->quiet = false;
 
   options->current_indent = 0;
   options->is_on_start_of_line = true;
@@ -1645,6 +1648,9 @@ static void pretty_print(struct Span data, struct OutputOptions* options) {
     append_toplevel_object(&pdf, object);
   }
 
+  if (options->quiet)
+    return;
+
   options->indirect_object_offsets = calloc(max_indirect_object_id + 1,
                                             sizeof(size_t));
 
@@ -1660,13 +1666,16 @@ int main(int argc, char* argv[]) {
   bool opt_dump_tokens = false;
   bool indent_output = true;
   bool update_offsets = false;
+  bool quiet = false;
 #define kDumpTokens 512
 #define kNoIndent 513
 #define kUpdateOffsets 514
+#define kQuiet 515
   struct option getopt_options[] = {
       {"dump-tokens", no_argument, NULL, kDumpTokens},
       {"no-indent", no_argument, NULL, kNoIndent},
       {"update-offsets", no_argument, NULL, kUpdateOffsets},
+      {"quiet", no_argument, NULL, kQuiet},
       {0, 0, 0, 0},
   };
   int opt;
@@ -1683,6 +1692,9 @@ int main(int argc, char* argv[]) {
         break;
       case kUpdateOffsets:
         update_offsets = true;
+        break;
+      case kQuiet:
+        quiet = true;
         break;
     }
   }
@@ -1719,6 +1731,7 @@ int main(int argc, char* argv[]) {
     init_output_options(&options);
     options.indent_output = indent_output;
     options.update_offsets = update_offsets;
+    options.quiet = quiet;
 
     pretty_print((struct Span){ contents, in_stat.st_size }, &options);
   }
