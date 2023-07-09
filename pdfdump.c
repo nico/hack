@@ -22,16 +22,65 @@ https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/PDF32000_2008.pdf
 (Or jump through hoops at https://pdfa.org/resource/pdf-specification-index/)
 
 Normally you'd read a PDF using the lookup structures at the end of the file
-(trailer and xref), and read only the objects needed for rendering the currently
-visible page.
-This here is for dumping all the data in a PDF, so it starts at the start and
-reads all the data. Normally you wouldn't do that.
+(trailer and xref), and read only the objects needed for rendering the
+currently visible page.  This here is for dumping all the data in a PDF, so it
+starts at the start and reads all the data. Normally you wouldn't do that.
 
 The file format is conceptually somewhat simple, but made harder by additions:
-- Linearization (1.2+)
 - Incremental Updates
+- Linearization (1.2+)
 - Object Streams (1.5+)
 All three of those aren't implemented yet.
+
+To read a PDF, a regular viewer does:
+- read the very first line, check that it's a PDF signature, and extracts
+  the version number
+- go to the end of the file, find `startxref` which has offset to `xref`,
+  and `trailer`, which has number of objects (/Size),
+  and id of root object (/Root)
+- go to `xref`, which has offsets of all obj IDs
+- using the `xref` table, read the root object and objs referenced from
+  there to deserialize all data needed to render a given page
+
+For Incremental Updates (3.4.5 in the 1.7 spec), new data is written at the end
+of the existing, unchanged PDF data. That means there's a second startxref (and
+then a third, fourth, and so on, one more for each incremental safe) pointing
+to a second `xref`, and a second trailer before the startxref.  The trailer
+stores the offset of the previous xref (? XXX) (/Prev).  The xref tables are
+read newest-to-oldest, and only offsets for objects that don't already have an
+entry in a newer table are used from the older tables.
+
+A linearized file stores a "linearization dictionary" at the top of the file,
+right after the header, in the first 1024 bytes, containing only direct
+objects. `/Linearized 1.0` marks the dictionary as linearization dictionary,
+and that dictionary also stores file length (/L), primary hint stream offset
+and length (/H), the id of the first page's page object (/O) and the offset to
+the end of the first page (/E), the number of total pages in the document (/N)
+and the offset to the first entry in the main xref (/T). After the
+linearization dictionary is a first xref for just the first page, followed by a
+first trailer that stores an offset to the main xref (/Prev), the total number
+of xref entries (/Size), and the id of the root object (/Root). Then an
+optional `startxref` with an ignored dummy offset (often `0`), followed by
+`%%EOF`. Then comes the document catalog, then in any order both the first page
+section (including objects for the first page and the outline hierarchy) and
+the primary hint stream. After that, the remaining pages and their referenced
+objects follow. Then some optional stuff, and finally the main xref, trailer,
+startxref (pointing to the _first_ xref), %%EOF.  See Appendix F in
+pdf_reference_1-7.pdf for details on linearized PDFs.
+
+Object streams are documented in 3.4.6 Object Streams and
+3.4.7 Cross-Reference Streams n the 1.7 spec. A Cross-Reference Stream stores
+both `trailer` and `xref` data in an object stream: The `trailer` data in the
+stream dict, the `xref` data in the stream's contents. It has `/Type /XRef`.
+`startxref` now stores the offset of the cross-reference stream instead of
+the `xref`. (Per Appendix H, Acrobat 6+ only supports /FlateDecode for
+cross-reference streams.)
+
+It's possible to have a hybrid file that has both traditional `xref` /
+`trailer` and a cross-reference stream (for files readable by both 1.4- and
+1.5+ readers). Here, startxref points at the traditional `xref` but the trailer
+dictionary contains a `/XRefStm` key that points at the cross-reference object.
+For reasons, this can only be used in update xref sections (see spec).
 
 ideas:
 - crunch
@@ -67,6 +116,8 @@ ideas:
     - all indirect objs are ref'd by an xref table
     - startxref points at xref table
     - stream /Lengths consistent with contents / offset
+    - hybrid file has consistent data in `xref` / `trailer` and in
+      cross-reference stream
   - statistics
     - number of each object type
     - number of empty xref entries
