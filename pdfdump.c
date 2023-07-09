@@ -1694,6 +1694,71 @@ static void parse_pdf(struct Span data, struct PDF* pdf) {
   }
 }
 
+static void validate_startxref(struct Span data, struct PDF* pdf) {
+  // `startxref` should point at `xref` table, or for a file using
+  // xref streams, at an xref stream.
+  // For a linearized PDF, the `startxref` in the first section is
+  // optional and its offset is ignored (and is often `0`).
+  for (size_t i = 0; i < pdf->start_xrefs_count; ++i) {
+    size_t offset = pdf->start_xrefs[i].offset;
+
+    // FIXME: This is for a linearized file. It's better to instead
+    //        explicitly look for `/Linearized` in the very first dict
+    //        and then ignore the first `startxref` (in front of the first
+    //        %%EOF).
+    //        (example: veraPDFHiRes.pdf)
+    if (offset == 0)
+      continue;
+
+    if (offset + strlen("xref") > data.size)
+      fatal("`startxref` offset out of bounds\n");
+
+    // FIXME: Instead of re-parsing, it'd be nicer if we'd keep a mapping
+    //        from offset to object around and used that here.
+
+    struct Token token;
+    struct Span xref_data = { data.data + offset, data.size - offset };
+    read_token_at_current_position(&xref_data, &token);
+    if (token.kind == kw_xref)
+      continue;
+
+    // Didn't find `xref` at startxref offset. It could be an xref stream
+    // instead. (XXX check if version is >= 1.5?)
+    // (example: encryption_nocopy.pdf)
+    if (token.kind == tok_number) {
+      bool found = false;
+      int32_t id = integer_value(&token);
+      for (size_t i = 0; i < pdf->indirect_objects_count; ++i) {
+        if ((size_t)id == pdf->indirect_objects[i].id) {
+          if (pdf->indirect_objects[i].value.kind != Stream)
+            fatal("`startxref` offset points at non-stream object\n");
+
+          struct StreamObject* s =
+            &pdf->streams[pdf->indirect_objects[i].value.index];
+          struct Object* type = dict_get(&s->dict, "/Type");
+          if (!type || type->kind != Name)
+            fatal("`startxref` at stream object without /Type\n");
+
+          if (strncmp((char*)pdf->names[type->index].value.data, "/XRef",
+                      pdf->names[type->index].value.size))
+            fatal("`startxref` at stream object without /Type /XRef\n");
+
+          found = true;
+          break;
+        }
+      }
+      if (found)
+        continue;
+    }
+
+    fatal("`startxref` offset points at neither `xref` nor xref stream\n");
+  }
+}
+
+static void validate(struct Span data, struct PDF* pdf) {
+  validate_startxref(data, pdf);
+}
+
 static void pretty_print(struct Span data, struct OutputOptions* options) {
   struct PDF pdf;
   init_pdf(&pdf);
@@ -1702,6 +1767,10 @@ static void pretty_print(struct Span data, struct OutputOptions* options) {
 
   if (options->quiet)
     return;
+
+  bool do_validate = true;
+  if (do_validate)
+    validate(data, &pdf);
 
   size_t max_indirect_object_id = 0;
   for (size_t i = 0; i < pdf.indirect_objects_count; ++i) {
