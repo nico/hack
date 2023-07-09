@@ -1515,6 +1515,35 @@ static void ast_print_dict(struct OutputOptions* options, const struct PDF* pdf,
   iprintf(options, ">>\n");
 }
 
+static void ast_print_stream(struct OutputOptions* options, const struct PDF* pdf,
+                             const struct StreamObject* stream) {
+  increase_indent(options);
+  ast_print_dict(options, pdf, &stream->dict);
+  decrease_indent(options);
+  iprintf(options, "stream\n");
+  // FIXME: optionally filter or unfilter contents
+  // FIXME: if options->update_offsets, update /Length value
+
+  switch (options->stream_options) {
+  case PrintRawData: {
+    size_t n = fwrite(stream->data.data, 1, stream->data.size, stdout);
+    if (n != stream->data.size)
+      fatal("failed to write binary data\n");
+    options->bytes_written += stream->data.size;
+
+    if (fputc('\n', stdout) == EOF)
+      fatal("failed to write newline\n");
+    options->bytes_written += 1;
+    break;
+  }
+  case PrintSummary:
+    iprintf(options, "(%zu bytes)\n", stream->data.size);
+    break;
+  }
+
+  iprintf(options, "endstream\n");
+}
+
 static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
                       const struct Object* object) {
   switch (object->kind) {
@@ -1548,35 +1577,9 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
   case Dictionary:
     ast_print_dict(options, pdf, &pdf->dicts[object->index]);
     break;
-  case Stream: {
-    struct StreamObject stream = pdf->streams[object->index];
-    increase_indent(options);
-    ast_print_dict(options, pdf, &stream.dict);
-    decrease_indent(options);
-    iprintf(options, "stream\n");
-    // FIXME: optionally filter or unfilter contents
-    // FIXME: if options->update_offsets, update /Length value
-
-    switch (options->stream_options) {
-    case PrintRawData: {
-      size_t n = fwrite(stream.data.data, 1, stream.data.size, stdout);
-      if (n != stream.data.size)
-        fatal("failed to write binary data\n");
-      options->bytes_written += stream.data.size;
-
-      if (fputc('\n', stdout) == EOF)
-        fatal("failed to write newline\n");
-      options->bytes_written += 1;
-      break;
-    }
-    case PrintSummary:
-      iprintf(options, "(%zu bytes)\n", stream.data.size);
-      break;
-    }
-
-    iprintf(options, "endstream\n");
+  case Stream:
+    ast_print_stream(options, pdf, &pdf->streams[object->index]);
     break;
-  }
   case Null:
     iprintf(options, "null\n");
     break;
