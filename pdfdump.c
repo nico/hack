@@ -1492,6 +1492,25 @@ static void iprintf(struct OutputOptions* options, const char* msg, ...) {
     options->is_on_start_of_line = true;
 }
 
+static void iprint_binary_newline(struct OutputOptions* options,
+                                  const struct Span* data) {
+  if (options->is_on_start_of_line) {
+    if (options->indent_output)
+      options->bytes_written += print_indent(options);
+  }
+
+  size_t n = fwrite(data->data, 1, data->size, stdout);
+  if (n != data->size)
+    fatal("failed to write string data\n");
+  options->bytes_written += data->size;
+
+  if (fputc('\n', stdout) == EOF)
+    fatal("failed to write newline\n");
+  options->bytes_written += 1;
+
+  options->is_on_start_of_line = true;
+}
+
 static void ast_print(struct OutputOptions*, const struct PDF* pdf,
                       const struct Object* object);
 
@@ -1525,17 +1544,9 @@ static void ast_print_stream(struct OutputOptions* options, const struct PDF* pd
   // FIXME: if options->update_offsets, update /Length value
 
   switch (options->stream_options) {
-  case PrintRawData: {
-    size_t n = fwrite(stream->data.data, 1, stream->data.size, stdout);
-    if (n != stream->data.size)
-      fatal("failed to write binary data\n");
-    options->bytes_written += stream->data.size;
-
-    if (fputc('\n', stdout) == EOF)
-      fatal("failed to write newline\n");
-    options->bytes_written += 1;
+  case PrintRawData:
+    iprint_binary_newline(options, &stream->data);
     break;
-  }
   case PrintSummary:
     iprintf(options, "(%zu bytes)\n", stream->data.size);
     break;
@@ -1556,25 +1567,9 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
   case Real:
     iprintf(options, "%f\n", pdf->reals[object->index].value);
     break;
-  case String: {
-    if (options->is_on_start_of_line) {
-      if (options->indent_output)
-        options->bytes_written += print_indent(options);
-    }
-
-    const struct StringObject* string = &pdf->strings[object->index];
-    size_t n = fwrite(string->value.data, 1, string->value.size, stdout);
-    if (n != string->value.size)
-      fatal("failed to write string data\n");
-    options->bytes_written += string->value.size;
-
-    if (fputc('\n', stdout) == EOF)
-      fatal("failed to write newline\n");
-    options->bytes_written += 1;
-
-    options->is_on_start_of_line = true;
+  case String:
+    iprint_binary_newline(options, &pdf->strings[object->index].value);
     break;
-  }
   case Name:
     ast_print_name(options, &pdf->names[object->index], /*print_newline=*/true);
     break;
