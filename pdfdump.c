@@ -1613,9 +1613,7 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
       pdf->indirect_object_refs[object->index].generation);
     break;
   case Comment:
-    // FIXME: doesn't set bytes_written correctly for binary contents
-    iprintf(options, "%.*s\n", (int)pdf->comments[object->index].value.size,
-                               pdf->comments[object->index].value.data);
+    iprint_binary_newline(options, &pdf->comments[object->index].value);
     break;
   case XRef: {
     options->xref_offset = options->bytes_written;
