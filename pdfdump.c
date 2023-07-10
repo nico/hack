@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
@@ -1404,6 +1405,7 @@ static struct Object parse_object(struct PDF* pdf, struct Span* data,
 
 enum StreamOptions {
   PrintRawData,
+  PrintRawDataUnfiltered,
   PrintSummary,
 };
 
@@ -1534,18 +1536,77 @@ static void ast_print_dict(struct OutputOptions* options, const struct PDF* pdf,
   iprintf(options, ">>\n");
 }
 
+static struct Span uncompress_flate(struct Span data) {
+    void* zlib = dlopen("libz.so", RTLD_LAZY);
+    if (!zlib)
+      zlib = dlopen("libz.dylib", RTLD_LAZY);
+    if (!zlib)
+      fatal("failed to load libz\n");
+
+    typedef int (*Uncompress)(uint8_t*, unsigned long*, const uint8_t*, unsigned long);
+    Uncompress uncompress = (Uncompress)dlsym(zlib, "uncompress");
+    if (!uncompress)
+      fatal("no uncompress() in zlib?\n");
+
+    unsigned long uncompressed_size, guess = data.size;
+    void* inflated = NULL;
+
+    int err;
+    do {
+      uncompressed_size = guess;
+      inflated = realloc(inflated, uncompressed_size);
+
+      err = uncompress(inflated, &uncompressed_size, data.data, data.size);
+      guess *= 2;
+    } while (err == -5 /* == Z_BUF_ERROR*/);
+
+    if (err != 0 /* == Z_OK */)
+      fatal("failed to uncompress %d\n", err);
+
+    return (struct Span){ inflated, uncompressed_size };
+}
+
 static void ast_print_stream(struct OutputOptions* options, const struct PDF* pdf,
                              const struct StreamObject* stream) {
   increase_indent(options);
   ast_print_dict(options, pdf, &stream->dict);
   decrease_indent(options);
   iprintf(options, "stream\n");
-  // FIXME: optionally filter or unfilter contents
+  // FIXME: optionally re-filter contents
   // FIXME: if options->update_offsets, update /Length value
 
+  struct Span stream_data = stream->data;
+
   switch (options->stream_options) {
+  case PrintRawDataUnfiltered: {
+    struct Object* filter = dict_get(&stream->dict, "/Filter");
+    if (filter) {
+      if (filter->kind == Array) {
+        fprintf(stderr, "warning: cannot uncompress /Filter with array yet\n");
+        goto fallthrough;
+      }
+      if (filter->kind != Name)
+        fatal("unexpected /Filter type\n");
+      struct NameObject* name = &pdf->names[filter->index];
+      if (!strncmp((char*)name->value.data, "/FlateDecode", name->value.size)) {
+        // FIXME: This doesn't work for encrypted files.
+        //        Encryption modifies stream data but doesn't update /Length.
+        // FIXME: check /DecodeParms
+        // FIXME: Don't write `/Filter /FlateDecode` to output when the data
+        //        is uncompressed!
+        stream_data = uncompress_flate(stream_data);
+      } else {
+        fprintf(stderr, "warning: unimplemented filter %.*s\n",
+                (int)name->value.size, name->value.data);
+      }
+    }
+fallthrough:
+    ;
+    /* FALLTHROUGH */
+  }
   case PrintRawData:
-    iprint_binary_newline(options, &stream->data);
+    iprint_binary_newline(options, &stream_data);
+    // FIXME: maybe free uncompressed data?
     break;
   case PrintSummary:
     iprintf(options, "(%zu bytes)\n", stream->data.size);
@@ -1803,16 +1864,19 @@ int main(int argc, char* argv[]) {
   // Parse options.
   bool opt_dump_tokens = false;
   bool indent_output = true;
+  bool uncompress = false;
   bool update_offsets = false;
   bool quiet = false;
 #define kDumpTokens 512
 #define kNoIndent 513
-#define kUpdateOffsets 514
-#define kQuiet 515
+#define kUncompress 514
+#define kUpdateOffsets 515
+#define kQuiet 516
   struct option getopt_options[] = {
       {"dump-tokens", no_argument, NULL, kDumpTokens},
       {"help", no_argument, NULL, 'h'},
       {"no-indent", no_argument, NULL, kNoIndent},
+      {"uncompress", no_argument, NULL, kUncompress},
       {"update-offsets", no_argument, NULL, kUpdateOffsets},
       {"quiet", no_argument, NULL, kQuiet},
       {0, 0, 0, 0},
@@ -1831,6 +1895,9 @@ int main(int argc, char* argv[]) {
         break;
       case kNoIndent:
         indent_output = false;
+        break;
+      case kUncompress:
+        uncompress = true;
         break;
       case kUpdateOffsets:
         update_offsets = true;
@@ -1872,6 +1939,8 @@ int main(int argc, char* argv[]) {
     struct OutputOptions options;
     init_output_options(&options);
     options.indent_output = indent_output;
+    if (uncompress)
+      options.stream_options = PrintRawDataUnfiltered;
     options.update_offsets = update_offsets;
     options.quiet = quiet;
 
