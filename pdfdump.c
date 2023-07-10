@@ -1556,11 +1556,25 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
   case Real:
     iprintf(options, "%f\n", pdf->reals[object->index].value);
     break;
-  case String:
-    // FIXME: doesn't set bytes_written correctly for binary contents
-    iprintf(options, "%.*s\n", (int)pdf->strings[object->index].value.size,
-                               pdf->strings[object->index].value.data);
+  case String: {
+    if (options->is_on_start_of_line) {
+      if (options->indent_output)
+        options->bytes_written += print_indent(options);
+    }
+
+    const struct StringObject* string = &pdf->strings[object->index];
+    size_t n = fwrite(string->value.data, 1, string->value.size, stdout);
+    if (n != string->value.size)
+      fatal("failed to write string data\n");
+    options->bytes_written += string->value.size;
+
+    if (fputc('\n', stdout) == EOF)
+      fatal("failed to write newline\n");
+    options->bytes_written += 1;
+
+    options->is_on_start_of_line = true;
     break;
+  }
   case Name:
     ast_print_name(options, &pdf->names[object->index], /*print_newline=*/true);
     break;
