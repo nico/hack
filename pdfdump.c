@@ -31,7 +31,8 @@ The file format is conceptually somewhat simple, but made harder by additions:
 - Incremental Updates
 - Linearization (1.2+)
 - Object Streams (1.5+)
-All three of those aren't implemented yet.
+- Encryption
+All of those aren't implemented yet.
 
 To read a PDF, a regular viewer does:
 - read the very first line, check that it's a PDF signature, and extracts
@@ -42,6 +43,9 @@ To read a PDF, a regular viewer does:
 - go to `xref`, which has offsets of all obj IDs
 - using the `xref` table, read the root object and objs referenced from
   there to deserialize all data needed to render a given page
+- if the trailer has an /Encrypt key, all string and stream contents need
+  to be decrypted using the encryption method described by the object stored
+  under that key before being processed further
 
 For Incremental Updates (3.4.5 in the 1.7 spec), new data is written at the end
 of the existing, unchanged PDF data. That means there's a second startxref (and
