@@ -396,7 +396,15 @@ static void png_dump_chunk_tEXt(const uint8_t* begin, uint32_t size) {
 
   // FIXME: Convert from latin1 to utf-8.
   // `begin[keyword_len]` is the keyword's \0 terminator.
-  printf("  '%s': '%.*s'\n", begin, data_size, begin + keyword_len + 1);
+  printf("  '%s': '", begin);
+  for (size_t i = 0; i < data_size; ++i) {
+    unsigned char c = begin[keyword_len + 1 + i];
+    if (c < 0x20)
+      printf("\\%03o", c);
+    else
+      printf("%c", c);
+  }
+  printf("'\n");
 }
 
 static void png_dump_chunk_zTXt(const uint8_t* begin, uint32_t size) {
