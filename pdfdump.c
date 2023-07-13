@@ -711,6 +711,15 @@ struct Object* dict_get(const struct DictionaryObject* dict, const char* key) {
   return NULL;
 }
 
+void dict_append(struct DictionaryObject* dict,
+                 struct NameObjectPair new_element) {
+  // new_element.key must not yet be in the dict.
+  dict->elements = realloc(dict->elements,
+                           (dict->count + 1) * sizeof(struct NameObjectPair));
+  dict->elements[dict->count] = new_element;
+  dict->count++;
+}
+
 struct StreamObject {
   struct DictionaryObject dict;
   struct Span data;
@@ -1061,6 +1070,10 @@ static struct StreamObject parse_stream(struct PDF* pdf, struct Span* data,
   //        PDF viewer would do. (This won't work with update_offsets where
   //        we're supposed to fill in /Length.)
   struct Object* length_object = dict_get(&stream_dict, "/Length");
+
+  if (length_object && length_object->kind != IndirectObjectRef &&
+      length_object->kind != Integer)
+    fatal("stream /Length unexpectedly neither indirect obj ref nor integer\n");
 
   size_t data_size;
   if (!pdf->trust_stream_lengths || !length_object ||
@@ -1572,7 +1585,7 @@ static void iprint_binary_newline(struct OutputOptions* options,
   options->is_on_start_of_line = true;
 }
 
-static void ast_print(struct OutputOptions*, const struct PDF* pdf,
+static void ast_print(struct OutputOptions*, struct PDF* pdf,
                       const struct Object* object);
 
 static void ast_print_name(struct OutputOptions* options,
@@ -1582,7 +1595,7 @@ static void ast_print_name(struct OutputOptions* options,
     iprintf(options, "\n");
 }
 
-static void ast_print_dict(struct OutputOptions* options, const struct PDF* pdf,
+static void ast_print_dict(struct OutputOptions* options, struct PDF* pdf,
                            const struct DictionaryObject* dict) {
   iprintf(options, "<<\n");
   increase_indent(options);
@@ -1625,14 +1638,35 @@ static struct Span uncompress_flate(struct Span data) {
     return (struct Span){ inflated, uncompressed_size };
 }
 
-static void ast_print_stream(struct OutputOptions* options, const struct PDF* pdf,
-                             const struct StreamObject* stream) {
+static void update_stream_length(struct PDF* pdf, struct StreamObject* stream) {
+  struct Object* length_object = dict_get(&stream->dict, "/Length");
+  if (!length_object) {
+    append_integer(pdf, (struct IntegerObject){ stream->data.size });
+    struct Object size = { Integer, pdf->integers_count - 1 };
+    struct Span length_span = { (uint8_t*)"/Length", strlen("/Length") };
+    struct NameObject length_name = { length_span };
+    dict_append(&stream->dict, (struct NameObjectPair){ length_name, size });
+    return;
+  }
+
+  if (length_object->kind == IndirectObject)
+    fatal("cannot update indirect stream /Length yet");
+
+  assert(length_object->kind == Integer);
+
+  pdf->integers[length_object->index].value = stream->data.size;
+}
+
+static void ast_print_stream(struct OutputOptions* options, struct PDF* pdf,
+                             struct StreamObject* stream) {
+  if (options->update_offsets)
+    update_stream_length(pdf, stream);
+
   increase_indent(options);
   ast_print_dict(options, pdf, &stream->dict);
   decrease_indent(options);
   iprintf(options, "stream\n");
   // FIXME: optionally re-filter contents
-  // FIXME: if options->update_offsets, update /Length value
 
   struct Span stream_data = stream->data;
 
@@ -1675,7 +1709,7 @@ fallthrough:
   iprintf(options, "endstream\n");
 }
 
-static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
+static void ast_print(struct OutputOptions* options, struct PDF* pdf,
                       const struct Object* object) {
   switch (object->kind) {
   case Boolean:
