@@ -1876,7 +1876,7 @@ static void pretty_print(struct Span data, struct OutputOptions* options) {
   if (options->quiet)
     return;
 
-  bool do_validate = true;
+  bool do_validate = !options->update_offsets;
   if (do_validate)
     validate(data, &pdf);
 
