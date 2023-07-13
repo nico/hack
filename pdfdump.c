@@ -1649,8 +1649,12 @@ static void update_stream_length(struct PDF* pdf, struct StreamObject* stream) {
     return;
   }
 
-  if (length_object->kind == IndirectObject)
+  if (length_object->kind == IndirectObject) {
+    // FIXME
+    // https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf
+    // is an example of a file that hits this.
     fatal("cannot update indirect stream /Length yet");
+  }
 
   assert(length_object->kind == Integer);
 
@@ -1772,6 +1776,7 @@ static void ast_print(struct OutputOptions* options, struct PDF* pdf,
   case XRef: {
     options->xref_offset = options->bytes_written;
 
+    // FIXME: Fix up count if update_offsets (?)
     struct XRefObject xref = pdf->xrefs[object->index];
     iprintf(options, "xref\n%zu %zu\n", xref.start_id, xref.count);
     for (size_t i = 0; i < xref.count; ++i) {
