@@ -822,6 +822,10 @@ struct PDF {
   struct Object* toplevel_objects;
   size_t toplevel_objects_count;
   size_t toplevel_objects_capacity;
+
+  // Parsing option.
+  // FIXME: Should probably be somewhere else.
+  bool trust_stream_lengths;
 };
 
 static void init_pdf(struct PDF* pdf) {
@@ -849,6 +853,8 @@ static void init_pdf(struct PDF* pdf) {
   INIT(toplevel_objects, Object);
 #undef INIT
 #undef N
+
+  pdf->trust_stream_lengths = true;
 }
 
 static void append_boolean(struct PDF* pdf, struct BooleanObject value) {
@@ -1057,7 +1063,8 @@ static struct StreamObject parse_stream(struct PDF* pdf, struct Span* data,
   struct Object* length_object = dict_get(&stream_dict, "/Length");
 
   size_t data_size;
-  if (!length_object || length_object->kind == IndirectObjectRef) {
+  if (!pdf->trust_stream_lengths || !length_object ||
+      length_object->kind == IndirectObjectRef) {
     const uint8_t* e = memmem(data->data, data->size,
                               "endstream", strlen("endstream"));
     if (!e)
@@ -1870,6 +1877,9 @@ static void validate(struct Span data, struct PDF* pdf) {
 static void pretty_print(struct Span data, struct OutputOptions* options) {
   struct PDF pdf;
   init_pdf(&pdf);
+
+  if (options->update_offsets)
+    pdf.trust_stream_lengths = false;
 
   parse_pdf(data, &pdf);
 
