@@ -1769,7 +1769,42 @@ static void parse_pdf(struct Span data, struct PDF* pdf) {
   }
 }
 
+static struct Object* get_first_real_object(const struct PDF* pdf) {
+  for (size_t i = 0; i < pdf->toplevel_objects_count; ++i)
+    if (pdf->toplevel_objects[i].kind != Comment)
+      return &pdf->toplevel_objects[i];
+  return NULL;
+}
+
+static bool is_linearized(const struct PDF* pdf) {
+  struct Object* first = get_first_real_object(pdf);
+  if (!first)
+    return false;
+
+  if (first->kind != IndirectObject)
+    return false;
+
+  struct IndirectObjectObject* indirect = &pdf->indirect_objects[first->index];
+  if (indirect->value.kind != Dictionary)
+    return false;
+
+  struct Object* linearized = dict_get(&pdf->dicts[indirect->value.index],
+                                       "/Linearized");
+
+  // FIXME: Could do more:
+  // - check that `linearized` value is a number that's either 1 or 1.0
+  // - check that the other required keys are present
+  // - check that /Length is equal to length, else it is a file that
+  //   used to be linearized that got an incremental update
+  return linearized != NULL;
+}
+
 static void validate_startxref(struct Span data, struct PDF* pdf) {
+  // FIXME: If is_linearized() is changed to return false if Length
+  // doesn't match, this needs to become was_linearized_before_update()
+  // since we still want to ignore the first startxref in that case).
+  bool pdf_is_linearized = is_linearized(pdf);
+
   // `startxref` should point at `xref` table, or for a file using
   // xref streams, at an xref stream.
   // For a linearized PDF, the `startxref` in the first section is
@@ -1777,12 +1812,10 @@ static void validate_startxref(struct Span data, struct PDF* pdf) {
   for (size_t i = 0; i < pdf->start_xrefs_count; ++i) {
     size_t offset = pdf->start_xrefs[i].offset;
 
-    // FIXME: This is for a linearized file. It's better to instead
-    //        explicitly look for `/Linearized` in the very first dict
-    //        and then ignore the first `startxref` (in front of the first
-    //        %%EOF).
+    // FIXME: This is for a linearized file. It'd be better to instead
+    //        ignore the first `startxref` (in front of the first %%EOF).
     //        (example: veraPDFHiRes.pdf)
-    if (offset == 0)
+    if (pdf_is_linearized && i == 0 && offset == 0)
       continue;
 
     if (offset + strlen("xref") > data.size)
