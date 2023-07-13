@@ -1404,6 +1404,54 @@ static struct Object parse_object(struct PDF* pdf, struct Span* data,
   }
 }
 
+static void parse_pdf(struct Span data, struct PDF* pdf) {
+  // 3.4 File Structure
+  // 1. Header
+  // %PDF-1.0
+  parse_header(&data, &pdf->version);
+
+  // %nonasciichars
+
+  // 2. Body
+  // `objnum` gennum obj
+  //   (any pdfobject)
+  // `endobj`
+
+  // 3. Cross-reference table
+  // `xref`
+  // 0 n
+  // 0000000000 65535 f
+  // 0000000015 00000 `n`   n times (offset, size, `n`)
+
+  // 4. Trailer
+  // `trailer`
+
+  // 5. %%EOF
+
+  struct Token token;
+  while (true) {
+    read_token(&data, &token);
+
+    if (token.kind == tok_eof)
+      break;
+
+    struct Object object = parse_object(pdf, &data, token);
+
+    // FIXME: is this true?
+    if (object.kind != IndirectObject && object.kind != Comment &&
+        object.kind != XRef && object.kind != Trailer && object.kind != StartXRef) {
+      fatal("expected indirect object or comment or xref or trailer or startxref "
+            "at toplevel\n");
+    }
+
+    // FIXME: maybe not even necessary to store all the toplevels;
+    // instead just process them as they come in?
+    // (Doesn't work with the current strategy of xref offset updating, so would
+    // have to tweak that.)
+    append_toplevel_object(pdf, object);
+  }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Pretty-printer
 
@@ -1718,54 +1766,6 @@ static void ast_print(struct OutputOptions* options, const struct PDF* pdf,
     iprintf(options, "startxref\n%zu\n", offset);
     break;
   }
-  }
-}
-
-static void parse_pdf(struct Span data, struct PDF* pdf) {
-  // 3.4 File Structure
-  // 1. Header
-  // %PDF-1.0
-  parse_header(&data, &pdf->version);
-
-  // %nonasciichars
-
-  // 2. Body
-  // `objnum` gennum obj
-  //   (any pdfobject)
-  // `endobj`
-
-  // 3. Cross-reference table
-  // `xref`
-  // 0 n
-  // 0000000000 65535 f
-  // 0000000015 00000 `n`   n times (offset, size, `n`)
-
-  // 4. Trailer
-  // `trailer`
-
-  // 5. %%EOF
-
-  struct Token token;
-  while (true) {
-    read_token(&data, &token);
-
-    if (token.kind == tok_eof)
-      break;
-
-    struct Object object = parse_object(pdf, &data, token);
-
-    // FIXME: is this true?
-    if (object.kind != IndirectObject && object.kind != Comment &&
-        object.kind != XRef && object.kind != Trailer && object.kind != StartXRef) {
-      fatal("expected indirect object or comment or xref or trailer or startxref "
-            "at toplevel\n");
-    }
-
-    // FIXME: maybe not even necessary to store all the toplevels;
-    // instead just process them as they come in?
-    // (Doesn't work with the current strategy of xref offset updating, so would
-    // have to tweak that.)
-    append_toplevel_object(pdf, object);
   }
 }
 
