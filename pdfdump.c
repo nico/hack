@@ -1949,25 +1949,23 @@ static void save_images(struct PDF* pdf) {
 
     if (filter->kind != Name)
       fatal("unexpected /Filter type");
-
     name = &pdf->names[filter->index];
+
+    char buf[80];
     if (!strncmp((char*)name->value.data, "/DCTDecode", name->value.size)) {
-      char buf[80];
       sprintf(buf, "out_%d.jpg", (int)pdf->indirect_objects[i].id);
-
       printf("it's a jpeg! saving to %s\n", buf);
-
-      FILE* f = fopen(buf, "wb");
-      if (!f)
-        fatal("failed to write %s\n", buf);
-
-      fwrite(stream->data.data, stream->data.size, 1, f);
-      fclose(f);
-
+    } else {
+      printf("don't know how to save filter type '%.*s' yet\n", (int)name->value.size, (char*)name->value.data);
       continue;
     }
 
-    printf("don't know how to save filter type '%.*s' yet\n", (int)name->value.size, (char*)name->value.data);
+    FILE* f = fopen(buf, "wb");
+    if (!f)
+      fatal("failed to write %s\n", buf);
+
+    fwrite(stream->data.data, stream->data.size, 1, f);
+    fclose(f);
   }
 }
 
