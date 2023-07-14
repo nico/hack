@@ -148,6 +148,7 @@ static void print_usage(FILE* stream, const char* program_name) {
           "options:\n"
           "  --dump-tokens     dump output of tokenizer\n"
           "  --no-indent       disable auto-indentation of pretty-printer\n"
+          "  --save-images     save images embedded in the PDF\n"
           "  --update-offsets  update offsets to match pretty-printed output\n"
           "  --quiet           print no output\n"
           "  -h  --help        print this message\n");
@@ -1483,6 +1484,7 @@ enum StreamOptions {
 
 struct OutputOptions {
   bool indent_output;
+  bool save_images;
   bool update_offsets;
   bool quiet;
 
@@ -1499,6 +1501,7 @@ struct OutputOptions {
 
 static void init_output_options(struct OutputOptions* options) {
   options->indent_output = true;
+  options->save_images = false;
   options->update_offsets = false;
   options->quiet = false;
 
@@ -1913,6 +1916,61 @@ static void validate(struct Span data, struct PDF* pdf) {
   validate_startxref(data, pdf);
 }
 
+static void save_images(struct PDF* pdf) {
+
+  // FIXME: While most images are indirect objects, a page's content
+  // stream can also contain embedded images (BI, ID, EI in table 4.42,
+  // "Inline image operators".
+
+  for (size_t i = 0; i < pdf->indirect_objects_count; ++i) {
+    struct Object* object = &pdf->indirect_objects[i].value;
+    if (object->kind != Stream)
+      continue;
+
+    struct StreamObject* stream = &pdf->streams[object->index];
+    struct Object* subtype = dict_get(&stream->dict, "/Subtype");
+    if (!subtype || subtype->kind != Name)
+      continue;
+    struct NameObject* name = &pdf->names[subtype->index];
+    if (strncmp((char*)name->value.data, "/Image", name->value.size))
+      continue;
+
+    printf("indirect object %zu is an image\n", pdf->indirect_objects[i].id);
+
+    struct Object* filter = dict_get(&stream->dict, "/Filter");
+    if (!filter)
+      continue;
+    if (filter->kind == Array) {
+      struct ArrayObject* array = &pdf->arrays[filter->index];
+      if (array->count != 1)
+        fatal("can't handle filter arrays with size != 1");
+      filter = &array->elements[0];
+    }
+
+    if (filter->kind != Name)
+      fatal("unexpected /Filter type");
+
+    name = &pdf->names[filter->index];
+    if (!strncmp((char*)name->value.data, "/DCTDecode", name->value.size)) {
+      char buf[80];
+      sprintf(buf, "out_%d.jpg", (int)pdf->indirect_objects[i].id);
+
+      printf("it's a jpeg! saving to %s\n", buf);
+
+      FILE* f = fopen(buf, "wb");
+      if (!f)
+        fatal("failed to write %s\n", buf);
+
+      fwrite(stream->data.data, stream->data.size, 1, f);
+      fclose(f);
+
+      continue;
+    }
+
+    printf("don't know how to save filter type '%.*s' yet\n", (int)name->value.size, (char*)name->value.data);
+  }
+}
+
 static void pretty_print(struct Span data, struct OutputOptions* options) {
   struct PDF pdf;
   init_pdf(&pdf);
@@ -1921,6 +1979,11 @@ static void pretty_print(struct Span data, struct OutputOptions* options) {
     pdf.trust_stream_lengths = false;
 
   parse_pdf(data, &pdf);
+
+  if (options->save_images) {
+    save_images(&pdf);
+    return;
+  }
 
   if (options->quiet)
     return;
@@ -1950,18 +2013,21 @@ int main(int argc, char* argv[]) {
   // Parse options.
   bool opt_dump_tokens = false;
   bool indent_output = true;
+  bool save_images = false;
   bool uncompress = false;
   bool update_offsets = false;
   bool quiet = false;
 #define kDumpTokens 512
 #define kNoIndent 513
-#define kUncompress 514
-#define kUpdateOffsets 515
-#define kQuiet 516
+#define kSaveImages 514
+#define kUncompress 515
+#define kUpdateOffsets 516
+#define kQuiet 517
   struct option getopt_options[] = {
       {"dump-tokens", no_argument, NULL, kDumpTokens},
       {"help", no_argument, NULL, 'h'},
       {"no-indent", no_argument, NULL, kNoIndent},
+      {"save-images", no_argument, NULL, kSaveImages},
       {"uncompress", no_argument, NULL, kUncompress},
       {"update-offsets", no_argument, NULL, kUpdateOffsets},
       {"quiet", no_argument, NULL, kQuiet},
@@ -1981,6 +2047,9 @@ int main(int argc, char* argv[]) {
         break;
       case kNoIndent:
         indent_output = false;
+        break;
+      case kSaveImages:
+        save_images = true;
         break;
       case kUncompress:
         uncompress = true;
@@ -2027,6 +2096,7 @@ int main(int argc, char* argv[]) {
     options.indent_output = indent_output;
     if (uncompress)
       options.stream_options = PrintRawDataUnfiltered;
+    options.save_images = save_images;
     options.update_offsets = update_offsets;
     options.quiet = quiet;
 
