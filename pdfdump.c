@@ -1959,7 +1959,17 @@ static void save_images(struct PDF* pdf) {
       sprintf(buf, "out_%d.jpx", (int)pdf->indirect_objects[i].id);
       printf("it's a jpeg2000! saving to %s\n", buf);
     } else {
-      printf("don't know how to save filter type '%.*s' yet\n", (int)name->value.size, (char*)name->value.data);
+      // FIXME: FlateDecode + Predictor 10-15: png IDAT
+      // FIXME: FlateDecode + Predictor 2: TIFF
+      //        (LZWDecode + Predictor are spec'd like FlateDecode + Predictor)
+      // FIXME: CCITTFaxDecode: TIFF
+      // FIXME: JBIG2Decode
+      // FIXME: LZWDecode
+      // FIXME: FlateDecode without predictor needs encoding to some
+      //        (lossless) format
+
+      printf("don't know how to save filter type '%.*s' yet\n",
+             (int)name->value.size, (char*)name->value.data);
       continue;
     }
 
