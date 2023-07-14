@@ -1955,6 +1955,9 @@ static void save_images(struct PDF* pdf) {
     if (!strncmp((char*)name->value.data, "/DCTDecode", name->value.size)) {
       sprintf(buf, "out_%d.jpg", (int)pdf->indirect_objects[i].id);
       printf("it's a jpeg! saving to %s\n", buf);
+    } else if (!strncmp((char*)name->value.data, "/JPXDecode", name->value.size)) {
+      sprintf(buf, "out_%d.jpx", (int)pdf->indirect_objects[i].id);
+      printf("it's a jpeg2000! saving to %s\n", buf);
     } else {
       printf("don't know how to save filter type '%.*s' yet\n", (int)name->value.size, (char*)name->value.data);
       continue;
