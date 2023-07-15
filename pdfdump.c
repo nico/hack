@@ -1921,8 +1921,8 @@ static void validate(struct Span data, struct PDF* pdf) {
   validate_startxref(data, pdf);
 }
 
-static void write_tiff_header(FILE* f, uint32_t width, uint32_t height,
-                              struct Span* data) {
+static void write_tiff_header(FILE* f, int K, uint32_t width, uint32_t height,
+                              bool black_is_1, struct Span* data) {
   struct TiffHeader {
     char endianness[2]; // 'MM' for big-endian, 'II' for little-endian
     uint16_t forty_two; // magic number 42
@@ -1978,13 +1978,15 @@ static void write_tiff_header(FILE* f, uint32_t width, uint32_t height,
 
     // 258 "bits per sample" defaults to 1.
 
-    // XXX get /K off compression dict and write 3 (K > 0), 2 (K == 0), 4 (K < 0)
+    // Get /K off compression dict and write 3 (K > 0), 2 (K == 0), 4 (K < 0)
     // Since this has type Short but just writes the 1 into the uint32_t field,
     // this assumes little-endian layout. (Also below.)
-    { 259 /* compression */, Short, 1, 4 }, // 2 is CCITT Group 3.
+    // 2 is CCITT Group 3.
+    // FIXME: Get ref for values 2 and 4; tiff spec only has 3.
+    { 259 /* compression */, Short, 1, K < 0 ? 4 : (K == 0 ? 2 : 3 ) },
 
-    // XXX write 0 or 1 based on if 0 is white (1) or black (0)
-    { 262 /* photometric interpretation */, Short, 1, 0 },
+    // Write 0 or 1 based on if 0 is white (1) or black (0).
+    { 262 /* photometric interpretation */, Short, 1, black_is_1 ? 1 : 0 },
 
     { 273 /* strip offsets */, Long, 1, strip_offset },
 
@@ -2044,6 +2046,20 @@ static void save_images(struct PDF* pdf) {
       fatal("unexpected /Filter type");
     name = &pdf->names[filter->index];
 
+    struct Object* parms = dict_get(&stream->dict, "/DecodeParms");
+    struct DictionaryObject* parms_dict = NULL;
+    if (parms) {
+      if (parms->kind == Array) {
+        struct ArrayObject* array = &pdf->arrays[parms->index];
+        if (array->count != 1)
+          fatal("can't handle DecodeParms arrays with size != 1");
+        parms = &array->elements[0];
+      }
+      if (parms->kind != Dictionary)
+        fatal("unexpected /DecodeParms type");
+      parms_dict = &pdf->dicts[parms->index];
+    }
+
     bool need_tiff_header = false;
     char buf[80];
     if (!strncmp((char*)name->value.data, "/DCTDecode", name->value.size)) {
@@ -2075,8 +2091,43 @@ static void save_images(struct PDF* pdf) {
       fatal("failed to open %s\n", buf);
 
     if (need_tiff_header) {
-      // XXX get dims from dict
-      write_tiff_header(f, 1728, 1082, &stream->data);
+      // Table 3.9 Optional parameters for the CCITTFaxDecode filter
+      // "K    A code identifying the encoding scheme used:
+      // "< 0  Pure two-dimensional encoding (Group 4)
+      //    0  Pure one-dimensional encoding (Group 3, 1-D)
+      //  > 0  Mixed one- and two-dimensional encoding (Group 3, 2-D),
+      //       in which a line encoded one-dimensionally can be followed
+      //       by at most K - 1 lines encoded two-dimensionally."
+      int K = 0; // "Default value: 0."
+      struct Object* k_obj = parms_dict ? dict_get(parms_dict, "/K") : NULL;
+      if (k_obj && k_obj->kind == Integer)
+        K = pdf->integers[k_obj->index].value;
+
+      int width = 1728; // "Default value: 1728" (!)
+      struct Object* w_obj =
+          parms_dict ? dict_get(parms_dict, "/Columns") : NULL;
+      if (w_obj && w_obj->kind == Integer)
+        width = pdf->integers[w_obj->index].value;
+
+      int height = 0; // "Default value: 0"
+      struct Object* h_obj =
+          parms_dict ? dict_get(parms_dict, "/Rows") : NULL;
+      if (h_obj && h_obj->kind == Integer)
+        height = pdf->integers[h_obj->index].value;
+
+      // "If the value is 0 or absent, the image's height is not
+      //  predetermined, and the encoded data must be terminated by
+      //  and end-of-block bit pattern or by the end of the filter's data.
+      if (height == 0)
+        fatal("cannot save CCITTFaxDecode with height 0");
+
+      bool black_is_1 = false; // "Default value: false"
+      struct Object* b_obj =
+          parms_dict ? dict_get(parms_dict, "/BlackIs1") : NULL;
+      if (b_obj && b_obj->kind == Boolean)
+        black_is_1 = pdf->booleans[b_obj->index].value;
+
+      write_tiff_header(f, K, width, height, black_is_1, &stream->data);
     }
 
     fwrite(stream->data.data, stream->data.size, 1, f);
