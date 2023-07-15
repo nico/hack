@@ -1921,6 +1921,94 @@ static void validate(struct Span data, struct PDF* pdf) {
   validate_startxref(data, pdf);
 }
 
+static void write_tiff_header(FILE* f, uint32_t width, uint32_t height,
+                              struct Span* data) {
+  struct TiffHeader {
+    char endianness[2]; // 'MM' for big-endian, 'II' for little-endian
+    uint16_t forty_two; // magic number 42
+    uint32_t ifd_offset;
+  } header;
+
+  header.endianness[0] = 'I';
+  header.endianness[1] = 'I';
+  header.forty_two = 42;
+  header.ifd_offset = sizeof(struct TiffHeader);
+
+  enum Type {
+    Byte = 1,
+    ASCII,
+    Short,
+    Long,
+    Rational,
+
+    SByte,
+    Undefined,
+    SShort,
+    SLong,
+    SRational,
+    Float,
+    Double,
+  };
+
+  struct IFDEntry {
+    uint16_t tag_id;
+    uint16_t type;
+    uint32_t count;
+    uint32_t data_offset;
+  };
+
+  uint16_t ifd_entry_count = 7;
+  int strip_offset = sizeof(struct TiffHeader) + sizeof(uint16_t) +
+      ifd_entry_count * sizeof(struct IFDEntry) + sizeof(uint32_t);
+
+  // "Required Fields for Bilevel Images" in tiff spec:
+  //    ImageWidth                256 100 SHORT or LONG
+  //    ImageLength               257 101 SHORT or LONG
+  //    Compression               259 103 SHORT         1, 2 or 32773
+  //    PhotometricInterpretation 262 106 SHORT         0 or 1
+  //    StripOffsets              273 111 SHORT or LONG
+  //    RowsPerStrip              278 116 SHORT or LONG
+  //    StripByteCounts           279 117 LONG or SHORT
+  //    XResolution               282 11A RATIONAL
+  //    YResolution               283 11B RATIONAL
+  //    ResolutionUnit            296 128 SHORT         1, 2 or 3
+  struct IFDEntry ifd[] = {
+    { 256 /* width */, Long, 1, width },
+    { 257 /* "length" (ie height) */, Long, 1, height },
+
+    // 258 "bits per sample" defaults to 1.
+
+    // XXX get /K off compression dict and write 3 (K > 0), 2 (K == 0), 4 (K < 0)
+    // Since this has type Short but just writes the 1 into the uint32_t field,
+    // this assumes little-endian layout. (Also below.)
+    { 259 /* compression */, Short, 1, 4 }, // 2 is CCITT Group 3.
+
+    // XXX write 0 or 1 based on if 0 is white (1) or black (0)
+    { 262 /* photometric interpretation */, Short, 1, 0 },
+
+    { 273 /* strip offsets */, Long, 1, strip_offset },
+
+    // 277 "samples per pixel" defaults to 1.
+
+    { 278 /* rows per strip */, Long, 1, height },
+    { 279 /* strip byte counts */, Long, 1, data->size },
+
+    // Let's cheat and omit resolution. (FIXME: Don't cheat.)
+  };
+
+  // Remember to update ifd_entry_count when adding entries.
+  assert(ifd_entry_count == sizeof(ifd) / sizeof(ifd[0]));
+
+  uint32_t next_ifd_offset = 0;
+
+  fwrite(&header, sizeof(struct TiffHeader), 1, f);
+  fwrite(&ifd_entry_count, sizeof(ifd_entry_count), 1, f);
+
+  fwrite(ifd, sizeof(ifd), 1, f);
+
+  fwrite(&next_ifd_offset, sizeof(next_ifd_offset), 1, f);
+}
+
 static void save_images(struct PDF* pdf) {
 
   // FIXME: While most images are indirect objects, a page's content
@@ -1956,6 +2044,7 @@ static void save_images(struct PDF* pdf) {
       fatal("unexpected /Filter type");
     name = &pdf->names[filter->index];
 
+    bool need_tiff_header = false;
     char buf[80];
     if (!strncmp((char*)name->value.data, "/DCTDecode", name->value.size)) {
       sprintf(buf, "out_%d.jpg", (int)pdf->indirect_objects[i].id);
@@ -1963,11 +2052,14 @@ static void save_images(struct PDF* pdf) {
     } else if (!strncmp((char*)name->value.data, "/JPXDecode", name->value.size)) {
       sprintf(buf, "out_%d.jpx", (int)pdf->indirect_objects[i].id);
       printf("it's a jpeg2000! saving to %s\n", buf);
+    } else if (!strncmp((char*)name->value.data, "/CCITTFaxDecode", name->value.size)) {
+      sprintf(buf, "out_%d.tif", (int)pdf->indirect_objects[i].id);
+      printf("it's a CCITT image! saving to %s\n", buf);
+      need_tiff_header = true;
     } else {
       // FIXME: FlateDecode + Predictor 10-15: png IDAT
       // FIXME: FlateDecode + Predictor 2: TIFF
       //        (LZWDecode + Predictor are spec'd like FlateDecode + Predictor)
-      // FIXME: CCITTFaxDecode: TIFF
       // FIXME: JBIG2Decode
       // FIXME: LZWDecode
       // FIXME: FlateDecode without predictor needs encoding to some
@@ -1980,7 +2072,12 @@ static void save_images(struct PDF* pdf) {
 
     FILE* f = fopen(buf, "wb");
     if (!f)
-      fatal("failed to write %s\n", buf);
+      fatal("failed to open %s\n", buf);
+
+    if (need_tiff_header) {
+      // XXX get dims from dict
+      write_tiff_header(f, 1728, 1082, &stream->data);
+    }
 
     fwrite(stream->data.data, stream->data.size, 1, f);
     fclose(f);
