@@ -1025,6 +1025,11 @@ static void parse_header(struct Span* data, struct PDFVersion* version) {
   uint8_t v1 = data->data[strlen("%PDF-a.")] - '0';
 
   span_advance(data, strlen("%PDF-a.b"));
+
+  // `tiff2pdf` output includes an extra space. Skip it.
+  if (data->size && data->data[0] == ' ')
+    span_advance(data, 1);
+
   consume_newline(data);
 
   version->major = v0;
