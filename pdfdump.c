@@ -1981,8 +1981,10 @@ static void write_tiff_header(FILE* f, int K, uint32_t width, uint32_t height,
     // Get /K off compression dict and write 3 (K > 0), 2 (K == 0), 4 (K < 0)
     // Since this has type Short but just writes the 1 into the uint32_t field,
     // this assumes little-endian layout. (Also below.)
-    // 2 is CCITT Group 3.
-    // FIXME: Get ref for values 2 and 4; tiff spec only has 3.
+    // 2 is CCITT Group 3 1-D (page 17 or 30 of the Tiff 6 spec)
+    // 3 is CCITT T.4 bi-level (see p49 onward of the Tiff 6 spec)
+    // 4 is CCITT T.6 bi-level (see p49 onward of the Tiff 6 spec)
+    // FIXME: Might want to set 292 T4Options or 293 T6Options too?
     { 259 /* compression */, Short, 1, K < 0 ? 4 : (K == 0 ? 2 : 3 ) },
 
     // Write 0 or 1 based on if 0 is white (1) or black (0).
