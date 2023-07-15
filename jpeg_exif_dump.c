@@ -4544,17 +4544,22 @@ int main(int argc, char* argv[]) {
   if (contents == MAP_FAILED)
     fatal("Failed to mmap: %d (%s)\n", errno, strerror(errno));
 
-  enum { Jpeg, ICC } file_type = Jpeg;
+  enum { Jpeg, Tiff, ICC } file_type = Jpeg;
   if (!options.jpeg_scan) {
     if (in_stat.st_size >= 128 + 4 &&
         strncmp((char*)contents + 36, "acsp", 4) == 0)
       file_type = ICC;
+    else if ((contents[0] == 'I' && contents[1] == 'I') ||
+             (contents[0] == 'M' && contents[1] == 'M'))
+      file_type = Tiff;
   }
 
   if (file_type == ICC)
     icc_dump(&options, contents, (size_t)in_stat.st_size);
   else if (file_type == Jpeg)
     jpeg_dump(&options, contents, contents + in_stat.st_size);
+  else if (file_type == Tiff)
+    tiff_dump(&options, contents, contents + in_stat.st_size);
 
   munmap(contents, (size_t)in_stat.st_size);
   close(in_file);
