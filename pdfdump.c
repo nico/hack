@@ -1239,7 +1239,7 @@ static struct XRefObject parse_xref(struct PDF* pdf, struct Span* data) {
   read_non_eof_token(data, &token);
   int32_t count = integer_value(&token); // XXX check >= 0
 
-  while (data->size && !is_digit(data->data[0]))
+  while (data->size && is_whitespace(data->data[0]))
     span_advance(data, 1);
 
   if (data->size < 20 * (unsigned)count)
