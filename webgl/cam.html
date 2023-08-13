@@ -35,16 +35,75 @@ navigator.mediaDevices
     console.error(`${err.name}: ${err.message}`);
   });
 
-function set_up_gl() {
+function compileShader(gl, shaderType, shaderSource) {
+  const shader = gl.createShader(shaderType);
+  gl.shaderSource(shader, shaderSource);
+  gl.compileShader(shader);
+  if (gl.getShaderParameter(shader, gl.COMPILE_STATUS))
+    return shader;
+
+  console.error(`failed to compile shader: ${gl.getShaderInfoLog(shader)}`);
+  gl.deleteShader(shader);
+}
+
+function linkProgram(gl, vertexShader, fragmentShader) {
+  const program = gl.createProgram();
+  gl.attachShader(program, vertexShader);
+  gl.attachShader(program, fragmentShader);
+  gl.linkProgram(program);
+  if (gl.getProgramParameter(program, gl.LINK_STATUS))
+    return program;
+
+  console.error(`failed to link program: ${gl.getProgramInfoLog(program)}`);
+  gl.deleteProgram(program);
+}
+
+function compileProgram(gl, vertexShaderSource, fragShaderSource) {
+  const vertexShader = compileShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+  const fragShader = compileShader(gl, gl.FRAGMENT_SHADER, fragShaderSource);
+  return linkProgram(gl, vertexShader, fragShader);
+}
+
+function setUpGl() {
   const canvas = document.querySelector('canvas');
   const gl = canvas.getContext('webgl2', {alpha: false});
   if (gl === null) {
     console.error('failed to create webgl context');
     return;
   }
+
+  const vertexShaderSource = `#version 300 es
+    in vec2 position;
+    void main() { gl_Position = vec4(position, 0.0, 1.0); }
+  `;
+  const fragmentShaderSource = `#version 300 es
+    precision highp float;
+    out vec4 outColor;
+    void main() { outColor = vec4(1, 0.5, 0, 1); }
+  `;
+
+  const program = compileProgram(gl, vertexShaderSource, fragmentShaderSource);
+  const positionAttributeLoc = gl.getAttribLocation(program, 'position');
+
+  const allCoords = [ -1, -1, 1, -1, -1, 1, 1, 1 ];
+  const positionBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(allCoords), gl.STATIC_DRAW);
+
+  const triVao = gl.createVertexArray();
+  gl.bindVertexArray(triVao);
+  gl.enableVertexAttribArray(positionAttributeLoc);
+  gl.vertexAttribPointer(
+      positionAttributeLoc, /*size=*/2, gl.FLOAT, /*normalize=*/false,
+      /*stride=*/0,
+      /*offset=*/0);
+
   gl.clearColor(0, 1, 1, 1);
   gl.clear(gl.COLOR_BUFFER_BIT);
+
+  gl.useProgram(program);
+  gl.drawArrays(gl.TRIANGLE_STRIP, /*offset=*/0, /*count=*/4);
 }
 
-set_up_gl();
+setUpGl();
 </script>
