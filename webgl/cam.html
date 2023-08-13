@@ -18,13 +18,14 @@ video {
 </style>
 
 <video></video>
+<canvas width="800" height="600"></canvas>
 
 <script>
 // https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia#width_and_height
 navigator.mediaDevices
   .getUserMedia({ video: true })
   .then((mediaStream) => {
-    const video = document.querySelector("video");
+    const video = document.querySelector('video');
     video.srcObject = mediaStream;
     video.onloadedmetadata = () => {
       video.play();
@@ -33,4 +34,17 @@ navigator.mediaDevices
   .catch((err) => {
     console.error(`${err.name}: ${err.message}`);
   });
+
+function set_up_gl() {
+  const canvas = document.querySelector('canvas');
+  const gl = canvas.getContext('webgl2', {alpha: false});
+  if (gl === null) {
+    console.error('failed to create webgl context');
+    return;
+  }
+  gl.clearColor(0, 1, 1, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+}
+
+set_up_gl();
 </script>
