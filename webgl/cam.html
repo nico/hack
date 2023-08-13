@@ -1,0 +1,31 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<title>webcam</title>
+
+<style>
+@media(prefers-color-scheme:dark) {
+  body {
+    color:#E8EAED;
+    background:#202124;
+  }
+}
+</style>
+
+<video></video>
+
+<script>
+// https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia#width_and_height
+navigator.mediaDevices
+  .getUserMedia({ video: true })
+  .then((mediaStream) => {
+    const video = document.querySelector("video");
+    video.srcObject = mediaStream;
+    video.onloadedmetadata = () => {
+      video.play();
+    };
+  })
+  .catch((err) => {
+    console.error(`${err.name}: ${err.message}`);
+  });
+</script>
