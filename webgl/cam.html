@@ -29,6 +29,7 @@ navigator.mediaDevices
     video.srcObject = mediaStream;
     video.onloadedmetadata = () => {
       video.play();
+      requestAnimationFrame(animation_frame);
     };
   })
   .catch((err) => {
@@ -63,6 +64,8 @@ function compileProgram(gl, vertexShaderSource, fragShaderSource) {
   const fragShader = compileShader(gl, gl.FRAGMENT_SHADER, fragShaderSource);
   return linkProgram(gl, vertexShader, fragShader);
 }
+
+let draw;
 
 function setUpGl() {
   const canvas = document.querySelector('canvas');
@@ -103,11 +106,20 @@ function setUpGl() {
       /*stride=*/0,
       /*offset=*/0);
 
-  gl.clearColor(0, 1, 1, 1);
-  gl.clear(gl.COLOR_BUFFER_BIT);
-
   gl.useProgram(program);
-  gl.drawArrays(gl.TRIANGLE_STRIP, /*offset=*/0, /*count=*/4);
+
+  draw = function(timestamp) {
+    gl.clearColor(Math.sin(timestamp / 100), 1, 1, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    //gl.drawArrays(gl.TRIANGLE_STRIP, /*offset=*/0, /*count=*/4);
+  };
+  draw(0);
+}
+
+function animation_frame(timestamp) {
+  draw(timestamp);
+  requestAnimationFrame(animation_frame);
 }
 
 setUpGl();
