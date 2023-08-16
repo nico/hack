@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Builds rc for Mac, Linux, Windows.  Must run on a Mac.
 # Needs a chromium checkout that was synced with target_os=['win'] to get
