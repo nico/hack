@@ -100,10 +100,10 @@ function setUpGl() {
 
   const vertexShaderSource = `#version 300 es
     in vec2 a_position;
+    in vec2 a_uv;
     out vec2 v_uv;
     void main() {
-      // Map from -1..1 to 0..1 and flip horizontally.
-      v_uv = 0.5 * vec2(1.0 - a_position.x, 1.0 + a_position.y);
+      v_uv = a_uv;
       gl_Position = vec4(a_position, 0.0, 1.0);
     }
   `;
@@ -120,7 +120,11 @@ function setUpGl() {
 
   const program = compileProgram(gl, vertexShaderSource, fragmentShaderSource);
   const positionAttributeLoc = gl.getAttribLocation(program, 'a_position');
+  const uvAttributeLoc = gl.getAttribLocation(program, 'a_uv');
   const imageAttributeLoc = gl.getAttribLocation(program, 'u_image');
+
+  const triVao = gl.createVertexArray();
+  gl.bindVertexArray(triVao);
 
   const allCoords = [
     -1, -1,
@@ -131,12 +135,27 @@ function setUpGl() {
   const positionBuf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuf);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(allCoords), gl.STATIC_DRAW);
-
-  const triVao = gl.createVertexArray();
-  gl.bindVertexArray(triVao);
   gl.enableVertexAttribArray(positionAttributeLoc);
   gl.vertexAttribPointer(
       positionAttributeLoc, /*size=*/2, gl.FLOAT, /*normalize=*/false,
+      /*stride=*/0,
+      /*offset=*/0);
+
+  let uvs = [
+    0, 0,
+    1, 0,
+    0, 1,
+    1, 1,
+  ];
+  // Flip horizontally.
+  for (let i = 0; i < uvs.length; i += 2)
+    uvs[i] = 1 - uvs[i];
+  const uvBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, uvBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(uvs), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(uvAttributeLoc);
+  gl.vertexAttribPointer(
+      uvAttributeLoc, /*size=*/2, gl.FLOAT, /*normalize=*/false,
       /*stride=*/0,
       /*offset=*/0);
 
