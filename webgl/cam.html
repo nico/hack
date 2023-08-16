@@ -109,8 +109,9 @@ function setUpGl() {
     return;
   }
 
+  // Doesn't handle devicePixelRatio for now. That's a bit of a mess:
+  // https://webglfundamentals.org/webgl/lessons/webgl-resizing-the-canvas.html
   const observer = new ResizeObserver((entries) => {
-    // Doesn't handle devicePixelRatio for now.
     canvas.width = canvas.clientWidth;
     canvas.height = canvas.clientHeight;
     console.log(`new canvas size: ${canvas.width} x ${canvas.height}`);
