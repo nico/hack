@@ -23,6 +23,7 @@ video {
 <script>
 
 let isVideoLoaded = false;
+let uvsNeedRecomputation = false;
 
 // https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia#width_and_height
 // For `video: true`, the built-in camera for my MBP returns a 640x480 stream,
@@ -52,6 +53,7 @@ navigator.mediaDevices
                   `(${video.videoWidth / n}:${video.videoHeight / n})`);
       video.play();
       isVideoLoaded = true;
+      uvsNeedRecomputation = true;
       requestAnimationFrame(animation_frame);
     };
   })
@@ -104,6 +106,7 @@ function setUpGl() {
     out vec2 v_uv;
     void main() {
       v_uv = a_uv;
+      v_uv.x = 1.0 - v_uv.x;  // Flip horizontally.
       gl_Position = vec4(a_position, 0.0, 1.0);
     }
   `;
@@ -146,9 +149,6 @@ function setUpGl() {
     0, 1,
     1, 1,
   ];
-  // Flip horizontally.
-  for (let i = 0; i < uvs.length; i += 2)
-    uvs[i] = 1 - uvs[i];
   const uvBuf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, uvBuf);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(uvs), gl.STATIC_DRAW);
@@ -177,6 +177,18 @@ function setUpGl() {
     gl.clearColor(Math.sin(timestamp / 100), 1, 1, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
+    if (uvsNeedRecomputation) {
+      const newUVs = center_image(video.videoWidth / video.videoHeight,
+                                  canvas.width / canvas.height);
+      console.log(`new uvs: ${newUVs}`);
+      const uvData = [ newUVs[0], newUVs[1],
+                       newUVs[2], newUVs[1],
+                       newUVs[0], newUVs[3],
+                       newUVs[2], newUVs[3] ];
+      gl.bindBuffer(gl.ARRAY_BUFFER, uvBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(uvData), gl.STATIC_DRAW);
+      uvsNeedRecomputation = false;
+    }
     if (isVideoLoaded) {
       gl.texImage2D(gl.TEXTURE_2D, /*level=*/0, gl.RGBA, gl.RGBA,
                     gl.UNSIGNED_BYTE, video);
@@ -184,6 +196,19 @@ function setUpGl() {
     gl.drawArrays(gl.TRIANGLE_STRIP, /*offset=*/0, /*count=*/4);
   };
   draw(0);
+}
+
+// Returns uv coordinates to center an image with one aspect ratio in
+// a canvas with a different aspect ratio.
+function center_image(image_aspect, canvas_aspect) {
+  if (canvas_aspect < image_aspect) {
+    const r = canvas_aspect / image_aspect;
+    return [(1 - r) / 2, 0,
+            (1 + r) / 2, 1];
+  }
+  const r = image_aspect / canvas_aspect;
+  return [0, (1 - r) / 2,
+          1, (1 + r) / 2];
 }
 
 function animation_frame(timestamp) {
