@@ -117,7 +117,7 @@ function setUpGl() {
 
     gl.viewport(0, 0, canvas.width, canvas.height);
     uvsNeedRecomputation = true;
-    requestAnimationFrame(draw);
+    draw(0);
   });
   observer.observe(canvas)
 
