@@ -21,14 +21,35 @@ video {
 <canvas width="800" height="600"></canvas>
 
 <script>
-// https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia#width_and_height
+
 let isVideoLoaded = false;
+
+// https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia#width_and_height
+// For `video: true`, the built-in camera for my MBP returns a 640x480 stream,
+// with a 4:3 aspect ratio. With `video: { height: 720 }`, it instead returns
+// a 1280x720 stream, with a 16:9 video. With an external a7iv connected as
+// webcam, this gets a 1920x1080 stream (16:9 aspect) with `video: true`.
+// But with `video: { height: 720 }`, it gets the 1280x720 stream from the
+// built-in camera (!).
+// With `video: { height: 1080 }`, this gets 1920x1080 from the built-in
+// camera if the a7iv isn't connected, but 1920x1080 from the a7iv if it is
+// connected.
+// With `video: { height: 2160 }`, this gets 1080x1920 (9:16) (!) from the
+// built-in camera no matter if the a7iv is connected or not.
+// This is weird in itself, but the non-reliable aspect ratio also means that
+// for things not to look stretched on the canvas element, we either have to
+// resize it to have an aspect ration matching the video's aspect ratio,
+// or clip the the video element a bit on the sides (or bottom/top).
 navigator.mediaDevices
   .getUserMedia({ video: true })
   .then((mediaStream) => {
     const video = document.querySelector('video');
     video.srcObject = mediaStream;
     video.onloadedmetadata = () => {
+      function gcd(a, b) { return b ? gcd(b, a %b ) : a; }
+      const n = gcd(video.videoWidth, video.videoHeight);
+      console.log(`video size: ${video.videoWidth} x ${video.videoHeight} ` +
+                  `(${video.videoWidth / n}:${video.videoHeight / n})`);
       video.play();
       isVideoLoaded = true;
       requestAnimationFrame(animation_frame);
