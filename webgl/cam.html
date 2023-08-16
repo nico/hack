@@ -138,8 +138,7 @@ function setUpGl() {
   gl.enableVertexAttribArray(positionAttributeLoc);
   gl.vertexAttribPointer(
       positionAttributeLoc, /*size=*/2, gl.FLOAT, /*normalize=*/false,
-      /*stride=*/0,
-      /*offset=*/0);
+      /*stride=*/0, /*offset=*/0);
 
   let uvs = [
     0, 0,
@@ -156,8 +155,7 @@ function setUpGl() {
   gl.enableVertexAttribArray(uvAttributeLoc);
   gl.vertexAttribPointer(
       uvAttributeLoc, /*size=*/2, gl.FLOAT, /*normalize=*/false,
-      /*stride=*/0,
-      /*offset=*/0);
+      /*stride=*/0, /*offset=*/0);
 
   gl.useProgram(program);
 
