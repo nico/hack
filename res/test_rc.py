@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-from __future__ import print_function
+#!/usr/bin/env python3
 import filecmp, subprocess, sys
 if sys.platform == 'win32':
   cmd = 'cl rc.cc /EHsc /wd4838 /nologo shlwapi.lib'
@@ -49,7 +48,7 @@ RCDIR = os.path.abspath(os.path.dirname(__file__))
 TESTDIR = os.path.join(RCDIR, 'test')
 os.chdir(tempfile.gettempdir())
 with open('cwdfile.txt', 'wb') as f:
-  f.write('never read')
+  f.write(b'never read')
 flags = [
   '/Idir1',
   '/Idir2',
@@ -75,7 +74,8 @@ for flag in flags:
 print('abspath')
 with open('abs.rc', 'wb') as f:
   cwdfile_path = os.path.join(os.path.abspath(os.getcwd()), 'cwdfile.txt')
-  f.write('1 RCDATA "%s"' % cwdfile_path.replace('\\', '\\\\'))
+  cwdfile_path = cwdfile_path.encode('utf-8')
+  f.write(b'1 RCDATA "%s"' % cwdfile_path.replace(b'\\', b'\\\\'))
 cmd = '%s /cd. %s' % (os.path.join(RCDIR, RC), '/fo%s/out.res' % RCDIR)
 if sys.platform != 'win32':
   cmd = cmd.split()
