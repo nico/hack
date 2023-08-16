@@ -93,6 +93,7 @@ function setUpGl() {
     out vec4 outColor;
     void main() {
       outColor = texture(u_image, v_uv);
+      outColor.rg *= v_uv;
     }
   `;
 
