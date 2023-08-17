@@ -1812,6 +1812,8 @@ bool Parser::ParseVersioninfoData(std::vector<uint8_t>* data,
     bool is_text_token = Is(Token::kString);
     if (is_text_token) {
       std::string_view value_val = StringContents(Consume());
+      if (value_val.empty())
+        continue;
 
       if (is_prev_string) {
         // Overwrite \0 from immediately preceding string.

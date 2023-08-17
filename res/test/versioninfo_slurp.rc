@@ -16,13 +16,15 @@
 
   // FIXME: empty strings aren't handled right
   VALUE "fo1" // empty value
-  //VALUE "fo2", "" // different empty value
-  //VALUE "fo3", "", // different empty value
-  //VALUE "fo4", "",,,, // different empty value
-  //VALUE "fo5", "" "" // different empty value
-  //VALUE "fo6", "", "" // different empty value
-  //VALUE "fo7", "",,,, "" // different empty value
-  //VALUE "fo8", "", "", // different empty value
+  VALUE "fo11" // empty value, different padding
+  VALUE "fo2", "" // different empty value
+  VALUE "fo21", "" // different empty value, different padding
+  VALUE "fo3", "", // different empty value
+  VALUE "fo4", "",,,, // different empty value
+  VALUE "fo5", "" "" // different empty value
+  VALUE "fo6", "", "" // different empty value
+  VALUE "fo7", "",,,, "" // different empty value
+  VALUE "fo8", "", "", // different empty value
 
   // FIXME: test them followed by ints too
   //VALUE "fo1", "" "hi" ""  // len 2
