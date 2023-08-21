@@ -95,7 +95,9 @@ function deviceOrientationChanged(event) {
     const sG = Math.sin(g);
     const vX = -cA * sG - sA * sB * cG;
     const vY = -sA * sG + cA * sB * cG;
-    const compassHeading = Math.atan2(vX, vY) * 180 / Math.PI;
+    let compassHeading = Math.atan2(vX, vY) * 180 / Math.PI;
+    if (compassHeading < 0)
+      compassHeading += 360;
     data.push(['heading', compassHeading.toFixed(2)]);
   }
 
