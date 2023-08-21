@@ -73,6 +73,13 @@ function deviceOrientationChanged(event) {
   if (event.gamma !== null)
     data.push(['gamma (degrees)', event.gamma.toFixed(2)]);
 
+  if (event.webkitCompassHeading !== null)
+    data.push(['webkitCompassHeading (degrees)',
+               event.webkitCompassHeading.toFixed(2)]);
+  if (event.webkitCompassAccuracy !== null)
+    data.push(['webkitCompassAccuracy (degrees)',
+               event.webkitCompassAccuracy.toFixed(2)]);
+
   o.innerHTML = data.map(([key, value]) => `${key}: ${value}`).join('<br>');
 }
 if ('ondeviceorientationabsolute' in window) {
