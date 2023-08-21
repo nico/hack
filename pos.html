@@ -75,10 +75,10 @@ function deviceOrientationChanged(event) {
   if (event.gamma !== null)
     data.push(['gamma (degrees)', event.gamma.toFixed(2)]);
 
-  if (event.webkitCompassHeading !== null)
+  if (event.webkitCompassHeading !== undefined)
     data.push(['webkitCompassHeading (degrees)',
                event.webkitCompassHeading.toFixed(2)]);
-  if (event.webkitCompassAccuracy !== null)
+  if (event.webkitCompassAccuracy !== undefined)
     data.push(['webkitCompassAccuracy (degrees)',
                event.webkitCompassAccuracy.toFixed(2)]);
 
