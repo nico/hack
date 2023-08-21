@@ -60,15 +60,26 @@ function error(err) {
 let o = document.querySelector('#orient');
 // FIXME: Needs `DeviceOrientationEvent.requestPermission()` in response
 //        to user gesture on iOS.
-window.addEventListener('deviceorientation', (event) => {
-  const data = [
+function deviceOrientationChanged(event) {
+  let data = [
     ['absolute', event.absolute],
-    ['alpha (degrees)', event.alpha.toFixed(2)],
-    ['beta (degrees)', event.beta.toFixed(2)],
-    ['gamma (degrees)', event.gamma.toFixed(2)],
   ];
+
+  // alpha/beta/gamma are null in Chrome/Mac with deviceorientationabsolute :/
+  if (event.alpha !== null)
+    data.push(['alpha (degrees)', event.alpha.toFixed(2)]);
+  if (event.beta !== null)
+    data.push(['beta (degrees)', event.beta.toFixed(2)]);
+  if (event.gamma !== null)
+    data.push(['gamma (degrees)', event.gamma.toFixed(2)]);
+
   o.innerHTML = data.map(([key, value]) => `${key}: ${value}`).join('<br>');
-});
+}
+if ('ondeviceorientationabsolute' in window) {
+  window.addEventListener('deviceorientationabsolute', deviceOrientationChanged);
+} else {
+  window.addEventListener('deviceorientation', deviceOrientationChanged);
+}
 
 let m = document.querySelector('#motion');
 window.addEventListener('devicemotion', (event) => {
