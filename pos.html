@@ -82,6 +82,23 @@ function deviceOrientationChanged(event) {
     data.push(['webkitCompassAccuracy (degrees)',
                event.webkitCompassAccuracy.toFixed(2)]);
 
+  // https://w3c.github.io/deviceorientation/spec-source-orientation.html#worked-example
+  if (event.alpha !== null && event.beta !== null && event.gamma !== null) {
+    const a = event.alpha * Math.PI / 180;
+    const b = event.beta * Math.PI / 180;
+    const g = event.gamma * Math.PI / 180;
+    const cA = Math.cos(a);
+    const sA = Math.sin(a);
+    const cB = Math.cos(b);
+    const sB = Math.sin(b);
+    const cG = Math.cos(g);
+    const sG = Math.sin(g);
+    const vX = -cA * sG - sA * sB * cG;
+    const vY = -sA * sG + cA * sB * cG;
+    const compassHeading = Math.atan2(vX, vY) * 180 / Math.PI;
+    data.push(['heading', compassHeading.toFixed(2)]);
+  }
+
   o.innerHTML = data.map(([key, value]) => `${key}: ${value}`).join('<br>');
 }
 if ('ondeviceorientationabsolute' in window) {
