@@ -65,7 +65,9 @@ function deviceOrientationChanged(event) {
     ['absolute', event.absolute],
   ];
 
-  // alpha/beta/gamma are null in Chrome/Mac with deviceorientationabsolute :/
+  // alpha/beta/gamma are null in Chrome/Mac with deviceorientationabsolute,
+  // per spec (:/ on spec):
+  // https://www.w3.org/TR/orientation-event/#deviceorientationabsolute
   if (event.alpha !== null)
     data.push(['alpha (degrees)', event.alpha.toFixed(2)]);
   if (event.beta !== null)
