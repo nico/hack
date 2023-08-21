@@ -9,7 +9,7 @@ let d = document.querySelector('#geo');
 if (navigator.geolocation) {
   const options = {
     // If false, coarser location is fine. Defaults to false.
-    'enableHighAccuracy': false,
+    'enableHighAccuracy': true,
 
     // How old a position is allowed to be, in milliseconds. Defaults to 0.
     'maximumAge': 10_000,
