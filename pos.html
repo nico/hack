@@ -18,6 +18,7 @@ if (navigator.geolocation) {
     'timeout': 5_000,
   };
 
+  // getCurrentPosition() is one-shot, watchPosition() is continuous.
   navigator.geolocation.watchPosition(watchPosition, error, options);
 } else {
   d.innerHTML = "no navigator.geolocation";
