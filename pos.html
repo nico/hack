@@ -3,6 +3,9 @@
 <title>Position</title>
 
 <div id="geo"></div>
+<div id="orient"></div>
+<div id="motion"></div>
+
 
 <script>
 let d = document.querySelector('#geo');
@@ -47,4 +50,34 @@ function watchPosition(position) {
 function error(err) {
   d.innerHTML = `ERROR(${err.code}): ${err.message}`;
 }
+
+let o = document.querySelector('#orient');
+// FIXME: Needs `DeviceOrientationEvent.requestPermission()` in response
+//        to user gesture on iOS.
+window.addEventListener('deviceorientation', (event) => {
+  const data = [
+    ['absolute', event.absolute],
+    ['alpha (degrees)', event.alpha],
+    ['beta (degrees)', event.beta],
+    ['gamma (degrees)', event.gamma],
+  ];
+  o.innerHTML = data.map(([key, value]) => `${key}: ${value}`).join('<br>');
+});
+
+let m = document.querySelector('#motion');
+window.addEventListener('devicemotion', (event) => {
+  const data = [
+    ['update interval (ms)', event.interval],
+    ['acceleration x (m/s^2)', event.acceleration.x],
+    ['acceleration y (m/s^2)', event.acceleration.y],
+    ['acceleration z (m/s^2)', event.acceleration.z],
+    ['acceleration + gravity x (m/s^2)', event.accelerationIncludingGravity.x],
+    ['acceleration + gravity y (m/s^2)', event.accelerationIncludingGravity.y],
+    ['acceleration + gravity z (m/s^2)', event.accelerationIncludingGravity.z],
+    ['rotation rate alpha (deg/s)', event.rotationRate.alpha],
+    ['rotation rate beta (deg/s)', event.rotationRate.beta],
+    ['rotation rate gamma (deg/s)', event.rotationRate.gamma],
+  ];
+  m.innerHTML = data.map(([key, value]) => `${key}: ${value}`).join('<br>');
+});
 </script>
