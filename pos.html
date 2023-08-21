@@ -2,8 +2,13 @@
 <meta charset="utf-8">
 <title>Position</title>
 
+<div>navigator.geolocation data:</div>
 <div id="geo"></div>
+<br>
+<div>deviceorientation events:</div>
 <div id="orient"></div>
+<br>
+<div>devicemotion events:</div>
 <div id="motion"></div>
 
 
@@ -31,18 +36,19 @@ function watchPosition(position) {
   const t = position.timestamp;
   let coords = [
     ['timestamp (milliseconds)', t + ` (${new Date(t).toLocaleString()})`],
-    ['latitude (degrees)', position.coords.latitude],
-    ['longitude (degrees)', position.coords.longitude],
-    ['accuracy (meters)', position.coords.accuracy],
+    ['latitude (degrees)', position.coords.latitude.toFixed(4)],
+    ['longitude (degrees)', position.coords.longitude.toFixed(4)],
+    ['accuracy (meters)', position.coords.accuracy.toFixed(2)],
   ];
   if (position.coords.altitude !== null)
-    coords.push(['altitude (meters)', position.coords.altitude]);
+    coords.push(['altitude (meters)', position.coords.altitude.toFixed(2)]);
   if (position.coords.altitudeAccuracy !== null)
-    coords.push(['altitude accuracy (meters)', position.coords.altitudeAccuracy]);
+    coords.push(['altitude accuracy (meters)',
+                 position.coords.altitudeAccuracy.toFixed(2)]);
   if (position.coords.heading !== null)
-    coords.push(['heading (degrees)', position.coords.heading]);
+    coords.push(['heading (degrees)', position.coords.heading.toFixed(2)]);
   if (position.coords.speed !== null)
-    coords.push(['speed (meters/second)', position.coords.speed]);
+    coords.push(['speed (meters/second)', position.coords.speed.toFixed(2)]);
 
   d.innerHTML = coords.map(([key, value]) => `${key}: ${value}`).join('<br>');
 }
@@ -57,9 +63,9 @@ let o = document.querySelector('#orient');
 window.addEventListener('deviceorientation', (event) => {
   const data = [
     ['absolute', event.absolute],
-    ['alpha (degrees)', event.alpha],
-    ['beta (degrees)', event.beta],
-    ['gamma (degrees)', event.gamma],
+    ['alpha (degrees)', event.alpha.toFixed(2)],
+    ['beta (degrees)', event.beta.toFixed(2)],
+    ['gamma (degrees)', event.gamma.toFixed(2)],
   ];
   o.innerHTML = data.map(([key, value]) => `${key}: ${value}`).join('<br>');
 });
@@ -78,6 +84,7 @@ window.addEventListener('devicemotion', (event) => {
     ['rotation rate beta (deg/s)', event.rotationRate.beta],
     ['rotation rate gamma (deg/s)', event.rotationRate.gamma],
   ];
-  m.innerHTML = data.map(([key, value]) => `${key}: ${value}`).join('<br>');
+  m.innerHTML = data.map(
+      ([key, value]) => `${key}: ${value.toFixed(2)}`).join('<br>');
 });
 </script>
