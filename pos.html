@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Position</title>
+
+<div id="geo"></div>
+
+<script>
+let d = document.querySelector('#geo');
+if (navigator.geolocation) {
+  const options = {
+    // If false, coarser location is fine. Defaults to false.
+    'enableHighAccuracy': false,
+
+    // How old a position is allowed to be, in milliseconds. Defaults to 0.
+    'maximumAge': 10_000,
+
+    // How long to wait for a response, in milliseconds. Defaults to Infinity.
+    'timeout': 5_000,
+  };
+
+  navigator.geolocation.watchPosition(watchPosition, error, options);
+} else {
+  d.innerHTML = "no navigator.geolocation";
+}
+
+function watchPosition(position) {
+  const t = position.timestamp;
+  let coords = [
+    ['timestamp (milliseconds)', t + ` (${new Date(t).toLocaleString()})`],
+    ['latitude (degrees)', position.coords.latitude],
+    ['longitude (degrees)', position.coords.longitude],
+    ['accuracy (meters)', position.coords.accuracy],
+  ];
+  if (position.coords.altitude !== null)
+    coords.push(['altitude (meters)', position.coords.altitude]);
+  if (position.coords.altitudeAccuracy !== null)
+    coords.push(['altitude accuracy (meters)', position.coords.altitudeAccuracy]);
+  if (position.coords.heading !== null)
+    coords.push(['heading (degrees)', position.coords.heading]);
+  if (position.coords.speed !== null)
+    coords.push(['speed (meters/second)', position.coords.speed]);
+
+  d.innerHTML = coords.map(([key, value]) => `${key}: ${value}`).join('<br>');
+}
+
+function error(err) {
+  d.innerHTML = `ERROR(${err.code}): ${err.message}`;
+}
+</script>
