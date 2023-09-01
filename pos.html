@@ -57,6 +57,29 @@ function error(err) {
   d.innerHTML = `ERROR(${err.code}): ${err.message}`;
 }
 
+// alpha, beta, gamma are in degrees, as is the result.
+// Alpha is orientation around Z, beta around X, gamma around Y.
+// Transform order is Z, X, Y.
+function headingFromAngles(alpha, beta, gamma) {
+  const a = alpha * Math.PI / 180;
+  const b = beta  * Math.PI / 180;
+  const g = gamma * Math.PI / 180;
+  const cA = Math.cos(a);
+  const sA = Math.sin(a);
+  const cB = Math.cos(b);
+  const sB = Math.sin(b);
+  const cG = Math.cos(g);
+  const sG = Math.sin(g);
+  // x, y of [0 0 -1]' transformed by rotZ(a) * rotX(b) * rotY(g).
+  const vX = -cA * sG - sA * sB * cG;
+  const vY = -sA * sG + cA * sB * cG;
+  console.log(vX, vY);
+  let compassHeading = Math.atan2(vX, vY) * 180 / Math.PI;
+  if (compassHeading < 0)
+    compassHeading += 360;
+  return compassHeading;
+}
+
 let o = document.querySelector('#orient');
 // FIXME: Needs `DeviceOrientationEvent.requestPermission()` in response
 //        to user gesture on iOS.
@@ -84,21 +107,8 @@ function deviceOrientationChanged(event) {
 
   // https://w3c.github.io/deviceorientation/spec-source-orientation.html#worked-example
   if (event.alpha !== null && event.beta !== null && event.gamma !== null) {
-    const a = event.alpha * Math.PI / 180;
-    const b = event.beta * Math.PI / 180;
-    const g = event.gamma * Math.PI / 180;
-    const cA = Math.cos(a);
-    const sA = Math.sin(a);
-    const cB = Math.cos(b);
-    const sB = Math.sin(b);
-    const cG = Math.cos(g);
-    const sG = Math.sin(g);
-    const vX = -cA * sG - sA * sB * cG;
-    const vY = -sA * sG + cA * sB * cG;
-    let compassHeading = Math.atan2(vX, vY) * 180 / Math.PI;
-    if (compassHeading < 0)
-      compassHeading += 360;
-    data.push(['heading', compassHeading.toFixed(2)]);
+    const heading = headingFromAngles(event.alpha, event.beta, event.gamma);
+    data.push(['heading', heading.toFixed(2)]);
   }
 
   o.innerHTML = data.map(([key, value]) => `${key}: ${value}`).join('<br>');
