@@ -222,6 +222,7 @@ function setUpGl() {
 
 // Returns uv coordinates to center an image with one aspect ratio in
 // a canvas with a different aspect ratio.
+// Behaves like CSS's `object-fit: cover`.
 function center_image(image_aspect, canvas_aspect) {
   if (canvas_aspect < image_aspect) {
     const r = canvas_aspect / image_aspect;
