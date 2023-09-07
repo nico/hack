@@ -4224,8 +4224,8 @@ static void jpeg_dump_adobe(struct Options* options,
                             uint16_t size) {
   const size_t prefix_size = sizeof(uint16_t) + sizeof("Adobe");
   if (size < prefix_size) {
-    printf("Adobe header should be at least %zu bytes, is %u\n",
-           prefix_size, size);
+    printf("Adobe header should be at least %zu bytes, is %u\n", prefix_size,
+           size);
     return;
   }
   // https://www.pdfa.org/norm-refs/5116.DCT_Filter.pdf,
