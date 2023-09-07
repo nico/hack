@@ -2064,6 +2064,33 @@ static const char* icc_technology_description(uint32_t tech) {
   }
 }
 
+static const char* icc_standard_illuminant_description(
+    uint32_t standard_illuminant) {
+  // Table 53 — Standard illuminant encodings
+  switch (standard_illuminant) {
+    case 0:
+      return "Unknown";
+    case 1:
+      return "D50";
+    case 2:
+      return "D65";
+    case 3:
+      return "D93";
+    case 4:
+      return "F2";
+    case 5:
+      return "D55";
+    case 6:
+      return "A";
+    case 7:
+      return "E";
+    case 8:
+      return "F8";
+    default:
+      return "Invalid value";
+  }
+}
+
 static void icc_dumpMeasurementType(struct Options* options,
                                     const uint8_t* begin,
                                     uint32_t size) {
@@ -2128,41 +2155,8 @@ static void icc_dumpMeasurementType(struct Options* options,
   iprintf(options, "measurement flare: %f%%\n",
           100 * (measurement_flare / (double)0x10000));
 
-  // Table 53 — Standard illuminant encodings
-  iprintf(options, "standard illuminant: %u", standard_illuminant);
-  switch (standard_illuminant) {
-    case 0:
-      printf(" (Unknown)");
-      break;
-    case 1:
-      printf(" (D50)");
-      break;
-    case 2:
-      printf(" (D65)");
-      break;
-    case 3:
-      printf(" (D93)");
-      break;
-    case 4:
-      printf(" (F2)");
-      break;
-    case 5:
-      printf(" (D55)");
-      break;
-    case 6:
-      printf(" (A)");
-      break;
-    case 7:
-      printf(" (E)");
-      break;
-    case 8:
-      printf(" (F8)");
-      break;
-    default:
-      printf(" (Invalid value)");
-      break;
-  }
-  printf("\n");
+  iprintf(options, "standard illuminant: %u (%s)\n", standard_illuminant,
+          icc_standard_illuminant_description(standard_illuminant));
 }
 
 static void icc_dumpNamedColor2Type(struct Options* options,
@@ -2238,6 +2232,40 @@ static void icc_dumpSignatureType(struct Options* options,
   if (description)
     printf(" (%s)", description);
   printf("\n");
+}
+
+static void icc_dumpViewingConditionsType(struct Options* options,
+                                          const uint8_t* begin,
+                                          uint32_t size) {
+  // 10.30 viewingConditionsType
+  if (size != 36) {
+    printf("viewingConditionsType must be 36 bytes, was %d\n", size);
+    return;
+  }
+
+  if (!icc_check_type(begin, "viewingConditionsType", 0x76696577))  // 'view'
+    return;
+
+  int32_t illuminant_xyz_x = (int32_t)be_uint32(begin + 8);
+  int32_t illuminant_xyz_y = (int32_t)be_uint32(begin + 12);
+  int32_t illuminant_xyz_z = (int32_t)be_uint32(begin + 16);
+  int32_t surround_xyz_x = (int32_t)be_uint32(begin + 20);
+  int32_t surround_xyz_y = (int32_t)be_uint32(begin + 24);
+  int32_t surround_xyz_z = (int32_t)be_uint32(begin + 28);
+  uint32_t standard_illuminant = be_uint32(begin + 32);
+
+  // "Un-normalized CIEXYZ values for illuminant (in which Y is in cd/m2)"
+  iprintf(options, "illuminant: X = %.4f, Y = %.4f, Z = %.4f\n",
+          icc_s15fixed16(illuminant_xyz_x), icc_s15fixed16(illuminant_xyz_y),
+          icc_s15fixed16(illuminant_xyz_z));
+
+  // "Un-normalized CIEXYZ values for surround (in which Y is in cd/m2)"
+  iprintf(options, "surround: X = %.4f, Y = %.4f, Z = %.4f\n",
+          icc_s15fixed16(surround_xyz_x), icc_s15fixed16(surround_xyz_y),
+          icc_s15fixed16(surround_xyz_z));
+
+  iprintf(options, "illuminant type: %u (%s)\n", standard_illuminant,
+          icc_standard_illuminant_description(standard_illuminant));
 }
 
 static uint8_t icc_saturate_u8(double d) {
@@ -3219,6 +3247,10 @@ static void icc_dump_tag_table(struct Options* options,
       case 0x74656368:  // 'tech', technologyTag
         icc_dumpSignatureType(options, icc_header + offset_to_data,
                               size_of_data, icc_technology_description);
+        break;
+      case 0x76696577:  // 'view', viewingConditionsTag
+        icc_dumpViewingConditionsType(options, icc_header + offset_to_data,
+                                      size_of_data);
         break;
     }
     decrease_indent(options);
