@@ -1,0 +1,106 @@
+<!doctype html>
+<html>
+<canvas width="500" height="500" id="canvas"></canvas>
+
+<input type="range" min="1" max="100" value="50" id="myRange">
+<select id="n1-select" size="2"></select>
+<select id="n2-select" size="15"></select>
+
+<script>
+const n1s = [96, 105];
+const n2s = [24, 30, 32, 40, 42, 45, 48, 52, 56, 60, 63, 72, 75, 80, 84];
+
+const slider = document.getElementById("myRange");
+
+const n1_select = document.getElementById("n1-select");
+for (let i = 0; i < n1s.length; i++) {
+    let option = document.createElement("option");
+    option.text = n1s[i];
+    n1_select.add(option);
+}
+n1_select.value = n1s[0];
+
+const n2_select = document.getElementById("n2-select");
+for (let i = 0; i < n2s.length; i++) {
+    let option = document.createElement("option");
+    option.text = n2s[i];
+    n2_select.add(option);
+}
+n2_select.value = n2s[0];
+
+var canvas = document.getElementById("canvas");
+var ctx = canvas.getContext("2d");
+requestAnimationFrame(draw);
+
+var ps = [];
+slider.oninput = () => { ps = []; }
+n1_select.oninput = () => { ps = []; }
+n2_select.oninput = () => { ps = []; }
+
+function draw(t_ms) {
+    var t_s = t_ms / 1000;
+
+    const n1 = n1_select.value;
+    const n2 = n2_select.value;
+
+    const outer_r = 200;
+    const inner_r = outer_r * n2 / n1;
+
+    // Position of center of inner circle.
+    let phi_vel = (2 * Math.PI) * 3;
+
+    phi_vel *= inner_r / outer_r;
+
+    const phi = t_s * phi_vel;
+    const r = outer_r - inner_r;
+
+    // Angle of rotation of inner circle.
+    const phi2 = t_s * (outer_r / inner_r) * phi_vel;
+
+    const x1 = 250 + r * Math.cos(phi);
+    const y1 = 250 + r * Math.sin(phi);
+    const phi_eff = 1 * (phi - phi2);
+
+    const f = slider.value / 100;
+
+    const xp = x1 + f * inner_r * Math.cos(phi_eff);
+    const yp = y1 + f * inner_r * Math.sin(phi_eff);
+    if (ps.length < 10000)
+      ps.push([xp, yp]);
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = "grey";
+
+    /*
+    const x2 = x1 + inner_r * Math.cos(phi_eff);
+    const y2 = y1 + inner_r * Math.sin(phi_eff);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    //*/
+
+    ctx.beginPath();
+    ctx.arc(250, 250, outer_r, 0, 2 * Math.PI);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(x1, y1, inner_r, 0, 2 * Math.PI);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(xp, yp, 5, 0, 2 * Math.PI);
+    ctx.stroke();
+
+    ctx.strokeStyle = "red";
+    ctx.beginPath();
+    ctx.moveTo(ps[0][0], ps[0][1]);
+    for (var i = 1; i < ps.length; i++) {
+        ctx.lineTo(ps[i][0], ps[i][1]);
+    }
+    ctx.stroke();
+    requestAnimationFrame(draw);
+}
+</script>
+</html>
