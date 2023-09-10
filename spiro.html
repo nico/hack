@@ -1,6 +1,9 @@
 <!doctype html>
-<html>
-<canvas width="500" height="500" id="canvas"></canvas>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<title>spiro</title>
+
+<canvas width="350" height="350" id="canvas"></canvas>
 
 <label for="n1-select">Outer radius:</label>
 <select id="n1-select" size="2"></select>
@@ -52,7 +55,7 @@ function draw(t_ms) {
     const n1 = n1_select.value;
     const n2 = n2_select.value;
 
-    const outer_r = 230 * n1 / 100;
+    const outer_r = (canvas.width / 2) * n1 / 106;
     const inner_r = outer_r * n2 / n1;
 
     // Position of center of inner circle.
@@ -112,4 +115,3 @@ function draw(t_ms) {
     requestAnimationFrame(draw);
 }
 </script>
-</html>
