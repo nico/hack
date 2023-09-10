@@ -15,6 +15,7 @@
 <div>
   Speed: <input type="range" min="1" max="100" value="25" id="speed">
 </div>
+<div id="gcd"></div>
 
 <script>
 const n1s = [96, 105];
@@ -39,11 +40,29 @@ n2_select.value = n2s[0];
 const offset_slider = document.getElementById("offset");
 const speed_slider = document.getElementById("speed");
 
+const gcd_div = document.getElementById("gcd");
+function gcd(a, b) { return b ? gcd(b, a %b ) : a; }
+function update_gcd() {
+  const n1 = n1_select.value;
+  const n2 = n2_select.value;
+  const g = gcd(n1, n2);
+  // First number: Number of corners.
+  // Second number: Number of revolutions the inner circle has
+  //                to do to complete the figure.
+  gcd_div.innerHTML = `GCD: ${g}, ratio: ${n1 / g}:${n2 / g}`;
+}
+update_gcd();
+
 var ps = [];
-offset_slider.oninput = () => { ps = []; }
-speed_slider.oninput = () => { ps = []; }
-n1_select.oninput = () => { ps = []; }
-n2_select.oninput = () => { ps = []; }
+
+function reset() {
+  ps = [];
+  update_gcd();
+}
+offset_slider.oninput = () => { reset(); }
+speed_slider.oninput = () => { reset(); }
+n1_select.oninput = () => { reset(); }
+n2_select.oninput = () => { reset(); }
 
 var canvas = document.getElementById("canvas");
 var ctx = canvas.getContext("2d");
