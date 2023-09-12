@@ -4,7 +4,10 @@ https://github.com/codrops/RainEffect/blob/master/src/raindrops.js
 extracted to show just the raindrops helper bitmap.
 -->
 <!doctype html>
-<canvas width=500 height=500></canvas>
+<canvas width=256 height=256 id=canvas1></canvas>
+<canvas width=512 height=512 id=canvas2></canvas>
+<img src=drop-color.png>
+<img src=drop-alpha.png>
 
 <script>
 //import loadImages from "./image-loader";
@@ -477,7 +480,7 @@ function loadTextures(){
 loadTextures();
 
 function init(){
-  canvas=document.querySelector('canvas');
+  canvas=document.querySelector('#canvas1');
   ctx=canvas.getContext('2d');
 
   let dpi=window.devicePixelRatio;
@@ -506,10 +509,28 @@ function init(){
   );
 
   requestAnimationFrame(draw);
+
+  canvas2=document.querySelector('#canvas2');
+
+  canvas2.style.width=canvas.width+"px";
+  canvas2.style.height=canvas.height+"px";
+  canvas2.width=canvas.width*dpi;
+  canvas2.height=canvas.height*dpi;
+
+  let ctx2=canvas2.getContext('2d');
+  for (let i = 0; i < raindrops.dropsGfx.length; ++i) {
+    ctx2.drawImage(raindrops.dropsGfx[i], Math.floor(i % 16) * dropSize, Math.floor(i / 16) * dropSize);
+  }
 }
 
 function draw() {
   ctx.drawImage(raindrops.canvas, 0, 0);
+
+  ctx.clearRect(0, 0, canvas.width, 256);
+
+  ctx.drawImage(raindrops.droplets, 0, 128);
+  ctx.drawImage(raindrops.clearDropletsGfx, 0, 0);
+
   requestAnimationFrame(draw);
 }
 </script>
