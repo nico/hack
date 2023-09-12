@@ -146,7 +146,6 @@ Raindrops.prototype={
   drops:null,
   dropsGfx:null,
   clearDropletsGfx:null,
-  textureCleaningIterations:0,
   lastRender:null,
 
   options:null,
@@ -295,25 +294,7 @@ Raindrops.prototype={
     }
     return rainDrops;
   },
-  clearDrops(){
-    this.drops.forEach((drop)=>{
-      setTimeout(()=>{
-        drop.shrink=0.1+(random(0.5));
-      },random(1200))
-    })
-    this.clearTexture();
-  },
-  clearTexture(){
-    this.textureCleaningIterations=50;
-  },
   updateDroplets(timeScale){
-    if(this.textureCleaningIterations>0){
-      this.textureCleaningIterations-=1*timeScale;
-      this.dropletsCtx.globalCompositeOperation="destination-out";
-      this.dropletsCtx.fillStyle="rgba(0,0,0,"+(0.05*timeScale)+")";
-      this.dropletsCtx.fillRect(0,0,
-        this.width*this.dropletsPixelDensity,this.height*this.dropletsPixelDensity);
-    }
     if(this.options.raining){
       this.dropletsCounter+=this.options.dropletsRate*timeScale*this.areaMultiplier;
       times(this.dropletsCounter,(i)=>{
