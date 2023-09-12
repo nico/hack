@@ -218,31 +218,32 @@ Raindrops.prototype={
     clearDropletsCtx.fill();
   },
   drawDrop(ctx,drop){
-    if(this.dropsGfx.length>0){
-      let x=drop.x;
-      let y=drop.y;
-      let r=drop.r;
-      let spreadX=drop.spreadX;
-      let spreadY=drop.spreadY;
+    if(this.dropsGfx.length == 0)
+      return;
 
-      let scaleX=1;
-      let scaleY=1.5;
+    let x=drop.x;
+    let y=drop.y;
+    let r=drop.r;
+    let spreadX=drop.spreadX;
+    let spreadY=drop.spreadY;
 
-      let d=Math.max(0,Math.min(1,((r-this.options.minR)/(this.deltaR))*0.9));
-      d*=1/(((drop.spreadX+drop.spreadY)*0.5)+1);
+    let scaleX=1;
+    let scaleY=1.5;
 
-      ctx.globalAlpha=1;
-      ctx.globalCompositeOperation="source-over";
+    let d=Math.max(0,Math.min(1,((r-this.options.minR)/(this.deltaR))*0.9));
+    d*=1/(((drop.spreadX+drop.spreadY)*0.5)+1);
 
-      d=Math.floor(d*(this.dropsGfx.length-1));
-      ctx.drawImage(
-        this.dropsGfx[d],
-        (x-(r*scaleX*(spreadX+1)))*this.scale,
-        (y-(r*scaleY*(spreadY+1)))*this.scale,
-        (r*2*scaleX*(spreadX+1))*this.scale,
-        (r*2*scaleY*(spreadY+1))*this.scale
-      );
-    }
+    ctx.globalAlpha=1;
+    ctx.globalCompositeOperation="source-over";
+
+    d=Math.floor(d*(this.dropsGfx.length-1));
+    ctx.drawImage(
+      this.dropsGfx[d],
+      (x-(r*scaleX*(spreadX+1)))*this.scale,
+      (y-(r*scaleY*(spreadY+1)))*this.scale,
+      (r*2*scaleX*(spreadX+1))*this.scale,
+      (r*2*scaleY*(spreadY+1))*this.scale
+    );
   },
   clearDroplets(x,y,r=30){
     let ctx=this.dropletsCtx;
