@@ -442,8 +442,6 @@ Raindrops.prototype={
     this.lastRender=now;
 
     this.updateDrops(timeScale);
-
-    requestAnimationFrame(this.update.bind(this));
   }
 }
 
@@ -505,6 +503,7 @@ function init(){
 }
 
 function draw() {
+  raindrops.update();
   ctx.drawImage(raindrops.canvas, 0, 0);
 
   ctx.clearRect(0, 0, canvas.width, 256);
