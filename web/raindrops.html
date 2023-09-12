@@ -264,12 +264,6 @@ Raindrops.prototype={
 
     return Object.assign(Object.create(Drop),options);
   },
-  addDrop(drop){
-    if(this.drops.length >= this.options.maxDrops*this.areaMultiplier || drop==null) return false;
-
-    this.drops.push(drop);
-    return true;
-  },
   updateRain(timeScale){
     let rainDrops=[];
     if(this.options.raining){
