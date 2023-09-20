@@ -80,9 +80,9 @@ For this to be completely automatic, you need three things.
    https://git-scm.com/docs/gitattributes#_defining_a_custom_merge_driver): Add
 
        [merge "reformat"]
-	 name = Free-form text
-	 driver = my/clang_format_script.sh %O %A %B %P
-	 recursive = binary
+         name = Free-form text
+         driver = my/clang_format_script.sh %O %A %B %P
+         recursive = binary
 
    (You don't need `%L` from the docs.)
 
