@@ -1,60 +1,48 @@
-Auto-rebasing across a large-scale mechanical changes with `git`
-================================================================
+Auto-`git rebase` across mechanical changes
+===========================================
 
 Let's say you want to clang-format a large codebase, and you're worried that
 the reformatting change causes everyone work when they rebase their in-flight
-patches. This describes you can make rebasing across the reformatting completely
-transparent. (This also applies to other large-scale mechanical changes.)
+patches. This note describes how you can make rebasing across the reformatting
+completely transparent. (You can also use this approach for other large-scale
+mechanical changes)
 
-For this to be completely automatic, you need three things.
+For this to be completely automatic, you need three things:
 
-1. A script that is called during rebasing to merge things. The script will be
-   called for each file that's rebased, with four arguments:
+1. Create a rebasing script
 
-   1. `base`, a path with the contents of the file at the ancestor's version
-   2. `current`, A path with the contents of the file at the current version
-   3. `other`, a path with the contents of the file at the other branch's
+   You need a script that is called during the rebase process to merge changes.
+   The script will be called for each file that's being rebased and takes four
+   arguments:
+
+   1. `base`: Path to the file's contents at the ancestor's version.
+   2. `current`: Path to the file's contents at the current version.
+   3. `other`: Path to the file's contents at the other branch's
       version (for nonlinear histories, there might be multiple other branches,
-      this document here glosses over that)
-   4. `path`, the path where the file is in the repository
+      this document here glosses over that).
+   4. `path`: The path of the file in the repository.
+
+   For example, the four arguments to the script might be:
+
+       .merge_file_ATljVo .merge_file_jtKanZ .merge_file_sCmdle path/to/a/file.c
 
    The job of the script is to apply the mechanical change to the three files
    at 1, 2, 3 and then run
 
        git merge-file -Lcurrent -Lbase -Lother $base $current $other
 
-   This has the effect of applying the mechanical change to the in-flight
-   patches while they are being rebased, which has the effect that the
-   mechanical change causes no conflict, while not hiding true conflicts.
+   This applies the mechanical change to in-flight patches while they are being
+   rebased, avoiding conflicts from the mechanical change but not hiding true
+   conflicts.
 
    Here is a concrete example for the mechanical change being "run
-   clang-format". One problem in this case is that the paths `base`, `current`,
-   and `other` are paths to temporary files in the repository's root. For
-   example, the four arguments to the script
-   might be:
+   clang-format".
 
-       .merge_file_ATljVo .merge_file_jtKanZ .merge_file_sCmdle path/to/a/file.c
-
-   If you want `clang-format` to honor the contents of `.clang-format` files
-   in subdirectories of your tree, if you just do
-
-       $ cat my/clang_format_script.sh
-       #!/bin/bash
-       # Don't do this, instead see below.
-       base="$1"
-       current="$2"
-       other="$3"
-       path="$4"
-       clang-format --style=file -i $base
-       clang-format --style=file -i $current
-       clang-format --style=file -i $other
-       git merge-file -Lcurrent -Lbase -Lother $base $current $other
-
-   then `clang-format` will only pick up the contents of `.clang-format` in the
-   repository's root.
-
-   `clang-format` helpfully has a `--assume-filename=` option that you can pass
-   the forth argument `$path` to, but it only honors this flag if the input
+   Since `base`, `current`, and `other` are paths to temporary files in the
+   repository's root, `clang-format` will only pick up the contents of
+   `.clang-format` in the repository's root.  To fix this, `clang-format`
+   helpfully has a `--assume-filename=` option that you can receive
+   the forth argument `$path` but it only honors this flag if the input
    comes from stdin. So you can't use `-i` but have to pipe to clang-format and
    make its output to memory, and then overwrite the file in a second step:
 
