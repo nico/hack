@@ -65,7 +65,9 @@ For this to be completely automatic, you need three things:
    across versions (arguably a good thing).
 
 2. Define a custom merge driver as [described in git's documentation](
-   https://git-scm.com/docs/gitattributes#_defining_a_custom_merge_driver): Add
+   https://git-scm.com/docs/gitattributes#_defining_a_custom_merge_driver)
+
+   Your `.git/config` needs to contain the following lines:
 
        [merge "reformat"]
          name = Free-form text
@@ -97,15 +99,16 @@ For this to be completely automatic, you need three things:
    require manual work by everyone, but it can be done well in advance of the
    mechanical change.
 
-3. In the commit that does the mechanical change (or in a separate commit that
-   lands at the same time), also add this to a `.gitattributes` file in the
+3. Update `.gitattributes`
+
+   In the commit that does the mechanical change (or in a separate commit that
+   lands at the same time), add the following to a `.gitattributes` file in the
    directory that the mechanical change applies to:
 
        *.cpp merge=clang-format
        *.h   merge=clang-format
 
-   (Use whatever pattern appropriate for your project and your change instead,
-   of course.)
+   (Use patterns suitable for your project and your change instead.)
 
 Testing
 -------
