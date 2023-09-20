@@ -27,9 +27,10 @@ For this to be completely automatic, you need three things.
    patches while they are being rebased, which has the effect that the
    mechanical change causes no conflict, while not hiding true conflicts.
 
-   If the mechanical change is "run clang-format", then one problem is that
-   the paths `base`, `current`, and `other` are paths to temporary files
-   in the repository's root. For example, the four arguments to the script
+   Here is a concrete example for the mechanical change being "run
+   clang-format". One problem in this case is that the paths `base`, `current`,
+   and `other` are paths to temporary files in the repository's root. For
+   example, the four arguments to the script
    might be:
 
        .merge_file_ATljVo .merge_file_jtKanZ .merge_file_sCmdle path/to/a/file.c
@@ -39,22 +40,23 @@ For this to be completely automatic, you need three things.
 
        $ cat my/clang_format_script.sh
        #!/bin/bash
+       # Don't do this, instead see below.
        base="$1"
        current="$2"
        other="$3"
        path="$4"
-       # Don't do this, instead see below.
        clang-format --style=file -i $base
        clang-format --style=file -i $current
        clang-format --style=file -i $other
        git merge-file -Lcurrent -Lbase -Lother $base $current $other
 
    then `clang-format` will only pick up the contents of `.clang-format` in the
-   repository's root. `clang-format` helpfully has a `--assume-filename=` option
-   that you can pass the forth argument `$path` to, but it only honors this
-   flag if the input comes from stdin. So you can't use `-i` but have to pipe
-   to clang-format and make its output to memory, and then
-   overwrite the file in a second step:
+   repository's root.
+
+   `clang-format` helpfully has a `--assume-filename=` option that you can pass
+   the forth argument `$path` to, but it only honors this flag if the input
+   comes from stdin. So you can't use `-i` but have to pipe to clang-format and
+   make its output to memory, and then overwrite the file in a second step:
 
        $ cat my/clang_format_script.sh
        #!/bin/bash
