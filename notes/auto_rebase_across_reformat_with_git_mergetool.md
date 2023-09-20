@@ -141,9 +141,12 @@ Real-world examples
 Chromium used this approach when clang-formatting all of Blink after forking it
 from WebKit. Here are references to the changes made there:
 
-* Idea: <https://bugs.chromium.org/p/chromium/issues/detail?id=574611#c23>
-* Part 1: <https://codereview.chromium.org/2356933002>
+* Part 1: <https://codereview.chromium.org/2356933002> Chromium supports Windows
+  as development platform, so there's a bash script for unix systems and a bat
+  file for Windows developers that both forward to a python script that does
+  the actual work.
 * Part 2: <https://codereview.chromium.org/2359933005> Chromium uses a system
   called `gclient` for managing dependencies that developers run after every
   sync. This was a convenient place for installing the git mergedriver config.
 * Part 3: <https://codereview.chromium.org/2382993005>
+* Initiali descriptoin of the idea: <https://bugs.chromium.org/p/chromium/issues/detail?id=574611#c23>
