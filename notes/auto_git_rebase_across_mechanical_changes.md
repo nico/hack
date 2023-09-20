@@ -64,8 +64,7 @@ For this to be completely automatic, you need three things:
    else could get conflicts on lines where clang-format's output is different
    across versions (arguably a good thing).
 
-2. Define a custom merge driver as [described in git's documentation](
-   https://git-scm.com/docs/gitattributes#_defining_a_custom_merge_driver)
+2. Define a custom merge driver
 
    Your `.git/config` needs to contain the following lines:
 
@@ -73,8 +72,6 @@ For this to be completely automatic, you need three things:
          name = Free-form text
          driver = my/clang_format_script.sh %O %A %B %P
          recursive = binary
-
-   (You don't need `%L` from the docs.)
 
    This gives the merge driver a name, in this case `reformat`.  You can
    arbitrarily choose the name of the merge driver, but it has to be the same
@@ -84,6 +81,10 @@ For this to be completely automatic, you need three things:
    property is `Free-form text` (irrelevant). The `driver` property is very
    important, as it tells git which command to run and which arguments to pass
    to it.
+
+   This is from [git's documentation on custom merge drivers](
+   https://git-scm.com/docs/gitattributes#_defining_a_custom_merge_driver)
+   (You don't need the `%L` from the docs.)
 
    The current working directory when this driver runs will be the repository
    root, so you can use relative paths to scripts in your repository.
