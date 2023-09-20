@@ -16,7 +16,7 @@ For this to be completely automatic, you need three things.
    3. `other`, a path with the contents of the file at the other branch's
       version (for nonlinear histories, there might be multiple other branches,
       this document here glosses over that)
-   4. `path, the path where the file is in the repository
+   4. `path`, the path where the file is in the repository
 
    The job of the script is to apply the mechanical change to the three files
    at 1, 2, 3 and then run
@@ -37,9 +37,17 @@ For this to be completely automatic, you need three things.
    If you want `clang-format` to honor the contents of `.clang-format` files
    in subdirectories of your tree, if you just do
 
+       $ cat my/clang_format_script.sh
+       #!/bin/bash
+       base="$1"
+       current="$2"
+       other="$3"
+       path="$4"
+       # Don't do this, instead see below.
        clang-format --style=file -i $base
        clang-format --style=file -i $current
        clang-format --style=file -i $other
+       git merge-file -Lcurrent -Lbase -Lother $base $current $other
 
    then `clang-format` will only pick up the contents of `.clang-format` in the
    repository's root. `clang-format` helpfully has a `--assume-filename=` option
@@ -48,12 +56,19 @@ For this to be completely automatic, you need three things.
    to clang-format and make its output to memory, and then
    overwrite the file in a second step:
 
+       $ cat my/clang_format_script.sh
+       #!/bin/bash
+       base="$1"
+       current="$2"
+       other="$3"
+       path="$4"
        clang-format --style=file --assume-filename=$path < $base > $base.tmp
        mv $base.tmp $base
        clang-format --style=file --assume-filename=$path < $current > $current.tmp
        mv $current.tmp $current
        clang-format --style=file --assume-filename $path < $other > $other.tmp
        mv $other.tmp $other
+       git merge-file -Lcurrent -Lbase -Lother $base $current $other
 
    You also need to make sure clang-format is the same version for everyone,
    else could get conflicts on lines where clang-format's output is different
