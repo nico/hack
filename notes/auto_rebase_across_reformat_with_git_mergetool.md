@@ -68,7 +68,7 @@ For this to be completely automatic, you need three things.
        mv $base.tmp $base
        clang-format --style=file --assume-filename=$path < $current > $current.tmp
        mv $current.tmp $current
-       clang-format --style=file --assume-filename $path < $other > $other.tmp
+       clang-format --style=file --assume-filename=$path < $other > $other.tmp
        mv $other.tmp $other
        git merge-file -Lcurrent -Lbase -Lother $base $current $other
 
