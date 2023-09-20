@@ -1,5 +1,5 @@
-How to auto-rebase across a large-scale mechanical change with `git mergetool`
-==============================================================================
+Auto-rebasing across a large-scale mechanical changes with `git`
+================================================================
 
 Let's say you want to clang-format a large codebase, and you're worried that
 the reformatting change causes everyone work when they rebase their in-flight
