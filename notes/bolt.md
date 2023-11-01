@@ -1,5 +1,15 @@
+Post-link optimization
+======================
+
+This started out as a few notes on bolt, but then grew to cover other
+post-link optimization ("PLO") technologies.
+
+In the meantime, Amir Ayupov wrote a pretty good overview on this too,
+[here](https://aaupov.github.io/blog/2023/07/09/pgo). It's a great overview.
+This document here still has links to some more details.
+
 LLVM Bolt notes
-===============
+---------------
 
 Build bolt binaries:
 
@@ -55,6 +65,7 @@ Other similar things
    [1](https://github.com/google/llvm-propeller/blob/424c3b885e60d8ff9446b16df39d84fbf6596aec/Propeller_RFC.pdf)
    [2](https://lists.llvm.org/pipermail/llvm-dev/2019-September/135393.html)
    [3](https://github.com/google/llvm-propeller/blob/main/ArtifactEvaluation/Scripts/optimize_clang.sh)
+   [4](https://storage.googleapis.com/pub-tools-public-publication-data/pdf/578a590c3d797cd5d3fcd98f39657819997d9932.pdf)
 
 CSPGO is context-sensitive PGO, which does a second profile-generaation and
 PGO-link step after the first, to get profiles of code after inlining done
