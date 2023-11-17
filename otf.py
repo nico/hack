@@ -11,8 +11,8 @@ import struct
 
 
 class Struct:
-  def __init__(self, name, bitness, *args):
-    self.fmt = bitness+ ''.join(args[0::2])
+  def __init__(self, name, endianness, *args):
+    self.fmt = endianness + ''.join(args[0::2])
     self.type = collections.namedtuple(name, args[1::2])
 
   def unpack(self, data):
@@ -23,6 +23,43 @@ class Struct:
 
   def size(self):
     return struct.calcsize(self.fmt)
+
+
+def dump_post(data):
+    Header = Struct('Header', '>',
+                        'I', 'version',
+                        'I', 'italicAngle',
+                        'h', 'underlinePosition',
+                        'h', 'underlineThickness',
+                        'I', 'isFixedPitch',
+                        'I', 'minMemType42',
+                        'I', 'maxMemType42',
+                        'I', 'minMemType1',
+                        'I', 'maxMemType1',
+                        )
+    header = Header.unpack(data[0:Header.size()])
+    print(f'    {header}')
+
+    if header.version == 0x00020000:
+        numGlyphs, = struct.unpack_from('>H', data, Header.size())
+
+        string_table = []
+        string_table_data = data[Header.size() + 2 * (1 + numGlyphs):]
+        while string_table_data:
+            length = string_table_data[0]
+            string_table.append(string_table_data[1:1 + length])
+            string_table_data = string_table_data[1 + length:]
+
+        print(f'    {numGlyphs}')
+        glyphNameIndex = struct.unpack_from('>' + 'H' * numGlyphs, data,
+                                            Header.size() + 2)
+        print(f'    {glyphNameIndex}')
+        print(f'    {len(string_table)} strings:')
+        print(f'    {string_table}')
+    elif header.version == 0x00025000:
+        print(f'    TODO: v2.5 data')
+    elif header.version != 0x00010000 and header.version != 0x00030000:
+        print(f'    Unexpected version!')
 
 
 def main():
@@ -54,7 +91,11 @@ def main():
         start_offset = Header.size() + i * TableRecord.size()
         record_data = font_data[start_offset:start_offset + TableRecord.size()]
         record = TableRecord.unpack(record_data)
+
         print(record)
+        data = font_data[record.offset:record.offset + record.length]
+        if record.table_tag == b'post':
+            dump_post(data)
 
 
 if __name__ == '__main__':
