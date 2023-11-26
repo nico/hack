@@ -2435,6 +2435,9 @@ static void icc_lab16_to_xyz(uint16_t l16,
                              double* y,
                              double* z) {
   // 6.3.4.2 General PCS encoding describes how Lab is encoded in 16 bit.
+  // FIXME: ...but 10.10 lut16Type has a different Legacy PCSLAB encoding
+  //        in tables 42 and 43, which should be used for mft2 and probably also
+  //        for mAB?
   double L = 100 * (l16 / 65535.0);
   double a = 255 * (a16 / 65535.0) - 128;
   double b = 255 * (b16 / 65535.0) - 128;
