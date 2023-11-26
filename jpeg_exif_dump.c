@@ -2657,7 +2657,7 @@ static void icc_dump_lut8Type(struct Options* options,
   iprintf(options, "input tables:\n");
   for (unsigned c = 0; c < num_input_channels; ++c) {
     iprintf(options, "  channel %u:", c);
-    for (unsigned i = 0; i < 255; ++i)
+    for (unsigned i = 0; i < 256; ++i)
       printf(" %u", begin[offset++]);
     printf("\n");
   }
@@ -2678,7 +2678,7 @@ static void icc_dump_lut8Type(struct Options* options,
   iprintf(options, "output tables:\n");
   for (unsigned c = 0; c < num_output_channels; ++c) {
     iprintf(options, "  channel %u:", c);
-    for (unsigned i = 0; i < 255; ++i)
+    for (unsigned i = 0; i < 256; ++i)
       printf(" %u", begin[offset++]);
     printf("\n");
   }
