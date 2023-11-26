@@ -2296,6 +2296,22 @@ static void icc_xyz_to_rgb(double x,
   *b8 = icc_saturate_u8(b);
 }
 
+static void icc_xyz8_to_rgb(uint16_t x8,
+                            uint16_t y8,
+                            uint16_t z8,
+                            uint8_t* r8,
+                            uint8_t* g8,
+                            uint8_t* b8) {
+  // The 8-bit PCSXYZ encoding is implementation defined!
+  // 10.11 lut8Type: "An 8-bit PCSXYZ encoding has not been defined,
+  // so the interpretation of a lut8Type in a profile that uses PCSXYZ is
+  // implementation specific."
+  double x = x8 / 255.0;
+  double y = y8 / 255.0;
+  double z = z8 / 255.0;
+  icc_xyz_to_rgb(x, y, z, r8, g8, b8);
+}
+
 static void icc_xyz16_to_rgb(uint16_t x16,
                              uint16_t y16,
                              uint16_t z16,
@@ -2317,6 +2333,24 @@ static bool icc_is_truecolor_terminal(void) {
 }
 
 // Assumes 3 output colors.
+static void icc_colored_lut_row_xyz_to_rgb_8(const uint8_t* begin,
+                                             uint8_t n,
+                                             char end) {
+  for (unsigned b = 0; b < n; ++b) {
+    uint8_t x = begin[0];
+    uint8_t y = begin[1];
+    uint8_t z = begin[2];
+    begin += 3;
+
+    uint8_t r8, g8, b8;
+    icc_xyz8_to_rgb(x, y, z, &r8, &g8, &b8);
+
+    printf("\033[48;2;%u;%u;%um.", r8, g8, b8);
+  }
+  printf("\033[0m%c", end);
+}
+
+// Assumes 3 output colors.
 static void icc_colored_lut_row_xyz_to_rgb_16(const uint8_t* begin,
                                               uint8_t n,
                                               char end) {
@@ -2334,17 +2368,12 @@ static void icc_colored_lut_row_xyz_to_rgb_16(const uint8_t* begin,
   printf("\033[0m%c", end);
 }
 
-static void icc_lab16_to_xyz(uint16_t l16,
-                             uint16_t a16,
-                             uint16_t b16,
-                             double* x,
-                             double* y,
-                             double* z) {
-  // 6.3.4.2 General PCS encoding describes how Lab is encoded in 16 bit.
-  double L = 100 * (l16 / 65535.0);
-  double a = 255 * (a16 / 65535.0) - 128;
-  double b = 255 * (b16 / 65535.0) - 128;
-
+static void icc_lab_to_xyz(double L,
+                           double a,
+                           double b,
+                           double* x,
+                           double* y,
+                           double* z) {
   // See http://www.brucelindbloom.com/Eqn_Lab_to_XYZ.html
   double fy = (L + 16) / 116;
   double fx = a / 500 + fy;
@@ -2386,6 +2415,52 @@ static void icc_lab16_to_xyz(uint16_t l16,
   *z = zr * ref_white_z;
 }
 
+static void icc_lab8_to_xyz(uint8_t l8,
+                            uint8_t a8,
+                            uint8_t b8,
+                            double* x,
+                            double* y,
+                            double* z) {
+  // 6.3.4.2 General PCS encoding describes how Lab is encoded in 8 bit.
+  double L = 100 * (l8 / 255.0);
+  double a = a8 - 128.0;
+  double b = b8 - 128.0;
+  icc_lab_to_xyz(L, a, b, x, y, z);
+}
+
+static void icc_lab16_to_xyz(uint16_t l16,
+                             uint16_t a16,
+                             uint16_t b16,
+                             double* x,
+                             double* y,
+                             double* z) {
+  // 6.3.4.2 General PCS encoding describes how Lab is encoded in 16 bit.
+  double L = 100 * (l16 / 65535.0);
+  double a = 255 * (a16 / 65535.0) - 128;
+  double b = 255 * (b16 / 65535.0) - 128;
+  icc_lab_to_xyz(L, a, b, x, y, z);
+}
+
+// Assumes 3 output colors.
+static void icc_colored_lut_row_lab_to_rgb_8(const uint8_t* begin,
+                                             uint8_t n,
+                                             char end) {
+  for (unsigned blue = 0; blue < n; ++blue) {
+    uint8_t L = begin[0];
+    uint8_t a = begin[1];
+    uint8_t b = begin[2];
+    begin += 3;
+
+    double x, y, z;
+    icc_lab8_to_xyz(L, a, b, &x, &y, &z);
+    uint8_t r8, g8, b8;
+    icc_xyz_to_rgb(x, y, z, &r8, &g8, &b8);
+
+    printf("\033[48;2;%u;%u;%um.", r8, g8, b8);
+  }
+  printf("\033[0m%c", end);
+}
+
 // Assumes 3 output colors.
 static void icc_colored_lut_row_lab_to_rgb_16(const uint8_t* begin,
                                               uint8_t n,
@@ -2411,6 +2486,7 @@ static void icc_dump_clut_3_3_truecolor(struct Options* options,
                                         uint8_t clut_size_g,
                                         uint8_t clut_size_b,
                                         const uint8_t* clut_data,
+                                        uint8_t bytes_per_entry,
                                         void (*dump_row)(const uint8_t*,
                                                          uint8_t,
                                                          char)) {
@@ -2434,7 +2510,7 @@ static void icc_dump_clut_3_3_truecolor(struct Options* options,
       iprintf(options, "");
       for (unsigned i = 0; i < grids_this_line; ++i) {
         const uint8_t* line = clut_data;
-        line += ((r + i) * clut_size_g + g) * clut_size_b * 6;
+        line += ((r + i) * clut_size_g + g) * clut_size_b * 3 * bytes_per_entry;
         dump_row(line, clut_size_b, i == grids_this_line - 1 ? '\n' : ' ');
       }
     }
@@ -2482,18 +2558,26 @@ static void icc_dump_clut(struct Options* options,
   // num_input_channels-dimensional space with clut_sizes[i] along axis i.
   // Each point contains num_output_channels points.
   if (num_input_channels == 3 && num_output_channels == 3 &&
-      bytes_per_entry == 2 && icc_is_truecolor_terminal()) {
+      icc_is_truecolor_terminal()) {
     void (*dump)(const uint8_t* begin, uint8_t n, char end) = NULL;
-    if (icc->pcs == 0x58595A20 /* 'XYZ ' */)
-      dump = icc_colored_lut_row_xyz_to_rgb_16;
-    else if (icc->pcs == 0x4C616220 /* 'Lab ' */)
-      dump = icc_colored_lut_row_lab_to_rgb_16;
+    if (icc->pcs == 0x58595A20 /* 'XYZ ' */) {
+      if (bytes_per_entry == 1)
+        dump = icc_colored_lut_row_xyz_to_rgb_8;
+      else if (bytes_per_entry == 2)
+        dump = icc_colored_lut_row_xyz_to_rgb_16;
+    } else if (icc->pcs == 0x4C616220 /* 'Lab ' */) {
+      if (bytes_per_entry == 1)
+        dump = icc_colored_lut_row_lab_to_rgb_8;
+      else if (bytes_per_entry == 2)
+        dump = icc_colored_lut_row_lab_to_rgb_16;
+    }
 
     if (!dump) {
       printf("(not dumping CLUT due to invalid PCS\n");
     } else {
       icc_dump_clut_3_3_truecolor(options, clut_sizes[0], clut_sizes[1],
-                                  clut_sizes[2], clut_data, dump);
+                                  clut_sizes[2], clut_data, bytes_per_entry,
+                                  dump);
     }
   } else if (num_input_channels == 3 && options->dump_luts) {
     icc_dump_clut_values(options, clut_sizes[0], clut_sizes[1], clut_sizes[2],
