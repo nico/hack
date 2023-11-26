@@ -2447,15 +2447,20 @@ static void icc_dump_clut_values(struct Options* options,
                                  uint8_t clut_size_g,
                                  uint8_t clut_size_b,
                                  uint8_t num_output_channels,
-                                 const uint8_t* clut_data) {
+                                 const uint8_t* clut_data,
+                                 uint8_t bytes_per_entry) {
   for (unsigned r = 0; r < clut_size_r; ++r) {
     for (unsigned g = 0; g < clut_size_g; ++g) {
       iprintf(options, "");
       for (unsigned b = 0; b < clut_size_b; ++b) {
         printf(" ");
         for (unsigned i = 0; i < num_output_channels; ++i) {
-          uint16_t value = be_uint16(clut_data);
-          clut_data += 2;
+          uint16_t value;
+          if (bytes_per_entry == 1)
+            value = *clut_data;
+          else
+            value = be_uint16(clut_data);
+          clut_data += bytes_per_entry;
           printf("%u", value);
           if (i != num_output_channels - 1)
             printf(",");
@@ -2490,10 +2495,9 @@ static void icc_dump_clut(struct Options* options,
       icc_dump_clut_3_3_truecolor(options, clut_sizes[0], clut_sizes[1],
                                   clut_sizes[2], clut_data, dump);
     }
-  } else if (num_input_channels == 3 && bytes_per_entry == 2 &&
-             options->dump_luts) {
+  } else if (num_input_channels == 3 && options->dump_luts) {
     icc_dump_clut_values(options, clut_sizes[0], clut_sizes[1], clut_sizes[2],
-                         num_output_channels, clut_data);
+                         num_output_channels, clut_data, bytes_per_entry);
   } else {
     iprintf(options, "not dumping lut.");
     if (num_input_channels == 3) {
