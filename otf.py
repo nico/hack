@@ -25,6 +25,19 @@ class Struct:
     return struct.calcsize(self.fmt)
 
 
+def dump_maxp(data):
+    Header = Struct('HeaderV05', '>',
+                        'I', 'version',
+                        'H', 'numGlyphs',
+                        )
+    header = Header.unpack(data[0:Header.size()])
+    print(f'    {header}')
+
+    assert header.version in [0x00005000, 0x00010000]
+    if header.version == 0x00010000:
+        print(f'    FIXME: Dump v1.0 data too')
+
+
 def dump_post(data):
     Header = Struct('Header', '>',
                         'I', 'version',
@@ -94,6 +107,8 @@ def main():
 
         print(record)
         data = font_data[record.offset:record.offset + record.length]
+        if record.table_tag == b'maxp':
+            dump_maxp(data)
         if record.table_tag == b'post':
             dump_post(data)
 
