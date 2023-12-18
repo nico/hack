@@ -1,3 +1,4 @@
+# `xctrace` notes
 
 Record:
 
@@ -49,4 +50,8 @@ from `/usr/include/sys/kdebug.h` in the SDK (`DBG_*` for the classes).
 
 `--xpath '/trace-toc/run[@number="1"]/data/table'` dumps everything.
 
-See also `sample`, `ktrace` (apparently back, after being replaced by `dtrace`?)
+## See also
+
+* `sample`
+* `ktrace` (apparently back, after being replaced by `dtrace`?)
+* <https://github.com/google/instrumentsToPprof>
