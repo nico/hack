@@ -4347,7 +4347,7 @@ static void jpeg_dump_adobe(struct Options* options,
   uint8_t version = begin[prefix_size];
   uint16_t flags0 = be_uint16(begin + prefix_size + 1);
   uint16_t flags1 = be_uint16(begin + prefix_size + 3);
-  uint8_t color_transform = begin[prefix_size + 4];
+  uint8_t color_transform = begin[prefix_size + 5];
   iprintf(options, "version 0x%x\n", version);
   iprintf(options, "flags0 0x%x\n", flags0);
   iprintf(options, "flags1 0x%x\n", flags1);
