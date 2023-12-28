@@ -4351,7 +4351,22 @@ static void jpeg_dump_adobe(struct Options* options,
   iprintf(options, "version 0x%x\n", version);
   iprintf(options, "flags0 0x%x\n", flags0);
   iprintf(options, "flags1 0x%x\n", flags1);
-  iprintf(options, "color_transform %d\n", color_transform);
+  iprintf(options, "color_transform %d", color_transform);
+  switch (color_transform) {
+    case 0:
+      printf(" (RGB or complemented CMYK)");
+      break;
+    case 1:
+      printf(" (YCbCr)");
+      break;
+    case 2:
+      printf(" (YCCK)");
+      break;
+    default:
+      printf(" (unknown value)");
+      break;
+  }
+  printf("\n");
 }
 
 static const char* jpeg_dump_app_id(struct Options* options,
