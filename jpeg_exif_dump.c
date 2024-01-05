@@ -2562,6 +2562,8 @@ static void icc_dump_clut(struct Options* options,
   // Each point contains num_output_channels points.
   if (num_input_channels == 3 && num_output_channels == 3 &&
       icc_is_truecolor_terminal()) {
+    // FIXME: This assumes we're converting to PCS and does the wrong thing
+    // for inverse transforms (mBA, and mft1/mft2 in BToA* tags).
     void (*dump)(const uint8_t* begin, uint8_t n, char end) = NULL;
     if (icc->pcs == 0x58595A20 /* 'XYZ ' */) {
       if (bytes_per_entry == 1)
@@ -2571,8 +2573,10 @@ static void icc_dump_clut(struct Options* options,
     } else if (icc->pcs == 0x4C616220 /* 'Lab ' */) {
       if (bytes_per_entry == 1)
         dump = icc_colored_lut_row_lab_to_rgb_8;
-      else if (bytes_per_entry == 2)
+      else if (bytes_per_entry == 2) {
+        // FIXME: This is wrong for mft2, see comment in icc_lab16_to_xyz().
         dump = icc_colored_lut_row_lab_to_rgb_16;
+      }
     }
 
     if (!dump) {
