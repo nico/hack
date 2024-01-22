@@ -550,7 +550,8 @@ adapt_D50_from_D65 = adaptation_matrix(D65_white_XYZ, D50_white_XYZ)
 matrix_print(adapt_D50_from_D65)
 
 print("sRGB XYZ_D65 adapted to D50:")
-matrix_print(matrix_mult(adapt_D50_from_D65, XYZ_D65_from_sRGB))
+XYZ_D50_from_sRGB = matrix_mult(adapt_D50_from_D65, XYZ_D65_from_sRGB)
+matrix_print(XYZ_D50_from_sRGB)
 
 print("sRGB XYZ_D50 computed directly:")
 matrix_print(
@@ -568,4 +569,24 @@ XYZ_D65_from_P3 = \
 matrix_print(XYZ_D65_from_P3)
 
 print("Display-P3 XYZ_D65 adapted to D50:")
-matrix_print(matrix_mult(adapt_D50_from_D65, XYZ_D65_from_P3))
+XYZ_D50_from_P3 = matrix_mult(adapt_D50_from_D65, XYZ_D65_from_P3)
+matrix_print(XYZ_D50_from_P3)
+
+P3_red = [1.0, 0.0, 0.0]
+sRGB_from_XYZ_D50 = matrix_3x3_invert(XYZ_D50_from_sRGB)
+XYZ_D50_from_P3_red = matrix_vec_mult(XYZ_D50_from_P3, P3_red)
+sRGB_from_P3_red = matrix_vec_mult(sRGB_from_XYZ_D50, XYZ_D50_from_P3_red)
+print('sRGB from P3(1.0, 0.0, 0.0):', sRGB_from_P3_red)
+
+
+# https://www.w3.org/TR/css-color-4/#predefined-sRGB
+def linear_from_sRGB(c):
+    if c < 0.04045:
+        return c / 12.92
+    return ((c + 0.055) / 1.055) ** 2.4
+
+P3_less_red_linear = [linear_from_sRGB(241.0 / 255.0), 0.0, 0.0]
+XYZ_D50_from_P3_less_red = matrix_vec_mult(XYZ_D50_from_P3, P3_less_red_linear)
+sRGB_from_P3_less_red_linear = \
+    matrix_vec_mult(sRGB_from_XYZ_D50, XYZ_D50_from_P3_less_red)
+print('linear-sRGB from P3(241/255, 0.0, 0.0):', sRGB_from_P3_less_red_linear)
