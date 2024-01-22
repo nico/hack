@@ -438,3 +438,80 @@ for c in planckian_locus[1:]:
 print()
 
 # XXX chromatic adaptation
+
+def XYZ_from_xy(x, y):
+    return x / y, 1.0, (1 - x - y) / y
+
+def matrix_3x3_scale(matrix, s):
+    return [[x * s for x in r] for r in matrix]
+
+def matrix_3x3_invert(matrix):
+    # https://en.wikipedia.org/wiki/Minor_(linear_algebra)
+    # "If A is a square matrix, then the minor of the entry in the i-th row and
+    #  j-th column [...] is the determinant of the submatrix formed by deleting
+    #  the i-th row and j-th column. [...] The (i, j) cofactor is obtained by
+    #  multiplying the minor by (-1)^(i+j). [...]"
+    # "The inverse of A is the transpose of the cofactor matrix times the reciprocal of the determinant of A"
+    a, b, c = matrix[0]
+    d, e, f = matrix[1]
+    g, h, i = matrix[2]
+
+    determinant = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g)
+    assert determinant != 0
+
+    m = [[e * i - f * h, c * h - b * i, b * f - c * e],
+         [f * g - d * i, a * i - c * g, c * d - a * f],
+         [d * h - e * g, b * g - a * h, a * e - b * d]]
+    return matrix_3x3_scale(m, 1.0 / determinant)
+
+
+def matrix_mult(m1, m2):
+    R = len(m1)
+    C = len(m2[0])
+    assert len(m1[0]) == len(m2)
+    K = len(m2)
+    return [
+        [sum(m1[r][k] * m2[k][c] for k in range(K)) for c in range(C)]
+        for r in range(R)
+    ]
+
+
+def matrix_transpose(m):
+    return [[m[j][i] for j in range(len(m))] for i in range(len(m[0]))]
+
+
+def matrix_vec_mult(m, v):
+    assert len(m[0]) == len(v)
+    return [
+        sum(m[i][j] * v[j] for j in range(len(v)))
+        for i in range(len(m))
+    ]
+
+
+def matrix_print(m):
+    for row in m:
+        print('    ' + ' '.join(f'{f:.7f}' for f in row))
+
+
+# http://www.brucelindbloom.com/index.html?Eqn_RGB_XYZ_Matrix.html
+def XYZ_from_rgb_matrix(r, g, b, W):
+    XYZ_matrix_T = [XYZ_from_xy(*r),
+                    XYZ_from_xy(*g),
+                    XYZ_from_xy(*b)]
+    XYZ_matrix = matrix_transpose(XYZ_matrix_T)
+    XYZ_matrix_I = matrix_3x3_invert(XYZ_matrix)
+
+    S = matrix_vec_mult(XYZ_matrix_I, W)
+
+    return matrix_mult(XYZ_matrix, [[S[0], 0, 0], [0, S[1], 0], [0, 0, S[2]]])
+
+# https://en.wikipedia.org/wiki/Illuminant_D65
+D65_white_XYZ = [95.047 / 100.0, 100 / 100.0, 108.883 / 100.0]
+
+sRGB_r_xy = [0.6400, 0.3300]
+sRGB_g_xy = [0.3000, 0.6000]
+sRGB_b_xy = [0.1500, 0.0600]
+
+print("sRGB XYZ_D65 from RGB:")
+matrix_print(
+    XYZ_from_rgb_matrix(sRGB_r_xy, sRGB_g_xy, sRGB_b_xy, D65_white_XYZ))
