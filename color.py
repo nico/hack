@@ -488,6 +488,10 @@ def matrix_vec_mult(m, v):
     ]
 
 
+def matrix_3x3_diag(a, b, c):
+    return [[a, 0, 0], [0, b, 0], [0, 0, c]]
+
+
 def matrix_print(m):
     for row in m:
         print('    ' + ' '.join(f'{f:.7f}' for f in row))
@@ -503,7 +507,7 @@ def XYZ_from_rgb_matrix(r, g, b, W):
 
     S = matrix_vec_mult(XYZ_matrix_I, W)
 
-    return matrix_mult(XYZ_matrix, [[S[0], 0, 0], [0, S[1], 0], [0, 0, S[2]]])
+    return matrix_mult(XYZ_matrix, matrix_3x3_diag(*S))
 
 # https://en.wikipedia.org/wiki/Illuminant_D65
 D65_white_XYZ = [95.047 / 100.0, 100 / 100.0, 108.883 / 100.0]
@@ -513,5 +517,33 @@ sRGB_g_xy = [0.3000, 0.6000]
 sRGB_b_xy = [0.1500, 0.0600]
 
 print("sRGB XYZ_D65 from RGB:")
+XYZ_D65_from_sRGB = \
+    XYZ_from_rgb_matrix(sRGB_r_xy, sRGB_g_xy, sRGB_b_xy, D65_white_XYZ)
+matrix_print(XYZ_D65_from_sRGB)
+
+
+def adaptation_matrix(W_from, W_to):
+    # From ICC v4, E.3 Linearized Bradford transformation
+    cone_from_XYZ = [[ 0.8951,  0.2664, -0.1614],
+                     [-0.7502,  1.7135,  0.0367],
+                     [ 0.0389, -0.0685,  1.0296]]
+
+    cone_from = matrix_vec_mult(cone_from_XYZ, W_from)
+    cone_to = matrix_vec_mult(cone_from_XYZ, W_to)
+
+    adapt = matrix_3x3_diag(*list(cone_to[i] / cone_from[i] for i in range(3)))
+
+    return matrix_mult(matrix_3x3_invert(cone_from_XYZ),
+                       matrix_mult(adapt, cone_from_XYZ))
+
+
+# D50 -- from the ICC spec, required pcs illuminant
+D50_white_XYZ = [0.9642029, 1.0, 0.8249054]
+
+print("sRGB XYZ_D65 adapted to D50:")
+adapt_D50_from_D65 = adaptation_matrix(D65_white_XYZ, D50_white_XYZ)
+matrix_print(matrix_mult(adapt_D50_from_D65, XYZ_D65_from_sRGB))
+
+print("sRGB XYZ_D50 computed directly:")
 matrix_print(
-    XYZ_from_rgb_matrix(sRGB_r_xy, sRGB_g_xy, sRGB_b_xy, D65_white_XYZ))
+    XYZ_from_rgb_matrix(sRGB_r_xy, sRGB_g_xy, sRGB_b_xy, D50_white_XYZ))
