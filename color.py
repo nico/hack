@@ -512,6 +512,8 @@ def XYZ_from_rgb_matrix(r, g, b, W):
 # https://en.wikipedia.org/wiki/Illuminant_D65
 D65_white_XYZ = [95.047 / 100.0, 100 / 100.0, 108.883 / 100.0]
 
+# https://en.wikipedia.org/wiki/SRGB, "Chromaticity" table
+# https://www.w3.org/TR/css-color-4/#predefined-sRGB too.
 sRGB_r_xy = [0.6400, 0.3300]
 sRGB_g_xy = [0.3000, 0.6000]
 sRGB_b_xy = [0.1500, 0.0600]
@@ -524,6 +526,9 @@ matrix_print(XYZ_D65_from_sRGB)
 
 def adaptation_matrix(W_from, W_to):
     # From ICC v4, E.3 Linearized Bradford transformation
+    # (Also Bradford M_A from
+    # http://www.brucelindbloom.com/index.html?Eqn_ChromAdapt.html
+    # )
     cone_from_XYZ = [[ 0.8951,  0.2664, -0.1614],
                      [-0.7502,  1.7135,  0.0367],
                      [ 0.0389, -0.0685,  1.0296]]
@@ -540,10 +545,27 @@ def adaptation_matrix(W_from, W_to):
 # D50 -- from the ICC spec, required pcs illuminant
 D50_white_XYZ = [0.9642029, 1.0, 0.8249054]
 
-print("sRGB XYZ_D65 adapted to D50:")
+print("D50 from D65 Bradford adaptation matrix:")
 adapt_D50_from_D65 = adaptation_matrix(D65_white_XYZ, D50_white_XYZ)
+matrix_print(adapt_D50_from_D65)
+
+print("sRGB XYZ_D65 adapted to D50:")
 matrix_print(matrix_mult(adapt_D50_from_D65, XYZ_D65_from_sRGB))
 
 print("sRGB XYZ_D50 computed directly:")
 matrix_print(
     XYZ_from_rgb_matrix(sRGB_r_xy, sRGB_g_xy, sRGB_b_xy, D50_white_XYZ))
+
+# https://en.wikipedia.org/wiki/DCI-P3#P3_colorimetry
+# https://www.w3.org/TR/css-color-4/#predefined-display-p3 too.
+P3_r_xy = [0.680, 0.320]
+P3_g_xy = [0.265, 0.690]
+P3_b_xy = [0.150, 0.060]
+
+print("Display-P3 XYZ_D65 from RGB:")
+XYZ_D65_from_P3 = \
+    XYZ_from_rgb_matrix(P3_r_xy, P3_g_xy, P3_b_xy, D65_white_XYZ)
+matrix_print(XYZ_D65_from_P3)
+
+print("Display-P3 XYZ_D65 adapted to D50:")
+matrix_print(matrix_mult(adapt_D50_from_D65, XYZ_D65_from_P3))
