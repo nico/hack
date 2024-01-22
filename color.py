@@ -590,3 +590,13 @@ XYZ_D50_from_P3_less_red = matrix_vec_mult(XYZ_D50_from_P3, P3_less_red_linear)
 sRGB_from_P3_less_red_linear = \
     matrix_vec_mult(sRGB_from_XYZ_D50, XYZ_D50_from_P3_less_red)
 print('linear-sRGB from P3(241/255, 0.0, 0.0):', sRGB_from_P3_less_red_linear)
+
+P3_green = [0.0, 1.0, 0.0]
+XYZ_D50_from_P3_green = matrix_vec_mult(XYZ_D50_from_P3, P3_green)
+sRGB_from_P3_green = matrix_vec_mult(sRGB_from_XYZ_D50, XYZ_D50_from_P3_green)
+print('sRGB from P3(0.0, 1.0, 0.0):', sRGB_from_P3_green)
+
+P3_rg_linear = [linear_from_sRGB(100.0/255.0), 1.0, 0.0]
+XYZ_D50_from_P3_rg = matrix_vec_mult(XYZ_D50_from_P3, P3_rg_linear)
+sRGB_from_P3_rg_linear = matrix_vec_mult(sRGB_from_XYZ_D50, XYZ_D50_from_P3_rg)
+print('sRGB from P3(100/255, 1.0, 0.0):', sRGB_from_P3_rg_linear)
