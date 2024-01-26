@@ -4318,7 +4318,8 @@ static void jpeg_dump_adobe(struct Options* options,
                             const uint8_t* begin,
                             uint16_t size) {
   const size_t prefix_size = sizeof(uint16_t) + sizeof("Adobe");
-  if (size < prefix_size) {
+  const size_t chunk_size = prefix_size + 1 + 2 + 2 + 1;
+  if (size < chunk_size) {
     printf("Adobe header should be at least %zu bytes, is %u\n", prefix_size,
            size);
     return;
