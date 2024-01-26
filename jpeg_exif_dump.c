@@ -3854,6 +3854,28 @@ static void photoshop_dump_resource_blocks(struct Options* options,
 // EXIF spec: https://www.cipa.jp/std/documents/e/DC-008-2012_E.pdf
 //            https://www.cipa.jp/std/documents/e/DC-X008-Translation-2019-E.pdf
 
+// itu-81.pdf, Figure A.6 – Zig-zag sequence of quantized DCT coefficients
+static const int zigzag[] = {
+   0,  1,  5,  6, 14, 15, 27, 28,
+   2,  4,  7, 13, 16, 26, 29, 42,
+   3,  8, 12, 17, 25, 30, 41, 43,
+   9, 11, 18, 24, 31, 40, 44, 53,
+  10, 19, 23, 32, 39, 45, 52, 54,
+  20, 22, 33, 38, 46, 51, 55, 60,
+  21, 34, 37, 47, 50, 56, 59, 61,
+  35, 36, 48, 49, 57, 58, 62, 63,
+};
+
+// zigzag[zigzag_inverse[i]] == zigzag_inverse[zigzag[i]] == i
+static int zigzag_inverse[64];
+
+static void init_zigzag_inverse(void) {
+  for (int i = 0; i < 64; ++i)
+    zigzag_inverse[zigzag[i]] = i;
+  for (int i = 0; i < 64; ++i)
+    assert(zigzag[zigzag_inverse[i]] == i);
+}
+
 static void jpeg_dump_regular_sof(struct Options* options,
                                   const uint8_t* begin,
                                   uint16_t size) {
@@ -3960,14 +3982,29 @@ static void jpeg_dump_dqt(struct Options* options,
       return;
     }
 
+    begin += 1;
+    size -= 1;
+
+    uint16_t table[64];
+    if (element_precision == 0) {
+      for (int i = 0; i < 64; ++i)
+        table[zigzag_inverse[i]] = begin[i];
+    } else {
+      assert(element_precision == 1);
+      for (int i = 0; i < 64; ++i)
+        table[zigzag_inverse[i]] = be_uint16(begin + 2 * i);
+    }
+
+    for (int y = 0; y < 8; ++y) {
+      iprintf(options, "");
+      for (int x = 0; x < 8; ++x)
+        printf(element_precision == 0 ? "%4u" : "%6u", table[y * 8 + x]);
+      printf("\n");
+    }
+
     int entry_size = 64 * (element_precision + 1);
-
-    iprintf(options, "skipping %d bytes\n", entry_size);
-
-    // Skip codes.
-
-    begin += 1 + entry_size;
-    size -= 1 + entry_size;
+    begin += entry_size;
+    size -= entry_size;
   }
 }
 
@@ -4620,6 +4657,8 @@ static void jpeg_dump(struct Options* options,
 }
 
 int main(int argc, char* argv[]) {
+  init_zigzag_inverse();
+
   const char* program_name = argv[0];
 
   // Parse options.
