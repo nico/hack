@@ -3855,6 +3855,7 @@ static void photoshop_dump_resource_blocks(struct Options* options,
 //            https://www.cipa.jp/std/documents/e/DC-X008-Translation-2019-E.pdf
 
 // itu-81.pdf, Figure A.6 – Zig-zag sequence of quantized DCT coefficients
+// clang-format off
 static const int zigzag[] = {
    0,  1,  5,  6, 14, 15, 27, 28,
    2,  4,  7, 13, 16, 26, 29, 42,
@@ -3865,6 +3866,7 @@ static const int zigzag[] = {
   21, 34, 37, 47, 50, 56, 59, 61,
   35, 36, 48, 49, 57, 58, 62, 63,
 };
+// clang-format on
 
 // zigzag[zigzag_inverse[i]] == zigzag_inverse[zigzag[i]] == i
 static int zigzag_inverse[64];
