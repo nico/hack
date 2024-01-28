@@ -4036,13 +4036,22 @@ static void jpeg_dump_dht(struct Options* options,
 
     printf("code at length:");
     int number_of_codes = 0;
+    const uint8_t* number_of_codes_at_length = begin + 1;
     for (int i = 0; i < 16; ++i) {
-      printf(" %d", begin[1 + i]);
-      number_of_codes += begin[1 + i];
+      printf(" %d", number_of_codes_at_length[i]);
+      number_of_codes += number_of_codes_at_length[i];
     }
-    printf(", skipping %d code bytes\n", number_of_codes);
+    printf("\n");
 
-    // Skip codes.
+    const uint8_t* codes = number_of_codes_at_length + 16;
+    for (int i = 0; i < 16; ++i) {
+      if (number_of_codes_at_length[i] == 0)
+        continue;
+      iprintf(options, "  codes at index %2i:", i);
+      for (int j = 0; j < number_of_codes_at_length[i]; ++j)
+        printf(" %d", *codes++);
+      printf("\n");
+    }
 
     begin += 17 + number_of_codes;
     size -= 17 + number_of_codes;
