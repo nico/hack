@@ -4508,8 +4508,9 @@ static void jpeg_dump(struct Options* options,
 
     iprintf(options, "%02x%02x at offset %ld", b0, b1, cur - begin - 2);
 
-    bool has_size =
-        b1 != 0xd8 && b1 != 0xd9 && (b1 & 0xf8) != 0xd0 && end - cur >= 2;
+    // itu-t81.pdf, Table B.1 – Marker code assignments, markers without `*`.
+    bool has_size = b1 != 0x01 && b1 != 0xd8 && b1 != 0xd9 &&
+                    (b1 & 0xf8) != 0xd0 && end - cur >= 2;
     uint16_t size = 0;
     if (has_size) {
       size = be_uint16(cur);
