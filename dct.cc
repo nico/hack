@@ -20,11 +20,9 @@ double dct(double* d, int u, int v) {
 
 void dct_8x8(double* d) {
   double tmp[64];
-  for (int v = 0; v < 8; ++v) {
-    for (int u = 0; u < 8; ++u) {
+  for (int v = 0; v < 8; ++v)
+    for (int u = 0; u < 8; ++u)
       tmp[v * 8 + u] = dct(d, u, v);
-    }
-  }
   memcpy(d, tmp, sizeof(tmp));
 }
 
@@ -44,19 +42,16 @@ double idct(double* d, int x, int y) {
 
 void idct_8x8(double* d) {
   double tmp[64];
-  for (int y = 0; y < 8; ++y) {
-    for (int x = 0; x < 8; ++x) {
+  for (int y = 0; y < 8; ++y)
+    for (int x = 0; x < 8; ++x)
       tmp[y * 8 + x] = idct(d, x, y);
-    }
-  }
   memcpy(d, tmp, sizeof(tmp));
 }
 
 void print(double* d) {
   for (int y = 0; y < 8; ++y) {
-    for (int x = 0; x < 8; ++x) {
+    for (int x = 0; x < 8; ++x)
       printf("%8.2f ", d[y * 8 + x]);
-    }
     printf("\n");
   }
   printf("\n");
