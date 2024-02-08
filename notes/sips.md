@@ -25,3 +25,11 @@ file)
 ## Convert an image to different color space:
 
     sips -o out.png --matchTo serenity-sRGB.icc file-in-p3.png
+
+(Short `-m`.)
+
+## Assign a color profile to an image
+
+    sips -o out.jpg --embedProfile path/to/USWebCoatedSWOP.icc cmyk.jpg
+
+(Short `-e`. There is also `--embedProfileIfNone` / `-E`.)
