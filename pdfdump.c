@@ -747,10 +747,15 @@ struct XRefEntry {
   bool is_free; // true for 'f', false for 'n'
 };
 
-struct XRefObject {
+struct XRefRange {
   size_t start_id;
   size_t count;
   struct XRefEntry* entries;
+};
+
+struct XRefObject {
+  size_t count;
+  struct XRefRange* ranges;
 };
 
 struct TrailerObject {
@@ -1229,7 +1234,7 @@ static double real_value(const struct Token* token) {
   return value;
 }
 
-static struct XRefObject parse_xref(struct PDF* pdf, struct Span* data) {
+static struct XRefRange parse_xref_range(struct PDF* pdf, struct Span* data) {
   (void)pdf;
 
   struct Token token;
@@ -1244,10 +1249,6 @@ static struct XRefObject parse_xref(struct PDF* pdf, struct Span* data) {
 
   if (data->size < 20 * (unsigned)count)
     fatal("not enough data for xref entries\n");
-
-  // Per 3.4.3 Cross-Reference Table:
-  // "Following this line are one or more cross-reference subsections"
-  // FIXME: this parses only a single cross-reference subsection at the moment.
 
   struct XRefEntry* entries = malloc(count * sizeof(struct XRefEntry));
 
@@ -1287,14 +1288,27 @@ static struct XRefObject parse_xref(struct PDF* pdf, struct Span* data) {
   }
 
   // FIXME: Store entries inline, or at least in a bumpptr allocator?
-  struct XRefObject xref;
-  xref.start_id = start_id;
-  xref.count = count;
-  xref.entries = entries;
-  return xref;
+  struct XRefRange xref_range;
+  xref_range.start_id = start_id;
+  xref_range.count = count;
+  xref_range.entries = entries;
+  return xref_range;
 #undef N
 }
 
+static struct XRefObject parse_xref(struct PDF* pdf, struct Span* data) {
+  // Per 3.4.3 Cross-Reference Table:
+  // "Following this line are one or more cross-reference subsections"
+  // FIXME: this parses only a single cross-reference subsection at the moment.
+
+  struct XRefRange range = parse_xref_range(pdf, data);
+
+  struct XRefObject xref;
+  xref.count = 1;
+  xref.ranges = malloc(sizeof(struct XRefRange) * xref.count);
+  xref.ranges[0] = range;
+  return xref;
+}
 
 static struct Object parse_object(struct PDF* pdf, struct Span* data,
                                   struct Token token) {
@@ -1788,20 +1802,24 @@ static void ast_print(struct OutputOptions* options, struct PDF* pdf,
 
     // FIXME: Fix up count if update_offsets (?)
     struct XRefObject xref = pdf->xrefs[object->index];
-    iprintf(options, "xref\n%zu %zu\n", xref.start_id, xref.count);
-    for (size_t i = 0; i < xref.count; ++i) {
-      size_t offset = xref.entries[i].offset;
+    iprintf(options, "xref\n");
+    for (size_t j = 0; j < xref.count; ++j) {
+      struct XRefRange xref_range = xref.ranges[j];
+      iprintf(options, "%zu %zu\n", xref_range.start_id, xref_range.count);
+      for (size_t i = 0; i < xref_range.count; ++i) {
+        size_t offset = xref_range.entries[i].offset;
 
-      // Optionally recompute offset so that it's correct for pretty-printed output.
-      if (options->update_offsets && !xref.entries[i].is_free) {
-        size_t id = xref.start_id + i;
-        offset = options->indirect_object_offsets[id];
+        // Optionally recompute offset so that it's correct for pretty-printed output.
+        if (options->update_offsets && !xref_range.entries[i].is_free) {
+          size_t id = xref_range.start_id + i;
+          offset = options->indirect_object_offsets[id];
+        }
+
+        // FIXME: Reopen stdout as binary on windows :/
+        nprintf(options, "%010zu %05zu %c \n", offset,
+                                               xref_range.entries[i].generation,
+                                               xref_range.entries[i].is_free ? 'f' : 'n');
       }
-
-      // FIXME: Reopen stdout as binary on windows :/
-      nprintf(options, "%010zu %05zu %c \n", offset,
-                                             xref.entries[i].generation,
-                                             xref.entries[i].is_free ? 'f' : 'n');
     }
     break;
   }
