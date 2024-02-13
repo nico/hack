@@ -1296,17 +1296,28 @@ static struct XRefRange parse_xref_range(struct PDF* pdf, struct Span* data) {
 #undef N
 }
 
+static bool peek_next_token_is_integer(const struct Span* data) {
+  struct Token token;
+  struct Span peek = *data;
+  read_token(&peek, &token);
+  return is_integer_token(&token);
+}
+
 static struct XRefObject parse_xref(struct PDF* pdf, struct Span* data) {
   // Per 3.4.3 Cross-Reference Table:
   // "Following this line are one or more cross-reference subsections"
   // FIXME: this parses only a single cross-reference subsection at the moment.
 
-  struct XRefRange range = parse_xref_range(pdf, data);
+  int num_ranges = 0;
+  struct XRefRange* ranges = NULL;
+  do {
+    ranges = realloc(ranges, (num_ranges + 1) * sizeof(struct XRefRange));
+    ranges[num_ranges++] = parse_xref_range(pdf, data);
+  } while (peek_next_token_is_integer(data));
 
   struct XRefObject xref;
-  xref.count = 1;
-  xref.ranges = malloc(sizeof(struct XRefRange) * xref.count);
-  xref.ranges[0] = range;
+  xref.count = num_ranges;
+  xref.ranges = ranges;
   return xref;
 }
 
