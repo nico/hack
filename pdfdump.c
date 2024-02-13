@@ -1431,6 +1431,8 @@ static struct Object parse_object(struct PDF* pdf, struct Span* data,
 }
 
 static void parse_pdf(struct Span data, struct PDF* pdf) {
+  const uint8_t* start = data.data;
+
   // 3.4 File Structure
   // 1. Header
   // %PDF-1.0
@@ -1467,7 +1469,7 @@ static void parse_pdf(struct Span data, struct PDF* pdf) {
     if (object.kind != IndirectObject && object.kind != Comment &&
         object.kind != XRef && object.kind != Trailer && object.kind != StartXRef) {
       fatal("expected indirect object or comment or xref or trailer or startxref "
-            "at toplevel\n");
+            "at toplevel, around offset %zu\n", data.data - start);
     }
 
     // FIXME: maybe not even necessary to store all the toplevels;
