@@ -149,6 +149,7 @@ static void print_usage(FILE* stream, const char* program_name) {
           "  --dump-tokens     dump output of tokenizer\n"
           "  --no-indent       disable auto-indentation of pretty-printer\n"
           "  --save-images     save images embedded in the PDF\n"
+          "  --uncompress      uncompress compressed streams\n"
           "  --update-offsets  update offsets to match pretty-printed output\n"
           "  --quiet           print no output\n"
           "  -h  --help        print this message\n");
