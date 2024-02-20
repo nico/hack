@@ -2098,11 +2098,17 @@ static void save_iccs(struct PDF* pdf) {
     }
     struct StreamObject* stream = &pdf->streams[data->index];
 
+    printf("indirect object %zu is an ICC color profile\n", ref->id);
+
+    struct Object* filter = dict_get(&stream->dict, "/Filter");
+    if (filter) {
+      fprintf(stderr, "warning: stream has filter; skipping\n");
+      continue;
+    }
 
     char buf[80];
     sprintf(buf, "out_%zu.icc", ref->id);
-    printf("indirect object %zu is an ICC color profile, saving to %s\n",
-           ref->id, buf);
+    printf("saving to %s\n", buf);
 
     FILE* f = fopen(buf, "wb");
     if (!f)
