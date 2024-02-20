@@ -2117,11 +2117,18 @@ static void save_iccs(struct PDF* pdf) {
 
     printf("indirect object %zu is an ICC color profile\n", ref->id);
 
+    struct Span stream_data = stream->data;
+
     struct NameObject* filter_name = get_filter_name(pdf, &stream->dict);
     if (filter_name) {
-      fprintf(stderr, "warning: stream has filter '%.*s'; skipping\n",
-              (int)filter_name->value.size, (char*)filter_name->value.data);
-      continue;
+      if (strncmp((char*)filter_name->value.data, "/FlateDecode",
+                  filter_name->value.size) == 0) {
+        stream_data = uncompress_flate(stream_data);
+      } else {
+        fprintf(stderr, "warning: stream has filter '%.*s'; skipping\n",
+                (int)filter_name->value.size, (char*)filter_name->value.data);
+        continue;
+      }
     }
 
     char buf[80];
@@ -2131,7 +2138,7 @@ static void save_iccs(struct PDF* pdf) {
     FILE* f = fopen(buf, "wb");
     if (!f)
       fatal("failed to open %s\n", buf);
-    fwrite(stream->data.data, stream->data.size, 1, f);
+    fwrite(stream_data.data, stream_data.size, 1, f);
     fclose(f);
   }
 }
