@@ -2048,6 +2048,23 @@ static void write_tiff_header(FILE* f, int K, uint32_t width, uint32_t height,
   fwrite(&next_ifd_offset, sizeof(next_ifd_offset), 1, f);
 }
 
+static struct NameObject* get_filter_name(
+    struct PDF* pdf, const struct DictionaryObject* dict) {
+  struct Object* filter = dict_get(dict, "/Filter");
+  if (!filter)
+    return NULL;
+  if (filter->kind == Array) {
+    struct ArrayObject* array = &pdf->arrays[filter->index];
+    if (array->count != 1)
+      fatal("can't handle filter arrays with size != 1");
+    filter = &array->elements[0];
+  }
+
+  if (filter->kind != Name)
+    fatal("unexpected /Filter type");
+  return &pdf->names[filter->index];
+}
+
 static void save_iccs(struct PDF* pdf) {
   for (size_t i = 0; i < pdf->indirect_objects_count; ++i) {
     struct Object* object = &pdf->indirect_objects[i].value;
@@ -2139,19 +2156,9 @@ static void save_images(struct PDF* pdf) {
 
     printf("indirect object %zu is an image\n", pdf->indirect_objects[i].id);
 
-    struct Object* filter = dict_get(&stream->dict, "/Filter");
-    if (!filter)
+    name = get_filter_name(pdf, &stream->dict);
+    if (!name)
       continue;
-    if (filter->kind == Array) {
-      struct ArrayObject* array = &pdf->arrays[filter->index];
-      if (array->count != 1)
-        fatal("can't handle filter arrays with size != 1");
-      filter = &array->elements[0];
-    }
-
-    if (filter->kind != Name)
-      fatal("unexpected /Filter type");
-    name = &pdf->names[filter->index];
 
     struct Object* parms = dict_get(&stream->dict, "/DecodeParms");
     struct DictionaryObject* parms_dict = NULL;
