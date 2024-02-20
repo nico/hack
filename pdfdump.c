@@ -2117,9 +2117,10 @@ static void save_iccs(struct PDF* pdf) {
 
     printf("indirect object %zu is an ICC color profile\n", ref->id);
 
-    struct Object* filter = dict_get(&stream->dict, "/Filter");
-    if (filter) {
-      fprintf(stderr, "warning: stream has filter; skipping\n");
+    struct NameObject* filter_name = get_filter_name(pdf, &stream->dict);
+    if (filter_name) {
+      fprintf(stderr, "warning: stream has filter '%.*s'; skipping\n",
+              (int)filter_name->value.size, (char*)filter_name->value.data);
       continue;
     }
 
