@@ -148,6 +148,7 @@ static void print_usage(FILE* stream, const char* program_name) {
           "options:\n"
           "  --dump-tokens     dump output of tokenizer\n"
           "  --no-indent       disable auto-indentation of pretty-printer\n"
+          "  --save-iccs       save ICC color profiles embedded in the PDF\n"
           "  --save-images     save images embedded in the PDF\n"
           "  --uncompress      uncompress compressed streams\n"
           "  --update-offsets  update offsets to match pretty-printed output\n"
@@ -1517,6 +1518,7 @@ enum StreamOptions {
 
 struct OutputOptions {
   bool indent_output;
+  bool save_iccs;
   bool save_images;
   bool update_offsets;
   bool quiet;
@@ -1534,6 +1536,7 @@ struct OutputOptions {
 
 static void init_output_options(struct OutputOptions* options) {
   options->indent_output = true;
+  options->save_iccs = false;
   options->save_images = false;
   options->update_offsets = false;
   options->quiet = false;
@@ -2045,6 +2048,70 @@ static void write_tiff_header(FILE* f, int K, uint32_t width, uint32_t height,
   fwrite(&next_ifd_offset, sizeof(next_ifd_offset), 1, f);
 }
 
+static void save_iccs(struct PDF* pdf) {
+  for (size_t i = 0; i < pdf->indirect_objects_count; ++i) {
+    struct Object* object = &pdf->indirect_objects[i].value;
+    if (object->kind != Array)
+      continue;
+
+    struct ArrayObject* array = &pdf->arrays[object->index];
+    if (array->count != 2)
+      continue;
+
+    if (array->elements[0].kind != Name)
+      continue;
+
+    struct NameObject* name = &pdf->names[array->elements[0].index];
+    if (strncmp((char*)name->value.data, "/ICCBased", name->value.size))
+      continue;
+
+    if (array->elements[1].kind != IndirectObjectRef) {
+      fprintf(stderr,
+          "warning: object %zu: arg to /ICCBased not indirect object; "
+          "skipping\n",
+          i);
+      continue;
+    }
+
+    struct IndirectObjectRefObject* ref =
+        &pdf->indirect_object_refs[array->elements[1].index];
+    if (ref->id >= pdf->indirect_objects_count) {
+      fprintf(stderr,
+          "warning: object %zu: arg %zu to /ICCBased larger than count %zu; "
+          "skipping\n", i, ref->id, pdf->indirect_objects_count);
+      continue;
+    }
+
+    // FIXME: O(1) lookup by object id instead of linear scan
+    struct Object* data = NULL;
+    for (size_t j = 0; j < pdf->indirect_objects_count; ++j) {
+      if (pdf->indirect_objects[j].id == ref->id) {
+        data = &pdf->indirect_objects[j].value;
+        break;
+      }
+    }
+    if (data->kind != Stream) {
+      fprintf(stderr,
+          "warning: object %zu: arg to /ICCBased is not a stream; skipping\n",
+          ref->id);
+      continue;
+    }
+    struct StreamObject* stream = &pdf->streams[data->index];
+
+
+    char buf[80];
+    sprintf(buf, "out_%zu.icc", ref->id);
+    printf("indirect object %zu is an ICC color profile, saving to %s\n",
+           ref->id, buf);
+
+    FILE* f = fopen(buf, "wb");
+    if (!f)
+      fatal("failed to open %s\n", buf);
+    fwrite(stream->data.data, stream->data.size, 1, f);
+    fclose(f);
+  }
+}
+
 static void save_images(struct PDF* pdf) {
 
   // FIXME: While most images are indirect objects, a page's content
@@ -2178,6 +2245,11 @@ static void pretty_print(struct Span data, struct OutputOptions* options) {
 
   parse_pdf(data, &pdf);
 
+  if (options->save_iccs) {
+    save_iccs(&pdf);
+    return;
+  }
+
   if (options->save_images) {
     save_images(&pdf);
     return;
@@ -2211,20 +2283,23 @@ int main(int argc, char* argv[]) {
   // Parse options.
   bool opt_dump_tokens = false;
   bool indent_output = true;
+  bool save_iccs = false;
   bool save_images = false;
   bool uncompress = false;
   bool update_offsets = false;
   bool quiet = false;
 #define kDumpTokens 512
 #define kNoIndent 513
-#define kSaveImages 514
-#define kUncompress 515
-#define kUpdateOffsets 516
-#define kQuiet 517
+#define kSaveICCs 514
+#define kSaveImages 515
+#define kUncompress 516
+#define kUpdateOffsets 517
+#define kQuiet 518
   struct option getopt_options[] = {
       {"dump-tokens", no_argument, NULL, kDumpTokens},
       {"help", no_argument, NULL, 'h'},
       {"no-indent", no_argument, NULL, kNoIndent},
+      {"save-iccs", no_argument, NULL, kSaveICCs},
       {"save-images", no_argument, NULL, kSaveImages},
       {"uncompress", no_argument, NULL, kUncompress},
       {"update-offsets", no_argument, NULL, kUpdateOffsets},
@@ -2245,6 +2320,9 @@ int main(int argc, char* argv[]) {
         break;
       case kNoIndent:
         indent_output = false;
+        break;
+      case kSaveICCs:
+        save_iccs = true;
         break;
       case kSaveImages:
         save_images = true;
@@ -2294,6 +2372,7 @@ int main(int argc, char* argv[]) {
     options.indent_output = indent_output;
     if (uncompress)
       options.stream_options = PrintRawDataUnfiltered;
+    options.save_iccs = save_iccs;
     options.save_images = save_images;
     options.update_offsets = update_offsets;
     options.quiet = quiet;
