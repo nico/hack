@@ -2092,12 +2092,6 @@ static void save_iccs(struct PDF* pdf) {
 
     struct IndirectObjectRefObject* ref =
         &pdf->indirect_object_refs[array->elements[1].index];
-    if (ref->id >= pdf->indirect_objects_count) {
-      fprintf(stderr,
-          "warning: object %zu: arg %zu to /ICCBased larger than count %zu; "
-          "skipping\n", i, ref->id, pdf->indirect_objects_count);
-      continue;
-    }
 
     // FIXME: O(1) lookup by object id instead of linear scan
     struct Object* data = NULL;
@@ -2107,6 +2101,14 @@ static void save_iccs(struct PDF* pdf) {
         break;
       }
     }
+
+    if (data == NULL) {
+      fprintf(stderr,
+          "warning: object %zu: arg %zu to /ICCBased not found; skipping\n",
+          i, ref->id);
+      continue;
+    }
+
     if (data->kind != Stream) {
       fprintf(stderr,
           "warning: object %zu: arg to /ICCBased is not a stream; skipping\n",
