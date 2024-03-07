@@ -1119,14 +1119,14 @@ static struct StreamObject parse_stream(struct PDF* pdf, struct Span* data,
   // This must not skip whitespace; `endstream` must be at the start of `data` here,
   // else things are awry.
   if (!data->size || is_whitespace(data->data[0]))
-    fatal("unexpected data after stream");
+    fatal("unexpected data after stream\n");
   struct Token token;
   read_non_eof_token_at_current_position(data, &token);
 
   // This can fail if we get the length from /Length. In the fallback case, it's
   // always true.
   if (token.kind != kw_endstream)
-    fatal("missing `endstream` after stream");
+    fatal("missing `endstream` after stream\n");
 
   struct Span stream_data = { data_start, data_size };
 
@@ -1575,7 +1575,7 @@ static void nvprintf(struct OutputOptions* options, const char* msg, va_list arg
   int vprintf_result = vprintf(msg, args);
 
   if (vprintf_result < 0)
-    fatal("error writing output");
+    fatal("error writing output\n");
 
   options->is_on_start_of_line = false;
   options->bytes_written += vprintf_result;
@@ -2234,7 +2234,7 @@ static void save_images(struct PDF* pdf) {
       //  predetermined, and the encoded data must be terminated by
       //  and end-of-block bit pattern or by the end of the filter's data.
       if (height == 0)
-        fatal("cannot save CCITTFaxDecode with height 0");
+        fatal("cannot save CCITTFaxDecode with height 0\n");
 
       bool black_is_1 = false; // "Default value: false"
       struct Object* b_obj =
