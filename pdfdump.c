@@ -2184,15 +2184,28 @@ static void save_images(struct PDF* pdf) {
       parms_dict = &pdf->dicts[parms->index];
     }
 
+    bool need_jbig2_header = false;
     bool need_tiff_header = false;
     char buf[80];
     if (!strncmp((char*)name->value.data, "/DCTDecode", name->value.size)) {
       sprintf(buf, "out_%d.jpg", (int)pdf->indirect_objects[i].id);
       printf("it's a jpeg! saving to %s\n", buf);
-    } else if (!strncmp((char*)name->value.data, "/JPXDecode", name->value.size)) {
+    } else if (!strncmp((char*)name->value.data,
+                         "/JBIG2Decode", name->value.size)) {
+      if (parms_dict && dict_get(parms_dict, "/JBIG2Globals") != NULL) {
+        // FIXME: If there's a /JBIG2Globals, prepend the data from that instead
+        printf("don't know how to save /JBIG2Globals yet, skipping\n");
+        continue;
+      }
+      sprintf(buf, "out_%d.jbig2", (int)pdf->indirect_objects[i].id);
+      printf("it's a jbig2! saving to %s\n", buf);
+      need_jbig2_header = true;
+    } else if (!strncmp((char*)name->value.data,
+                        "/JPXDecode", name->value.size)) {
       sprintf(buf, "out_%d.jpx", (int)pdf->indirect_objects[i].id);
       printf("it's a jpeg2000! saving to %s\n", buf);
-    } else if (!strncmp((char*)name->value.data, "/CCITTFaxDecode", name->value.size)) {
+    } else if (!strncmp((char*)name->value.data,
+                        "/CCITTFaxDecode", name->value.size)) {
       sprintf(buf, "out_%d.tif", (int)pdf->indirect_objects[i].id);
       printf("it's a CCITT image! saving to %s\n", buf);
       need_tiff_header = true;
@@ -2200,7 +2213,6 @@ static void save_images(struct PDF* pdf) {
       // FIXME: FlateDecode + Predictor 10-15: png IDAT
       // FIXME: FlateDecode + Predictor 2: TIFF
       //        (LZWDecode + Predictor are spec'd like FlateDecode + Predictor)
-      // FIXME: JBIG2Decode
       // FIXME: LZWDecode
       // FIXME: FlateDecode without predictor needs encoding to some
       //        (lossless) format
@@ -2213,6 +2225,17 @@ static void save_images(struct PDF* pdf) {
     FILE* f = fopen(buf, "wb");
     if (!f)
       fatal("failed to open %s\n", buf);
+
+    if (need_jbig2_header) {
+      static const uint8_t id_string[] = {
+          0x97, 0x4A, 0x42, 0x32, 0x0D, 0x0A, 0x1A, 0x0A,
+      };
+      fwrite(id_string, sizeof(id_string), 1, f);
+
+      // sequential organization, unknown number of pages, nothing else set
+      uint8_t flags = 3;
+      fwrite(&flags, sizeof(flags), 1, f);
+    }
 
     if (need_tiff_header) {
       // Table 3.9 Optional parameters for the CCITTFaxDecode filter
