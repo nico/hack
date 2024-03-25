@@ -38,6 +38,29 @@ def dump_maxp(data):
         print(f'    FIXME: Dump v1.0 data too')
 
 
+def dump_name(data):
+    Header = Struct('Header', '>',
+                        'H', 'version',
+                        'H', 'count',
+                        'H', 'storageOffset',
+                        )
+    header = Header.unpack(data[0:Header.size()])
+    print(f'    {header}')
+
+    NameRecord = Struct('NameRecord', '>',
+                        'H', 'platformID',
+                        'H', 'encodingID',
+                        'H', 'languageID',
+                        'H', 'nameID',
+                        'H', 'length', # in bytes
+                        'H', 'stringOffset', # from start of storage area
+                        )
+    for i in range(header.count):
+        offset = Header.size() + i * NameRecord.size()
+        record = NameRecord.unpack(data[offset:offset + NameRecord.size()])
+        print(f'    {record}')
+
+
 def dump_post(data):
     Header = Struct('Header', '>',
                         'I', 'version',
@@ -109,6 +132,8 @@ def main():
         data = font_data[record.offset:record.offset + record.length]
         if record.table_tag == b'maxp':
             dump_maxp(data)
+        if record.table_tag == b'name':
+            dump_name(data)
         if record.table_tag == b'post':
             dump_post(data)
 
