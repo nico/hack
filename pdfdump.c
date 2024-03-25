@@ -2187,11 +2187,11 @@ static void save_images(struct PDF* pdf) {
 
     size_t filter_count = get_filter_count(pdf, &stream->dict);
     if (filter_count == 0) {
-      printf("don't know how to save images without filter yet; skipping\n");
+      printf("can't save images without filter yet; skipping\n");
       continue;
     }
     if (filter_count > 1) {
-      printf("don't know how to save images with > 1 filters yet; skipping\n");
+      printf("can't save images with multiple filters yet; skipping\n");
       continue;
     }
 
@@ -2220,7 +2220,7 @@ static void save_images(struct PDF* pdf) {
                          "/JBIG2Decode", name->value.size)) {
       if (parms_dict && dict_get(parms_dict, "/JBIG2Globals") != NULL) {
         // FIXME: If there's a /JBIG2Globals, prepend the data from that instead
-        printf("don't know how to save /JBIG2Globals yet, skipping\n");
+        printf("can't save /JBIG2Globals yet; skipping\n");
         continue;
       }
       sprintf(buf, "out_%d.jbig2", (int)pdf->indirect_objects[i].id);
