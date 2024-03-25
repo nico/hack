@@ -2167,8 +2167,10 @@ static void save_images(struct PDF* pdf) {
     printf("indirect object %zu is an image\n", pdf->indirect_objects[i].id);
 
     name = get_filter_name(pdf, &stream->dict);
-    if (!name)
+    if (!name) {
+      printf("don't know how to save images without filter yet; skipping\n");
       continue;
+    }
 
     struct Object* parms = dict_get(&stream->dict, "/DecodeParms");
     struct DictionaryObject* parms_dict = NULL;
