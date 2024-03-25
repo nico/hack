@@ -2056,12 +2056,12 @@ static struct NameObject* get_filter_name(
   if (filter->kind == Array) {
     struct ArrayObject* array = &pdf->arrays[filter->index];
     if (array->count != 1)
-      fatal("can't handle filter arrays with size != 1");
+      fatal("can't handle filter arrays with size != 1\n");
     filter = &array->elements[0];
   }
 
   if (filter->kind != Name)
-    fatal("unexpected /Filter type");
+    fatal("unexpected /Filter type\n");
   return &pdf->names[filter->index];
 }
 
@@ -2176,11 +2176,11 @@ static void save_images(struct PDF* pdf) {
       if (parms->kind == Array) {
         struct ArrayObject* array = &pdf->arrays[parms->index];
         if (array->count != 1)
-          fatal("can't handle DecodeParms arrays with size != 1");
+          fatal("can't handle DecodeParms arrays with size != 1\n");
         parms = &array->elements[0];
       }
       if (parms->kind != Dictionary)
-        fatal("unexpected /DecodeParms type");
+        fatal("unexpected /DecodeParms type\n");
       parms_dict = &pdf->dicts[parms->index];
     }
 
