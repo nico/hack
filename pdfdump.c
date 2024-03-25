@@ -2048,16 +2048,29 @@ static void write_tiff_header(FILE* f, int K, uint32_t width, uint32_t height,
   fwrite(&next_ifd_offset, sizeof(next_ifd_offset), 1, f);
 }
 
-static struct NameObject* get_filter_name(
+static size_t get_filter_count(
     struct PDF* pdf, const struct DictionaryObject* dict) {
   struct Object* filter = dict_get(dict, "/Filter");
   if (!filter)
-    return NULL;
+    return 0;
+  if (filter->kind != Array)
+    return 1;
+  struct ArrayObject* array = &pdf->arrays[filter->index];
+  return array->count;
+}
+
+static struct NameObject* get_filter_name(
+    struct PDF* pdf, const struct DictionaryObject* dict, size_t i) {
+  struct Object* filter = dict_get(dict, "/Filter");
+  if (!filter)
+    fatal("get_filter_name() called without filters\n");
   if (filter->kind == Array) {
     struct ArrayObject* array = &pdf->arrays[filter->index];
-    if (array->count != 1)
-      fatal("can't handle filter arrays with size != 1\n");
-    filter = &array->elements[0];
+    if (i >= array->count)
+      fatal("get_filter_name() offset out of bounds\n");
+    filter = &array->elements[i];
+  } else if (i != 0) {
+    fatal("non-0 offset for non-array filter\n");
   }
 
   if (filter->kind != Name)
@@ -2121,8 +2134,14 @@ static void save_iccs(struct PDF* pdf) {
 
     struct Span stream_data = stream->data;
 
-    struct NameObject* filter_name = get_filter_name(pdf, &stream->dict);
-    if (filter_name) {
+    size_t filter_count = get_filter_count(pdf, &stream->dict);
+    if (filter_count) {
+      if (filter_count > 1) {
+        fprintf(stderr, "warning: stream has multiple filters; skipping\n");
+        continue;
+      }
+
+      struct NameObject* filter_name = get_filter_name(pdf, &stream->dict, 0);
       if (strncmp((char*)filter_name->value.data, "/FlateDecode",
                   filter_name->value.size) == 0) {
         stream_data = uncompress_flate(stream_data);
@@ -2166,12 +2185,17 @@ static void save_images(struct PDF* pdf) {
 
     printf("indirect object %zu is an image\n", pdf->indirect_objects[i].id);
 
-    name = get_filter_name(pdf, &stream->dict);
-    if (!name) {
+    size_t filter_count = get_filter_count(pdf, &stream->dict);
+    if (filter_count == 0) {
       printf("don't know how to save images without filter yet; skipping\n");
       continue;
     }
+    if (filter_count > 1) {
+      printf("don't know how to save images with > 1 filters yet; skipping\n");
+      continue;
+    }
 
+    name = get_filter_name(pdf, &stream->dict, 0);
     struct Object* parms = dict_get(&stream->dict, "/DecodeParms");
     struct DictionaryObject* parms_dict = NULL;
     if (parms) {
