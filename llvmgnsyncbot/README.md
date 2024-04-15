@@ -62,6 +62,10 @@ Each builder needs some amount of one-time manual setup.
 
        sysroot = "//sysroot"
 
+   On Windows, use this for `clang_base_path` instead:
+
+       clang_base_path = "C:/src/chrome/src/third_party/llvm-build/Release+Asserts"
+
 1. Run `llvm/utils/gn/gn.py gen out/gn` to create the initial build files.
 
 1. On Windows, most of the build runs natively, but rsync needs a cygwin-like
