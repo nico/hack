@@ -47,13 +47,10 @@ Each builder needs some amount of one-time manual setup.
 
 1. Check out this repository here to some other directory, e.g. `~/src/hack`.
 
-1. Set up the goma client somewhere on PATH, so that `goma_ctl` is runnable.
-   (For example, by having depot\_tools on PATH.)
-
 1. `cd ~/src/llvm-project`
 
 1. Run `llvm/utils/sysroot.py make-fake --out-dir=sysroot` to create a sysroot
-   for goma (on macOS, this requires a full Xcode installation).
+   (on macOS, this requires a full Xcode installation).
 
 1. `python3 llvm/utils/gn/get.py` to download a gn binary.
 
@@ -63,15 +60,7 @@ Each builder needs some amount of one-time manual setup.
        clang_base_path =
            getenv("HOME") + "/src/chrome/src/third_party/llvm-build/Release+Asserts"
 
-       # This should contain the output of `goma_ctl goma_dir`.
-       goma_dir = getenv("HOME") + "/src/depot_tools/.cipd_bin"
-       use_goma = true
        sysroot = "//sysroot"
-
-   On Windows, use this for `clang_base_path` and `goma_dir` instead:
-
-       clang_base_path = "C:/src/chrome/src/third_party/llvm-build/Release+Asserts"
-       goma_dir = "C:/src/depot_tools/.cipd_bin"
 
 1. Run `llvm/utils/gn/gn.py gen out/gn` to create the initial build files.
 
@@ -130,7 +119,7 @@ Each builder needs some amount of one-time manual setup.
        /usr/bin/tmux new-session -d -s gnsyncbot
        /usr/bin/tmux send-keys -t gnsyncbot "cd /home/botusername" C-m
 
-       # Get depot_tools on path (for goma_ctl, ninja, ...)
+       # Get depot_tools on path (for ninja, ...)
        /usr/bin/tmux send-keys -t gnsyncbot "source ./.bashrc" C-m
 
        /usr/bin/tmux send-keys -t gnsyncbot "cd src/llvm-project" C-m
@@ -149,7 +138,7 @@ Each builder needs some amount of one-time manual setup.
        /usr/bin/screen -dmS gnsyncbot
        /usr/bin/screen -S gnsyncbot -X stuff $'cd /Users/botusername\n'
 
-       # Get depot_tools on path (for goma_ctl, ninja, ...)
+       # Get depot_tools on path (for ninja, ...)
        /usr/bin/screen -S gnsyncbot -X stuff $'source ./.zshrc\n'
 
        /usr/bin/screen -S gnsyncbot -X stuff $'cd src/llvm-project\n'
