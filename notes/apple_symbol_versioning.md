@@ -7,7 +7,8 @@ Scenarios:
   (example PDFKit.framework, extracted from XXX)
 
 * Move a standalone framework into another, existing framework
-  (example: Swift runtime moving into XXX)
+  (example: Swift runtime moving from libswiftCoreFoundation.dylib to
+  Foundation.dylib, <https://github.com/llvm/llvm-project/issues/56074>)
 
 * Rename existing framework
 
