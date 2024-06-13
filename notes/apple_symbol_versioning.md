@@ -4,7 +4,8 @@ Symbol versioning on Apple platforms
 Scenarios:
 
 * Extract part of a big library into a standalone framework
-  (example PDFKit.framework, extracted from XXX)
+  (example PDFKit.framework, extracted from Quartz.framework, see below
+  for details.)
 
 * Move a standalone framework into another, existing framework
   (example: Swift runtime moving from libswiftCoreFoundation.dylib to
@@ -58,6 +59,27 @@ used to see if this symbol applies to the current output binary.
 Examples
 --------
 
+### PDFKit move
+
+`MacOSX.sdk/System/Library/Frameworks/PDFKit.framework/PDFKit.tbd` contains
+several links looking like so:
+
+    '$ld$install_name$os10.13$/System/Library/Frameworks/Quartz.framework/Versions/A/Quartz',
+    '$ld$install_name$os10.14$/System/Library/Frameworks/Quartz.framework/Versions/A/Quartz',
+
+This means that when targeting macOS 10.4 (it contains one line each for 10.4,
+10.5, ..., to 10.14; I'm showing just two of these lines above) to 10.14
+will cause a dependency on Quarts.framework instead of PDFKit.framework when
+linking to symbols in PDFKit.framework.
+
+This allowed transparently moving partz of Quartz.framework into a new
+framework.
+
+If a binary linked for an older macOS version (which expects PDFKit symbols
+in Quartz.framework) runs on a newer macOS version (where the symbols are
+in PDFKit.framework), the older binary can run because Quartz.framework
+reexports PDDFKit.framework. (Or used to, before the dyld shared libary cache.)
+
 ### libswiftFoundation.dylib move into Foundation
 
 `MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks/Foundation.framework/Foundation.tbd`
@@ -91,3 +113,9 @@ depend on the old home of these symbols, and run on older macOS versions.
 Foundation.framework/Versions/A/Foundation to be able to run binaries linked
 for older macOS versions, or they will contain this information in the
 dyld closure.)
+
+### More examples
+
+Look through the output of
+
+    find $(xcrun -show-sdk-path) -name '*.tbd' | xargs rg '\$ld'
