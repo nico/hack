@@ -19,7 +19,9 @@ make -j10
 make install
 popd
 
-curl -LO https://ftp.gnu.org/pub/gnu/gettext/gettext-0.21.1.tar.gz
+# Use a mirror because ftp.gnu.org is unreachable often :/
+#curl -LO https://ftp.gnu.org/pub/gnu/gettext/gettext-0.21.1.tar.gz
+curl -LO https://mirrors.dotsrc.org/ftp.gnu.org/gnu/gettext/gettext-0.21.1.tar.gz
 tar xzf gettext-0.21.1.tar.gz
 mkdir -p build/gettext
 pushd build/gettext
