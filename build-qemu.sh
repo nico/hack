@@ -53,24 +53,12 @@ make -j10
 make install
 popd
 
-curl -LO https://www.cairographics.org/releases/pixman-0.42.2.tar.gz
-# Apply fix for https://gitlab.freedesktop.org/pixman/pixman/-/issues/46
-curl -L -o pixman.patch https://gitlab.freedesktop.org/pixman/pixman/-/merge_requests/71.patch
-# The patch touches Makefile.am in a no-op way (sorts files), which requires automake.
-# Remove the change to Makefile.am.
-sed -i '' 22,37d pixman.patch
-# Upstream renamed test/utils.h to test/utils/utils.h, but 42.2 doesn't have that yet.
-sed -i '' 's/utils.utils/utils/g' pixman.patch
-tar xzf pixman-0.42.2.tar.gz
-pushd pixman-0.42.2
-patch -p1 < ../pixman.patch
-popd
+curl -LO https://www.cairographics.org/releases/pixman-0.43.4.tar.gz
+tar xzf pixman-0.43.4.tar.gz
 mkdir -p build/pixman
-pushd build/pixman
-../../pixman-0.42.2/configure --prefix=$D
-make -j10
-make install
-popd
+meson-1.1.0/meson.py setup --prefix $D build/pixman pixman-0.43.4
+meson-1.1.0/meson.py compile -C build/pixman
+meson-1.1.0/meson.py install -C build/pixman
 
 # All deps installed!
 PATH=$PATH:$D/bin ../configure --prefix=$D
