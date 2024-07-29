@@ -46,7 +46,9 @@ mkdir -p build/pkg-config
 pushd build/pkg-config
 # FIXME: glib's installed, so it'd be nice to figure out how to make
 #        things go without --with-internal-glib.
-../../pkg-config-0.29.2/configure --prefix=$D --with-internal-glib
+# Wno-int-conversion for https://gitlab.freedesktop.org/pkg-config/pkg-config/-/issues/81
+CFLAGS="-Wno-int-conversion" CXXFLAGS="-Wno-int-conversion" \
+    ../../pkg-config-0.29.2/configure --prefix=$D --with-internal-glib
 make -j10
 make install
 popd
