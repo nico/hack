@@ -30,14 +30,15 @@ popd
 
 curl -LO https://github.com/mesonbuild/meson/releases/download/1.1.0/meson-1.1.0.tar.gz
 tar xzf meson-1.1.0.tar.gz
+MESON=$PWD/meson-1.1.0/meson.py
 
 curl -LO https://download.gnome.org/sources/glib/2.76/glib-2.76.2.tar.xz
 tar xJf glib-2.76.2.tar.xz
 # Doesn't seem to support out-of-sourcedir builds, so build in a subfolder of glib.
 pushd glib-2.76.2
-../meson-1.1.0/meson.py setup --prefix $D _build
-../meson-1.1.0/meson.py compile -C _build
-../meson-1.1.0/meson.py install -C _build
+$MESON setup --prefix $D _build
+$MESON compile -C _build
+$MESON install -C _build
 popd
 
 curl -LO https://pkgconfig.freedesktop.org/releases/pkg-config-0.29.2.tar.gz
@@ -56,9 +57,9 @@ popd
 curl -LO https://www.cairographics.org/releases/pixman-0.43.4.tar.gz
 tar xzf pixman-0.43.4.tar.gz
 mkdir -p build/pixman
-meson-1.1.0/meson.py setup --prefix $D build/pixman pixman-0.43.4
-meson-1.1.0/meson.py compile -C build/pixman
-meson-1.1.0/meson.py install -C build/pixman
+$MESON setup --prefix $D build/pixman pixman-0.43.4
+$MESON compile -C build/pixman
+$MESON install -C build/pixman
 
 # qemu 5890258aeeba303704ec1adca415e46067800777 dropped support for built-in slirp;
 # we have to build it ourselves if we want networking.
@@ -68,9 +69,9 @@ curl -LO https://gitlab.freedesktop.org/slirp/libslirp/-/archive/v4.8.0/libslirp
 tar xzf libslirp-v4.8.0.tar.gz
 mkdir -p build/libslirp
 # Needs pkg-config on path
-PATH=$PATH:$D/bin meson-1.1.0/meson.py setup --prefix $D build/libslirp libslirp-v4.8.0
-meson-1.1.0/meson.py compile -C build/libslirp
-meson-1.1.0/meson.py install -C build/libslirp
+PATH=$PATH:$D/bin $MESON setup --prefix $D build/libslirp libslirp-v4.8.0
+$MESON compile -C build/libslirp
+$MESON install -C build/libslirp
 
 # All deps installed!
 PATH=$PATH:$D/bin ../configure --prefix=$D
