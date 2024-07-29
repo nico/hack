@@ -60,6 +60,18 @@ meson-1.1.0/meson.py setup --prefix $D build/pixman pixman-0.43.4
 meson-1.1.0/meson.py compile -C build/pixman
 meson-1.1.0/meson.py install -C build/pixman
 
+# qemu 5890258aeeba303704ec1adca415e46067800777 dropped support for built-in slirp;
+# we have to build it ourselves if we want networking.
+# (qemu builds fine without this, but diags
+# "network backend 'user' is not compiled into this binary" when using -netdev
+curl -LO https://gitlab.freedesktop.org/slirp/libslirp/-/archive/v4.8.0/libslirp-v4.8.0.tar.gz
+tar xzf libslirp-v4.8.0.tar.gz
+mkdir -p build/libslirp
+# Needs pkg-config on path
+PATH=$PATH:$D/bin meson-1.1.0/meson.py setup --prefix $D build/libslirp libslirp-v4.8.0
+meson-1.1.0/meson.py compile -C build/libslirp
+meson-1.1.0/meson.py install -C build/libslirp
+
 # All deps installed!
 PATH=$PATH:$D/bin ../configure --prefix=$D
 make -j10
