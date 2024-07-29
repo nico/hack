@@ -36,12 +36,10 @@ MESON=$PWD/meson-1.1.0/meson.py
 
 curl -LO https://download.gnome.org/sources/glib/2.76/glib-2.76.2.tar.xz
 tar xJf glib-2.76.2.tar.xz
-# Doesn't seem to support out-of-sourcedir builds, so build in a subfolder of glib.
-pushd glib-2.76.2
-$MESON setup --prefix $D _build
-$MESON compile -C _build
-$MESON install -C _build
-popd
+mkdir -p build/glib
+$MESON setup --prefix $D build/glib glib-2.76.2
+$MESON compile -C build/glib
+$MESON install -C build/glib
 
 curl -LO https://pkgconfig.freedesktop.org/releases/pkg-config-0.29.2.tar.gz
 tar xzf pkg-config-0.29.2.tar.gz
