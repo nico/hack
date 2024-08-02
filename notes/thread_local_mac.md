@@ -78,6 +78,9 @@ The executable also stores metadata for each thread-local variable in the
   (initially nullptr when TLS isn't initialized for the current thread yet)
 * the offset of this variable in that block
 
+`__DATA,__thread_vars` has type `S_THREAD_LOCAL_VARIABLES` (see `otool -lv`
+output). dyld identifies TLV descriptors based on this section type.
+
 When you reference a thread-local variable in your code, this gets compiled to
 a call to the function returning the variable's address. The dynamic linker
 sets this function to `tlv_get_addr` (a dyld-internal function) for every
