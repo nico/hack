@@ -405,6 +405,8 @@ static void advance_to_end_of_token(struct Span* data, struct Token* token) {
         // 3.2.3 String Objects, Literal Strings
         span_advance(data, 1); // Skip '('.
 
+        int open_parens_count = 1;
+
         while (data->size) {
           if (data->data[0] == '\\') {
             span_advance(data, 1);
@@ -438,8 +440,17 @@ static void advance_to_end_of_token(struct Span* data, struct Token* token) {
             continue;
           }
 
-          if (data->data[0] == ')')
-            break;
+          // "Any characters may appear in a string except unbalanced
+          //  parentheses and the backslash, which must be treated specially.
+          //  Balanced pairs of parentheses within a string require no special
+          //  treatment."
+          if (data->data[0] == '(')
+            ++open_parens_count;
+          else if (data->data[0] == ')') {
+            --open_parens_count;
+            if (open_parens_count == 0)
+              break;
+          }
 
           span_advance(data, 1);
         }
