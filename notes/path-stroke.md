@@ -1,11 +1,16 @@
-Path closing
-============
+Path stroke
+===========
 
-Lists how path closing and moveto commands are specced in HTML `<canvas>`, in
-SVG documents, and in PDF documets.
+Collects various things related to path stroking in HTML `<canvas>`, in SVG
+documents, and in PDF documents.
 
-Canvas
-------
+Path close
+----------
+
+Details on how path closing and moveto commands are specced in HTML `<canvas>`,
+in SVG documents, and in PDF documents.
+
+### Canvas
 
 <https://html.spec.whatwg.org/multipage/canvas.html#dom-context-2d-closepath-dev>
 
@@ -36,8 +41,7 @@ Canvas
 > subpath whose first point is the same as the previous subpath's first point,
 > and finally add this new subpath to the path.
 
-SVG
----
+### SVG
 
 <https://www.w3.org/TR/SVG/paths.html#PathDataClosePathCommand>
 
@@ -55,10 +59,9 @@ SVG
 > first command) represent the start of a new subpath
 
 
-PDF
----
+### PDF
 
-### operator h
+#### operator h
 
 [PDF 1.7 spec, p227](https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.7old.pdf#page=227)
 
@@ -72,7 +75,7 @@ TABLE 4.9 Path construction operators
 > segment begins at the endpoint reached by the h operation.
 
 
-### operator m
+#### operator m
 
 [PDF 1.7 spec, p226](https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.7old.pdf#page=226)
 
@@ -84,9 +87,51 @@ TABLE 4.9 Path construction operators
 > overrides it; no vestige of the previous m operation remains in the
 > path.
 
-TinyVG
-------
+### TinyVG
+
 Calls subpaths segments (see spec pdf, p15, "Close Path" at bottom).
 It doesn't look like TinyVG has any stroke styles.
 
 <https://github.com/TinyVG/specification/issues/4>
+
+Degenerate paths
+----------------
+
+### Canvas
+
+<https://html.spec.whatwg.org/multipage/canvas.html#trace-a-path>
+
+Starts with:
+
+> 1. Let path be a copy of the path being traced.
+> 2. Prune all zero-length line segments from path.
+> 3. Remove from path any subpaths containing no lines (i.e. subpaths with just
+>    one point).
+
+### SVG
+
+<https://www.w3.org/TR/SVG/paths.html#ZeroLengthSegments>
+
+> Path segments with zero length are not invalid, and will affect rendering in
+> the following cases:
+>
+> * If markers are specified, then a marker is drawn on every applicable
+>   vertex, even if the given vertex is the end point of a zero-length path
+>   segment and even if "moveto" commands follow each other.
+> * As mentioned in Stroke Properties, linecaps must be painted for zero-length
+>   subpaths when stroke-linecap has a value of round or square.
+
+### PDF
+
+[PDF 1.7 spec, p231, 4.4.2 Path-Painting Operators, Stroking](https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.7old.pdf#page=231):
+
+> If a subpath is degenerate (consists of a single-point closed path or of two
+> or more points at the same coordinates), the S operator paints it only if
+> round line caps have been specified, producing a filled circle centered at
+> the single point. If butt or projecting square line caps have been specified,
+> S produces no output, because the orientation of the caps would be
+> indeterminate. (This rule applies only to zero-length subpaths of the path
+> being stroked, and not to zero-length dashes in a dash pattern. In the latter
+> case, the line caps are always painted, since their orientation is determined
+> by the direction of the underlying path.) A single-point open subpath
+> (specified by a trailing m operator) produces no output.
