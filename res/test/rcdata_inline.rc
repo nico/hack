@@ -1,4 +1,5 @@
 1 RCDATA { "foo" }
+1 RCDATA { L"foo" }
 1 RCDATA { "foo" "b" }  // No trailing \0!
 1 RCDATA { "foo" "ba" }
 1 RCDATA { "foo" "bar" }
@@ -13,9 +14,6 @@
 8 RCDATA { 8, "val1", 9 }
 9 RCDATA { 8 "val1", 9 }
 10 RCDATA { 8, "val1", 9 }
-
-// FIXME:
-//1 RCDATA { L"foo" }
 
 11 RCDATA { 4L, 2L }     // 32
 12 RCDATA { 4l, 2L }     // 32

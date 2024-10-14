@@ -12,7 +12,6 @@ bit-for-bit equal to what Microsoft rc.exe produces.  It's ok if this program
 rejects some inputs that Microsoft rc.exe accepts.
 
 Missing for chromium:
-- real string literal parser (L"\0")
 - preprocessor (but see pptest next to this; `pptest file | rc` kinda works)
 
 Also missing, but not yet for chromium:
@@ -1867,13 +1866,25 @@ bool Parser::ParseRawData(std::vector<uint8_t>* data) {
     }
     bool is_text_token = Is(Token::kString);
     if (is_text_token) {
+      bool is_wide = cur_token().value_[0] == 'L';
+
       std::string_view value_val = StringContents(Consume());
 
-      // FIXME: 1-byte strings for "asdf", 2-byte for L"asdf".
-      for (size_t j = 0; j < value_val.size(); ++j) {
-        // FIXME: Real UTF16 support.
-        data->push_back(value_val[j]);
+      if (is_wide) {
+        C16string value_val_utf16;
+        if (!ToUTF16(&value_val_utf16, value_val, encoding_, &err_))
+          return false;
+
+        for (size_t j = 0; j < value_val_utf16.size(); ++j) {
+          // FIXME: This is gross and assumes little-endian-ness.
+          data->push_back(value_val_utf16[j] & 0xFF);
+          data->push_back(value_val_utf16[j] >> 8);
+        }
+      } else {
+        for (size_t j = 0; j < value_val.size(); ++j)
+          data->push_back(value_val[j]);
       }
+
       // No implicit \0-termination in raw blocks.
     } else {
       // FIXME: The Is(Token::kInt) should probably be IsIntExprStart

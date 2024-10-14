@@ -1,4 +1,5 @@
 1 HTML { "foo" }
+1 HTML { L"foo" }
 1 HTML { "foo" "b" }  // No trailing \0!
 1 HTML { "foo" "ba" }
 1 HTML { "foo" "bar" }
@@ -13,9 +14,6 @@
 8 HTML { 8, "val1", 9 }
 9 HTML { 8 "val1", 9 }
 10 HTML { 8, "val1", 9 }
-
-// FIXME:
-//1 HTML { L"foo" }
 
 11 HTML { 4L, 2L }     // 32
 12 HTML { 4l, 2L }     // 32

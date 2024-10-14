@@ -1,4 +1,6 @@
 1 CUSTOM { "foo" }
+1 CUSTOM { L"foo" }
+1 CUSTOM { L"foo" "bar" L"baz" }
 1 CSTOM { "foo" "b" }  // No trailing \0!
 1 CUOM { "foo" "ba" }
 1 CUS { "foo" "bar" }
@@ -14,8 +16,6 @@
 9 CUSTOM { 8 "val1", 9 }
 10 CUSTOM { 8, "val1", 9 }
 
-// FIXME:
-//1 CUSTOM { L"foo" }
 
 11 CUSTOM { 4L, 2L }     // 32
 12 CUSTOM { 4l, 2L }     // 32
