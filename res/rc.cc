@@ -2728,7 +2728,7 @@ std::unique_ptr<Resource> Parser::ParseResource() {
           type.type() == Token::kInt
              ? IntOrStringName::MakeInt(type.IntValue())
              : IntOrStringName::MakeUpperStringUTF16(type_utf16);
-      return std::make_unique<UserDefinedResource>(location ,type_name, name,
+      return std::make_unique<UserDefinedResource>(location, type_name, name,
                                                    std::move(raw_data));
     }
   }
