@@ -135,3 +135,53 @@ Starts with:
 > case, the line caps are always painted, since their orientation is determined
 > by the direction of the underlying path.) A single-point open subpath
 > (specified by a trailing m operator) produces no output.
+
+Dashing
+-------
+
+Looks basically the same across all three:
+
+### Canvas
+
+<https://html.spec.whatwg.org/multipage/canvas.html#dom-context-2d-setlinedash-dev>
+
+* `context.setLineDash(segments)`
+* `context.lineDashOffset`
+
+("If the number of elements in segments is odd, then let segments be the
+concatenation of two copies of segments.")
+
+### SVG
+
+<https://www.w3.org/TR/SVG2/painting.html#StrokeDashing>
+
+* `stroke-dasharray`
+* `stroke-dashoffset`
+
+("If the list has an odd number of values, then it is repeated to yield an even
+number of values.")
+
+("If all of the values in the list are zero, then the stroke is rendered as a
+solid line without any dashing.")
+
+Both relative to <https://www.w3.org/TR/SVG2/paths.html#PathLengthAttribute>.
+
+### PDF
+
+[PDF 1.7 spec, p217, 4.3.2 Details of Graphics State Parameters, Line Dash Pattern](https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.7old.pdf#page=217):
+
+> The line dash pattern controls the pattern of dashes and gaps used to stroke
+> paths.
+> It is specified by a dash array and a dash phase. The dash array’s elements
+> are numbers that specify the lengths of alternating dashes and gaps; the
+> numbers must be nonnegative and not all zero.
+> [...]
+> The ends of each dash are treated with the current line cap style, and
+> corners within dashes are treated with the current line join style.
+> [...]
+> When a path consisting of several subpaths is stroked, each subpath is
+> treated independently—that is, the dash pattern is restarted and the dash
+> phase is reapplied to it at the beginning of each subpath.
+
+No word on what to do on odd number of values in array; presumably the same
+as in the other two specs.
