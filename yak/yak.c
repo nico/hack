@@ -365,6 +365,7 @@ static void moveCursor(char key) {
 static void processKey() {
   int c = readKey();
   switch (c) {
+    case 'q':
     case CTRL_('q'):
       // https://vt100.net/docs/vt100-ug/chapter3.html#ED
       write(STDOUT_FILENO, "\e[2J", 4);
