@@ -57,7 +57,9 @@ static volatile sig_atomic_t g_is_window_size_stale = 0;
 static void handle_sigwinch() { g_is_window_size_stale = 1; }
 
 static noreturn void die(const char* s) {
+  // https://vt100.net/docs/vt100-ug/chapter3.html#ED
   write(STDOUT_FILENO, "\e[2J", 4);
+  // https://vt100.net/docs/vt100-ug/chapter3.html#CUP
   write(STDOUT_FILENO, "\e[H", 3);
   perror(s);
   exit(1);
@@ -225,6 +227,7 @@ static void drawRows(struct abuf* ab) {
 }
 
 static void drawStatusBar(struct abuf* ab) {
+  // https://vt100.net/docs/vt100-ug/chapter3.html#SGR
   abAppend(ab, "\e[7m", 4);
   char status[256], rstatus[80];
   snprintf(status, sizeof(status), "%.20s",
@@ -249,6 +252,7 @@ static void drawStatusBar(struct abuf* ab) {
 static void positionCursor(struct abuf* ab, size_t x, size_t y) {
   // https://vt100.net/docs/vt100-ug/chapter3.html#CUP
   if (x == 0 && y == 0) {
+    // Optimization: Send shorter code for top left.
     abAppend(ab, "\e[H", 3);
     return;
   }
@@ -355,7 +359,9 @@ static void processKey() {
   int c = readKey();
   switch (c) {
     case CTRL_('q'):
+      // https://vt100.net/docs/vt100-ug/chapter3.html#ED
       write(STDOUT_FILENO, "\e[2J", 4);
+      // https://vt100.net/docs/vt100-ug/chapter3.html#CUP
       write(STDOUT_FILENO, "\e[H", 3);
       exit(0);
       break;
