@@ -75,9 +75,10 @@ static void enterRawMode() {
   cfmakeraw(&t);
 
 #if 0
-  // Make read timeout every 10 ms.
+  // Make read() timeout every 10 ms, to make it nonblocking
+  // (in case we want to show an animation or similar).
   t.c_cc[VMIN] = 0;
-  t.c_cc[VTIME] = 1;
+  t.c_cc[VTIME] = 1;  // In 1/10th of a second.
 #endif
 
   if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &t) < 0)
