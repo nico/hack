@@ -11,6 +11,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdnoreturn.h>
@@ -344,10 +345,13 @@ static void moveCursor(char key) {
       break;
   }
 
-  if (g.topmost_line + g.cy != line &&
-      g.cx + g.leftmost_column >= g.rows[g.topmost_line + g.cy].size) {
-    if (g.leftmost_column > g.rows[g.topmost_line + g.cy].size) {
-      g.leftmost_column = g.rows[g.topmost_line + g.cy].size;
+  // Keep cursor in (horizontal) bounds after line up/down.
+  bool did_scroll_vertically = g.topmost_line + g.cy != line;
+  size_t length_of_current_line = g.rows[g.topmost_line + g.cy].size;
+  if (did_scroll_vertically &&
+      g.cx + g.leftmost_column >= length_of_current_line) {
+    if (g.leftmost_column > length_of_current_line) {
+      g.leftmost_column = length_of_current_line;
       if (g.leftmost_column)
         --g.leftmost_column;
     }
