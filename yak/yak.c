@@ -374,6 +374,40 @@ static void processKey() {
       exit(0);
       break;
 
+    case CTRL_('y'): {
+      size_t line = g.topmost_line + g.cy;
+
+      if (g.topmost_line >= 1) {
+        g.topmost_line -= 1;
+        if (g.cy < g.term_rows - 1)
+          g.cy += 1;
+      }
+
+      if (line != g.topmost_line + g.cy)
+        keep_cursor_in_bounds_after_vertical_move();
+      break;
+    }
+
+    case CTRL_('e'): {
+      if (g.num_rows == 0)
+        break;
+
+      size_t line = g.topmost_line + g.cy;
+
+      if (g.topmost_line < g.num_rows - 1) {
+        g.topmost_line += 1;
+        if (g.cy > 0)
+          g.cy -= 1;
+      }
+
+      if (g.topmost_line + g.cy >= g.num_rows)
+        g.cy = g.num_rows - g.topmost_line - 1;
+
+      if (line != g.topmost_line + g.cy)
+        keep_cursor_in_bounds_after_vertical_move();
+      break;
+    }
+
     case CTRL_('b'): {
       size_t line = g.topmost_line + g.cy;
 
