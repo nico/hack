@@ -291,6 +291,18 @@ static void put_cursor_at_end_of_line() {
     g.cx--;
 }
 
+static void keep_cursor_in_bounds_after_vertical_move() {
+  size_t length_of_current_line = g.rows[g.topmost_line + g.cy].size;
+  if (g.cx + g.leftmost_column >= length_of_current_line) {
+    if (g.leftmost_column > length_of_current_line) {
+      g.leftmost_column = length_of_current_line;
+      if (g.leftmost_column)
+        --g.leftmost_column;
+    }
+    put_cursor_at_end_of_line();
+  }
+}
+
 static void moveCursor(char key) {
   size_t line = g.topmost_line + g.cy;
   switch (key) {
@@ -345,18 +357,9 @@ static void moveCursor(char key) {
       break;
   }
 
-  // Keep cursor in (horizontal) bounds after line up/down.
   bool did_scroll_vertically = g.topmost_line + g.cy != line;
-  size_t length_of_current_line = g.rows[g.topmost_line + g.cy].size;
-  if (did_scroll_vertically &&
-      g.cx + g.leftmost_column >= length_of_current_line) {
-    if (g.leftmost_column > length_of_current_line) {
-      g.leftmost_column = length_of_current_line;
-      if (g.leftmost_column)
-        --g.leftmost_column;
-    }
-    put_cursor_at_end_of_line();
-  }
+  if (did_scroll_vertically)
+    keep_cursor_in_bounds_after_vertical_move();
 }
 
 static void processKey() {
