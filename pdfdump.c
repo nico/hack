@@ -2330,17 +2330,13 @@ static void pretty_print(struct Span data, struct OutputOptions* options) {
 
   parse_pdf(data, &pdf);
 
-  if (options->save_iccs) {
+  if (options->save_iccs)
     save_iccs(&pdf);
-    return;
-  }
 
-  if (options->save_images) {
+  if (options->save_images)
     save_images(&pdf);
-    return;
-  }
 
-  if (options->quiet)
+  if (options->quiet || options->save_iccs || options->save_images)
     return;
 
   bool do_validate = !options->update_offsets;
