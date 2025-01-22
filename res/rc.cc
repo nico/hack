@@ -104,7 +104,7 @@ class optional {
 }  // std
 #endif
 
-#if !defined(_MSC_VER) && !defined(__linux__)
+#if !defined(_MSC_VER) && __cplusplus >= 201402L
 #include <string_view>
 #else
 namespace std {
