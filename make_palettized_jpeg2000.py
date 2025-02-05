@@ -28,7 +28,8 @@ import os
 #
 #     export DYLD_LIBRARY_PATH=$PWD/../openjpeg/build/bin 
 
-def create_palettized_jp2(image_path, output_path, num_colors=256):
+def create_palettized_jp2(image_path, output_path, num_colors=256,
+                          macos_15_1_workaround=False):
     # 1. Load image
     try:
         img = Image.open(image_path)
@@ -87,16 +88,17 @@ def create_palettized_jp2(image_path, output_path, num_colors=256):
     # Create pclr box to store the palette
     num_palette_entries = len(palette) // 3
 
-    if not all(p <= 127 for p in palette):
-        # Preview.app seems to not add 1 to the B^i field in the pclr header,
-        # and errors out if any palette entry has a 127 < value <= 255.
-        # T.800 Table 1.13 makes it very clear that 1 should be added, and
-        # everyone else does that, but the B^i text itself is a bit unclear.
-        # Sigh.
+    if not all(p <= 127 for p in palette) and macos_15_1_workaround:
+        # In macOS 15.1, Preview.app seems to not add 1 to the B^i field in the
+        # pclr header, and errors out if any palette entry has a 127 < value <=
+        # 255.  T.800 Table 1.13 makes it very clear that 1 should be added,
+        # and everyone else does that, but the B^i text itself is a bit
+        # unclear. Sigh.
         # If you don't care about Preview.app being able to open your file,
         # set this to 1. Else, this has to be 2 -- or keep the channel values
         # in the input image at < 127. (The image will look too dark everywhere
         # with this, including in Preview.app, but at least it'll show up.)
+        # This is fixed in macOS 15.3. (I don't know the status in 15.2.)
         d = 2
         palette = [p // d for p in palette]
 
@@ -140,12 +142,16 @@ def main():
         help="Number of colors in the palette (default: 256)"
     )
 
+    parser.add_argument('--macos-15-1-workaround',
+                        action=argparse.BooleanOptionalAction)
+
     args = parser.parse_args()
 
     create_palettized_jp2(
         args.image_path,
         args.output_path,
         args.colors,
+        args.macos_15_1_workaround,
     )
 
 if __name__ == "__main__":
