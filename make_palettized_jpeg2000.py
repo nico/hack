@@ -143,7 +143,9 @@ def main():
     )
 
     parser.add_argument('--macos-15-1-workaround',
-                        action=argparse.BooleanOptionalAction)
+                        action=argparse.BooleanOptionalAction,
+                        help='Make output openable on macOS 15.1 and earlier. '
+                             'Darkens colors of output.')
 
     args = parser.parse_args()
 
