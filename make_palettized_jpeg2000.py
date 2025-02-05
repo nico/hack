@@ -34,10 +34,10 @@ def create_palettized_jp2(image_path, output_path, num_colors=256,
     try:
         img = Image.open(image_path)
     except FileNotFoundError:
-        print(f"Error: Image file not found at {image_path}")
+        print(f'Error: Image file not found at {image_path}')
         return
     except Exception as e:
-        print(f"Error opening image: {e}")
+        print(f'Error opening image: {e}')
         return
 
     # Convert to RGB (RGBA cannot use floyd steinberg dithering,
@@ -128,20 +128,16 @@ def create_palettized_jp2(image_path, output_path, num_colors=256,
         pass
     jp2.wrap(output_path, boxes=boxes)
 
-    print(f"Successfully created palettized JP2: {output_path}")
+    print(f'Successfully created palettized JP2: {output_path}')
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Create a palettized JPEG 2000 image.")
-    parser.add_argument("image_path", help="Path to the input image file")
-    parser.add_argument("output_path", help="Path to save the output JP2 file")
-    parser.add_argument(
-        "-c", "--colors",
-        type=int,
-        default=256,
-        help="Number of colors in the palette (default: 256)"
-    )
-
+    parser = argparse.ArgumentParser(
+        description='Create a palettized JPEG 2000 image.')
+    parser.add_argument('image_path', help='path to input image file')
+    parser.add_argument('output_path', help='path to output JP2 file')
+    parser.add_argument('-c', '--colors', type=int, default=256,
+                        help='Number of colors in the palette (default: 256)')
     parser.add_argument('--macos-15-1-workaround',
                         action=argparse.BooleanOptionalAction,
                         help='Make output openable on macOS 15.1 and earlier. '
@@ -156,5 +152,5 @@ def main():
         args.macos_15_1_workaround,
     )
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
