@@ -26,7 +26,7 @@ import os
 #
 # Also need libopenjp2.dylib on search path:
 #
-#     export DYLD_LIBRARY_PATH=$PWD/../openjpeg/build/bin 
+#     export DYLD_LIBRARY_PATH=$PWD/../openjpeg/build/bin
 
 def create_palettized_jp2(image_path, output_path, num_colors=256,
                           macos_15_1_workaround=False):
