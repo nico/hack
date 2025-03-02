@@ -27,6 +27,12 @@ import os
 # Also need libopenjp2.dylib on search path:
 #
 #     export DYLD_LIBRARY_PATH=$PWD/../openjpeg/build/bin
+#
+# If you're using conda, don't run this as `./make_palettized_jpeg2000.py`
+# as that will pick up system python instead of conda python. Run
+# `python3 make_palettized_jpeg2000.py ...` instead. (Else, glymur will complain
+# "You must have at least version 2.3.0 of OpenJPEG in order to write images."
+# because it can't find libopenjp2.dylib.)
 
 def create_palettized_jp2(image_path, output_path, num_colors=256,
                           macos_15_1_workaround=False):
