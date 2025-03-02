@@ -36,16 +36,24 @@ import os
 
 def create_palettized_jp2(image_path, output_path, num_colors=256,
                           macos_15_1_workaround=False):
-    # 1. Create image
-    palette = [
-        255, 0, 0,
-        0, 255, 0,
-        0, 0, 255,
-        0, 255, 255,
-        255, 0, 255,
-        255, 255, 0,
-    ]
-    image_data = np.array([[0, 1, 2], [3, 4, 5]], dtype=np.uint8)
+    # 1. Load image
+    try:
+        img = Image.open(image_path)
+    except FileNotFoundError:
+        print(f'Error: Image file not found at {image_path}')
+        return
+    except Exception as e:
+        print(f'Error opening image: {e}')
+        return
+
+    # Convert to RGB (RGBA cannot use floyd steinberg dithering,
+    # and we're not writing alpha anyways)
+    img = img.convert('RGB')
+
+    # 2. Compute palette, and apply it.
+    palettized_img = img.quantize(colors=num_colors)
+    palette = palettized_img.getpalette()
+    image_data = np.array(palettized_img)
 
     # 3. Create temporary grayscale JP2 with the palette indices.
 
@@ -59,7 +67,7 @@ def create_palettized_jp2(image_path, output_path, num_colors=256,
         'tmp.jp2',
         data=image_data,
         colorspace='gray',
-        numres=1, # You can adjust this
+        numres=4, # You can adjust this
     )
 
     # 4. Adjust boxes to turn it into a palettized jp2.
