@@ -10,11 +10,11 @@ set -e
 mkdir -p local-install
 D=$PWD/local-install
 
-curl -LO https://github.com/libffi/libffi/releases/download/v3.4.4/libffi-3.4.4.tar.gz
-tar xzf libffi-3.4.4.tar.gz
+curl -LO https://github.com/libffi/libffi/releases/download/v3.4.7/libffi-3.4.7.tar.gz
+tar xzf libffi-3.4.7.tar.gz
 mkdir -p build/libffi
 pushd build/libffi
-../../libffi-3.4.4/configure --prefix=$D
+../../libffi-3.4.7/configure --prefix=$D
 make -j10
 make install
 popd
