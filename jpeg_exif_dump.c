@@ -319,17 +319,21 @@ static const char* tiff_interoperability_tag_name(uint16_t tag) {
   // clang-format on
 }
 
+struct TiffState;
+
+typedef void (*dump_extra_tag_info_function)(const struct TiffState*,
+                                             uint16_t,
+                                             uint16_t,
+                                             uint32_t,
+                                             const void*);
+
 struct TiffState {
   const uint8_t* begin;
   ssize_t size;
   uint16_t (*uint16)(const uint8_t*);
   uint32_t (*uint32)(const uint8_t*);
   const char* (*tag_name)(uint16_t);
-  void (*dump_extra_tag_info)(const struct TiffState*,
-                              uint16_t,
-                              uint16_t,
-                              uint32_t,
-                              const void*);
+  dump_extra_tag_info_function dump_extra_tag_info;
   struct Options* options;
 };
 
@@ -1331,9 +1335,11 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
   return next_ifd_offset;
 }
 
-static void tiff_dump(struct Options* options,
-                      const uint8_t* begin,
-                      const uint8_t* end) {
+static void tiff_dump(
+    struct Options* options,
+    const uint8_t* begin,
+    const uint8_t* end,
+    dump_extra_tag_info_function initial_dump_extra_tag_info) {
   ssize_t size = end - begin;
   if (size < 8) {
     printf("tiff data should be at least 8 bytes, is %zu\n", size);
@@ -1382,7 +1388,7 @@ static void tiff_dump(struct Options* options,
       .uint16 = uint16,
       .uint32 = uint32,
       .tag_name = tiff_tag_name,
-      .dump_extra_tag_info = tiff_dump_extra_exif_tag_info,
+      .dump_extra_tag_info = initial_dump_extra_tag_info,
       .options = options,
   };
   do {
@@ -4102,7 +4108,7 @@ static void jpeg_dump_exif(struct Options* options,
                            uint16_t size) {
   // https://www.cipa.jp/std/documents/e/DC-X008-Translation-2019-E.pdf
   tiff_dump(options, begin + sizeof(uint16_t) + sizeof("Exif") + 1,
-            begin + size);
+            begin + size, tiff_dump_extra_exif_tag_info);
 }
 
 struct JpegIccChunks {
@@ -4225,11 +4231,127 @@ static void jpeg_dump_icc(struct Options* options,
     jpeg_icc_dump(options);
 }
 
+static void tiff_dump_mpf_entry(const struct TiffState* tiff_state,
+                                uint16_t format,
+                                uint32_t count,
+                                const void* data) {
+  // 5.2.3.3. MP Entry
+  if (format != kUndefined) {
+    printf(" (invalid format %d, wanted %d)", format, kUndefined);
+    return;
+  }
+  if (count % 16 != 0) {
+    printf(" (invalid count %d, wanted multiple of 16)", count);
+    return;
+  }
+
+  int n = count / 16;
+  increase_indent(tiff_state->options);
+  for (int i = 0; i < n; ++i) {
+    uint32_t individual_image_attribute = tiff_state->uint32(data);
+    uint32_t individual_image_size = tiff_state->uint32(data + 4);
+    uint32_t individual_image_data_offset = tiff_state->uint32(data + 8);
+    uint16_t dependent_image_1_entry_number = tiff_state->uint16(data + 12);
+    uint16_t dependent_image_2_entry_number = tiff_state->uint16(data + 14);
+    data += 16;
+    printf("\n");
+    iprintf(tiff_state->options, "entry %d\n", i);
+
+    // 5.2.3.3.1. Individual Image Attribute
+    iprintf(tiff_state->options, "  individual image attribute: %#010x\n",
+            individual_image_attribute);
+    iprintf(tiff_state->options, "    is dependent parent image: %d\n",
+            (individual_image_attribute >> 31) & 1);
+    iprintf(tiff_state->options, "    is dependent child image: %d\n",
+            (individual_image_attribute >> 30) & 1);
+    iprintf(tiff_state->options, "    is representative image: %d\n",
+            (individual_image_attribute >> 29) & 1);
+    iprintf(tiff_state->options, "    (reserved, should be 0): %d\n",
+            (individual_image_attribute >> 27) & 3);
+    iprintf(tiff_state->options,
+            "    image data format (0: JPEG, rest reserved): %d\n",
+            (individual_image_attribute >> 24) & 7);
+    uint32_t mp_type_code = individual_image_attribute & 0xffffff;
+    iprintf(tiff_state->options, "    MP type code: %#08x\n", mp_type_code);
+    uint8_t type_info = (mp_type_code >> 16) & 0xf;
+    uint8_t subtype = mp_type_code & 0xf;
+    iprintf(tiff_state->options, "      type info: %#03x", type_info);
+    // clang-format off
+    switch (type_info) {
+      case 0: printf(" (undefined)"); break;
+      case 1: printf(" (large thumbnail)"); break;
+      case 2: printf(" (multi-view image)"); break;
+      case 3: printf(" (primary image)"); break;
+      default: printf(" (unknown value)");
+    }
+    // clang-format on
+    printf("\n");
+
+    iprintf(tiff_state->options, "  individual image size: %x\n",
+            individual_image_size);
+    iprintf(tiff_state->options, "  individual image data offset: %x\n",
+            individual_image_data_offset);
+    iprintf(tiff_state->options, "  dependent image 1 entry number: %x\n",
+            dependent_image_1_entry_number);
+    iprintf(tiff_state->options, "  dependent image 2 entry number: %x",
+            dependent_image_2_entry_number);
+  }
+  decrease_indent(tiff_state->options);
+}
+
+static void tiff_dump_mpf_uid_list(const struct TiffState* tiff_state,
+                                   uint16_t format,
+                                   uint32_t count,
+                                   const void* data) {
+  // 5.2.3.4. Individual Image Unique ID List
+  if (format != kUndefined) {
+    printf(" (invalid format %d, wanted %d)", format, kUndefined);
+    return;
+  }
+  if (count % 33 != 0) {
+    printf(" (invalid count %d, wanted multiple of 33)", count);
+    return;
+  }
+
+  int n = count / 33;
+  increase_indent(tiff_state->options);
+  for (int i = 0; i < n; ++i) {
+    printf("\n");
+    iprintf(tiff_state->options, "\"");
+    const char* s = data;
+    for (int j = 0; j < 33; ++j) {
+      if (s[j] == 0)
+        printf("\\0");
+      else if (s[j] < 0x20)
+        printf("\\x%x", s[j]);
+      else
+        printf("%c", s[j]);
+    }
+    printf("\"");
+    data += 33;
+  }
+  decrease_indent(tiff_state->options);
+}
+
+static void tiff_dump_extra_mpf_tag_info(const struct TiffState* tiff_state,
+                                         uint16_t tag,
+                                         uint16_t format,
+                                         uint32_t count,
+                                         const void* data) {
+  if (tag == 45056)
+    tiff_dump_exif_version(format, count, data);
+  else if (tag == 45058)
+    tiff_dump_mpf_entry(tiff_state, format, count, data);
+  else if (tag == 45059)
+    tiff_dump_mpf_uid_list(tiff_state, format, count, data);
+}
+
 static void jpeg_dump_mpf(struct Options* options,
                           const uint8_t* begin,
                           uint16_t size) {
   // https://web.archive.org/web/20190713230858/http://www.cipa.jp/std/documents/e/DC-007_E.pdf
-  tiff_dump(options, begin + sizeof(uint16_t) + sizeof("MPF"), begin + size);
+  tiff_dump(options, begin + sizeof(uint16_t) + sizeof("MPF"), begin + size,
+            tiff_dump_extra_mpf_tag_info);
 }
 
 static int is_line_with_just_spaces(int i, const uint8_t* s, int n) {
@@ -4753,7 +4875,8 @@ int main(int argc, char* argv[]) {
   else if (file_type == Jpeg)
     jpeg_dump(&options, contents, contents + in_stat.st_size);
   else if (file_type == Tiff)
-    tiff_dump(&options, contents, contents + in_stat.st_size);
+    tiff_dump(&options, contents, contents + in_stat.st_size,
+              tiff_dump_extra_exif_tag_info);
 
   munmap(contents, (size_t)in_stat.st_size);
   close(in_file);
