@@ -1290,8 +1290,12 @@ static uint32_t tiff_dump_one_ifd(const struct TiffState* tiff_state,
   if (jpeg_offset != 0 && jpeg_length) {
     iprintf(options, "jpeg thumbnail\n");
     increase_indent(options);
-    jpeg_dump(tiff_state->options, begin + jpeg_offset,
-              begin + jpeg_offset + jpeg_length);
+    if (options->jpeg_scan) {
+      iprintf(options, "(omitting in --scan mode, which wil find it later)\n");
+    } else {
+      jpeg_dump(tiff_state->options, begin + jpeg_offset,
+                begin + jpeg_offset + jpeg_length);
+    }
     decrease_indent(options);
   }
   if (exif_ifd_offset != 0) {
