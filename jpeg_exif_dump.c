@@ -4610,7 +4610,9 @@ static void jpeg_dump(struct Options* options,
                       const uint8_t* end) {
   const uint8_t* cur = begin;
 
-  const uint8_t* cur_start = NULL;
+  const int start_stack_size = 10;  // In practice, need 2.
+  int start_stack_pos = 0;
+  const uint8_t* cur_start_stack[start_stack_size];
 
   while (cur < end) {
     uint8_t b0 = *cur++;
@@ -4680,7 +4682,10 @@ static void jpeg_dump(struct Options* options,
         break;
       case 0xd8:
         printf(": Start Of Image (SOI)\n");
-        cur_start = cur - 2;
+
+        if (start_stack_pos == start_stack_size)
+          fatal("JPEG too deeply nested");
+        cur_start_stack[start_stack_pos++] = cur - 2;
         break;
       case 0xd9:
         // If there's an App2/"MPF" ("Multi-Picture Format") marker,
@@ -4690,7 +4695,9 @@ static void jpeg_dump(struct Options* options,
         // TODO: In non-scan mode, this should terminate the reading loop.
         printf(": End Of Image (EOI)\n");
 
-        if (options->dump_jpegs) {
+        if (options->dump_jpegs && start_stack_pos > 0) {
+          const uint8_t* cur_start = cur_start_stack[--start_stack_pos];
+
           char buf[80];
           sprintf(buf, "jpeg-%d.jpg", options->num_jpegs);
           FILE* f = fopen(buf, "wb");
