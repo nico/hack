@@ -109,6 +109,8 @@ GPS
 
 `xmp` (`http://ns.adobe.com/xap/1.0/`, `http://ns.adobe.com/xmp/extension/`))
 
+See also <https://github.com/nico/jpegfiles/blob/main/README.md#where-jpegs-can-have-thumbnails>.
+
 [5]: https://en.wikipedia.org/wiki/JPEG_File_Interchange_Format#JFIF_APP0_marker_segment
 
 Exotic JPEG formats
