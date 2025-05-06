@@ -4262,6 +4262,9 @@ static void tiff_dump_mpf_entry(const struct TiffState* tiff_state,
     iprintf(tiff_state->options, "entry %d\n", i);
 
     // 5.2.3.3.1. Individual Image Attribute
+    // Types 4 and 5 are from the 2025 version of CIPA_DC-007-2025_E.pdf,
+    // available in jpegfiles/specs, or at:
+    // https://www.cipa.jp/std/documents/download_e.html?CIPA_DC-007-2025_E
     iprintf(tiff_state->options, "  individual image attribute: %#010x\n",
             individual_image_attribute);
     iprintf(tiff_state->options, "    is dependent parent image: %d\n",
@@ -4286,6 +4289,8 @@ static void tiff_dump_mpf_entry(const struct TiffState* tiff_state,
       case 1: printf(" (large thumbnail)"); break;
       case 2: printf(" (multi-view image)"); break;
       case 3: printf(" (primary image)"); break;
+      case 4: printf(" (original preservation image)"); break;
+      case 5: printf(" (gain map)"); break;
       default: printf(" (unknown value)");
     }
     // clang-format on
