@@ -4293,9 +4293,33 @@ static void tiff_dump_mpf_entry(const struct TiffState* tiff_state,
       case 3: printf(" (primary image)"); break;
       case 4: printf(" (original preservation image)"); break;
       case 5: printf(" (gain map)"); break;
-      default: printf(" (unknown value)");
+      default: printf(" (unknown type info)");
     }
     // clang-format on
+
+    printf(" subtype 0x%01x", subtype);
+    if (type_info == 1 && subtype == 1)
+      printf(" (VGA equivalent)");
+    else if (type_info == 0 && subtype == 2)
+      printf(" (full HD equivalent)");
+    else if (type_info == 1 && subtype == 3)
+      printf(" (4K (QFHD) equivalent)");
+    else if (type_info == 1 && subtype == 4)
+      printf(" (8K equivalent)");
+    else if (type_info == 1 && subtype == 5)
+      printf(" (16K equivalent)");
+    else if (type_info == 1 && subtype == 5)
+      printf(" (16K equivalent)");
+    else if (type_info == 2 && subtype == 1)
+      printf(" (panorama)");
+    else if (type_info == 2 && subtype == 2)
+      printf(" (disparity)");
+    else if (type_info == 2 && subtype == 3)
+      printf(" (multi-angle)");
+    else if ((type_info == 3 || type_info == 4 || type_info == 5) && subtype == 0)
+      printf(" (always 0 for this type)");
+    else
+      printf(" (unknown subtype)");
     printf("\n");
 
     iprintf(tiff_state->options, "  individual image size: %x\n",
