@@ -4265,7 +4265,7 @@ static void tiff_dump_mpf_entry(const struct TiffState* tiff_state,
     // Types 4 and 5 are from the 2025 version of CIPA_DC-007-2025_E.pdf,
     // available in jpegfiles/specs, or at:
     // https://www.cipa.jp/std/documents/download_e.html?CIPA_DC-007-2025_E
-    iprintf(tiff_state->options, "  individual image attribute: %#010x\n",
+    iprintf(tiff_state->options, "  individual image attribute: 0x%08x\n",
             individual_image_attribute);
     iprintf(tiff_state->options, "    is dependent parent image: %d\n",
             (individual_image_attribute >> 31) & 1);
@@ -4279,10 +4279,12 @@ static void tiff_dump_mpf_entry(const struct TiffState* tiff_state,
             "    image data format (0: JPEG, rest reserved): %d\n",
             (individual_image_attribute >> 24) & 7);
     uint32_t mp_type_code = individual_image_attribute & 0xffffff;
-    iprintf(tiff_state->options, "    MP type code: %#08x\n", mp_type_code);
+    iprintf(tiff_state->options, "    MP type code: 0x%06x\n", mp_type_code);
+
     uint8_t type_info = (mp_type_code >> 16) & 0xf;
     uint8_t subtype = mp_type_code & 0xf;
-    iprintf(tiff_state->options, "      type info: %#03x", type_info);
+
+    iprintf(tiff_state->options, "      type info: 0x%01x", type_info);
     // clang-format off
     switch (type_info) {
       case 0: printf(" (undefined)"); break;
