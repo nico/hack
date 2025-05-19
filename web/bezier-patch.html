@@ -277,6 +277,19 @@
         const GLOBAL_LINE_WIDTH_POINT_STROKE = 1.5;
         
         let activeVisualizers = []; 
+        let isRedrawScheduled = false;
+
+        function scheduleGlobalRedraw() {
+            if (!isRedrawScheduled) {
+                isRedrawScheduled = true;
+                requestAnimationFrame(performGlobalRedraw);
+            }
+        }
+
+        function performGlobalRedraw() {
+            isRedrawScheduled = false;
+            activeVisualizers.forEach(viz => viz.draw());
+        }
 
         function assignTypes(points) {
             for (let i = 0; i < 4; i++) {
@@ -411,6 +424,7 @@
                 
                 this.numSurfaceSegments = Math.max(5, Math.floor(15 * (targetLogicalWidth / 500)));
                 this.scalePointsToCanvas(); 
+                scheduleGlobalRedraw();
             }
 
 
@@ -424,6 +438,7 @@
                                 this.draggingPointInfo = { colIndex: i, rowIndex: j };
                                 this.dragOffsetX = mousePos.x - point.x;
                                 this.dragOffsetY = mousePos.y - point.y;
+                                scheduleGlobalRedraw();
                                 return;
                             }
                         }
@@ -442,15 +457,24 @@
                         newY = Math.max(0, Math.min(logicalHeight, newY));
                         this.mainPatch.points[this.draggingPointInfo.colIndex][this.draggingPointInfo.rowIndex].x = newX;
                         this.mainPatch.points[this.draggingPointInfo.colIndex][this.draggingPointInfo.rowIndex].y = newY;
+                        scheduleGlobalRedraw();
                     }
                 });
 
-                const stopDragging = () => { this.draggingPointInfo = null; };
+                const stopDragging = () => {
+                    if (this.draggingPointInfo) {
+                        this.draggingPointInfo = null;
+                        scheduleGlobalRedraw();
+                    }
+                };
                 this.canvasOriginal.addEventListener('mouseup', stopDragging);
                 this.canvasOriginal.addEventListener('mouseleave', stopDragging);
 
                 if (this.coonsifyButton) {
-                    this.coonsifyButton.addEventListener('click', () => this._coonsifyPatch());
+                    this.coonsifyButton.addEventListener('click', () => {
+                        this._coonsifyPatch();
+                        scheduleGlobalRedraw();
+                    });
                 }
 
                 if (this.showSubdividedView && this.subdivisionLevelInput) {
@@ -460,6 +484,7 @@
                         if (level > 4) level = 4;
                         this.currentSubdivisionLevel = level;
                         this.subdivisionLevelInput.value = level; 
+                        scheduleGlobalRedraw();
                     };
                     this.subdivisionLevelInput.addEventListener('change', updateSubdivisionLevel);
                     this.subdivisionLevelInput.addEventListener('input', updateSubdivisionLevel);
@@ -686,12 +711,6 @@
             }
         }
 
-        // --- Global Animation Loop ---
-        function mainDrawLoop() {
-            activeVisualizers.forEach(viz => viz.draw());
-            requestAnimationFrame(mainDrawLoop);
-        }
-
         // --- Define Initial Patch Configurations (nominal 0-500 space) ---
         function createInitialPoints(nominalWidth, nominalHeight, mode = "default") {
             const w = 500; 
@@ -788,7 +807,7 @@
                 activeVisualizers.forEach(viz => viz.resizeCanvases());
             }, 100);
 
-            mainDrawLoop(); 
+            scheduleGlobalRedraw();
         });
 
     </script>
