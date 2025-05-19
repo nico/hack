@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- Mostly written by gemini: https://g.co/gemini/share/e99394fc3c32
+     Manually put in more interesting examples, and tweaked how the different control types look.
+-->
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cubic Bézier Patch Visualizer</title>
+    <style>
+        /* Basic Reset & Body Style */
+        body, html {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            background-color: #f3f4f6;
+            color: #1f2937;
+            padding: 1rem;
+        }
+        @media (min-width: 768px) {
+            body {
+                padding: 2rem;
+            }
+        }
+
+        /* Page Container */
+        .page-container {
+            max-width: 90rem; /* Increased max-width for potentially 3 canvases */
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Header Styles */
+        header {
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        header h1 {
+            font-size: 2.25rem;
+            line-height: 2.5rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin: 0;
+        }
+        header p {
+            color: #4b5563;
+            margin-top: 0.75rem;
+            font-size: 1.125rem;
+            line-height: 1.75rem;
+        }
+        @media (min-width: 768px) {
+            header h1 {
+                font-size: 3rem;
+                line-height: 1;
+            }
+        }
+
+        /* Visualizer Styles */
+        .visualizer-container {
+            background-color: #e5e7eb;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            margin-bottom: 2rem;
+        }
+        .visualizer-title {
+            text-align: center;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 1rem;
+        }
+
+        .dynamic-canvas-group {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            justify-content: center;
+            align-items: flex-start; /* Align to top in column mode */
+        }
+        @media (min-width: 1024px) { /* lg breakpoint for 3 canvases might be better */
+            .dynamic-canvas-group {
+                flex-direction: row;
+                align-items: stretch; /* Make wrappers same height */
+            }
+        }
+         @media (min-width: 768px) and (max-width: 1023px) { /* md breakpoint, maybe 2x1 layout */
+            .dynamic-canvas-group {
+                flex-wrap: wrap; /* Allow wrapping if not enough space */
+                 /* Or force two columns then one below, more complex custom grid needed */
+            }
+            .dynamic-canvas-group .dynamic-canvas-wrapper {
+                width: calc(50% - 0.5rem); /* Two side-by-side on medium */
+            }
+             .dynamic-canvas-group .dynamic-canvas-wrapper:last-child:nth-child(odd) {
+                width: 100%; /* If only one left in a row, make it full width */
+            }
+        }
+
+
+        .dynamic-canvas-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #d1d5db;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            width: 100%; /* Default full width for column layout */
+        }
+        @media (min-width: 1024px) { /* lg breakpoint */
+            .dynamic-canvas-wrapper {
+                flex: 1 1 0%; /* Allow grow/shrink in row mode for 3 items */
+                min-width: 0; /* Important for flex shrinking */
+            }
+        }
+        
+        .dynamic-canvas-wrapper canvas {
+            background-color: #ffffff;
+            border-radius: 0.375rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            cursor: crosshair;
+            display: block;
+        }
+        .dynamic-canvas-wrapper h3 {
+            font-size: 1rem;
+            font-weight: 500;
+            color: #4b5563;
+            margin-bottom: 0.5rem;
+        }
+
+        .controls {
+            margin-top: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .controls label {
+            font-size: 0.875rem;
+            color: #4b5563;
+        }
+        .controls input[type="number"] {
+            border: 1px solid #9ca3af;
+            padding: 0.375rem;
+            border-radius: 0.25rem;
+            width: 60px;
+            text-align: center;
+            background-color: #fff;
+            color: #1f2937;
+        }
+        .coonsify-button {
+            background-color: #4a5568; /* gray-700 */
+            color: white;
+            padding: 0.375rem 0.75rem;
+            border-radius: 0.375rem;
+            border: none;
+            font-size: 0.875rem;
+            cursor: pointer;
+            margin-top: 0.5rem;
+            transition: background-color 0.2s;
+        }
+        .coonsify-button:hover {
+            background-color: #2d3748; /* gray-800 */
+        }
+        .coonsify-button:active {
+            background-color: #1a202c; /* gray-900 */
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <header>
+            <h1>Exploring Bézier Surfaces</h1>
+            <p>Interactive examples of bicubic Bézier patches. Drag control points in leftmost canvas</p>
+        </header>
+
+        <div id="example1-container" class="visualizer-container"></div>
+        <div id="example2-container" class="visualizer-container"></div>
+        <div id="example3-container" class="visualizer-container"></div>
+        <div id="example4-container" class="visualizer-container"></div>
+
+    </div>
+
+    <script>
+        // --- Point Utility Functions (Global) ---
+        function createPoint(x = 0, y = 0) { return { x, y }; }
+        function addPoints(p1, p2) { return { x: p1.x + p2.x, y: p1.y + p2.y }; }
+        function scalePoint(p, scalar) { return { x: p.x * scalar, y: p.y * scalar }; }
+        function distancePoints(p1, p2) {
+            const dx = p1.x - p2.x; const dy = p1.y - p2.y;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        // --- CubicBezierPatch Class (Global) ---
+        class CubicBezierPatch {
+            constructor(initialPoints = null) {
+                this.points = Array(4).fill(null).map(() => Array(4).fill(null).map(() => createPoint()));
+                if (initialPoints) {
+                    for (let i = 0; i < 4; i++) {
+                        for (let j = 0; j < 4; j++) {
+                            if (initialPoints[i] && initialPoints[i][j]) {
+                                this.points[i][j] = { ...initialPoints[i][j] }; 
+                            }
+                        }
+                    }
+                }
+            }
+            subdivideVertical(top, bottom) { 
+                for (let x = 0; x < 4; ++x) {
+                    const col = this.points[x];
+                    const l1_0 = scalePoint(addPoints(col[0], col[1]), 0.5);
+                    const l1_1 = scalePoint(addPoints(col[1], col[2]), 0.5);
+                    const l1_2 = scalePoint(addPoints(col[2], col[3]), 0.5);
+                    const l2_0 = scalePoint(addPoints(l1_0, l1_1), 0.5);
+                    const l2_1 = scalePoint(addPoints(l1_1, l1_2), 0.5);
+                    const l3_0 = scalePoint(addPoints(l2_0, l2_1), 0.5);
+                    top.points[x][0] = { ...col[0] }; top.points[x][1] = l1_0; top.points[x][2] = l2_0; top.points[x][3] = l3_0;
+                    bottom.points[x][0] = l3_0; bottom.points[x][1] = l2_1; bottom.points[x][2] = l1_2; bottom.points[x][3] = { ...col[3] };
+                }
+                assignTypes(top.points);
+                assignTypes(bottom.points);
+            }
+            subdivideHorizontal(left, right) { 
+                for (let y = 0; y < 4; ++y) {
+                    const p0y = this.points[0][y], p1y = this.points[1][y], p2y = this.points[2][y], p3y = this.points[3][y];
+                    const l1_0 = scalePoint(addPoints(p0y, p1y), 0.5);
+                    const l1_1 = scalePoint(addPoints(p1y, p2y), 0.5);
+                    const l1_2 = scalePoint(addPoints(p2y, p3y), 0.5);
+                    const l2_0 = scalePoint(addPoints(l1_0, l1_1), 0.5);
+                    const l2_1 = scalePoint(addPoints(l1_1, l1_2), 0.5);
+                    const l3_0 = scalePoint(addPoints(l2_0, l2_1), 0.5);
+                    left.points[0][y] = { ...p0y }; left.points[1][y] = l1_0; left.points[2][y] = l2_0; left.points[3][y] = l3_0;
+                    right.points[0][y] = l3_0; right.points[1][y] = l2_1; right.points[2][y] = l1_2; right.points[3][y] = { ...p3y };
+                }
+                assignTypes(left.points);
+                assignTypes(right.points);
+            }
+            subdivide(topLeft, bottomLeft, topRight, bottomRight) {
+                const top = new CubicBezierPatch(); const bottom = new CubicBezierPatch();
+                this.subdivideVertical(top, bottom);
+                top.subdivideHorizontal(topLeft, topRight);
+                bottom.subdivideHorizontal(bottomLeft, bottomRight);
+            }
+        }
+
+        // --- Bézier Curve and Surface Evaluation (Global) ---
+        function evaluateCubicBezierCurve(p0, p1, p2, p3, t) { 
+            const mt = 1 - t, mt2 = mt * mt, t2 = t * t;
+            const x = mt2 * mt * p0.x + 3 * mt2 * t * p1.x + 3 * mt * t2 * p2.x + t2 * t * p3.x;
+            const y = mt2 * mt * p0.y + 3 * mt2 * t * p1.y + 3 * mt * t2 * p2.y + t2 * t * p3.y;
+            return createPoint(x, y);
+        }
+        function getPointOnSurface(patch, u, v) { 
+            const tempPoints = [];
+            for (let i = 0; i < 4; i++) {
+                tempPoints.push(evaluateCubicBezierCurve(patch.points[i][0], patch.points[i][1], patch.points[i][2], patch.points[i][3], u));
+            }
+            return evaluateCubicBezierCurve(tempPoints[0], tempPoints[1], tempPoints[2], tempPoints[3], v);
+        }
+
+        const globalPatchColors = [ 
+            { point: 'rgba(16, 185, 129, 0.9)', grid: 'rgba(110, 231, 183,0.7)', surface: 'rgba(5, 150, 105, 0.7)' }, // Made point/surface more opaque
+            { point: 'rgba(239, 68, 68, 0.9)', grid: 'rgba(252, 165, 165,0.7)', surface: 'rgba(220, 38, 38, 0.7)' },
+            { point: 'rgba(139, 92, 246, 0.9)', grid: 'rgba(196, 181, 253,0.7)', surface: 'rgba(109, 40, 217, 0.7)' },
+            { point: 'rgba(249, 115, 22, 0.9)', grid: 'rgba(253, 186, 116,0.7)', surface: 'rgba(234, 88, 12, 0.7)' },
+            { point: 'rgba(236, 72, 153, 0.9)', grid: 'rgba(251, 146, 198,0.7)', surface: 'rgba(219, 39, 119, 0.7)' },
+            { point: 'rgba(245, 158, 11, 0.9)', grid: 'rgba(252, 211, 77,0.7)', surface: 'rgba(217, 119, 6, 0.7)' }
+        ];
+        const GLOBAL_CONTROL_POINT_RADIUS = 5; 
+        const GLOBAL_DRAG_THRESHOLD = GLOBAL_CONTROL_POINT_RADIUS * 1.8; 
+        const GLOBAL_LINE_WIDTH_GRID = 1;
+        const GLOBAL_LINE_WIDTH_SURFACE = 1.5;
+        const GLOBAL_LINE_WIDTH_POINT_STROKE = 1.5;
+        
+        let activeVisualizers = []; 
+
+        function assignTypes(points) {
+            for (let i = 0; i < 4; i++) {
+                for (let j = 0; j < 4; j++) {
+                    if ((i === 0 || i === 3) && (j ===0 || j === 3))
+                      points[i][j].type = 'corner';
+                    else if (i === 0 || i === 3 || j ===0 || j === 3)
+                      points[i][j].type = 'handle';
+                    else
+                      points[i][j].type = 'interior';
+                }
+            }
+        }
+
+        class BezierVisualizer {
+            constructor(config) {
+                this.containerElement = config.containerElement;
+                this.title = config.title || "Bézier Patch Visualizer";
+                this.initialPoints = config.initialPoints; 
+                this.showSubdividedView = config.showSubdividedView !== undefined ? config.showSubdividedView : true;
+                this.initialSubdivisionLevel = config.initialSubdivisionLevel !== undefined ? config.initialSubdivisionLevel : 1;
+                this.baseCanvasSize = config.baseCanvasSize || 300; // Adjusted default for potentially 3 canvases
+                this.numSurfaceSegments = Math.max(5, Math.floor(15 * (this.baseCanvasSize / 500)));
+
+                this.devicePixelRatio = window.devicePixelRatio || 1;
+
+                this.mainPatch = new CubicBezierPatch(this.initialPoints);
+                this.draggingPointInfo = null; 
+                this.dragOffsetX = 0;
+                this.dragOffsetY = 0;
+                this.currentSubdivisionLevel = this.initialSubdivisionLevel;
+
+                this.idSuffix = this.containerElement.id || `viz-${Math.random().toString(36).substr(2, 5)}`;
+                this.setupDOM();
+                this.setupEventListeners();
+                this.resizeCanvases(); 
+                activeVisualizers.push(this);
+            }
+
+            setupDOM() {
+                this.containerElement.innerHTML = `
+                    <h2 class="visualizer-title">${this.title}</h2>
+                    <div class="dynamic-canvas-group">
+                        <div class="dynamic-canvas-wrapper">
+                            <h3>Original Patch</h3>
+                            <canvas id="canvas-original-${this.idSuffix}"></canvas>
+                            <button class="coonsify-button" id="coonsify-button-${this.idSuffix}">Coonsify</button>
+                        </div>
+                        ${this.showSubdividedView ? `
+                        <div class="dynamic-canvas-wrapper">
+                            <h3>Subdivided (Wireframe)</h3>
+                            <canvas id="canvas-subdivided-${this.idSuffix}"></canvas>
+                            <div class="controls">
+                                <label for="subdivisionLevel-${this.idSuffix}">Levels (0-4):</label>
+                                <input type="number" id="subdivisionLevel-${this.idSuffix}" min="0" max="4" value="${this.initialSubdivisionLevel}">
+                            </div>
+                        </div>
+                        <div class="dynamic-canvas-wrapper">
+                            <h3>Subdivided (Filled Path)</h3>
+                            <canvas id="canvas-filled-${this.idSuffix}"></canvas>
+                            </div>` : ''}
+                    </div>
+                `;
+
+                this.canvasOriginal = document.getElementById(`canvas-original-${this.idSuffix}`);
+                this.ctxOriginal = this.canvasOriginal.getContext('2d');
+                this.coonsifyButton = document.getElementById(`coonsify-button-${this.idSuffix}`);
+
+                if (this.showSubdividedView) {
+                    this.canvasSubdivided = document.getElementById(`canvas-subdivided-${this.idSuffix}`);
+                    this.ctxSubdivided = this.canvasSubdivided.getContext('2d');
+                    this.subdivisionLevelInput = document.getElementById(`subdivisionLevel-${this.idSuffix}`);
+
+                    this.canvasFilled = document.getElementById(`canvas-filled-${this.idSuffix}`);
+                    this.ctxFilled = this.canvasFilled.getContext('2d');
+                }
+            }
+            
+            scalePointsToCanvas() {
+                const currentLogicalWidth = parseFloat(this.canvasOriginal.style.width) || this.baseCanvasSize;
+                const scaleX = currentLogicalWidth / 500; 
+                const scaleY = currentLogicalWidth / 500;
+                
+                this.mainPatch = new CubicBezierPatch(); 
+                for (let i = 0; i < 4; i++) {
+                    for (let j = 0; j < 4; j++) {
+                        const originalP = this.initialPoints[i][j];
+                        //this.mainPatch.points[i][j] = createPoint(originalP.x * scaleX, originalP.y * scaleY);
+                        // Preserve `.type` property:
+                        this.mainPatch.points[i][j] = { ...this.initialPoints[i][j] };
+                        this.mainPatch.points[i][j].x *= scaleX;
+                        this.mainPatch.points[i][j].y *= scaleY;
+                    }
+                }
+            }
+
+            resizeCanvases() {
+                const dpr = this.devicePixelRatio;
+                let targetLogicalWidth = this.baseCanvasSize; 
+
+                const originalWrapper = this.canvasOriginal.parentElement;
+                if (originalWrapper && originalWrapper.clientWidth > 10) {
+                    // If the group is flex-row, clientWidth of wrapper might be small.
+                    // Consider the group's width divided by number of canvases if in row.
+                    const group = originalWrapper.parentElement;
+                    const numCanvases = this.showSubdividedView ? 3 : 1;
+                    if (group && group.clientWidth > 10 && numCanvases > 1 && parseFloat(getComputedStyle(group).flexDirection) === "row") {
+                         targetLogicalWidth = Math.min(this.baseCanvasSize, (group.clientWidth / numCanvases) - ( (numCanvases -1) * 16 / numCanvases ) ); // Approx account for gap
+                    } else {
+                        targetLogicalWidth = Math.min(this.baseCanvasSize, originalWrapper.clientWidth);
+                    }
+                }
+                targetLogicalWidth = Math.max(150, targetLogicalWidth); 
+
+                this.canvasOriginal.width = targetLogicalWidth * dpr;
+                this.canvasOriginal.height = targetLogicalWidth * dpr; 
+                this.canvasOriginal.style.width = targetLogicalWidth + 'px';
+                this.canvasOriginal.style.height = targetLogicalWidth + 'px';
+
+                if (this.showSubdividedView && this.canvasSubdivided) {
+                    this.canvasSubdivided.width = targetLogicalWidth * dpr;
+                    this.canvasSubdivided.height = targetLogicalWidth * dpr; 
+                    this.canvasSubdivided.style.width = targetLogicalWidth + 'px';
+                    this.canvasSubdivided.style.height = targetLogicalWidth + 'px';
+                }
+                if (this.showSubdividedView && this.canvasFilled) {
+                    this.canvasFilled.width = targetLogicalWidth * dpr;
+                    this.canvasFilled.height = targetLogicalWidth * dpr; 
+                    this.canvasFilled.style.width = targetLogicalWidth + 'px';
+                    this.canvasFilled.style.height = targetLogicalWidth + 'px';
+                }
+                
+                this.numSurfaceSegments = Math.max(5, Math.floor(15 * (targetLogicalWidth / 500)));
+                this.scalePointsToCanvas(); 
+            }
+
+
+            setupEventListeners() {
+                this.canvasOriginal.addEventListener('mousedown', (e) => {
+                    const mousePos = this.getMousePos(this.canvasOriginal, e);
+                    for (let i = 0; i < 4; i++) {
+                        for (let j = 0; j < 4; j++) {
+                            const point = this.mainPatch.points[i][j];
+                            if (distancePoints(mousePos, point) < GLOBAL_DRAG_THRESHOLD) { 
+                                this.draggingPointInfo = { colIndex: i, rowIndex: j };
+                                this.dragOffsetX = mousePos.x - point.x;
+                                this.dragOffsetY = mousePos.y - point.y;
+                                return;
+                            }
+                        }
+                    }
+                });
+                // ... (mousemove, mouseup, mouseleave listeners remain the same) ...
+                this.canvasOriginal.addEventListener('mousemove', (e) => {
+                    if (this.draggingPointInfo) {
+                        const mousePos = this.getMousePos(this.canvasOriginal, e);
+                        const logicalWidth = parseFloat(this.canvasOriginal.style.width);
+                        const logicalHeight = parseFloat(this.canvasOriginal.style.height);
+
+                        let newX = mousePos.x - this.dragOffsetX;
+                        let newY = mousePos.y - this.dragOffsetY;
+                        newX = Math.max(0, Math.min(logicalWidth, newX));
+                        newY = Math.max(0, Math.min(logicalHeight, newY));
+                        this.mainPatch.points[this.draggingPointInfo.colIndex][this.draggingPointInfo.rowIndex].x = newX;
+                        this.mainPatch.points[this.draggingPointInfo.colIndex][this.draggingPointInfo.rowIndex].y = newY;
+                    }
+                });
+
+                const stopDragging = () => { this.draggingPointInfo = null; };
+                this.canvasOriginal.addEventListener('mouseup', stopDragging);
+                this.canvasOriginal.addEventListener('mouseleave', stopDragging);
+
+                if (this.coonsifyButton) {
+                    this.coonsifyButton.addEventListener('click', () => this._coonsifyPatch());
+                }
+
+                if (this.showSubdividedView && this.subdivisionLevelInput) {
+                    const updateSubdivisionLevel = () => {
+                        let level = parseInt(this.subdivisionLevelInput.value, 10);
+                        if (isNaN(level) || level < 0) level = 0;
+                        if (level > 4) level = 4;
+                        this.currentSubdivisionLevel = level;
+                        this.subdivisionLevelInput.value = level; 
+                    };
+                    this.subdivisionLevelInput.addEventListener('change', updateSubdivisionLevel);
+                    this.subdivisionLevelInput.addEventListener('input', updateSubdivisionLevel);
+                }
+            }
+
+            _coonsifyPatch() {
+                if (!this.mainPatch) return;
+                const p = this.mainPatch.points; // Shorthand
+
+                // P[1][1]
+                let sum11 = createPoint(0,0);
+                sum11 = addPoints(sum11, scalePoint(p[0][0], -4.0));
+                sum11 = addPoints(sum11, scalePoint(addPoints(p[0][1], p[1][0]), 6.0));
+                sum11 = addPoints(sum11, scalePoint(addPoints(p[0][3], p[3][0]), -2.0));
+                sum11 = addPoints(sum11, scalePoint(addPoints(p[3][1], p[1][3]), 3.0));
+                sum11 = addPoints(sum11, scalePoint(p[3][3], -1.0));
+                this.mainPatch.points[1][1] = scalePoint(sum11, 1.0 / 9.0);
+                this.mainPatch.points[1][1].type = 'interior';
+
+                // P[1][2]
+                let sum12 = createPoint(0,0);
+                sum12 = addPoints(sum12, scalePoint(p[0][3], -4.0));
+                sum12 = addPoints(sum12, scalePoint(addPoints(p[0][2], p[1][3]), 6.0));
+                sum12 = addPoints(sum12, scalePoint(addPoints(p[0][0], p[3][3]), -2.0));
+                sum12 = addPoints(sum12, scalePoint(addPoints(p[3][2], p[1][0]), 3.0));
+                sum12 = addPoints(sum12, scalePoint(p[3][0], -1.0));
+                this.mainPatch.points[1][2] = scalePoint(sum12, 1.0 / 9.0);
+                this.mainPatch.points[1][2].type = 'interior';
+
+                // P[2][1]
+                let sum21 = createPoint(0,0);
+                sum21 = addPoints(sum21, scalePoint(p[3][0], -4.0));
+                sum21 = addPoints(sum21, scalePoint(addPoints(p[3][1], p[2][0]), 6.0));
+                sum21 = addPoints(sum21, scalePoint(addPoints(p[3][3], p[0][0]), -2.0));
+                sum21 = addPoints(sum21, scalePoint(addPoints(p[0][1], p[2][3]), 3.0));
+                sum21 = addPoints(sum21, scalePoint(p[0][3], -1.0));
+                this.mainPatch.points[2][1] = scalePoint(sum21, 1.0 / 9.0);
+                this.mainPatch.points[2][1].type = 'interior';
+                
+                // P[2][2]
+                let sum22 = createPoint(0,0);
+                sum22 = addPoints(sum22, scalePoint(p[3][3], -4.0));
+                sum22 = addPoints(sum22, scalePoint(addPoints(p[3][2], p[2][3]), 6.0));
+                sum22 = addPoints(sum22, scalePoint(addPoints(p[3][0], p[0][3]), -2.0));
+                sum22 = addPoints(sum22, scalePoint(addPoints(p[0][2], p[2][0]), 3.0));
+                sum22 = addPoints(sum22, scalePoint(p[0][0], -1.0));
+                this.mainPatch.points[2][2] = scalePoint(sum22, 1.0 / 9.0);
+                this.mainPatch.points[2][2].type = 'interior';
+            }
+
+            getMousePos(canvas, evt) {
+                const rect = canvas.getBoundingClientRect();
+                return { 
+                    x: evt.clientX - rect.left, 
+                    y: evt.clientY - rect.top 
+                };
+            }
+            
+            _drawControlPoint(ctx, point, isActive = false, color) {
+                ctx.beginPath();
+
+                if (Object.hasOwn(point, 'type')) {
+                  const pointRadius = 6;
+                  const handleRadius = 5;
+                  const interiorPointRadius = 4; // Smaller radius for interior tensor points
+
+                  if (point.type === 'corner') {
+                      ctx.arc(point.x, point.y, pointRadius, 0, Math.PI * 2);
+                  } else if (point.type === 'handle') {
+                      ctx.rect(point.x - handleRadius, point.y - handleRadius, handleRadius * 2, handleRadius * 2);
+                  } else {
+                      ctx.arc(point.x, point.y, interiorPointRadius, 0, Math.PI * 2);
+                  }
+                } else {
+                  ctx.arc(point.x, point.y, GLOBAL_CONTROL_POINT_RADIUS, 0, 2 * Math.PI);
+                }
+
+                ctx.fillStyle = isActive ? 'rgba(239, 68, 68, 0.9)' : color.point; 
+                ctx.fill();
+                ctx.strokeStyle = isActive ? 'rgba(153, 27, 27, 1)' : color.grid; 
+                ctx.lineWidth = GLOBAL_LINE_WIDTH_POINT_STROKE;
+                ctx.stroke();
+            }
+
+            _drawControlGrid(ctx, patch, color) {
+                ctx.strokeStyle = color.grid;
+                ctx.lineWidth = GLOBAL_LINE_WIDTH_GRID;
+                for (let i = 0; i < 4; i++) { 
+                    ctx.beginPath(); ctx.moveTo(patch.points[i][0].x, patch.points[i][0].y);
+                    for (let j = 1; j < 4; j++) { ctx.lineTo(patch.points[i][j].x, patch.points[i][j].y); }
+                    ctx.stroke();
+                }
+                for (let j = 0; j < 4; j++) { 
+                    ctx.beginPath(); ctx.moveTo(patch.points[0][j].x, patch.points[0][j].y);
+                    for (let i = 1; i < 4; i++) { ctx.lineTo(patch.points[i][j].x, patch.points[i][j].y); }
+                    ctx.stroke();
+                }
+            }
+
+            _drawBezierSurface(ctx, patch, color, segments) {
+                ctx.strokeStyle = color.surface;
+                ctx.lineWidth = GLOBAL_LINE_WIDTH_SURFACE;
+                const step = 1 / segments;
+                for (let v = 0; v <= 1.0001; v += step) {
+                    ctx.beginPath();
+                    ctx.moveTo(getPointOnSurface(patch, 0, v).x, getPointOnSurface(patch, 0, v).y);
+                    for (let u = step; u <= 1.0001; u += step) {
+                        const p = getPointOnSurface(patch, u, v); ctx.lineTo(p.x, p.y);
+                    }
+                    ctx.stroke();
+                }
+                for (let u = 0; u <= 1.0001; u += step) {
+                    ctx.beginPath();
+                    ctx.moveTo(getPointOnSurface(patch, u, 0).x, getPointOnSurface(patch, u, 0).y);
+                    for (let v = step; v <= 1.0001; v += step) {
+                        const p = getPointOnSurface(patch, u, v); ctx.lineTo(p.x, p.y);
+                    }
+                    ctx.stroke();
+                }
+            }
+            
+            _drawMainPatchView() {
+                this.ctxOriginal.clearRect(0, 0, this.canvasOriginal.width, this.canvasOriginal.height);
+                this.ctxOriginal.save();
+                this.ctxOriginal.scale(this.devicePixelRatio, this.devicePixelRatio);
+                const colorScheme = { point: 'rgba(59, 130, 246, 0.8)', grid: 'rgba(156, 163, 175,0.7)', surface: 'rgba(29, 78, 216, 0.6)' };
+                this._drawControlGrid(this.ctxOriginal, this.mainPatch, colorScheme);
+                this._drawBezierSurface(this.ctxOriginal, this.mainPatch, colorScheme, this.numSurfaceSegments);
+                for (let i = 0; i < 4; i++) {
+                    for (let j = 0; j < 4; j++) {
+                        let isActive = false;
+                        if (this.draggingPointInfo && this.draggingPointInfo.colIndex === i && this.draggingPointInfo.rowIndex === j) {
+                            isActive = true;
+                        }
+                        this._drawControlPoint(this.ctxOriginal, this.mainPatch.points[i][j], isActive, colorScheme);
+                    }
+                }
+                this.ctxOriginal.restore();
+            }
+
+            _renderSubdividedPatchesRecursive(ctx, patch, currentLevel, targetMaxLevel, quad_x, quad_y) {
+                if (currentLevel === targetMaxLevel) {
+                    const colorIndex = (quad_x + 2 * quad_y) % globalPatchColors.length;
+                    const colorScheme = globalPatchColors[colorIndex];
+                    let segmentsForFinalPatch = this.numSurfaceSegments;
+                    if (targetMaxLevel > 0) {
+                        segmentsForFinalPatch = Math.max(3, this.numSurfaceSegments - targetMaxLevel * 3);
+                    }
+                    this._drawControlGrid(ctx, patch, colorScheme);
+                    this._drawBezierSurface(ctx, patch, colorScheme, segmentsForFinalPatch);
+                    for (let i = 0; i < 4; i++) {
+                        for (let j = 0; j < 4; j++) {
+                            this._drawControlPoint(ctx, patch.points[i][j], false, colorScheme);
+                        }
+                    }
+                } else {
+                    const tl = new CubicBezierPatch(), tr = new CubicBezierPatch();
+                    const bl = new CubicBezierPatch(), br = new CubicBezierPatch();
+                    patch.subdivide(tl, bl, tr, br); 
+                    this._renderSubdividedPatchesRecursive(ctx, tl, currentLevel + 1, targetMaxLevel, quad_x * 2,     quad_y * 2);
+                    this._renderSubdividedPatchesRecursive(ctx, tr, currentLevel + 1, targetMaxLevel, quad_x * 2 + 1, quad_y * 2);
+                    this._renderSubdividedPatchesRecursive(ctx, bl, currentLevel + 1, targetMaxLevel, quad_x * 2,     quad_y * 2 + 1);
+                    this._renderSubdividedPatchesRecursive(ctx, br, currentLevel + 1, targetMaxLevel, quad_x * 2 + 1, quad_y * 2 + 1);
+                }
+            }
+
+            _renderFilledSubdivisionPathsRecursive(ctx, patch, currentLevel, targetMaxLevel, quad_x, quad_y) {
+                if (currentLevel === targetMaxLevel) {
+                    const colorIndex = (quad_x + 2 * quad_y) % globalPatchColors.length;
+                    const colorScheme = globalPatchColors[colorIndex];
+                    
+                    // Extract 12 outer control points
+                    const p = patch.points;
+                    const P00=p[0][0], P01=p[0][1], P02=p[0][2], P03=p[0][3];
+                    const P13=p[1][3], P23=p[2][3];
+                    const P33=p[3][3], P32=p[3][2], P31=p[3][1], P30=p[3][0];
+                    const P20=p[2][0], P10=p[1][0];
+
+                    ctx.beginPath();
+                    ctx.moveTo(P00.x, P00.y);
+                    ctx.bezierCurveTo(P01.x, P01.y, P02.x, P02.y, P03.x, P03.y); // Top
+                    ctx.bezierCurveTo(P13.x, P13.y, P23.x, P23.y, P33.x, P33.y); // Right
+                    ctx.bezierCurveTo(P32.x, P32.y, P31.x, P31.y, P30.x, P30.y); // Bottom
+                    ctx.bezierCurveTo(P20.x, P20.y, P10.x, P10.y, P00.x, P00.y); // Left
+                    // ctx.closePath(); // Not strictly necessary if last curve ends at start point
+
+                    ctx.fillStyle = colorScheme.point; // Using point color for a more solid fill
+                    ctx.fill();
+
+                    // Optionally, draw the control net for these filled paths for context
+                    // this._drawControlGrid(ctx, patch, {grid: 'rgba(0,0,0,0.1)'}); // very faint grid
+                } else {
+                    const tl = new CubicBezierPatch(), tr = new CubicBezierPatch();
+                    const bl = new CubicBezierPatch(), br = new CubicBezierPatch();
+                    patch.subdivide(tl, bl, tr, br); 
+                    this._renderFilledSubdivisionPathsRecursive(ctx, tl, currentLevel + 1, targetMaxLevel, quad_x * 2,     quad_y * 2);
+                    this._renderFilledSubdivisionPathsRecursive(ctx, tr, currentLevel + 1, targetMaxLevel, quad_x * 2 + 1, quad_y * 2);
+                    this._renderFilledSubdivisionPathsRecursive(ctx, bl, currentLevel + 1, targetMaxLevel, quad_x * 2,     quad_y * 2 + 1);
+                    this._renderFilledSubdivisionPathsRecursive(ctx, br, currentLevel + 1, targetMaxLevel, quad_x * 2 + 1, quad_y * 2 + 1);
+                }
+            }
+
+
+            draw() {
+                if (!this.mainPatch) return; 
+                this._drawMainPatchView();
+
+                if (this.showSubdividedView && this.canvasSubdivided) { 
+                    this.ctxSubdivided.clearRect(0, 0, this.canvasSubdivided.width, this.canvasSubdivided.height);
+                    this.ctxSubdivided.save();
+                    this.ctxSubdivided.scale(this.devicePixelRatio, this.devicePixelRatio);
+                    this._renderSubdividedPatchesRecursive(this.ctxSubdivided, this.mainPatch, 0, this.currentSubdivisionLevel, 0, 0);
+                    this.ctxSubdivided.restore();
+                }
+
+                if (this.showSubdividedView && this.canvasFilled) {
+                    this.ctxFilled.clearRect(0,0, this.canvasFilled.width, this.canvasFilled.height);
+                    this.ctxFilled.save();
+                    this.ctxFilled.scale(this.devicePixelRatio, this.devicePixelRatio);
+                    this._renderFilledSubdivisionPathsRecursive(this.ctxFilled, this.mainPatch, 0, this.currentSubdivisionLevel, 0, 0);
+                    this.ctxFilled.restore();
+                }
+            }
+        }
+
+        // --- Global Animation Loop ---
+        function mainDrawLoop() {
+            activeVisualizers.forEach(viz => viz.draw());
+            requestAnimationFrame(mainDrawLoop);
+        }
+
+        // --- Define Initial Patch Configurations (nominal 0-500 space) ---
+        function createInitialPoints(nominalWidth, nominalHeight, mode = "default") {
+            const w = 500; 
+            const h = 500;
+            const initialPoints = [];
+            const padding = w * 0.15; 
+            const spacingX = (w - 2 * padding) / 3;
+            const spacingY = (h - 2 * padding) / 3;
+
+            for (let i = 0; i < 4; i++) {
+                initialPoints[i] = [];
+                for (let j = 0; j < 4; j++) {
+                    let x = padding + i * spacingX;
+                    let y = padding + j * spacingY;
+                    initialPoints[i][j] = createPoint(x, y);
+                }
+            }
+
+            if (mode === "fold") {
+                initialPoints[1][0] = structuredClone(initialPoints[0][1]);
+                initialPoints[2][0] = structuredClone(initialPoints[0][2]);
+                initialPoints[3][0] = structuredClone(initialPoints[0][3]);
+
+                initialPoints[3][1] = structuredClone(initialPoints[1][3]);
+                initialPoints[3][2] = structuredClone(initialPoints[2][3]);
+
+                initialPoints[2][1] = structuredClone(initialPoints[1][2]);
+
+                initialPoints[3][0].x += 5;
+                initialPoints[3][0].y -= 5;
+            } else if (mode === "twist") {
+                [initialPoints[1][0], initialPoints[0][1]] = [initialPoints[0][1], initialPoints[1][0]];
+                [initialPoints[2][3], initialPoints[3][2]] = [initialPoints[3][2], initialPoints[2][3]];
+
+                [initialPoints[2][0], initialPoints[3][1]] = [initialPoints[3][1], initialPoints[2][0]];
+                [initialPoints[0][2], initialPoints[1][3]] = [initialPoints[1][3], initialPoints[0][2]];
+            } else if (mode === "evert") {
+                [initialPoints[0][0], initialPoints[1][1]] = [initialPoints[1][1], initialPoints[0][0]];
+                [initialPoints[3][3], initialPoints[2][2]] = [initialPoints[2][2], initialPoints[3][3]];
+
+                [initialPoints[3][0], initialPoints[2][1]] = [initialPoints[2][1], initialPoints[3][0]];
+                [initialPoints[0][3], initialPoints[1][2]] = [initialPoints[1][2], initialPoints[0][3]];
+            }
+
+            assignTypes(initialPoints);
+
+            return initialPoints;
+        }
+
+        // --- Initialize Visualizers ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const displayCanvasBaseSize = 280; // Reduced base size a bit for 3 canvases
+
+            new BezierVisualizer({
+                containerElement: document.getElementById('example1-container'),
+                title: "Example 1: Flat",
+                initialPoints: createInitialPoints(500, 500, "default"),
+                showSubdividedView: true,
+                initialSubdivisionLevel: 1, 
+                baseCanvasSize: displayCanvasBaseSize
+            });
+            
+            new BezierVisualizer({
+                containerElement: document.getElementById('example2-container'),
+                title: "Example 2: Twist",
+                initialPoints: createInitialPoints(500, 500, "twist"),
+                showSubdividedView: true,
+                initialSubdivisionLevel: 1,
+                baseCanvasSize: displayCanvasBaseSize
+            });
+
+            new BezierVisualizer({
+                containerElement: document.getElementById('example3-container'),
+                title: "Example 3: Evert",
+                initialPoints: createInitialPoints(500, 500, "evert"),
+                showSubdividedView: true, 
+                baseCanvasSize: displayCanvasBaseSize
+            });
+
+            new BezierVisualizer({
+                containerElement: document.getElementById('example4-container'),
+                title: "Example 4: Fold",
+                initialPoints: createInitialPoints(500, 500, "fold"), 
+                showSubdividedView: true,
+                initialSubdivisionLevel: 0,
+                baseCanvasSize: displayCanvasBaseSize 
+            });
+
+            window.addEventListener('resize', () => {
+                activeVisualizers.forEach(viz => viz.resizeCanvases());
+            });
+            
+            setTimeout(() => { 
+                activeVisualizers.forEach(viz => viz.resizeCanvases());
+            }, 100);
+
+            mainDrawLoop(); 
+        });
+
+    </script>
+</body>
+</html>
