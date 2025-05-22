@@ -30,7 +30,7 @@
 
         /* Page Container */
         .page-container {
-            max-width: 90rem; /* Increased max-width for potentially 3 canvases */
+            max-width: 90rem;
             margin-left: auto;
             margin-right: auto;
         }
@@ -266,7 +266,7 @@
         }
 
         const globalPatchColors = [ 
-            { point: 'rgba(16, 185, 129, 0.9)', grid: 'rgba(110, 231, 183,0.7)', surface: 'rgba(5, 150, 105, 0.7)' }, // Made point/surface more opaque
+            { point: 'rgba(16, 185, 129, 0.9)', grid: 'rgba(110, 231, 183,0.7)', surface: 'rgba(5, 150, 105, 0.7)' },
             { point: 'rgba(239, 68, 68, 0.9)', grid: 'rgba(252, 165, 165,0.7)', surface: 'rgba(220, 38, 38, 0.7)' },
             { point: 'rgba(139, 92, 246, 0.9)', grid: 'rgba(196, 181, 253,0.7)', surface: 'rgba(109, 40, 217, 0.7)' },
             { point: 'rgba(249, 115, 22, 0.9)', grid: 'rgba(253, 186, 116,0.7)', surface: 'rgba(234, 88, 12, 0.7)' },
@@ -314,7 +314,7 @@
                 this.initialPoints = config.initialPoints; 
                 this.showSubdividedView = config.showSubdividedView !== undefined ? config.showSubdividedView : true;
                 this.initialSubdivisionLevel = config.initialSubdivisionLevel !== undefined ? config.initialSubdivisionLevel : 1;
-                this.baseCanvasSize = config.baseCanvasSize || 300; // Adjusted default for potentially 3 canvases
+                this.baseCanvasSize = config.baseCanvasSize || 300;
                 this.numSurfaceSegments = Math.max(5, Math.floor(15 * (this.baseCanvasSize / 500)));
 
                 this.devicePixelRatio = window.devicePixelRatio || 1;
@@ -509,7 +509,7 @@
 
             _coonsifyPatch() {
                 if (!this.mainPatch) return;
-                const p = this.mainPatch.points; // Shorthand
+                const p = this.mainPatch.points;
 
                 // P[1][1]
                 let sum11 = createPoint(0,0);
@@ -686,7 +686,6 @@
                     ctx.bezierCurveTo(P13.x, P13.y, P23.x, P23.y, P33.x, P33.y); // Right
                     ctx.bezierCurveTo(P32.x, P32.y, P31.x, P31.y, P30.x, P30.y); // Bottom
                     ctx.bezierCurveTo(P20.x, P20.y, P10.x, P10.y, P00.x, P00.y); // Left
-                    // ctx.closePath(); // Not strictly necessary if last curve ends at start point
 
                     ctx.fillStyle = colorScheme.point; // Using point color for a more solid fill
                     ctx.fill();
