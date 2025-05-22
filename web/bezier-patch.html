@@ -326,13 +326,13 @@
                 this.currentSubdivisionLevel = this.initialSubdivisionLevel;
 
                 this.idSuffix = this.containerElement.id || `viz-${Math.random().toString(36).substr(2, 5)}`;
-                this.setupDOM();
-                this.setupEventListeners();
+                this.setUpDOM();
+                this.setUpEventListeners();
                 this.resizeCanvases(); 
                 activeVisualizers.push(this);
             }
 
-            setupDOM() {
+            setUpDOM() {
                 this.containerElement.innerHTML = `
                     <h2 class="visualizer-title">${this.title}</h2>
                     <div class="dynamic-canvas-group">
@@ -431,7 +431,7 @@
             }
 
 
-            setupEventListeners() {
+            setUpEventListeners() {
                 this.canvasOriginal.addEventListener('pointerdown', (e) => {
                     if (!e.isPrimary) return;
 
