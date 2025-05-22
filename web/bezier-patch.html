@@ -126,6 +126,9 @@
             cursor: crosshair;
             display: block;
         }
+        .touch-canvas {
+            touch-action: none;
+        }
         .dynamic-canvas-wrapper h3 {
             font-size: 1rem;
             font-weight: 500;
@@ -335,7 +338,7 @@
                     <div class="dynamic-canvas-group">
                         <div class="dynamic-canvas-wrapper">
                             <h3>Original Patch</h3>
-                            <canvas id="canvas-original-${this.idSuffix}"></canvas>
+                            <canvas class="touch-canvas" id="canvas-original-${this.idSuffix}"></canvas>
                             <button class="coonsify-button" id="coonsify-button-${this.idSuffix}">Coonsify</button>
                         </div>
                         ${this.showSubdividedView ? `
@@ -429,30 +432,39 @@
 
 
             setupEventListeners() {
-                this.canvasOriginal.addEventListener('mousedown', (e) => {
-                    const mousePos = this.getMousePos(this.canvasOriginal, e);
+                this.canvasOriginal.addEventListener('pointerdown', (e) => {
+                    if (!e.isPrimary) return;
+
+                    const pos = this.getPointerPos(this.canvasOriginal, e);
+
+                    this.activePointerInteraction = {
+                        id: e.pointerId,
+                    };
+
                     for (let i = 0; i < 4; i++) {
                         for (let j = 0; j < 4; j++) {
                             const point = this.mainPatch.points[i][j];
-                            if (distancePoints(mousePos, point) < GLOBAL_DRAG_THRESHOLD) { 
+                            if (distancePoints(pos, point) < GLOBAL_DRAG_THRESHOLD) {
                                 this.draggingPointInfo = { colIndex: i, rowIndex: j };
-                                this.dragOffsetX = mousePos.x - point.x;
-                                this.dragOffsetY = mousePos.y - point.y;
+                                this.dragOffsetX = pos.x - point.x;
+                                this.dragOffsetY = pos.y - point.y;
                                 scheduleGlobalRedraw();
                                 return;
                             }
                         }
                     }
                 });
-                // ... (mousemove, mouseup, mouseleave listeners remain the same) ...
-                this.canvasOriginal.addEventListener('mousemove', (e) => {
+
+                this.canvasOriginal.addEventListener('pointermove', (e) => {
+                    if (!this.activePointerInteraction || this.activePointerInteraction.id !== e.pointerId) return;
+
                     if (this.draggingPointInfo) {
-                        const mousePos = this.getMousePos(this.canvasOriginal, e);
+                        const pos = this.getPointerPos(this.canvasOriginal, e);
                         const logicalWidth = parseFloat(this.canvasOriginal.style.width);
                         const logicalHeight = parseFloat(this.canvasOriginal.style.height);
 
-                        let newX = mousePos.x - this.dragOffsetX;
-                        let newY = mousePos.y - this.dragOffsetY;
+                        let newX = pos.x - this.dragOffsetX;
+                        let newY = pos.y - this.dragOffsetY;
                         newX = Math.max(0, Math.min(logicalWidth, newX));
                         newY = Math.max(0, Math.min(logicalHeight, newY));
                         this.mainPatch.points[this.draggingPointInfo.colIndex][this.draggingPointInfo.rowIndex].x = newX;
@@ -461,14 +473,18 @@
                     }
                 });
 
-                const stopDragging = () => {
+                const stopDragging = (e) => {
+                    if (!this.activePointerInteraction || this.activePointerInteraction.id !== e.pointerId) return;
+
+                    this.activePointerInteraction = null;
+
                     if (this.draggingPointInfo) {
                         this.draggingPointInfo = null;
                         scheduleGlobalRedraw();
                     }
                 };
-                this.canvasOriginal.addEventListener('mouseup', stopDragging);
-                this.canvasOriginal.addEventListener('mouseleave', stopDragging);
+                this.canvasOriginal.addEventListener('pointerup', stopDragging);
+                this.canvasOriginal.addEventListener('pointerleave', stopDragging);
 
                 if (this.coonsifyButton) {
                     this.coonsifyButton.addEventListener('click', () => {
@@ -536,7 +552,7 @@
                 this.mainPatch.points[2][2].type = 'interior';
             }
 
-            getMousePos(canvas, evt) {
+            getPointerPos(canvas, evt) {
                 const rect = canvas.getBoundingClientRect();
                 return { 
                     x: evt.clientX - rect.left, 
