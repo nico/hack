@@ -371,41 +371,9 @@
                 }
             }
             
-            scalePointsToCanvas() {
-                const currentLogicalWidth = parseFloat(this.canvasOriginal.style.width) || this.baseCanvasSize;
-                const scaleX = currentLogicalWidth / 500; 
-                const scaleY = currentLogicalWidth / 500;
-                
-                this.mainPatch = new CubicBezierPatch(); 
-                for (let i = 0; i < 4; i++) {
-                    for (let j = 0; j < 4; j++) {
-                        const originalP = this.initialPoints[i][j];
-                        //this.mainPatch.points[i][j] = createPoint(originalP.x * scaleX, originalP.y * scaleY);
-                        // Preserve `.type` property:
-                        this.mainPatch.points[i][j] = { ...this.initialPoints[i][j] };
-                        this.mainPatch.points[i][j].x *= scaleX;
-                        this.mainPatch.points[i][j].y *= scaleY;
-                    }
-                }
-            }
-
             resizeCanvases() {
                 const dpr = this.devicePixelRatio;
                 let targetLogicalWidth = this.baseCanvasSize; 
-
-                const originalWrapper = this.canvasOriginal.parentElement;
-                if (originalWrapper && originalWrapper.clientWidth > 10) {
-                    // If the group is flex-row, clientWidth of wrapper might be small.
-                    // Consider the group's width divided by number of canvases if in row.
-                    const group = originalWrapper.parentElement;
-                    const numCanvases = this.showSubdividedView ? 3 : 1;
-                    if (group && group.clientWidth > 10 && numCanvases > 1 && parseFloat(getComputedStyle(group).flexDirection) === "row") {
-                         targetLogicalWidth = Math.min(this.baseCanvasSize, (group.clientWidth / numCanvases) - ( (numCanvases -1) * 16 / numCanvases ) ); // Approx account for gap
-                    } else {
-                        targetLogicalWidth = Math.min(this.baseCanvasSize, originalWrapper.clientWidth);
-                    }
-                }
-                targetLogicalWidth = Math.max(150, targetLogicalWidth); 
 
                 this.canvasOriginal.width = targetLogicalWidth * dpr;
                 this.canvasOriginal.height = targetLogicalWidth * dpr; 
@@ -426,7 +394,6 @@
                 }
                 
                 this.numSurfaceSegments = Math.max(5, Math.floor(15 * (targetLogicalWidth / 500)));
-                this.scalePointsToCanvas(); 
                 scheduleGlobalRedraw();
             }
 
@@ -728,8 +695,8 @@
 
         // --- Define Initial Patch Configurations (nominal 0-500 space) ---
         function createInitialPoints(mode = "default") {
-            const w = 500; 
-            const h = 500;
+            const w = 280;
+            const h = 280;
             const initialPoints = [];
             const padding = w * 0.15; 
             const spacingX = (w - 2 * padding) / 3;
