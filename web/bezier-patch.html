@@ -139,6 +139,7 @@
         .controls {
             margin-top: 0.5rem;
             display: flex;
+            flex-direction: column; /* Stack label and pill input */
             align-items: center;
             gap: 0.5rem;
         }
@@ -146,15 +147,49 @@
             font-size: 0.875rem;
             color: #4b5563;
         }
-        .controls input[type="number"] {
-            border: 1px solid #9ca3af;
-            padding: 0.375rem;
-            border-radius: 0.25rem;
-            width: 60px;
-            text-align: center;
+
+        /* Pill input styles */
+        .level-control-pill {
+            display: flex;
+            align-items: center;
+            border: 1px solid #9ca3af; /* gray-400 */
+            border-radius: 1rem; /* pill shape */
+            overflow: hidden; /* to make inner borders work well */
             background-color: #fff;
-            color: #1f2937;
         }
+        .level-control-pill button {
+            background-color: #e5e7eb; /* gray-200 */
+            border: none;
+            padding: 0.5rem 0.75rem;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            color: #374151; /* gray-700 */
+            line-height: 1;
+        }
+        .level-control-pill button:hover {
+            background-color: #d1d5db; /* gray-300 */
+        }
+        .level-control-pill button:active {
+            background-color: #9ca3af; /* gray-400 */
+        }
+        .level-control-pill .level-input {
+            width: 40px; /* Adjust as needed */
+            text-align: center;
+            border: none;
+            border-left: 1px solid #9ca3af;
+            border-right: 1px solid #9ca3af;
+            padding: 0.5rem 0.25rem;
+            font-size: 0.875rem;
+            color: #1f2937;
+            -moz-appearance: textfield; /* Firefox - hide spinners */
+        }
+        .level-control-pill .level-input::-webkit-inner-spin-button,
+        .level-control-pill .level-input::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
         .coonsify-button {
             background-color: #4a5568; /* gray-700 */
             color: white;
@@ -347,7 +382,11 @@
                             <canvas id="canvas-subdivided-${this.idSuffix}"></canvas>
                             <div class="controls">
                                 <label for="subdivisionLevel-${this.idSuffix}">Levels (0-4):</label>
-                                <input type="number" id="subdivisionLevel-${this.idSuffix}" min="0" max="4" value="${this.initialSubdivisionLevel}">
+                                <div class="level-control-pill" id="subdivisionLevel-label-${this.idSuffix}">
+                                    <button id="level-minus-${this.idSuffix}">-</button>
+                                    <input type="number" class="level-input" id="subdivisionLevel-${this.idSuffix}" min="0" max="4" value="${this.initialSubdivisionLevel}">
+                                    <button id="level-plus-${this.idSuffix}">+</button>
+                                </div>
                             </div>
                         </div>
                         <div class="dynamic-canvas-wrapper">
@@ -365,6 +404,8 @@
                     this.canvasSubdivided = document.getElementById(`canvas-subdivided-${this.idSuffix}`);
                     this.ctxSubdivided = this.canvasSubdivided.getContext('2d');
                     this.subdivisionLevelInput = document.getElementById(`subdivisionLevel-${this.idSuffix}`);
+                    this.levelMinusButton = document.getElementById(`level-minus-${this.idSuffix}`);
+                    this.levelPlusButton = document.getElementById(`level-plus-${this.idSuffix}`);
 
                     this.canvasFilled = document.getElementById(`canvas-filled-${this.idSuffix}`);
                     this.ctxFilled = this.canvasFilled.getContext('2d');
@@ -461,16 +502,24 @@
                 }
 
                 if (this.showSubdividedView && this.subdivisionLevelInput) {
-                    const updateSubdivisionLevel = () => {
-                        let level = parseInt(this.subdivisionLevelInput.value, 10);
-                        if (isNaN(level) || level < 0) level = 0;
-                        if (level > 4) level = 4;
-                        this.currentSubdivisionLevel = level;
-                        this.subdivisionLevelInput.value = level; 
+                    const updateLevel = (newLevel) => {
+                        this.currentSubdivisionLevel = Math.max(0, Math.min(4, newLevel));
+                        this.subdivisionLevelInput.value = this.currentSubdivisionLevel;
                         scheduleGlobalRedraw();
                     };
-                    this.subdivisionLevelInput.addEventListener('change', updateSubdivisionLevel);
-                    this.subdivisionLevelInput.addEventListener('input', updateSubdivisionLevel);
+
+                    this.levelMinusButton.addEventListener('click', () => {
+                        updateLevel(this.currentSubdivisionLevel - 1);
+                    });
+                    this.levelPlusButton.addEventListener('click', () => {
+                        updateLevel(this.currentSubdivisionLevel + 1);
+                    });
+                    this.subdivisionLevelInput.addEventListener('change', () => { // For direct typing
+                        updateLevel(parseInt(this.subdivisionLevelInput.value, 10));
+                    });
+                     this.subdivisionLevelInput.addEventListener('input', () => { // For immediate feedback if typed
+                        updateLevel(parseInt(this.subdivisionLevelInput.value, 10));
+                    });
                 }
             }
 
