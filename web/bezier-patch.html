@@ -259,8 +259,6 @@
                     top.points[x][0] = { ...col[0] }; top.points[x][1] = l1_0; top.points[x][2] = l2_0; top.points[x][3] = l3_0;
                     bottom.points[x][0] = l3_0; bottom.points[x][1] = l2_1; bottom.points[x][2] = l1_2; bottom.points[x][3] = { ...col[3] };
                 }
-                assignTypes(top.points);
-                assignTypes(bottom.points);
             }
             subdivideHorizontal(left, right) { 
                 for (let y = 0; y < 4; ++y) {
@@ -274,8 +272,6 @@
                     left.points[0][y] = { ...p0y }; left.points[1][y] = l1_0; left.points[2][y] = l2_0; left.points[3][y] = l3_0;
                     right.points[0][y] = l3_0; right.points[1][y] = l2_1; right.points[2][y] = l1_2; right.points[3][y] = { ...p3y };
                 }
-                assignTypes(left.points);
-                assignTypes(right.points);
             }
             subdivide(topLeft, bottomLeft, topRight, bottomRight) {
                 const top = new CubicBezierPatch(); const bottom = new CubicBezierPatch();
@@ -327,19 +323,6 @@
         function performGlobalRedraw() {
             isRedrawScheduled = false;
             activeVisualizers.forEach(viz => viz.draw());
-        }
-
-        function assignTypes(points) {
-            for (let i = 0; i < 4; i++) {
-                for (let j = 0; j < 4; j++) {
-                    if ((i === 0 || i === 3) && (j ===0 || j === 3))
-                      points[i][j].type = 'corner';
-                    else if (i === 0 || i === 3 || j ===0 || j === 3)
-                      points[i][j].type = 'handle';
-                    else
-                      points[i][j].type = 'interior';
-                }
-            }
         }
 
         class BezierVisualizer {
@@ -535,7 +518,6 @@
                 sum11 = addPoints(sum11, scalePoint(addPoints(p[3][1], p[1][3]), 3.0));
                 sum11 = addPoints(sum11, scalePoint(p[3][3], -1.0));
                 this.mainPatch.points[1][1] = scalePoint(sum11, 1.0 / 9.0);
-                this.mainPatch.points[1][1].type = 'interior';
 
                 // P[1][2]
                 let sum12 = createPoint(0,0);
@@ -545,7 +527,6 @@
                 sum12 = addPoints(sum12, scalePoint(addPoints(p[3][2], p[1][0]), 3.0));
                 sum12 = addPoints(sum12, scalePoint(p[3][0], -1.0));
                 this.mainPatch.points[1][2] = scalePoint(sum12, 1.0 / 9.0);
-                this.mainPatch.points[1][2].type = 'interior';
 
                 // P[2][1]
                 let sum21 = createPoint(0,0);
@@ -555,7 +536,6 @@
                 sum21 = addPoints(sum21, scalePoint(addPoints(p[0][1], p[2][3]), 3.0));
                 sum21 = addPoints(sum21, scalePoint(p[0][3], -1.0));
                 this.mainPatch.points[2][1] = scalePoint(sum21, 1.0 / 9.0);
-                this.mainPatch.points[2][1].type = 'interior';
                 
                 // P[2][2]
                 let sum22 = createPoint(0,0);
@@ -565,7 +545,6 @@
                 sum22 = addPoints(sum22, scalePoint(addPoints(p[0][2], p[2][0]), 3.0));
                 sum22 = addPoints(sum22, scalePoint(p[0][0], -1.0));
                 this.mainPatch.points[2][2] = scalePoint(sum22, 1.0 / 9.0);
-                this.mainPatch.points[2][2].type = 'interior';
             }
 
             getPointerPos(canvas, evt) {
@@ -576,17 +555,25 @@
                 };
             }
             
-            _drawControlPoint(ctx, point, isActive = false, color) {
+            _getPointType(i, j) {
+                if ((i === 0 || i === 3) && (j ===0 || j === 3))
+                    return 'corner';
+                if (i === 0 || i === 3 || j ===0 || j === 3)
+                    return 'handle';
+                return 'interior';
+            }
+
+            _drawControlPoint(ctx, point, pointType, isActive = false, color) {
                 ctx.beginPath();
 
-                if (Object.hasOwn(point, 'type')) {
+                if (pointType) {
                   const pointRadius = 6;
                   const handleRadius = 5;
                   const interiorPointRadius = 4; // Smaller radius for interior tensor points
 
-                  if (point.type === 'corner') {
+                  if (pointType === 'corner') {
                       ctx.arc(point.x, point.y, pointRadius, 0, Math.PI * 2);
-                  } else if (point.type === 'handle') {
+                  } else if (pointType === 'handle') {
                       ctx.rect(point.x - handleRadius, point.y - handleRadius, handleRadius * 2, handleRadius * 2);
                   } else {
                       ctx.arc(point.x, point.y, interiorPointRadius, 0, Math.PI * 2);
@@ -638,7 +625,7 @@
                     ctx.stroke();
                 }
             }
-            
+
             _drawMainPatchView() {
                 this.ctxOriginal.clearRect(0, 0, this.canvasOriginal.width, this.canvasOriginal.height);
                 this.ctxOriginal.save();
@@ -648,11 +635,12 @@
                 this._drawBezierSurface(this.ctxOriginal, this.mainPatch, colorScheme, this.numSurfaceSegments);
                 for (let i = 0; i < 4; i++) {
                     for (let j = 0; j < 4; j++) {
+                        const pointType = this._getPointType(i, j);
                         let isActive = false;
                         if (this.draggingPointInfo && this.draggingPointInfo.colIndex === i && this.draggingPointInfo.rowIndex === j) {
                             isActive = true;
                         }
-                        this._drawControlPoint(this.ctxOriginal, this.mainPatch.points[i][j], isActive, colorScheme);
+                        this._drawControlPoint(this.ctxOriginal, this.mainPatch.points[i][j], pointType, isActive, colorScheme);
                     }
                 }
                 this.ctxOriginal.restore();
@@ -670,7 +658,7 @@
                     this._drawBezierSurface(ctx, patch, colorScheme, segmentsForFinalPatch);
                     for (let i = 0; i < 4; i++) {
                         for (let j = 0; j < 4; j++) {
-                            this._drawControlPoint(ctx, patch.points[i][j], false, colorScheme);
+                            this._drawControlPoint(ctx, patch.points[i][j], null, false, colorScheme);
                         }
                     }
                 } else {
@@ -785,8 +773,6 @@
                 [initialPoints[3][0], initialPoints[2][1]] = [initialPoints[2][1], initialPoints[3][0]];
                 [initialPoints[0][3], initialPoints[1][2]] = [initialPoints[1][2], initialPoints[0][3]];
             }
-
-            assignTypes(initialPoints);
 
             return initialPoints;
         }
