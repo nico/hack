@@ -727,7 +727,7 @@
         }
 
         // --- Define Initial Patch Configurations (nominal 0-500 space) ---
-        function createInitialPoints(nominalWidth, nominalHeight, mode = "default") {
+        function createInitialPoints(mode = "default") {
             const w = 500; 
             const h = 500;
             const initialPoints = [];
@@ -782,7 +782,7 @@
             new BezierVisualizer({
                 containerElement: document.getElementById('example1-container'),
                 title: "Example 1: Flat",
-                initialPoints: createInitialPoints(500, 500, "default"),
+                initialPoints: createInitialPoints("default"),
                 showSubdividedView: true,
                 initialSubdivisionLevel: 1, 
                 baseCanvasSize: displayCanvasBaseSize
@@ -791,7 +791,7 @@
             new BezierVisualizer({
                 containerElement: document.getElementById('example2-container'),
                 title: "Example 2: Twist",
-                initialPoints: createInitialPoints(500, 500, "twist"),
+                initialPoints: createInitialPoints("twist"),
                 showSubdividedView: true,
                 initialSubdivisionLevel: 1,
                 baseCanvasSize: displayCanvasBaseSize
@@ -800,7 +800,7 @@
             new BezierVisualizer({
                 containerElement: document.getElementById('example3-container'),
                 title: "Example 3: Evert",
-                initialPoints: createInitialPoints(500, 500, "evert"),
+                initialPoints: createInitialPoints("evert"),
                 showSubdividedView: true, 
                 baseCanvasSize: displayCanvasBaseSize
             });
@@ -808,7 +808,7 @@
             new BezierVisualizer({
                 containerElement: document.getElementById('example4-container'),
                 title: "Example 4: Fold",
-                initialPoints: createInitialPoints(500, 500, "fold"), 
+                initialPoints: createInitialPoints("fold"),
                 showSubdividedView: true,
                 initialSubdivisionLevel: 0,
                 baseCanvasSize: displayCanvasBaseSize 
