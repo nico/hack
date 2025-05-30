@@ -3,7 +3,7 @@
 # Script for building qemu + deps on macOS, without using brew
 # Run in `build` subdirectory of a qemu checkout.
 
-# Tested with qemu 7c18f2d663521f1b31b821a13358ce38075eaf7d (HEAD as of 2023 May 2)
+# Tested with qemu a9cd5bc6399a80fcf233ed0fffe6067b731227d8 (HEAD as of 2025 Apr 15)
 
 set -e
 
@@ -20,12 +20,15 @@ make install
 popd
 
 # Use a mirror because ftp.gnu.org is unreachable often :/
-#curl -LO https://ftp.gnu.org/pub/gnu/gettext/gettext-0.21.1.tar.gz
-curl -LO https://mirrors.dotsrc.org/ftp.gnu.org/gnu/gettext/gettext-0.21.1.tar.gz
+curl -LO https://ftp.gnu.org/pub/gnu/gettext/gettext-0.21.1.tar.gz
+#curl -LO https://mirrors.dotsrc.org/ftp.gnu.org/gnu/gettext/gettext-0.21.1.tar.gz
 tar xzf gettext-0.21.1.tar.gz
 mkdir -p build/gettext
 pushd build/gettext
+(
+export am_cv_func_iconv_works=yes
 ../../gettext-0.21.1/configure --prefix=$D
+)
 make -j10
 make install
 popd
@@ -72,6 +75,11 @@ mkdir -p build/libslirp
 PATH=$PATH:$D/bin $MESON setup --prefix $D build/libslirp libslirp-v4.8.0
 $MESON compile -C build/libslirp
 $MESON install -C build/libslirp
+
+# tomli
+python3 -m venv qemu-pyenv
+. qemu-pyenv/bin/activate
+pip install tomli
 
 # All deps installed!
 PATH=$PATH:$D/bin ../configure --prefix=$D
