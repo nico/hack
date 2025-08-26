@@ -2301,7 +2301,7 @@ static void save_images(struct PDF* pdf) {
 
       // "If the value is 0 or absent, the image's height is not
       //  predetermined, and the encoded data must be terminated by
-      //  and end-of-block bit pattern or by the end of the filter's data.
+      //  and end-of-block bit pattern or by the end of the filter's data."
       if (height == 0) {
         printf("cannot save CCITTFaxDecode with height 0\n");
         continue;
