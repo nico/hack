@@ -2221,7 +2221,7 @@ static void save_images(struct PDF* pdf) {
       parms_dict = &pdf->dicts[parms->index];
     }
 
-    bool need_jbig2_header = false;
+    bool need_jbig2_envelope = false;
     bool need_tiff_header = false;
     char buf[80];
     if (!strncmp((char*)name->value.data, "/DCTDecode", name->value.size)) {
@@ -2236,7 +2236,7 @@ static void save_images(struct PDF* pdf) {
       }
       sprintf(buf, "out_%d.jbig2", (int)pdf->indirect_objects[i].id);
       printf("it's a jbig2! saving to %s\n", buf);
-      need_jbig2_header = true;
+      need_jbig2_envelope = true;
     } else if (!strncmp((char*)name->value.data,
                         "/JPXDecode", name->value.size)) {
       sprintf(buf, "out_%d.jpx", (int)pdf->indirect_objects[i].id);
@@ -2263,7 +2263,7 @@ static void save_images(struct PDF* pdf) {
     if (!f)
       fatal("failed to open %s\n", buf);
 
-    if (need_jbig2_header) {
+    if (need_jbig2_envelope) {
       static const uint8_t id_string[] = {
           0x97, 0x4A, 0x42, 0x32, 0x0D, 0x0A, 0x1A, 0x0A,
       };
@@ -2317,6 +2317,41 @@ static void save_images(struct PDF* pdf) {
     }
 
     fwrite(stream->data.data, stream->data.size, 1, f);
+
+    if (need_jbig2_envelope) {
+      // "The JBIG2 file header, end-of-page segments, and end-of-file segment
+      //  are not used in PDF. These should be removed before the PDF objects
+      //  described below are created."
+      // [...]
+      // "In the image XObject, however, the segment’s page number should
+      //  always be 1; that is, when each such segment is written to the
+      //  XObject, the value of its segment page association field should be
+      //  set to 1."
+      // EndOfPage is required for stand-alone jbig2 files.
+      // EndOfFile is optional in the sequential organization we're writing.
+      static const uint8_t end_of_page_1[] = {
+          // u32 segment_number (99 / 0x63 -- hopefully larger than anything
+          //    that's in the actual data)
+          //    FIXME: Parse jbig2 segment headers and use next free ID.
+          0x00, 0x00, 0x00, 0x63,
+
+          // u8 segment_type_and_flags (49 / 0x31: EndOfPage)
+          //    Bit 1 << 6 controls if page_association is u32 or u8,
+          //    we pick u8 by not setting that bit.
+          0x31,
+
+          // u8 referred_to_segment_count_and_retention_flags
+          0x00,
+
+          // u8 page_association (end page 1)
+          0x01,
+
+          // u32 segment payload size (0)
+          0x00, 0x00, 0x00, 0x00,
+      };
+      fwrite(end_of_page_1, sizeof(end_of_page_1), 1, f);
+    }
+
     fclose(f);
   }
 }
