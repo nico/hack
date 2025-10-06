@@ -113,7 +113,7 @@ This writes APP0 + Exif:
 
 However, using the technique used for PNGs above does *not* work:
 
-    sips -s dpiWidth 144 -s dpiHeight 144 out-dpi144.jpg
+    sips -s dpiWidth 144 -s dpiHeight 144 -o out-dpi144.jpg out.jpg
 
     % ~/src/hack/jpeg_exif_dump out-dpi144.jpg
     ..
@@ -135,6 +135,11 @@ However, using the technique used for PNGs above does *not* work:
 
 Opening a file like this with `open out-dpi144.jpg` does *not* show
 the image at 1x zoom but at 2x zoom.
+
+Using (exiftool)[https://exiftool.org/] does work:
+
+    rm -f out-dpi144.jpg && \
+        exiftool -Xresolution=144 -Yresolution=144 -o out-dpi144.jpg out.jpg
 
 
 JPEG2000
@@ -173,11 +178,22 @@ But they don't write exif info, and for jpegs that was what Preview.app looked
 at, and I don't currently know how to create JPEG2000 files that have Exif
 data with this.
 
+
+TIFF
+----
+
+This just works, like PNG:
+
+    sips -s format tiff -o out.tiff out.png
+    sips -s dpiWidth 144 -s dpiHeight 144 -o out-dpi144.tiff out.tiff
+
+
 WebP
 ----
 
 Neither Preview.app nor `sips` can write WebP files.
 
-WebP files *can* store Exif data, so maybe a WebP file with the rigth Exif
-data would show up at 1x, but I don't currently know how to crate WebP files
-that have Exif data with this.
+Using (exiftool)[https://exiftool.org/] does work however:
+
+    rm -f out-dpi144.webp && \
+        exiftool -Xresolution=144 -Yresolution=144 -o out-dpi144.webp out.webp
