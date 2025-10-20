@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zoom & Pan Map Demo (Standalone)</title>
+    <title>Zoom & Pan Map Demo (Pointer Events)</title>
     
     <style>
         /* CSS Variables for easy color management */
@@ -26,6 +26,8 @@
             min-height: 100vh;
             margin: 0;
             padding: 0;
+            /* Ensure the body doesn't cause overflow on resize/zoom */
+            touch-action: none; 
         }
 
         #app-container {
@@ -81,6 +83,8 @@
             width: 100%;
             height: 100%;
             display: block;
+            /* Prevent default touch actions on the canvas */
+            touch-action: none; 
         }
         
         #controls-panel {
@@ -120,11 +124,16 @@
 <body>
 
     <div id="app-container">
-        <h1>Interactive Map Demo (Gesture Control)</h1>
+        <h1>Interactive Map Demo (Pointer Events)</h1>
         <p>
-            **Interaction:**
-            <span style="font-weight: 600;">Pan</span> by **two-finger dragging** on the canvas.
-            <span style="font-weight: 600;">Zoom</span> by **two-finger pinching** on the canvas (or holding Ctrl/Meta and scrolling).
+            **Desktop Interaction:**
+            <span style="font-weight: 600;">Pan</span> by **two-finger dragging**.
+            <span style="font-weight: 600;">Zoom</span> by **two-finger pinching** (or holding Ctrl/Meta and scrolling).
+        </p>
+        <p>
+            **Mobile Interaction (via Pointer Events):**
+            <span style="font-weight: 600;">Pan</span> by **one-finger dragging**.
+            <span style="font-weight: 600;">Zoom</span> by **two-finger pinching**.
         </p>
 
         <div id="canvas-container">
@@ -152,18 +161,59 @@
         let scale = 1.0;
         let offsetX = 0;
         let offsetY = 0;
-        const GRID_SIZE = 50; // Base size of the map grid squares
+        const GRID_SIZE = 50; 
+
+        // POINTER EVENTS STATE
+        // Map to store active pointers (for multi-touch handling)
+        const activePointers = new Map();
+        let initialPinchDist = null;
+        let initialTouchCenter = { x: 0, y: 0 };
+
+
+        // --- UTILITY FUNCTIONS ---
 
         /**
          * Converts a screen coordinate (e.g., mouse position) to a map coordinate
          * based on the current scale and offset.
-         * @param {number} screenCoord - The coordinate on the screen (clientX/Y).
-         * @param {number} offset - The current map offset (offsetX/Y).
-         * @returns {number} The corresponding coordinate in map space.
          */
         function screenToWorld(screenCoord, offset) {
             return (screenCoord - offset) / scale;
         }
+
+        /**
+         * Calculates the distance between two pointer events.
+         */
+        function getDistance(p1, p2) {
+            const dx = p1.clientX - p2.clientX;
+            const dy = p1.clientY - p2.clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+        
+        /**
+         * Calculates the center point of two pointer events relative to the canvas.
+         */
+        function getCenter(p1, p2, rect) {
+            const x = (p1.clientX + p2.clientX) / 2 - rect.left;
+            const y = (p1.clientY + p2.clientY) / 2 - rect.top;
+            return { x, y };
+        }
+
+        /**
+         * Handles the core zooming logic with a specific center point.
+         */
+        function applyZoom(zoomFactor, cx, cy) {
+            const oldScale = scale;
+            scale = Math.max(0.2, Math.min(5.0, scale * zoomFactor));
+
+            if (oldScale !== scale) {
+                const ratio = scale / oldScale;
+                
+                // Zoom-to-Point Logic: adjusts offset to keep the center point (cx, cy) fixed
+                offsetX = cx - ((cx - offsetX) * ratio);
+                offsetY = cy - ((cy - offsetY) * ratio);
+            }
+        }
+
 
         /**
          * Main function to resize and draw the map.
@@ -234,41 +284,26 @@
             `;
         }
 
-        // --- Event Listener for Combined Zooming (Pinch) and Panning (Two-Finger Drag) ---
+        // --- DESKTOP WHEEL HANDLER (Trackpad Pan/Pinch) ---
+        // This is kept separate as the wheel event is a synthesized, high-resolution
+        // event specific to scrolling and trackpad gestures on desktop OSes.
 
         canvas.addEventListener('wheel', (e) => {
-            // Prevent the default browser scroll/zoom behavior
             e.preventDefault();
 
-            // Check for explicit zoom indicator (Ctrl/Meta key press), which often signals a pinch proxy on desktop browsers
-            // MacBooks specifically often use the "pinch" gesture to fire the wheel event with Ctrl/Meta keys set.
+            // Check for explicit zoom indicator (Ctrl/Meta key press), which often signals a pinch proxy on desktop
             const isZoomGesture = e.ctrlKey || e.metaKey; 
+
+            const canvasRect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - canvasRect.left;
+            const mouseY = e.clientY - canvasRect.top;
 
             if (isZoomGesture) {
                 // --- ZOOM LOGIC (Pinch-to-zoom) ---
-                
-                // Determine the zoom factor based on the wheel delta
                 const zoomFactor = e.deltaY < 0 ? 1.05 : 0.95; 
-
-                const oldScale = scale;
-                scale = Math.max(0.2, Math.min(5.0, scale * zoomFactor));
-
-                // Apply Zoom-to-Point offset correction
-                if (oldScale !== scale) {
-                    const canvasRect = canvas.getBoundingClientRect();
-                    const mouseX = e.clientX - canvasRect.left;
-                    const mouseY = e.clientY - canvasRect.top;
-                    
-                    const ratio = scale / oldScale;
-                    
-                    offsetX = mouseX - ((mouseX - offsetX) * ratio);
-                    offsetY = mouseY - ((mouseY - offsetY) * ratio);
-                }
-
+                applyZoom(zoomFactor, mouseX, mouseY);
             } else {
                 // --- PANNING LOGIC (Two-finger drag/scroll) ---
-                // If no modifier keys, assume the deltas represent translation/panning distance.
-                // Using subtraction because positive deltaX/Y means scrolling right/down (world moves left/up).
                 offsetX -= e.deltaX; 
                 offsetY -= e.deltaY;
             }
@@ -276,35 +311,105 @@
             drawMap();
         }, { passive: false }); 
 
+        // --- POINTER EVENTS HANDLERS (Unifies Touch/Mouse) ---
+
+        canvas.addEventListener('pointerdown', (e) => {
+            // Prevent default browser behavior (like touch scrolling/highlighting)
+            e.preventDefault();
+            // Capture the pointer to ensure all subsequent events fire on this element
+            canvas.setPointerCapture(e.pointerId);
+
+            // Store the pointer and its initial position
+            activePointers.set(e.pointerId, { 
+                x: e.clientX, 
+                y: e.clientY 
+            });
+
+            if (activePointers.size === 2) {
+                // Two fingers down: Initialize Pinch State
+                const [p1, p2] = Array.from(activePointers.values());
+                const canvasRect = canvas.getBoundingClientRect();
+
+                initialPinchDist = getDistance(p1, p2);
+                initialTouchCenter = getCenter(p1, p2, canvasRect);
+            } else {
+                // One finger down (or mouse click): Reset pinch state
+                initialPinchDist = null;
+            }
+        });
+
+        canvas.addEventListener('pointermove', (e) => {
+            if (!activePointers.has(e.pointerId)) return;
+            e.preventDefault();
+
+            const currentPointer = { x: e.clientX, y: e.clientY };
+            const previousPointer = activePointers.get(e.pointerId);
+
+            if (activePointers.size === 1) {
+                // --- ONE POINTER: PANNING (Mobile/Touchscreen) ---
+                const dx = currentPointer.x - previousPointer.x;
+                const dy = currentPointer.y - previousPointer.y;
+
+                offsetX += dx;
+                offsetY += dy;
+
+            } else if (activePointers.size === 2) {
+                // --- TWO POINTERS: PINCHING (Mobile/Touchscreen) ---
+                const [p1, p2] = Array.from(activePointers.values());
+                const canvasRect = canvas.getBoundingClientRect();
+                
+                // Update the moved pointer's position in the map
+                activePointers.set(e.pointerId, currentPointer);
+
+                const currentDist = getDistance(p1, p2);
+                
+                if (initialPinchDist !== null && currentDist !== 0) {
+                    const ratio = currentDist / initialPinchDist;
+                    const zoomFactor = 1 + (ratio - 1) * 0.15; // Slowed factor for smoother touch zoom
+                    
+                    applyZoom(zoomFactor, initialTouchCenter.x, initialTouchCenter.y);
+
+                    // Re-set initial state based on current distance for next frame
+                    initialPinchDist = currentDist;
+                }
+            }
+            
+            // Update the pointer's position after logic
+            activePointers.set(e.pointerId, currentPointer);
+            
+            drawMap();
+        });
+
+        const pointerUpOrCancel = (e) => {
+            if (activePointers.has(e.pointerId)) {
+                canvas.releasePointerCapture(e.pointerId);
+                activePointers.delete(e.pointerId);
+            }
+            // If only one pointer remains after a two-pointer gesture ends, reset pinch state
+            if (activePointers.size < 2) {
+                initialPinchDist = null;
+            }
+        };
+
+        canvas.addEventListener('pointerup', pointerUpOrCancel);
+        canvas.addEventListener('pointercancel', pointerUpOrCancel);
+        canvas.addEventListener('pointerout', pointerUpOrCancel);
+        canvas.addEventListener('pointerleave', pointerUpOrCancel);
+
+
         // --- Button Controls (remain the same) ---
 
         const zoomIn = () => {
-            const oldScale = scale;
-            scale = Math.min(5.0, scale * 1.2);
-            // Center the zoom around the middle of the canvas for button clicks
-            if (oldScale !== scale) {
-                const cx = canvas.width / 2;
-                const cy = canvas.height / 2;
-                const ratio = scale / oldScale;
-
-                offsetX = cx - ((cx - offsetX) * ratio);
-                offsetY = cy - ((cy - offsetY) * ratio);
-            }
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            applyZoom(1.2, cx, cy);
             drawMap();
         };
 
         const zoomOut = () => {
-            const oldScale = scale;
-            scale = Math.max(0.2, scale * 0.8);
-            // Center the zoom around the middle of the canvas for button clicks
-             if (oldScale !== scale) {
-                const cx = canvas.width / 2;
-                const cy = canvas.height / 2;
-                const ratio = scale / oldScale;
-
-                offsetX = cx - ((cx - offsetX) * ratio);
-                offsetY = cy - ((cy - offsetY) * ratio);
-            }
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            applyZoom(0.8, cx, cy);
             drawMap();
         };
 
@@ -315,7 +420,6 @@
         // Initial setup and redraw on window resize
         window.addEventListener('resize', drawMap);
         window.onload = function() {
-            // Start the map drawing loop
             drawMap();
         }
 
@@ -323,3 +427,4 @@
 
 </body>
 </html>
+
