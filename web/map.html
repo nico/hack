@@ -330,7 +330,10 @@
                 const [p1, p2] = Array.from(activePointers.values());
                 const canvasRect = canvas.getBoundingClientRect();
 
-                initialPinchDist = getDistance(p1, p2);
+                let dist = getDistance(p1, p2);
+                
+                // FIX: Ensure initial distance is not zero to prevent division by zero in pointermove
+                initialPinchDist = Math.max(dist, 1); 
                 initialTouchCenter = getCenter(p1, p2, canvasRect);
             } else {
                 // One finger down (or mouse click): Reset pinch state
@@ -364,6 +367,7 @@
                 const currentDist = getDistance(p1, p2);
                 
                 if (initialPinchDist !== null && currentDist !== 0) {
+                    // initialPinchDist is guaranteed to be >= 1 from pointerdown fix
                     const ratio = currentDist / initialPinchDist;
                     const zoomFactor = 1 + (ratio - 1) * 0.15; // Slowed factor for smoother touch zoom
                     
