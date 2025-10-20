@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zoom & Pan Map Demo (Standalone)</title>
+    
+    <style>
+        /* CSS Variables for easy color management */
+        :root {
+            --primary-color: #4f46e5; /* Darker Indigo */
+            --primary-light: #6366f1; /* Lighter Indigo */
+            --text-color: #1f2937; /* Dark Gray */
+            --secondary-text: #6b7280; /* Medium Gray */
+            --background-color: #f7f7f7; /* Off-White background */
+            --card-background: white;
+            --canvas-background: #f3f4ff; /* Very light blue for canvas */
+        }
+        
+        body {
+            font-family: 'Inter', Arial, sans-serif;
+            background-color: var(--background-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+
+        #app-container {
+            padding: 24px; 
+            background-color: var(--card-background);
+            border-radius: 12px; 
+            max-width: 896px; 
+            width: 90%; 
+            margin: 32px auto; 
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        h1 {
+            font-size: 1.5rem; 
+            font-weight: bold;
+            color: var(--text-color);
+            margin-bottom: 1rem; 
+        }
+        
+        p {
+             font-size: 0.875rem; 
+             color: var(--secondary-text);
+             margin-bottom: 1rem; 
+        }
+        
+        .status-display-wrapper {
+             margin-top: 1rem;
+             font-size: 0.875rem;
+             color: var(--text-color);
+        }
+        
+        .status-display-wrapper .font-mono {
+            font-family: monospace;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        #canvas-container {
+            position: relative;
+            width: 100%;
+            /* Maintain 16:9 aspect ratio */
+            padding-top: 56.25%; /* (9/16) * 100% */
+            background-color: var(--canvas-background);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.05);
+        }
+
+        #mapCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        #controls-panel {
+            position: absolute;
+            bottom: 1rem; 
+            right: 1rem; 
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .control-button {
+            background-color: var(--primary-light);
+            color: white;
+            font-weight: bold;
+            padding: 0.5rem 0.75rem; 
+            border-radius: 9999px; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+            font-size: 1.125rem; 
+            line-height: 1;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .control-button:hover {
+            background-color: var(--primary-color);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+        .control-button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app-container">
+        <h1>Interactive Map Demo (Gesture Control)</h1>
+        <p>
+            **Interaction:**
+            <span style="font-weight: 600;">Pan</span> by **two-finger dragging** on the canvas.
+            <span style="font-weight: 600;">Zoom</span> by **two-finger pinching** on the canvas (or holding Ctrl/Meta and scrolling).
+        </p>
+
+        <div id="canvas-container">
+            <canvas id="mapCanvas"></canvas>
+
+            <!-- Zoom Controls -->
+            <div id="controls-panel">
+                <button id="zoomInBtn" class="control-button"> + </button>
+                <button id="zoomOutBtn" class="control-button"> − </button>
+            </div>
+        </div>
+        
+        <!-- Status Display -->
+        <div class="status-display-wrapper">
+            <p id="statusDisplay"></p>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('mapCanvas');
+        const ctx = canvas.getContext('2d');
+        const statusDisplay = document.getElementById('statusDisplay');
+
+        // Map State
+        let scale = 1.0;
+        let offsetX = 0;
+        let offsetY = 0;
+        const GRID_SIZE = 50; // Base size of the map grid squares
+
+        /**
+         * Converts a screen coordinate (e.g., mouse position) to a map coordinate
+         * based on the current scale and offset.
+         * @param {number} screenCoord - The coordinate on the screen (clientX/Y).
+         * @param {number} offset - The current map offset (offsetX/Y).
+         * @returns {number} The corresponding coordinate in map space.
+         */
+        function screenToWorld(screenCoord, offset) {
+            return (screenCoord - offset) / scale;
+        }
+
+        /**
+         * Main function to resize and draw the map.
+         */
+        function drawMap() {
+            // 1. Ensure canvas matches its container size for responsiveness
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+
+            // Clear the canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Start transformation stack:
+            // 2. Apply current pan offset (translation)
+            ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
+
+            // --- Drawing Logic (Draws a simple grid) ---
+
+            const currentGridSize = GRID_SIZE; 
+
+            // Determine the visible area in world coordinates
+            const worldStart = {
+                x: screenToWorld(0, offsetX),
+                y: screenToWorld(0, offsetY)
+            };
+            const worldEnd = {
+                x: screenToWorld(canvas.width, offsetX),
+                y: screenToWorld(canvas.height, offsetY)
+            };
+
+            // Calculate where to start and end drawing lines
+            const startX = Math.floor(worldStart.x / currentGridSize) * currentGridSize;
+            const startY = Math.floor(worldStart.y / currentGridSize) * currentGridSize;
+
+            ctx.lineWidth = 1 / scale; // Keep line thickness constant visually
+            ctx.strokeStyle = '#3b82f6'; // Blue for grid
+
+            // Draw vertical lines
+            for (let x = startX; x <= worldEnd.x; x += currentGridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, worldStart.y);
+                ctx.lineTo(x, worldEnd.y);
+                ctx.stroke();
+            }
+
+            // Draw horizontal lines
+            for (let y = startY; y <= worldEnd.y; y += currentGridSize) {
+                ctx.beginPath();
+                ctx.moveTo(worldStart.x, y);
+                ctx.lineTo(worldEnd.x, y);
+                ctx.stroke();
+            }
+
+            // Draw a central feature (a red dot) at the origin (0, 0)
+            ctx.fillStyle = 'red';
+            ctx.beginPath();
+            ctx.arc(0, 0, 10 / scale, 0, 2 * Math.PI); 
+            ctx.fill();
+
+            // Reset the transform matrix for UI elements
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+            // Update status display
+            statusDisplay.innerHTML = `
+                Scale: <span class="font-mono">${scale.toFixed(2)}x</span> | 
+                Offset: <span class="font-mono">X: ${offsetX.toFixed(0)}, Y: ${offsetY.toFixed(0)}</span>
+            `;
+        }
+
+        // --- Event Listener for Combined Zooming (Pinch) and Panning (Two-Finger Drag) ---
+
+        canvas.addEventListener('wheel', (e) => {
+            // Prevent the default browser scroll/zoom behavior
+            e.preventDefault();
+
+            // Check for explicit zoom indicator (Ctrl/Meta key press), which often signals a pinch proxy on desktop browsers
+            // MacBooks specifically often use the "pinch" gesture to fire the wheel event with Ctrl/Meta keys set.
+            const isZoomGesture = e.ctrlKey || e.metaKey; 
+
+            if (isZoomGesture) {
+                // --- ZOOM LOGIC (Pinch-to-zoom) ---
+                
+                // Determine the zoom factor based on the wheel delta
+                const zoomFactor = e.deltaY < 0 ? 1.05 : 0.95; 
+
+                const oldScale = scale;
+                scale = Math.max(0.2, Math.min(5.0, scale * zoomFactor));
+
+                // Apply Zoom-to-Point offset correction
+                if (oldScale !== scale) {
+                    const canvasRect = canvas.getBoundingClientRect();
+                    const mouseX = e.clientX - canvasRect.left;
+                    const mouseY = e.clientY - canvasRect.top;
+                    
+                    const ratio = scale / oldScale;
+                    
+                    offsetX = mouseX - ((mouseX - offsetX) * ratio);
+                    offsetY = mouseY - ((mouseY - offsetY) * ratio);
+                }
+
+            } else {
+                // --- PANNING LOGIC (Two-finger drag/scroll) ---
+                // If no modifier keys, assume the deltas represent translation/panning distance.
+                // Using subtraction because positive deltaX/Y means scrolling right/down (world moves left/up).
+                offsetX -= e.deltaX; 
+                offsetY -= e.deltaY;
+            }
+
+            drawMap();
+        }, { passive: false }); 
+
+        // --- Button Controls (remain the same) ---
+
+        const zoomIn = () => {
+            const oldScale = scale;
+            scale = Math.min(5.0, scale * 1.2);
+            // Center the zoom around the middle of the canvas for button clicks
+            if (oldScale !== scale) {
+                const cx = canvas.width / 2;
+                const cy = canvas.height / 2;
+                const ratio = scale / oldScale;
+
+                offsetX = cx - ((cx - offsetX) * ratio);
+                offsetY = cy - ((cy - offsetY) * ratio);
+            }
+            drawMap();
+        };
+
+        const zoomOut = () => {
+            const oldScale = scale;
+            scale = Math.max(0.2, scale * 0.8);
+            // Center the zoom around the middle of the canvas for button clicks
+             if (oldScale !== scale) {
+                const cx = canvas.width / 2;
+                const cy = canvas.height / 2;
+                const ratio = scale / oldScale;
+
+                offsetX = cx - ((cx - offsetX) * ratio);
+                offsetY = cy - ((cy - offsetY) * ratio);
+            }
+            drawMap();
+        };
+
+        document.getElementById('zoomInBtn').addEventListener('click', zoomIn);
+        document.getElementById('zoomOutBtn').addEventListener('click', zoomOut);
+
+
+        // Initial setup and redraw on window resize
+        window.addEventListener('resize', drawMap);
+        window.onload = function() {
+            // Start the map drawing loop
+            drawMap();
+        }
+
+    </script>
+
+</body>
+</html>
