@@ -2,15 +2,21 @@
 <!-- This is the "not yet ready yet" approach from darkmode.html
      It's now ready and works in Chrome, Firefox, and Safari. -->
 <meta name="color-scheme" content="light dark">
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>image upsampling test</title>
-<h1>Gamma-correct image upsampling</h1>
+<style>
+body {
+    max-width: 100ch;
+}
+</style>
+<h1>Gamma-Correct Image Upsampling</h1>
 
 <p>
-<strong>WARNING:</strong> This page will only look right on a screen with a 2x scale factor, such as
-on all recent Macs.
+<strong>⚠️ Note:</strong> This works only on a screen with a 2x scale factor,
+such as on all recent Macs.
 
-<h2>Source image</h2>
+<h2>Source Image</h2>
 <p>
 Here's an image (credit: Jonas Berlin, <a href="http://www.ericbrasseur.org/gamma.html#:~:text=Jonas%20Berlin%20sent%20this%20image">source</a>).
 
@@ -42,7 +48,7 @@ screens.)
 <img srcset="gamma-1.0-or-2.2.png 1x, gamma-1.0-or-2.2.png 2x"
      src="gamma-1.0-or-2.2.png" />
 
-<h2>Gamma-correct upsampled image</h2>
+<h2>Gamma-Correct Upsampled Image</h2>
 <p>
 Here's the same image scaled up 2x, using software that does gamma-correct
 image upsampling. It also uses the hack mentioned above to show it at 1x zoom on
@@ -72,7 +78,7 @@ resampling by default. If you also pass <code>-nogamma</code>, you will get
 the behavior that browsers currently get you, see below.
 </details>
 
-<h2>How your browser upsamples it</h2>
+<h2>How Your Browser Upsamples It</h2>
 <p>
 Here's the image how your browser displays it when just using
 <code>&lt;img src="gamma-1.0-or-2.2.png" /&gt;</code> (i.e. how it
@@ -81,13 +87,13 @@ displays most images on the web):
 <p>
 <img src="gamma-1.0-or-2.2.png" />
 
-<h1>Do browsers get this right?</h1>
+<h1>Do Browsers Get This Right?</h1>
 <p>
 At the time of this writing (Oct 2025), none of the major browsers does
 gamma-correct image resizing when upsampling images -- despite that being
 how the majority of the images on the web are displayed.
 
-<h1>Effect on dithering demos</h1>
+<h1>Effect on Dithering Demos</h1>
 
 <p>
 This is why articles about dithering that bother to deal with gamma
