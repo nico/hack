@@ -78,6 +78,13 @@ gamma-correct image resizing when upsampling images -- despite that being
 how the majority of the images on the web are displayed.
 
 <p>
+This is why articles about dithering that bother to deal with gamma
+correction tend to include a disclaimer along the lines "trust me, this
+is really better, even though it looks worse in your browser": The browser
+gamma-incorrectly upsamples the source and dithered images, and if you do
+gamma-incorecct dithering, the errors cancel out!
+
+<p>
 A while ago, Eric Brasseur did a 
 <a href="http://www.ericbrasseur.org/gamma.html">detailed write-up
 on gamma-correct image sampling</a>. It focused on downsampling. It looks like
