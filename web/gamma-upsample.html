@@ -89,18 +89,9 @@ displays most images on the web):
 
 <h1>Do Browsers Get This Right?</h1>
 <p>
-At the time of this writing (Oct 2025), none of the major browsers does
-gamma-correct image resizing when upsampling images -- despite that being
-how the majority of the images on the web are displayed.
-
-<h1>Effect on Dithering Demos</h1>
-
-<p>
-This is why articles about dithering that bother to deal with gamma
-correction tend to include a disclaimer along the lines "trust me, this
-is really better, even though it looks worse in your browser": The browser
-gamma-incorrectly upsamples the source and dithered images, and if you do
-gamma-incorecct dithering, the errors cancel out!
+At the time of this writing (Oct 2025), none of the major browsers do
+gamma-correct image upsampling -- even though this is how the majority of the
+images on the web are displayed on retina screens.
 
 <h1>Background</h1>
 
@@ -110,3 +101,12 @@ A while ago, Eric Brasseur did a
 on gamma-correct image sampling</a>. It explains what gamma-correct image
 resampling is. It focused on downsampling. It looks like all browsers fixed
 their downsampling in response, but upsampling still has the same problem.
+
+<h1>Effect on Dithering Demos</h1>
+
+<p>
+This is why articles about dithering that bother to deal with gamma
+correction tend to include a disclaimer along the lines "trust me, this
+is really better, even though it looks worse in your browser": The browser
+gamma-incorrectly upsamples the source and dithered images, and if you do
+gamma-incorecct dithering, the errors cancel out!
