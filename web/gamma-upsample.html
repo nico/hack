@@ -1,14 +1,18 @@
 <!doctype html>
-<!-- This is the "not yet ready yet" approach from darkmode.html
-     It's now ready and works in Chrome, Firefox, and Safari. -->
 <meta name="color-scheme" content="light dark">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>image upsampling test</title>
 <style>
+/* Based on https://thecascade.dev/article/least-amount-of-css/ */
 body {
-    max-width: 100ch;
+  font-family: system-ui;
+  line-height: 1.5;
+  max-width: min(70ch, 100% - 4rem);
+  margin-inline: auto;
 }
+
+img { display: block; }
 </style>
 <h1>Gamma-Correct Image Upsampling</h1>
 
