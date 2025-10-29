@@ -4,14 +4,19 @@
 <meta name="color-scheme" content="light dark">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>image upsampling test</title>
-<h1>Gamma-correct image upsampling.</h1>
+<h1>Gamma-correct image upsampling</h1>
 
 <p>
-This page will only look right on a screen with a 2x scale factor, such as
+<strong>WARNING:</strong> This page will only look right on a screen with a 2x scale factor, such as
 on all recent Macs.
 
+<h2>Source image</h2>
 <p>
 Here's an image (credit: Jonas Berlin, <a href="http://www.ericbrasseur.org/gamma.html#:~:text=Jonas%20Berlin%20sent%20this%20image">source</a>).
+
+
+<details>
+<summary>(It uses a hack to force it to be displayed at 1:1 pixel scale.)</summary>
 
 <p>
 It's displayed by using the same image file for both the <code>1x</code> and
@@ -31,17 +36,24 @@ an image of twice the resolution for the <code>2x</code> image. We use it as a
 hack here to make sure that browsers don't scale up the image on retina
 screens.)
 
+</details>
+
 <p>
 <img srcset="gamma-1.0-or-2.2.png 1x, gamma-1.0-or-2.2.png 2x"
      src="gamma-1.0-or-2.2.png" />
 
+<h2>Gamma-correct upsampled image</h2>
 <p>
 Here's the same image scaled up 2x, using software that does gamma-correct
-image upsampling, using the same <code>srcset</code> hack to show it at 1x
-zoom on retina screens:
+image upsampling. It also uses the hack mentioned above to show it at 1x zoom on
+retina screens:
+
+<p>
+<img srcset="gamma-1.0-or-2.2-2x.png 1x, gamma-1.0-or-2.2-2x.png 2x"
+     src="gamma-1.0-or-2.2-2x.png" />
 
 <details>
-<summary>How I made the upsampled image</summary>
+<summary>How I made the gamma-correctly upsampled image</summary>
 
 <p>
 I used <a href="https://entropymine.com/imageworsener/">imageworsener</a>,
@@ -60,10 +72,7 @@ resampling by default. If you also pass <code>-nogamma</code>, you will get
 the behavior that browsers currently get you, see below.
 </details>
 
-<p>
-<img srcset="gamma-1.0-or-2.2-2x.png 1x, gamma-1.0-or-2.2-2x.png 2x"
-     src="gamma-1.0-or-2.2-2x.png" />
-
+<h2>How your browser upsamples it</h2>
 <p>
 Here's the image how your browser displays it when just using
 <code>&lt;img src="gamma-1.0-or-2.2.png" /&gt;</code> (i.e. how it
@@ -72,10 +81,13 @@ displays most images on the web):
 <p>
 <img src="gamma-1.0-or-2.2.png" />
 
+<h1>Do browsers get this right?</h1>
 <p>
 At the time of this writing (Oct 2025), none of the major browsers does
 gamma-correct image resizing when upsampling images -- despite that being
 how the majority of the images on the web are displayed.
+
+<h1>Effect on dithering demos</h1>
 
 <p>
 This is why articles about dithering that bother to deal with gamma
@@ -83,6 +95,8 @@ correction tend to include a disclaimer along the lines "trust me, this
 is really better, even though it looks worse in your browser": The browser
 gamma-incorrectly upsamples the source and dithered images, and if you do
 gamma-incorecct dithering, the errors cancel out!
+
+<h1>Further reading</h1>
 
 <p>
 A while ago, Eric Brasseur did a 
