@@ -23,12 +23,12 @@ It's displayed by using the same image file for both the <code>1x</code> and
 <code>2x</code> variants, like so:
 
 <p>
-<code>
 <pre>
+<code>
 &lt;img srcset="gamma-1.0-or-2.2.png 1x, gamma-1.0-or-2.2.png 2x"
      src="http://www.ericbrasseur.org/gamma-1.0-or-2.2.png" /&gt;
-</pre>
 </code>
+</pre>
 
 <p>
 (That's not how <code>srcset</code> is supposed to be used! Normally, you'd use
@@ -60,11 +60,11 @@ I used <a href="https://entropymine.com/imageworsener/">imageworsener</a>,
 with this command:
 
 <p>
-<code>
 <pre>
+<code>
 ./imagew -filter triangle -w 1024 -h 512 gamma-1.0-or-2.2.png out.png
-</pre>
 </code>
+</pre>
 
 <p>
 This tells imageworsener to use a bilinear filter. It uses gamma-correct
