@@ -1,0 +1,2036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JBIG2 JSON Viewer</title>
+    <style>
+        :root {
+            --bg-color: #1e1e1e;
+            --panel-bg: #252526;
+            --border-color: #3c3c3c;
+            --text-color: #d4d4d4;
+            --text-muted: #808080;
+            --accent-color: #569cd6;
+            --accent-hover: #4fc1ff;
+            --string-color: #ce9178;
+            --number-color: #b5cea8;
+            --boolean-color: #569cd6;
+            --key-color: #9cdcfe;
+            --type-color: #4ec9b0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background: var(--panel-bg);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        h1 {
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--accent-color);
+        }
+
+        .file-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn {
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: var(--accent-hover);
+        }
+
+        .file-select {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            min-width: 200px;
+        }
+
+        .folder-name {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: var(--panel-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+        }
+
+        .segment-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 0;
+        }
+
+        .segment-item {
+            padding: 10px 16px;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+            transition: all 0.15s;
+        }
+
+        .segment-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .segment-item.selected {
+            background: rgba(86, 156, 214, 0.15);
+            border-left-color: var(--accent-color);
+        }
+
+        .segment-number {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 2px;
+        }
+
+        .segment-type {
+            font-size: 13px;
+            color: var(--type-color);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .segment-badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-muted);
+        }
+
+        .segment-badge.retained {
+            background: rgba(78, 201, 176, 0.2);
+            color: var(--type-color);
+        }
+
+        .content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .content-header {
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--panel-bg);
+        }
+
+        .content-header h2 {
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--type-color);
+        }
+
+        .content-header .meta {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .content-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .section {
+            margin-bottom: 24px;
+        }
+
+        .section-title {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .property-grid {
+            display: grid;
+            grid-template-columns: minmax(180px, auto) 1fr;
+            gap: 8px 16px;
+        }
+
+        .property-key {
+            color: var(--key-color);
+            font-size: 13px;
+        }
+
+        .property-value {
+            font-size: 13px;
+            font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+        }
+
+        .property-value.string {
+            color: var(--string-color);
+        }
+
+        .property-value.number {
+            color: var(--number-color);
+        }
+
+        .property-value.boolean {
+            color: var(--boolean-color);
+        }
+
+        .collapsible {
+            margin-bottom: 8px;
+        }
+
+        .collapsible-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 4px;
+            transition: background 0.15s;
+        }
+
+        .collapsible-header:hover {
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .collapsible-arrow {
+            font-size: 10px;
+            color: var(--text-muted);
+            transition: transform 0.2s;
+            width: 12px;
+        }
+
+        .collapsible.open .collapsible-arrow {
+            transform: rotate(90deg);
+        }
+
+        .collapsible-title {
+            font-size: 13px;
+            color: var(--accent-color);
+        }
+
+        .collapsible-count {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .collapsible-content {
+            display: none;
+            padding: 12px 0 12px 24px;
+        }
+
+        .collapsible.open .collapsible-content {
+            display: block;
+        }
+
+        .reference-link {
+            color: var(--accent-color);
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .reference-link:hover {
+            color: var(--accent-hover);
+        }
+
+        .symbol-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-top: 12px;
+        }
+
+        .symbol-item {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+            min-width: 80px;
+        }
+
+        .symbol-id {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .symbol-dims {
+            font-size: 11px;
+            color: var(--number-color);
+            margin-top: 8px;
+        }
+
+        .symbol-refines {
+            font-size: 10px;
+            color: var(--accent-color);
+            margin-bottom: 4px;
+        }
+
+        .symbol-refinement {
+            min-width: 200px;
+        }
+
+        .refinement-compare {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 8px 0;
+        }
+
+        .refinement-before,
+        .refinement-after {
+            text-align: center;
+        }
+
+        .refinement-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+
+        .refinement-arrow {
+            font-size: 18px;
+            color: var(--text-muted);
+            padding: 0 4px;
+        }
+
+        .symbol-aggregate {
+            min-width: 200px;
+        }
+
+        .aggregate-inputs {
+            margin: 8px 0;
+        }
+
+        .aggregate-strips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .aggregate-input-item {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 4px;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .aggregate-input-info {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .aggregate-output {
+            text-align: center;
+        }
+
+        .symbol-aggregate {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .symbol-aggregate .aggregate-inputs {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .symbol-aggregate > .refinement-arrow {
+            margin: 8px 0;
+        }
+
+        .symbol-preview {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 40px;
+            margin: 8px 0;
+        }
+
+        .symbol-preview canvas {
+            border: 1px solid var(--border-color);
+            background: white;
+            image-rendering: pixelated;
+            max-width: 150px;
+            max-height: 150px;
+        }
+
+        .symbol-preview .no-image {
+            color: var(--text-muted);
+            font-size: 11px;
+            font-style: italic;
+        }
+
+        .bitmap-preview {
+            margin-top: 12px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 6px;
+            display: inline-block;
+        }
+
+        .bitmap-preview canvas {
+            border: 1px solid var(--border-color);
+            background: white;
+            image-rendering: pixelated;
+            max-width: 100%;
+        }
+
+        .bitmap-preview-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .strip-container {
+            margin-top: 12px;
+        }
+
+        .strip-item {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 8px;
+        }
+
+        .strip-header {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .instance-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .instance-item {
+            background: rgba(86, 156, 214, 0.15);
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            position: relative;
+            transition: background 0.15s;
+        }
+
+        .instance-item:hover {
+            background: rgba(86, 156, 214, 0.3);
+        }
+
+        .instance-item .symbol-ref {
+            color: var(--accent-color);
+            font-weight: 500;
+        }
+
+        .instance-item .coords {
+            color: var(--number-color);
+            margin-left: 8px;
+        }
+
+        .instance-with-refinement {
+            border: 1px solid var(--type-color);
+        }
+
+        .instance-refined-badge {
+            font-size: 9px;
+            background: var(--type-color);
+            color: var(--bg-color);
+            padding: 1px 4px;
+            border-radius: 2px;
+            margin-left: 6px;
+        }
+
+        .symbol-tooltip {
+            position: fixed;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            z-index: 1000;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            pointer-events: none;
+            max-width: 300px;
+        }
+
+        .symbol-tooltip .tooltip-header {
+            font-size: 13px;
+            color: var(--accent-color);
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .symbol-tooltip .tooltip-preview {
+            display: flex;
+            justify-content: center;
+            margin: 8px 0;
+        }
+
+        .symbol-tooltip .tooltip-preview canvas {
+            border: 1px solid var(--border-color);
+            background: white;
+            image-rendering: pixelated;
+            max-width: 200px;
+            max-height: 150px;
+        }
+
+        .symbol-tooltip .tooltip-info {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .symbol-tooltip .tooltip-info div {
+            margin: 4px 0;
+        }
+
+        .symbol-tooltip .tooltip-info strong {
+            color: var(--number-color);
+            font-weight: normal;
+        }
+
+        .tooltip-refinement {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 8px 0;
+        }
+
+        .tooltip-refine-before,
+        .tooltip-refine-after {
+            text-align: center;
+        }
+
+        .tooltip-refine-before canvas,
+        .tooltip-refine-after canvas {
+            border: 1px solid var(--border-color);
+            background: white;
+            image-rendering: pixelated;
+            max-width: 100px;
+            max-height: 100px;
+        }
+
+        .tooltip-refine-arrow {
+            color: var(--text-muted);
+            font-size: 16px;
+        }
+
+        .tooltip-refinement .refinement-label {
+            font-size: 9px;
+            margin-bottom: 4px;
+        }
+
+        .table-entries {
+            margin-top: 12px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th, td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+            color: var(--number-color);
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-muted);
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .global-header-panel {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .global-header-panel h3 {
+            font-size: 14px;
+            color: var(--accent-color);
+            margin-bottom: 12px;
+        }
+
+        .crop-info {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 4px 16px;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .crop-info span {
+            color: var(--text-muted);
+        }
+
+        .crop-info strong {
+            color: var(--number-color);
+            font-weight: normal;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>JBIG2 JSON Viewer</h1>
+        <div class="file-controls">
+            <button class="btn" id="openFolderBtn">Open Folder</button>
+            <select class="file-select" id="jsonSelect" style="display: none;">
+                <option value="">Select a JSON file...</option>
+            </select>
+            <span class="folder-name" id="folderName"></span>
+        </div>
+    </header>
+
+    <main>
+        <aside class="sidebar">
+            <div class="sidebar-header">Segments</div>
+            <div class="segment-list" id="segmentList">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📁</div>
+                    <div>Open a folder containing JSON files</div>
+                </div>
+            </div>
+        </aside>
+
+        <div class="content">
+            <div class="content-body" id="contentBody">
+                <div class="empty-state">
+                    <div class="empty-state-icon">👈</div>
+                    <div>Select a segment to view details</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div class="symbol-tooltip" id="symbolTooltip" style="display: none;"></div>
+
+    <script>
+        let directoryHandle = null;
+        let jbig2Data = null;
+        let selectedSegmentIndex = null;
+        let loadedImages = {};
+        let symbolDictionaries = {};
+        let jsonFiles = [];
+
+        const SEGMENT_TYPE_ICONS = {
+            'page_information': '📄',
+            'symbol_dictionary': '📚',
+            'pattern_dictionary': '🔲',
+            'text_region': '📝',
+            'lossless_text_region': '📝',
+            'generic_region': '🖼️',
+            'lossless_generic_region': '🖼️',
+            'intermediate_generic_region': '🖼️',
+            'halftone_region': '🎨',
+            'lossless_halftone_region': '🎨',
+            'generic_refinement_region': '✨',
+            'tables': '📊',
+            'end_of_page': '🏁',
+            'end_of_stripe': '➖',
+            'end_of_file': '⏹️'
+        };
+
+        const SEGMENT_TYPE_DESCRIPTIONS = {
+            'page_information': 'Defines page dimensions and properties',
+            'symbol_dictionary': 'Collection of reusable bitmap symbols',
+            'pattern_dictionary': 'Collection of halftone patterns',
+            'text_region': 'Places symbols at specified positions',
+            'lossless_text_region': 'Lossless text region with symbol placements',
+            'generic_region': 'Raw bitmap data region',
+            'lossless_generic_region': 'Lossless generic bitmap region',
+            'intermediate_generic_region': 'Intermediate bitmap for refinement',
+            'halftone_region': 'Halftone-encoded grayscale region',
+            'lossless_halftone_region': 'Lossless halftone region',
+            'generic_refinement_region': 'Refinement of existing bitmap',
+            'tables': 'Huffman code table definition',
+            'end_of_page': 'Marks end of page',
+            'end_of_stripe': 'Marks end of stripe',
+            'end_of_file': 'Marks end of file'
+        };
+
+        document.getElementById('openFolderBtn').addEventListener('click', openFolder);
+        document.getElementById('jsonSelect').addEventListener('change', handleJsonSelect);
+
+        async function openFolder() {
+            try {
+                directoryHandle = await window.showDirectoryPicker();
+                document.getElementById('folderName').textContent = directoryHandle.name;
+
+                // Find all JSON files
+                jsonFiles = [];
+                loadedImages = {};
+
+                for await (const entry of directoryHandle.values()) {
+                    if (entry.kind === 'file') {
+                        if (entry.name.endsWith('.json')) {
+                            jsonFiles.push(entry.name);
+                        }
+                    }
+                }
+
+                jsonFiles.sort();
+
+                // Populate dropdown
+                const select = document.getElementById('jsonSelect');
+                select.innerHTML = '<option value="">Select a JSON file...</option>' +
+                    jsonFiles.map(f => `<option value="${f}">${f}</option>`).join('');
+                select.style.display = 'inline-block';
+
+                // Reset state
+                jbig2Data = null;
+                selectedSegmentIndex = null;
+                document.getElementById('segmentList').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📄</div>
+                        <div>Select a JSON file from the dropdown</div>
+                    </div>
+                `;
+                document.getElementById('contentBody').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">👈</div>
+                        <div>Select a segment to view details</div>
+                    </div>
+                `;
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    console.error('Error opening folder:', err);
+                }
+            }
+        }
+
+        async function handleJsonSelect(e) {
+            const fileName = e.target.value;
+            if (!fileName) return;
+
+            try {
+                const fileHandle = await directoryHandle.getFileHandle(fileName);
+                const file = await fileHandle.getFile();
+                const text = await file.text();
+
+                jbig2Data = JSON.parse(text);
+                selectedSegmentIndex = null;
+                loadedImages = {}; // Clear cached images for new file
+
+                buildSymbolDictionaries();
+                renderSegmentList();
+                showGlobalHeader();
+
+                // Preload referenced images
+                await preloadReferencedImages();
+
+            } catch (err) {
+                alert('Error loading JSON: ' + err.message);
+            }
+        }
+
+        async function preloadReferencedImages() {
+            if (!jbig2Data || !jbig2Data.segments) return;
+
+            const imageFiles = new Set();
+
+            // Collect all referenced image files
+            for (const segment of jbig2Data.segments) {
+                if (segment.data) {
+                    collectImageReferences(segment.data, imageFiles);
+                }
+            }
+
+            // Load each image
+            for (const imageName of imageFiles) {
+                if (!loadedImages[imageName]) {
+                    await loadImage(imageName);
+                }
+            }
+
+            // Re-render current view to show images
+            if (selectedSegmentIndex !== null) {
+                renderSegmentDetail(jbig2Data.segments[selectedSegmentIndex]);
+            }
+        }
+
+        function collectImageReferences(obj, imageFiles) {
+            if (!obj || typeof obj !== 'object') return;
+
+            if (obj.from_file) {
+                imageFiles.add(obj.from_file);
+            }
+            if (obj.match_image) {
+                imageFiles.add(obj.match_image);
+            }
+
+            for (const value of Object.values(obj)) {
+                if (typeof value === 'object') {
+                    collectImageReferences(value, imageFiles);
+                }
+            }
+        }
+
+        async function loadImage(imageName) {
+            try {
+                const fileHandle = await directoryHandle.getFileHandle(imageName);
+                const file = await fileHandle.getFile();
+                const url = URL.createObjectURL(file);
+
+                return new Promise((resolve) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        loadedImages[imageName] = img;
+                        resolve(img);
+                    };
+                    img.onerror = () => {
+                        console.warn('Failed to load image:', imageName);
+                        resolve(null);
+                    };
+                    img.src = url;
+                });
+            } catch (err) {
+                console.warn('Image not found:', imageName);
+                return null;
+            }
+        }
+
+        function buildSymbolDictionaries() {
+            symbolDictionaries = {};
+            if (!jbig2Data || !jbig2Data.segments) return;
+
+            for (const segment of jbig2Data.segments) {
+                if (segment.type === 'symbol_dictionary' && segment.data && segment.data.height_classes) {
+                    // Get inherited symbols from referred dictionaries
+                    const inheritedSymbols = getInheritedSymbols(segment);
+                    const allAvailableSymbols = [...inheritedSymbols];
+                    const symbols = [];
+
+                    for (const heightClass of segment.data.height_classes) {
+                        for (const symbol of heightClass.symbols) {
+                            let normalizedSymbol;
+
+                            if (symbol.refines_using_strips) {
+                                // Aggregate symbol - store snapshot of available symbols for rendering
+                                normalizedSymbol = {
+                                    ...symbol,
+                                    image_data: null,
+                                    isAggregate: true,
+                                    aggregateWidth: symbol.width,
+                                    aggregateHeight: symbol.height,
+                                    aggregateStrips: symbol.refines_using_strips,
+                                    aggregateSymbols: [...allAvailableSymbols] // snapshot
+                                };
+                            } else {
+                                // Regular or refinement symbol
+                                normalizedSymbol = {
+                                    ...symbol,
+                                    image_data: symbol.image_data ||
+                                               (symbol.refines_symbol_to && symbol.refines_symbol_to.image_data) ||
+                                               null,
+                                    isAggregate: false
+                                };
+                            }
+
+                            symbols.push(normalizedSymbol);
+                            allAvailableSymbols.push(normalizedSymbol);
+                        }
+                    }
+                    symbolDictionaries[segment.segment_number] = symbols;
+                }
+            }
+        }
+
+        function getSymbolsForTextRegion(segment) {
+            const symbols = [];
+            const visited = new Set();
+
+            function collectSymbolsFromDictionary(segmentNumber) {
+                if (visited.has(segmentNumber)) return;
+                visited.add(segmentNumber);
+
+                const dictSegment = jbig2Data.segments.find(s => s.segment_number === segmentNumber);
+                if (!dictSegment || dictSegment.type !== 'symbol_dictionary') return;
+
+                // First, recursively collect symbols from referred dictionaries
+                if (dictSegment.referred_to_segments) {
+                    for (const ref of dictSegment.referred_to_segments) {
+                        const refSeg = jbig2Data.segments.find(s => s.segment_number === ref.segment_number);
+                        if (refSeg && refSeg.type === 'symbol_dictionary') {
+                            collectSymbolsFromDictionary(ref.segment_number);
+                        }
+                    }
+                }
+
+                // Then add this dictionary's own symbols
+                if (symbolDictionaries[segmentNumber]) {
+                    symbols.push(...symbolDictionaries[segmentNumber]);
+                }
+            }
+
+            if (segment.referred_to_segments) {
+                for (const ref of segment.referred_to_segments) {
+                    const refSegment = jbig2Data.segments.find(s => s.segment_number === ref.segment_number);
+                    if (refSegment && refSegment.type === 'symbol_dictionary') {
+                        collectSymbolsFromDictionary(ref.segment_number);
+                    }
+                }
+            }
+            return symbols;
+        }
+
+        function renderSegmentList() {
+            const list = document.getElementById('segmentList');
+
+            if (!jbig2Data || !jbig2Data.segments) {
+                list.innerHTML = '<div class="empty-state"><div>No segments found</div></div>';
+                return;
+            }
+
+            list.innerHTML = jbig2Data.segments.map((segment, index) => `
+                <div class="segment-item" data-index="${index}" onclick="selectSegment(${index})">
+                    <div class="segment-number">Segment ${segment.segment_number}</div>
+                    <div class="segment-type">
+                        <span>${SEGMENT_TYPE_ICONS[segment.type] || '📦'}</span>
+                        <span>${formatSegmentType(segment.type)}</span>
+                        ${segment.retained ? '<span class="segment-badge retained">retained</span>' : ''}
+                        ${segment.page_association === 0 ? '<span class="segment-badge">global</span>' : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function formatSegmentType(type) {
+            return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        }
+
+        function selectSegment(index) {
+            selectedSegmentIndex = index;
+
+            document.querySelectorAll('.segment-item').forEach((el, i) => {
+                el.classList.toggle('selected', i === index);
+            });
+
+            renderSegmentDetail(jbig2Data.segments[index]);
+        }
+
+        function showGlobalHeader() {
+            const content = document.getElementById('contentBody');
+            const header = jbig2Data.global_header;
+
+            content.innerHTML = `
+                <div class="global-header-panel">
+                    <h3>Global Header</h3>
+                    <div class="property-grid">
+                        ${renderProperties(header)}
+                    </div>
+                </div>
+                <div class="empty-state" style="height: auto; padding: 40px;">
+                    <div class="empty-state-icon">👈</div>
+                    <div>Select a segment from the sidebar to view its details</div>
+                </div>
+            `;
+        }
+
+        function renderSegmentDetail(segment) {
+            const content = document.getElementById('contentBody');
+            const description = SEGMENT_TYPE_DESCRIPTIONS[segment.type] || '';
+
+            let html = `
+                <div class="content-header">
+                    <h2>${SEGMENT_TYPE_ICONS[segment.type] || '📦'} ${formatSegmentType(segment.type)}</h2>
+                    <div class="meta">${description}</div>
+                </div>
+            `;
+
+            html += '<div style="padding: 20px;">';
+
+            // Basic properties
+            html += `
+                <div class="section">
+                    <div class="section-title">Segment Properties</div>
+                    <div class="property-grid">
+                        <div class="property-key">Segment Number</div>
+                        <div class="property-value number">${segment.segment_number}</div>
+                        <div class="property-key">Page Association</div>
+                        <div class="property-value number">${segment.page_association}${segment.page_association === 0 ? ' (global)' : ''}</div>
+                        ${segment.retained !== undefined ? `
+                            <div class="property-key">Retained</div>
+                            <div class="property-value boolean">${segment.retained}</div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+
+            // Referred segments
+            if (segment.referred_to_segments && segment.referred_to_segments.length > 0) {
+                html += `
+                    <div class="section">
+                        <div class="section-title">Referenced Segments</div>
+                        <div class="property-grid">
+                            ${segment.referred_to_segments.map(ref => `
+                                <div class="property-key">
+                                    <span class="reference-link" onclick="jumpToSegment(${ref.segment_number})">
+                                        Segment ${ref.segment_number}
+                                    </span>
+                                </div>
+                                <div class="property-value boolean">${ref.retained ? 'retained' : 'released'}</div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Type-specific rendering
+            if (segment.data) {
+                html += renderSegmentData(segment.type, segment.data, segment);
+            }
+
+            html += '</div>';
+            content.innerHTML = html;
+
+            // Render canvases after DOM is updated
+            requestAnimationFrame(() => renderAllCanvases(segment));
+        }
+
+        function renderSegmentData(type, data, segment) {
+            switch (type) {
+                case 'page_information':
+                    return renderPageInformation(data);
+                case 'symbol_dictionary':
+                    return renderSymbolDictionary(data, segment);
+                case 'pattern_dictionary':
+                    return renderPatternDictionary(data);
+                case 'text_region':
+                case 'lossless_text_region':
+                    return renderTextRegion(data, segment);
+                case 'halftone_region':
+                case 'lossless_halftone_region':
+                    return renderHalftoneRegion(data);
+                case 'generic_region':
+                case 'lossless_generic_region':
+                case 'intermediate_generic_region':
+                    return renderGenericRegion(data);
+                case 'generic_refinement_region':
+                    return renderRefinementRegion(data);
+                case 'tables':
+                    return renderTables(data);
+                case 'end_of_stripe':
+                    return renderEndOfStripe(data);
+                default:
+                    return renderGenericData(data);
+            }
+        }
+
+        function renderPageInformation(data) {
+            let html = `
+                <div class="section">
+                    <div class="section-title">Page Dimensions</div>
+                    <div class="property-grid">
+                        <div class="property-key">Width</div>
+                        <div class="property-value number">${data.page_width} pixels</div>
+                        <div class="property-key">Height</div>
+                        <div class="property-value number">${data.page_height} pixels</div>
+                    </div>
+                </div>
+            `;
+
+            if (data.flags) {
+                html += `
+                    <div class="section">
+                        <div class="section-title">Flags</div>
+                        <div class="property-grid">
+                            ${renderProperties(data.flags)}
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (data.striping_information) {
+                html += `
+                    <div class="section">
+                        <div class="section-title">Striping Information</div>
+                        <div class="property-grid">
+                            ${renderProperties(data.striping_information)}
+                        </div>
+                    </div>
+                `;
+            }
+
+            return html;
+        }
+
+        function renderSymbolDictionary(data, segment) {
+            let html = '';
+
+            if (data.flags) {
+                html += `
+                    <div class="section">
+                        <div class="section-title">Dictionary Flags</div>
+                        <div class="property-grid">
+                            ${renderProperties(data.flags)}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Get inherited symbols for resolving refinement references
+            const inheritedSymbols = getInheritedSymbols(segment);
+
+            if (data.height_classes) {
+                let symbolId = inheritedSymbols.length; // New symbols start after inherited ones
+                // Track all available symbols (inherited + ones defined so far in this dict)
+                const allAvailableSymbols = [...inheritedSymbols];
+
+                html += `<div class="section"><div class="section-title">Symbols by Height Class</div>`;
+
+                data.height_classes.forEach((heightClass, classIndex) => {
+                    html += `
+                        <div class="collapsible open">
+                            <div class="collapsible-header" onclick="toggleCollapsible(this)">
+                                <span class="collapsible-arrow">▶</span>
+                                <span class="collapsible-title">Height Class ${classIndex}</span>
+                                <span class="collapsible-count">${heightClass.symbols.length} symbols</span>
+                            </div>
+                            <div class="collapsible-content">
+                                <div class="symbol-grid">
+                    `;
+
+                    heightClass.symbols.forEach((symbol, symIndex) => {
+                        // Handle direct image_data, refines_symbol_to, and refines_using_strips cases
+                        const imgData = symbol.image_data ||
+                                       (symbol.refines_symbol_to && symbol.refines_symbol_to.image_data) ||
+                                       {};
+                        const refinesInfo = symbol.refines_symbol_to;
+                        const aggregateInfo = symbol.refines_using_strips;
+                        const canvasId = `symbol-${classIndex}-${symIndex}`;
+
+                        if (aggregateInfo) {
+                            // Aggregate symbol - assembled from multiple input symbols
+                            // Build aggregate data for rendering
+                            const aggregateData = {
+                                width: symbol.width,
+                                height: symbol.height,
+                                strips: aggregateInfo.strips,
+                                symbols: allAvailableSymbols
+                            };
+
+                            html += `
+                                <div class="symbol-item symbol-aggregate">
+                                    <div class="symbol-id">Symbol #${symbolId}</div>
+                                    <div class="symbol-refines">aggregate</div>
+                                    <div class="aggregate-inputs">
+                                        <div class="refinement-label">Input Symbols</div>
+                                        <div class="aggregate-strips">
+                            `;
+
+                            aggregateInfo.strips.forEach((strip, stripIdx) => {
+                                strip.instances.forEach((inst, instIdx) => {
+                                    const inputSymbol = allAvailableSymbols[inst.symbol_id];
+                                    const inputImgData = inputSymbol ? inputSymbol.image_data : null;
+                                    html += `
+                                        <div class="aggregate-input-item">
+                                            <div class="symbol-preview">
+                                                <canvas id="${canvasId}-input-${stripIdx}-${instIdx}"
+                                                        data-file="${inputImgData ? inputImgData.from_file || '' : ''}"
+                                                        data-crop='${JSON.stringify(inputImgData ? inputImgData.crop || {} : {})}'></canvas>
+                                            </div>
+                                            <div class="aggregate-input-info">
+                                                #${inst.symbol_id} @ (${inst.instance_s}, ${inst.instance_t})
+                                            </div>
+                                        </div>
+                                    `;
+                                });
+                            });
+
+                            html += `
+                                        </div>
+                                    </div>
+                                    <div class="refinement-arrow">→</div>
+                                    <div class="aggregate-output">
+                                        <div class="refinement-label">Result</div>
+                                        <div class="symbol-preview">
+                                            <canvas id="${canvasId}-output"
+                                                    data-aggregate='${JSON.stringify(aggregateData)}'></canvas>
+                                        </div>
+                                    </div>
+                                    <div class="symbol-dims">${symbol.width} × ${symbol.height}</div>
+                                </div>
+                            `;
+
+                            // Add this symbol to available symbols for later references
+                            allAvailableSymbols.push({
+                                isAggregate: true,
+                                aggregateWidth: symbol.width,
+                                aggregateHeight: symbol.height,
+                                aggregateStrips: aggregateInfo,
+                                aggregateSymbols: [...allAvailableSymbols] // snapshot of available symbols
+                            });
+                        } else if (refinesInfo) {
+                            // Refinement symbol - show before and after
+                            const refSymbol = allAvailableSymbols[refinesInfo.symbol_id];
+                            const refImgData = refSymbol ? refSymbol.image_data : null;
+                            const refIsAggregate = refSymbol ? refSymbol.isAggregate : false;
+
+                            // Build aggregate data if the reference is an aggregate
+                            let refAggregateData = null;
+                            if (refIsAggregate && refSymbol) {
+                                refAggregateData = {
+                                    width: refSymbol.aggregateWidth,
+                                    height: refSymbol.aggregateHeight,
+                                    strips: refSymbol.aggregateStrips.strips,
+                                    symbols: refSymbol.aggregateSymbols
+                                };
+                            }
+
+                            html += `
+                                <div class="symbol-item symbol-refinement">
+                                    <div class="symbol-id">Symbol #${symbolId}</div>
+                                    <div class="symbol-refines">refines #${refinesInfo.symbol_id}</div>
+                                    <div class="refinement-compare">
+                                        <div class="refinement-before">
+                                            <div class="refinement-label">Before</div>
+                                            <div class="symbol-preview">
+                                                ${refIsAggregate ? `
+                                                    <canvas id="${canvasId}-before"
+                                                            data-aggregate='${JSON.stringify(refAggregateData)}'></canvas>
+                                                ` : `
+                                                    <canvas id="${canvasId}-before"
+                                                            data-file="${refImgData ? refImgData.from_file || '' : ''}"
+                                                            data-crop='${JSON.stringify(refImgData ? refImgData.crop || {} : {})}'></canvas>
+                                                `}
+                                            </div>
+                                        </div>
+                                        <div class="refinement-arrow">→</div>
+                                        <div class="refinement-after">
+                                            <div class="refinement-label">After</div>
+                                            <div class="symbol-preview">
+                                                <canvas id="${canvasId}-after" data-file="${imgData.from_file || ''}"
+                                                        data-crop='${JSON.stringify(imgData.crop || {})}'></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    ${imgData.crop ? `
+                                        <div class="symbol-dims">${imgData.crop.width} × ${imgData.crop.height}</div>
+                                    ` : ''}
+                                </div>
+                            `;
+
+                            // Add this symbol to available symbols
+                            allAvailableSymbols.push({
+                                ...symbol,
+                                image_data: imgData
+                            });
+                        } else {
+                            // Regular symbol
+                            html += `
+                                <div class="symbol-item">
+                                    <div class="symbol-id">Symbol #${symbolId}</div>
+                                    <div class="symbol-preview">
+                                        <canvas id="${canvasId}" data-file="${imgData.from_file || ''}"
+                                                data-crop='${JSON.stringify(imgData.crop || {})}'></canvas>
+                                    </div>
+                                    ${imgData.crop ? `
+                                        <div class="symbol-dims">${imgData.crop.width} × ${imgData.crop.height}</div>
+                                    ` : ''}
+                                </div>
+                            `;
+
+                            // Add this symbol to available symbols
+                            allAvailableSymbols.push({
+                                ...symbol,
+                                image_data: imgData
+                            });
+                        }
+                        symbolId++;
+                    });
+
+                    html += `</div></div></div>`;
+                });
+
+                html += `</div>`;
+            }
+
+            return html;
+        }
+
+        function getInheritedSymbols(segment) {
+            const symbols = [];
+            const visited = new Set();
+
+            function collectFromDictionary(segmentNumber) {
+                if (visited.has(segmentNumber)) return;
+                visited.add(segmentNumber);
+
+                const dictSegment = jbig2Data.segments.find(s => s.segment_number === segmentNumber);
+                if (!dictSegment || dictSegment.type !== 'symbol_dictionary') return;
+
+                // First, recursively collect from referred dictionaries
+                if (dictSegment.referred_to_segments) {
+                    for (const ref of dictSegment.referred_to_segments) {
+                        const refSeg = jbig2Data.segments.find(s => s.segment_number === ref.segment_number);
+                        if (refSeg && refSeg.type === 'symbol_dictionary') {
+                            collectFromDictionary(ref.segment_number);
+                        }
+                    }
+                }
+
+                // Add this dictionary's symbols
+                if (symbolDictionaries[segmentNumber]) {
+                    symbols.push(...symbolDictionaries[segmentNumber]);
+                }
+            }
+
+            // Only collect from referred dictionaries, not the segment itself
+            if (segment.referred_to_segments) {
+                for (const ref of segment.referred_to_segments) {
+                    const refSeg = jbig2Data.segments.find(s => s.segment_number === ref.segment_number);
+                    if (refSeg && refSeg.type === 'symbol_dictionary') {
+                        collectFromDictionary(ref.segment_number);
+                    }
+                }
+            }
+
+            return symbols;
+        }
+
+        function renderPatternDictionary(data) {
+            let html = `
+                <div class="section">
+                    <div class="section-title">Pattern Properties</div>
+                    <div class="property-grid">
+                        <div class="property-key">Pattern Width</div>
+                        <div class="property-value number">${data.pattern_width} pixels</div>
+                        <div class="property-key">Pattern Height</div>
+                        <div class="property-value number">${data.pattern_height} pixels</div>
+                        <div class="property-key">Gray Max</div>
+                        <div class="property-value string">"${data.gray_max}"</div>
+                        <div class="property-key">Method</div>
+                        <div class="property-value string">"${data.method}"</div>
+                    </div>
+                </div>
+            `;
+
+            if (data.image_data) {
+                html += `
+                    <div class="section">
+                        <div class="section-title">Source Image</div>
+                        <div class="property-grid">
+                            <div class="property-key">From File</div>
+                            <div class="property-value string">"${data.image_data.from_file}"</div>
+                        </div>
+                        <div class="bitmap-preview">
+                            <div class="bitmap-preview-label">Pattern Source</div>
+                            <canvas id="pattern-source" data-file="${data.image_data.from_file}"
+                                    data-crop='${JSON.stringify(data.image_data.crop || {})}'></canvas>
+                        </div>
+                    </div>
+                `;
+            }
+
+            return html;
+        }
+
+        function renderTextRegion(data, segment) {
+            let html = '';
+
+            if (data.region_segment_information) {
+                html += `
+                    <div class="section">
+                        <div class="section-title">Region Information</div>
+                        <div class="property-grid">
+                            ${renderProperties(data.region_segment_information)}
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (data.flags) {
+                html += `
+                    <div class="section">
+                        <div class="section-title">Text Region Flags</div>
+                        <div class="property-grid">
+                            ${renderProperties(data.flags)}
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (data.huffman_flags) {
+                html += `
+                    <div class="section">
+                        <div class="section-title">Huffman Flags</div>
+                        <div class="property-grid">
+                            ${renderProperties(data.huffman_flags)}
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (data.initial_strip_t !== undefined) {
+                html += `
+                    <div class="section">
+                        <div class="section-title">Strip Parameters</div>
+                        <div class="property-grid">
+                            <div class="property-key">Initial Strip T</div>
+                            <div class="property-value number">${data.initial_strip_t}</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (data.strips) {
+                // Get symbols for this text region
+                const symbols = getSymbolsForTextRegion(segment);
+                const symbolsJson = JSON.stringify(symbols);
+
+                html += `
+                    <div class="section">
+                        <div class="section-title">Symbol Instances</div>
+                        <div class="strip-container">
+                `;
+
+                data.strips.forEach((strip, stripIndex) => {
+                    html += `
+                        <div class="strip-item">
+                            <div class="strip-header">Strip ${stripIndex} (T = ${strip.strip_t})</div>
+                            <div class="instance-list">
+                                ${strip.instances.map((inst, instIndex) => {
+                                    const hasRefinement = !!inst.instance_refines_symbol_to;
+                                    const refinementData = inst.instance_refines_symbol_to;
+                                    return `
+                                        <div class="instance-item ${hasRefinement ? 'instance-with-refinement' : ''}"
+                                             data-symbol-id="${inst.symbol_id}"
+                                             data-symbols='${symbolsJson}'
+                                             ${hasRefinement ? `data-refinement='${JSON.stringify(refinementData)}'` : ''}
+                                             onmouseenter="showSymbolTooltip(event, ${inst.symbol_id}, this)"
+                                             onmouseleave="hideSymbolTooltip()">
+                                            <span class="symbol-ref">Symbol #${inst.symbol_id}</span>
+                                            <span class="coords">@ (${inst.instance_s}, ${inst.instance_t})</span>
+                                            ${hasRefinement ? '<span class="instance-refined-badge">refined</span>' : ''}
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `</div></div>`;
+            }
+
+            return html;
+        }
+
+        function renderHalftoneRegion(data) {
+            let html = '';
+
+            if (data.region_segment_information) {
+                html += `
+                    <div class="section">
+                        <div class="section-title">Region Information</div>
+                        <div class="property-grid">
+                            ${renderProperties(data.region_segment_information)}
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += `
+                <div class="section">
+                    <div class="section-title">Halftone Parameters</div>
+                    <div class="property-grid">
+                        ${data.grayscale_width !== undefined ? `
+                            <div class="property-key">Grayscale Width</div>
+                            <div class="property-value number">${data.grayscale_width}</div>
+                        ` : ''}
+                        ${data.grayscale_height !== undefined ? `
+                            <div class="property-key">Grayscale Height</div>
+                            <div class="property-value number">${data.grayscale_height}</div>
+                        ` : ''}
+                        ${data.grid_offset_x_times_256 !== undefined ? `
+                            <div class="property-key">Grid Offset X (×256)</div>
+                            <div class="property-value number">${data.grid_offset_x_times_256}</div>
+                        ` : ''}
+                        ${data.grid_offset_y_times_256 !== undefined ? `
+                            <div class="property-key">Grid Offset Y (×256)</div>
+                            <div class="property-value number">${data.grid_offset_y_times_256}</div>
+                        ` : ''}
+                        ${data.grid_vector_x_times_256 !== undefined ? `
+                            <div class="property-key">Grid Vector X (×256)</div>
+                            <div class="property-value number">${data.grid_vector_x_times_256}</div>
+                        ` : ''}
+                        ${data.grid_vector_y_times_256 !== undefined ? `
+                            <div class="property-key">Grid Vector Y (×256)</div>
+                            <div class="property-value number">${data.grid_vector_y_times_256}</div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+
+            if (data.graymap_data) {
+                html += `
+                    <div class="section">
+                        <div class="section-title">Graymap Data</div>
+                        <div class="property-grid">
+                            ${renderProperties(data.graymap_data)}
+                        </div>
+                    </div>
+                `;
+            }
+
+            return html;
+        }
+
+        function renderGenericRegion(data) {
+            let html = '';
+
+            if (data.region_segment_information) {
+                html += `
+                    <div class="section">
+                        <div class="section-title">Region Information</div>
+                        <div class="property-grid">
+                            ${renderProperties(data.region_segment_information)}
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (data.image_data) {
+                html += `
+                    <div class="section">
+                        <div class="section-title">Image Data</div>
+                        <div class="property-grid">
+                            <div class="property-key">Source File</div>
+                            <div class="property-value string">"${data.image_data.from_file}"</div>
+                        </div>
+                        ${data.image_data.crop ? `
+                            <div style="margin-top: 12px;">
+                                <div style="color: var(--text-muted); font-size: 12px; margin-bottom: 8px;">Crop Region</div>
+                                <div class="property-grid">
+                                    ${data.image_data.crop.x !== undefined ? `
+                                        <div class="property-key">X</div>
+                                        <div class="property-value number">${data.image_data.crop.x}</div>
+                                    ` : ''}
+                                    ${data.image_data.crop.y !== undefined ? `
+                                        <div class="property-key">Y</div>
+                                        <div class="property-value number">${data.image_data.crop.y}</div>
+                                    ` : ''}
+                                    ${data.image_data.crop.width !== undefined ? `
+                                        <div class="property-key">Width</div>
+                                        <div class="property-value number">${data.image_data.crop.width}</div>
+                                    ` : ''}
+                                    ${data.image_data.crop.height !== undefined ? `
+                                        <div class="property-key">Height</div>
+                                        <div class="property-value number">${data.image_data.crop.height}</div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        ` : ''}
+                        <div class="bitmap-preview">
+                            <div class="bitmap-preview-label">Bitmap Preview</div>
+                            <canvas id="generic-region-canvas" data-file="${data.image_data.from_file}"
+                                    data-crop='${JSON.stringify(data.image_data.crop || {})}'></canvas>
+                        </div>
+                    </div>
+                `;
+            }
+
+            return html;
+        }
+
+        function renderRefinementRegion(data) {
+            return renderGenericRegion(data);
+        }
+
+        function renderTables(data) {
+            let html = '';
+
+            if (data.flags) {
+                html += `
+                    <div class="section">
+                        <div class="section-title">Table Flags</div>
+                        <div class="property-grid">
+                            ${renderProperties(data.flags)}
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += `
+                <div class="section">
+                    <div class="section-title">Table Range</div>
+                    <div class="property-grid">
+                        <div class="property-key">Lowest Value</div>
+                        <div class="property-value number">${data.lowest_value}</div>
+                        <div class="property-key">Highest Value</div>
+                        <div class="property-value number">${data.highest_value}</div>
+                    </div>
+                </div>
+            `;
+
+            if (data.entries && data.entries.length > 0) {
+                html += `
+                    <div class="section">
+                        <div class="section-title">Huffman Table Entries</div>
+                        <div class="table-entries">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Prefix Length</th>
+                                        <th>Range Length</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.entries.map((entry, i) => `
+                                        <tr>
+                                            <td>${i}</td>
+                                            <td>${entry.prefix_length}</td>
+                                            <td>${entry.range_length}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += `
+                <div class="section">
+                    <div class="section-title">Special Prefixes</div>
+                    <div class="property-grid">
+                        <div class="property-key">Lower Range Prefix Length</div>
+                        <div class="property-value number">${data.lower_range_prefix_length}</div>
+                        <div class="property-key">Upper Range Prefix Length</div>
+                        <div class="property-value number">${data.upper_range_prefix_length}</div>
+                        <div class="property-key">Out-of-Band Prefix Length</div>
+                        <div class="property-value number">${data.out_of_band_prefix_length}</div>
+                    </div>
+                </div>
+            `;
+
+            return html;
+        }
+
+        function renderEndOfStripe(data) {
+            return `
+                <div class="section">
+                    <div class="section-title">Stripe Information</div>
+                    <div class="property-grid">
+                        <div class="property-key">Y Coordinate</div>
+                        <div class="property-value number">${data.y_coordinate}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderGenericData(data) {
+            return `
+                <div class="section">
+                    <div class="section-title">Segment Data</div>
+                    <div class="property-grid">
+                        ${renderProperties(data)}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderProperties(obj, prefix = '') {
+            let html = '';
+            for (const [key, value] of Object.entries(obj)) {
+                const displayKey = prefix ? `${prefix}.${key}` : key;
+                if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                    html += renderProperties(value, displayKey);
+                } else {
+                    const valueClass = getValueClass(value);
+                    const displayValue = formatValue(value);
+                    html += `
+                        <div class="property-key">${formatKey(displayKey)}</div>
+                        <div class="property-value ${valueClass}">${displayValue}</div>
+                    `;
+                }
+            }
+            return html;
+        }
+
+        function formatKey(key) {
+            return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        }
+
+        function getValueClass(value) {
+            if (typeof value === 'string') return 'string';
+            if (typeof value === 'number') return 'number';
+            if (typeof value === 'boolean') return 'boolean';
+            return '';
+        }
+
+        function formatValue(value) {
+            if (typeof value === 'string') return `"${value}"`;
+            if (typeof value === 'boolean') return value.toString();
+            if (Array.isArray(value)) return `[${value.join(', ')}]`;
+            return value;
+        }
+
+        function toggleCollapsible(header) {
+            header.parentElement.classList.toggle('open');
+        }
+
+        function jumpToSegment(segmentNumber) {
+            const index = jbig2Data.segments.findIndex(s => s.segment_number === segmentNumber);
+            if (index !== -1) {
+                selectSegment(index);
+                document.querySelector(`.segment-item[data-index="${index}"]`).scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        function renderAllCanvases(segment) {
+            // Render regular bitmap canvases
+            const bitmapCanvases = document.querySelectorAll('canvas[data-file]');
+            bitmapCanvases.forEach(canvas => {
+                const fileName = canvas.dataset.file;
+                const crop = JSON.parse(canvas.dataset.crop || '{}');
+
+                if (fileName && loadedImages[fileName]) {
+                    renderBitmapToCanvas(canvas, loadedImages[fileName], crop);
+                } else if (fileName) {
+                    // Show placeholder
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = crop.width || 50;
+                    canvas.height = crop.height || 50;
+                    ctx.fillStyle = '#f0f0f0';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillStyle = '#999';
+                    ctx.font = '10px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('No image', canvas.width / 2, canvas.height / 2);
+                }
+            });
+
+            // Render aggregate canvases
+            const aggregateCanvases = document.querySelectorAll('canvas[data-aggregate]');
+            aggregateCanvases.forEach(canvas => {
+                const aggregateData = JSON.parse(canvas.dataset.aggregate || '{}');
+                renderAggregateToCanvas(canvas, aggregateData);
+            });
+        }
+
+        function renderAggregateToCanvas(canvas, aggregateData) {
+            const { width, height, strips, symbols } = aggregateData;
+            if (!width || !height || !strips) return;
+
+            // Create the composite at native size first
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            // Fill with white background
+            tempCtx.fillStyle = 'white';
+            tempCtx.fillRect(0, 0, width, height);
+
+            // Draw each input symbol at its position
+            strips.forEach(strip => {
+                strip.instances.forEach(inst => {
+                    const symbol = symbols[inst.symbol_id];
+                    if (!symbol) return;
+
+                    if (symbol.isAggregate) {
+                        // Recursively render aggregate symbol
+                        const nestedCanvas = document.createElement('canvas');
+                        renderAggregateToCanvas(nestedCanvas, {
+                            width: symbol.aggregateWidth,
+                            height: symbol.aggregateHeight,
+                            strips: symbol.aggregateStrips.strips,
+                            symbols: symbol.aggregateSymbols
+                        });
+                        tempCtx.drawImage(nestedCanvas, inst.instance_s, inst.instance_t);
+                    } else if (symbol.image_data) {
+                        const imgData = symbol.image_data;
+                        const img = loadedImages[imgData.from_file];
+                        if (img && imgData.crop) {
+                            tempCtx.drawImage(
+                                img,
+                                imgData.crop.x, imgData.crop.y,
+                                imgData.crop.width, imgData.crop.height,
+                                inst.instance_s, inst.instance_t,
+                                imgData.crop.width, imgData.crop.height
+                            );
+                        }
+                    }
+                });
+            });
+
+            // Scale for display
+            const maxSize = 150;
+            let scale = 1;
+            if (width > maxSize || height > maxSize) {
+                scale = Math.min(maxSize / width, maxSize / height);
+            } else if (width < 40 && height < 40) {
+                scale = Math.min(3, 40 / Math.max(width, height));
+            }
+
+            canvas.width = Math.ceil(width * scale);
+            canvas.height = Math.ceil(height * scale);
+
+            const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(tempCanvas, 0, 0, canvas.width, canvas.height);
+        }
+
+        function renderBitmapToCanvas(canvas, img, crop) {
+            const ctx = canvas.getContext('2d');
+
+            const sx = crop.x || 0;
+            const sy = crop.y || 0;
+            const sw = crop.width || img.width;
+            const sh = crop.height || img.height;
+
+            // Scale for visibility
+            const maxSize = 150;
+            let scale = 1;
+            if (sw > maxSize || sh > maxSize) {
+                scale = Math.min(maxSize / sw, maxSize / sh);
+            } else if (sw < 40 && sh < 40) {
+                scale = Math.min(3, 40 / Math.max(sw, sh));
+            }
+
+            canvas.width = Math.ceil(sw * scale);
+            canvas.height = Math.ceil(sh * scale);
+
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+        }
+
+        function showSymbolTooltip(event, symbolId, element) {
+            const tooltip = document.getElementById('symbolTooltip');
+            const symbolsData = JSON.parse(element.dataset.symbols || '[]');
+            const symbol = symbolsData[symbolId];
+            const refinementData = element.dataset.refinement ? JSON.parse(element.dataset.refinement) : null;
+
+            if (!symbol) {
+                tooltip.innerHTML = `
+                    <div class="tooltip-header">Symbol #${symbolId}</div>
+                    <div class="tooltip-info">Symbol data not available</div>
+                `;
+            } else if (refinementData) {
+                // Instance with refinement - show before/after
+                const refImgData = refinementData.image_data || {};
+                const refCrop = refImgData.crop || {};
+
+                tooltip.innerHTML = `
+                    <div class="tooltip-header">Symbol #${symbolId} (refined)</div>
+                    <div class="tooltip-refinement">
+                        <div class="tooltip-refine-before">
+                            <div class="refinement-label">Before</div>
+                            <canvas id="tooltip-canvas-before"></canvas>
+                        </div>
+                        <div class="tooltip-refine-arrow">→</div>
+                        <div class="tooltip-refine-after">
+                            <div class="refinement-label">After</div>
+                            <canvas id="tooltip-canvas-after"></canvas>
+                        </div>
+                    </div>
+                    <div class="tooltip-info">
+                        <div>Size: <strong>${refCrop.width} × ${refCrop.height}</strong></div>
+                    </div>
+                `;
+
+                setTimeout(() => {
+                    // Render "before" (the symbol being refined)
+                    const beforeCanvas = document.getElementById('tooltip-canvas-before');
+                    if (beforeCanvas) {
+                        if (symbol.isAggregate) {
+                            renderAggregateToCanvas(beforeCanvas, {
+                                width: symbol.aggregateWidth,
+                                height: symbol.aggregateHeight,
+                                strips: symbol.aggregateStrips.strips,
+                                symbols: symbol.aggregateSymbols
+                            });
+                        } else if (symbol.image_data) {
+                            const imgData = symbol.image_data;
+                            if (imgData.from_file && loadedImages[imgData.from_file]) {
+                                renderBitmapToCanvas(beforeCanvas, loadedImages[imgData.from_file], imgData.crop || {});
+                            }
+                        }
+                    }
+
+                    // Render "after" (the refined result)
+                    const afterCanvas = document.getElementById('tooltip-canvas-after');
+                    if (afterCanvas && refImgData.from_file && loadedImages[refImgData.from_file]) {
+                        renderBitmapToCanvas(afterCanvas, loadedImages[refImgData.from_file], refCrop);
+                    }
+                }, 0);
+            } else if (symbol.isAggregate) {
+                // Aggregate symbol - show composited preview
+                tooltip.innerHTML = `
+                    <div class="tooltip-header">Symbol #${symbolId}</div>
+                    <div class="tooltip-preview">
+                        <canvas id="tooltip-canvas"></canvas>
+                    </div>
+                    <div class="tooltip-info">
+                        <div>Type: <strong>Aggregate</strong></div>
+                        <div>Size: <strong>${symbol.aggregateWidth} × ${symbol.aggregateHeight}</strong></div>
+                    </div>
+                `;
+
+                // Render the aggregate preview
+                setTimeout(() => {
+                    const canvas = document.getElementById('tooltip-canvas');
+                    if (canvas) {
+                        renderAggregateToCanvas(canvas, {
+                            width: symbol.aggregateWidth,
+                            height: symbol.aggregateHeight,
+                            strips: symbol.aggregateStrips.strips,
+                            symbols: symbol.aggregateSymbols
+                        });
+                    }
+                }, 0);
+            } else {
+                const imgData = symbol.image_data || {};
+                const crop = imgData.crop || {};
+
+                tooltip.innerHTML = `
+                    <div class="tooltip-header">Symbol #${symbolId}</div>
+                    <div class="tooltip-preview">
+                        <canvas id="tooltip-canvas"></canvas>
+                    </div>
+                    <div class="tooltip-info">
+                        ${imgData.from_file ? `<div>Source: <strong>${imgData.from_file}</strong></div>` : ''}
+                        ${crop.width !== undefined ? `<div>Size: <strong>${crop.width} × ${crop.height}</strong></div>` : ''}
+                        ${crop.x !== undefined ? `<div>Position: <strong>(${crop.x}, ${crop.y})</strong></div>` : ''}
+                    </div>
+                `;
+
+                // Render the symbol preview
+                setTimeout(() => {
+                    const canvas = document.getElementById('tooltip-canvas');
+                    if (canvas && imgData.from_file && loadedImages[imgData.from_file]) {
+                        renderBitmapToCanvas(canvas, loadedImages[imgData.from_file], crop);
+                    } else if (canvas) {
+                        canvas.width = crop.width || 50;
+                        canvas.height = crop.height || 50;
+                        const ctx = canvas.getContext('2d');
+                        ctx.fillStyle = '#f0f0f0';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.fillStyle = '#999';
+                        ctx.font = '10px sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText('No image', canvas.width / 2, canvas.height / 2);
+                    }
+                }, 0);
+            }
+
+            // Position tooltip
+            const rect = element.getBoundingClientRect();
+            tooltip.style.display = 'block';
+
+            let left = rect.left;
+            let top = rect.bottom + 8;
+
+            // Adjust if tooltip would go off screen
+            const tooltipRect = tooltip.getBoundingClientRect();
+            if (left + tooltipRect.width > window.innerWidth) {
+                left = window.innerWidth - tooltipRect.width - 10;
+            }
+            if (top + tooltipRect.height > window.innerHeight) {
+                top = rect.top - tooltipRect.height - 8;
+            }
+
+            tooltip.style.left = left + 'px';
+            tooltip.style.top = top + 'px';
+        }
+
+        function hideSymbolTooltip() {
+            document.getElementById('symbolTooltip').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
