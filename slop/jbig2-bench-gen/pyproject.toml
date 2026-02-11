@@ -1,0 +1,6 @@
+[project]
+name = "jbig2suite"
+version = "0.1.0"
+description = "JBIG2 decoder compatibility test suite"
+requires-python = ">=3.10"
+dependencies = []

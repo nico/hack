@@ -1,0 +1,90 @@
+{
+  "test_dir": "/Users/thakis/src/serenity/Tests/LibGfx/test-inputs/jbig2",
+  "reference_bitmap": "/Users/thakis/src/serenity/Tests/LibGfx/test-inputs/jbig2/json/bitmap.bmp",
+  "jbig2_to_pdf_script": "/Users/thakis/src/serenity/Meta/jbig2_to_pdf.py",
+  "imgcmp": "/Users/thakis/src/serenity/Build/lagom/bin/imgcmp",
+  "image": "/Users/thakis/src/serenity/Build/lagom/bin/image",
+  "exclude": ["annex-h.jbig2"],
+  "decoders": {
+    "jbig2dec": {
+      "command": ["{jbig2dec}", "-o", "{output}", "{input}"],
+      "version_command": ["{jbig2dec}", "--version"],
+      "input_type": "jbig2",
+      "output_suffix": ".pbm",
+      "enabled": true
+    },
+    "pdfium": {
+      "command": ["{pdfium_test}", "--png", "{input}"],
+      "input_type": "pdf",
+      "output_pattern": "{input}.0.png",
+      "enabled": true
+    },
+    "mupdf": {
+      "command": ["{mutool}", "draw", "-o", "{output}", "{input}"],
+      "version_command": ["{mutool}", "--version"],
+      "input_type": "pdf",
+      "output_suffix": ".png",
+      "enabled": true
+    },
+    "preview": {
+      "command": ["sips", "-s", "format", "png", "-o", "{output}", "{input}"],
+      "version_command": ["sips", "--version"],
+      "input_type": "pdf",
+      "output_suffix": ".png",
+      "enabled": true
+    },
+    "ghostscript": {
+      "command": ["{gs}", "-sDEVICE=fpng", "-sOutputFile={output}", "-dBATCH", "-dNOPAUSE", "{input}"],
+      "version_command": ["{gs}", "--version"],
+      "input_type": "pdf",
+      "output_suffix": ".png",
+      "enabled": true
+    },
+    "poppler": {
+      "command": ["{pdftocairo}", "-r", "72", "-singlefile", "-png", "{input}", "{output_stem}"],
+      "version_command": ["{pdftocairo}", "-v"],
+      "input_type": "pdf",
+      "output_pattern": "{output_stem}.png",
+      "enabled": true
+    },
+    "serenity-image": {
+      "command": ["{serenity_image}", "-o", "{output}", "{input}"],
+      "version_command": ["{serenity_image}", "--version"],
+      "input_type": "jbig2",
+      "output_suffix": ".png",
+      "enabled": true
+    },
+    "pdfjs": {
+      "command": ["node", "{pdfjs_render}", "{input}", "{output}"],
+      "version_command": ["node", "-e", "console.log('pdfjs-dist ' + require('pdfjs-dist/package.json').version)"],
+      "input_type": "pdf",
+      "output_suffix": ".png",
+      "enabled": true
+    },
+    "itu-ref": {
+      "command": ["{python3}", "{jbig2_ref_wrapper}", "{jbig2_ref}", "{input}", "{output}"],
+      "input_type": "jbig2",
+      "output_suffix": ".bmp",
+      "enabled": true
+    },
+    "hayro-jbig2": {
+      "command": ["{hayro_jbig2png}", "{input}", "{output}"],
+      "input_type": "jbig2",
+      "output_suffix": ".png",
+      "enabled": true
+    }
+  },
+  "paths": {
+    "jbig2dec": "/Users/thakis/src/homebrew/bin/jbig2dec",
+    "pdfium_test": "/Users/thakis/src/pdfium/pdfium/out/gn/pdfium_test",
+    "mutool": "/Users/thakis/local/bin/mutool",
+    "gs": "/Users/thakis/Downloads/ghostscript-10.05.1/bin/gs",
+    "pdftocairo": "/Users/thakis/src/homebrew/bin/pdftocairo",
+    "serenity_image": "/Users/thakis/src/serenity/Build/lagom/bin/image",
+    "pdfjs_render": "pdfjs_render.mjs",
+    "python3": "/usr/bin/python3",
+    "jbig2_ref_wrapper": "jbig2_ref_wrapper.py",
+    "jbig2_ref": "/Users/thakis/Downloads/T-REC-T.88-201808-I!!SOFT-ZST-E/Software/JBIG2_SampleSoftware-A20180829/source/jbig2",
+    "hayro_jbig2png": "/Users/thakis/src/hayro/target/release/examples/jbig2png"
+  }
+}

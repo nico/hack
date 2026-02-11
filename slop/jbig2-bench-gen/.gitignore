@@ -1,0 +1,6 @@
+node_modules/
+build/
+report.html
+.venv/
+*.swp
+plan.txt

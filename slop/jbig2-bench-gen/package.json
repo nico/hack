@@ -1,0 +1,14 @@
+{
+  "name": "jbig2suite",
+  "version": "1.0.0",
+  "main": "pdfjs_render.mjs",
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "description": "",
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.90",
+    "canvas": "^3.2.1",
+    "pdfjs-dist": "^5.4.624"
+  }
+}
