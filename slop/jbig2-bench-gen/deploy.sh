@@ -36,9 +36,19 @@ if ! git remote get-url origin >/dev/null 2>&1; then
   git remote add origin "$DEPLOY_REPO"
 fi
 
+# Preserve README.md if it exists
+if [ -f README.md ]; then
+  cp README.md "$TMPDIR/README.md.bak"
+fi
+
 # Clear old content
 git rm -rf --quiet . 2>/dev/null || true
 rm -rf ./*
+
+# Restore README.md
+if [ -f "$TMPDIR/README.md.bak" ]; then
+  cp "$TMPDIR/README.md.bak" README.md
+fi
 
 # Copy report, source files, and images
 cp "$REPO_DIR/report.html" index.html
