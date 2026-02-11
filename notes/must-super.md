@@ -13,4 +13,6 @@ Ladybird one-off `MUST_UPCALL`:
 Not available in non-Android Java, C++, C#, Swift.
 
 For Swift, it's sometimes requested:
-<https://forums.swift.org/t/discussion-enforcing-calling-super/1470>
+* <https://forums.swift.org/t/discussion-enforcing-calling-super/1470>
+* <https://forums.swift.org/t/super-call-enforcement/38177> /
+  <https://github.com/swiftlang/swift-evolution/pull/1167>
