@@ -437,7 +437,23 @@ gray (<span class="error-mark">—</span>) = error or timeout.
 
         lines.append('</tr>')
 
-    lines.append('</tbody></table></body></html>')
+    lines.append('</tbody></table>')
+
+    # Related links
+    lines.append("""
+<h2 style="margin-top:30px">Related links</h2>
+<ul style="margin:10px 0 20px 20px;line-height:1.8">
+<li><a href="https://github.com/mozilla/pdf.js/issues/20529">pdf.js issue #20529</a></li>
+<li><a href="https://bugs.ghostscript.com/show_bug.cgi?id=708983">Ghostscript bug #708983</a></li>
+<li><a href="https://gitlab.freedesktop.org/poppler/poppler/-/issues/1674">Poppler issue #1674</a></li>
+<li><a href="https://issues.apache.org/jira/browse/PDFBOX-6151">PDFBox PDFBOX-6151</a></li>
+<li>xpdf: test files shared via email; fixes will be in the next release</li>
+<li>These files are also part of <a href="https://pdfium.googlesource.com/pdfium_tests/+/refs/heads/main/third_party/jbig2/">pdfium's test suite</a></li>
+<li>These files are also part of <a href="https://github.com/LaurenzV/hayro/blob/main/hayro-jbig2/manifest_serenity.json">hayro-jbig2's test suite</a></li>
+</ul>
+""")
+
+    lines.append('</body></html>')
 
     report_path = os.path.join(build_dir, "..", "report.html")
     with open(report_path, "w") as f:
