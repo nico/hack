@@ -364,6 +364,7 @@ Download all test files: <a href="build/jbig2-tests.zip">jbig2</a>,
         "pdfjs": "https://mozilla.github.io/pdf.js/",
         "itu-ref": "https://www.itu.int/rec/T-REC-T.88/en",
         "hayro-jbig2": "https://crates.io/crates/hayro-jbig2",
+        "pdfbox": "https://pdfbox.apache.org/",
     }
 
     # Legend

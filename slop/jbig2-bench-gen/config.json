@@ -72,6 +72,13 @@
       "input_type": "jbig2",
       "output_suffix": ".png",
       "enabled": true
+    },
+    "pdfbox": {
+      "command": ["{java}", "-jar", "{pdfbox_jar}", "render", "-format=png", "-i", "{input}", "-dpi", "72", "-outputPrefix={output_stem}"],
+      "version_command": ["{java}", "-jar", "{pdfbox_jar}", "version"],
+      "input_type": "pdf",
+      "output_pattern": "{output_stem}-1.png",
+      "enabled": true
     }
   },
   "paths": {
@@ -85,6 +92,8 @@
     "python3": "/usr/bin/python3",
     "jbig2_ref_wrapper": "jbig2_ref_wrapper.py",
     "jbig2_ref": "/Users/thakis/Downloads/T-REC-T.88-201808-I!!SOFT-ZST-E/Software/JBIG2_SampleSoftware-A20180829/source/jbig2",
-    "hayro_jbig2png": "/Users/thakis/src/hayro/target/release/examples/jbig2png"
+    "hayro_jbig2png": "/Users/thakis/src/hayro/target/release/examples/jbig2png",
+    "java": "/Users/thakis/Downloads/jdk-26.jdk/Contents/Home/bin/java",
+    "pdfbox_jar": "/Users/thakis/Downloads/pdfbox-app-3.0.7.jar"
   }
 }
