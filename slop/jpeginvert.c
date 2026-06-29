@@ -473,6 +473,10 @@ int main(int argc, char** argv) {
                 comp[i].id = cp[0];
                 comp[i].h = cp[1] >> 4;
                 comp[i].v = cp[1] & 15;
+                /* Per spec sampling factors are 1..4; 0 would make the block
+                 * loops emit nothing and silently desync the bitstream. */
+                if (comp[i].h < 1 || comp[i].h > 4 || comp[i].v < 1 || comp[i].v > 4)
+                    die("bad sampling factor");
                 cp += 3;
             }
             sof_seen = 1;
