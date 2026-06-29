@@ -108,6 +108,14 @@
  *   Each listed component is negated; components are independent, so
  *   negating any subset is still a perfect involution.
  *
+ *   channels = --invert-cmyk
+ *   Shorthand for "0,1,2,3" (negate all four components of a CMYK/YCCK
+ *   file). PDF-extracted Adobe CMYK JPEGs are commonly stored with a
+ *   polarity that makes standalone viewers (Preview, browsers, ImageMagick)
+ *   render them inverted; negating all four components fixes that. The
+ *   APP14 "Adobe" marker is left untouched on purpose -- see the CMYK note
+ *   under EXTENDING THIS.
+ *
  * =====================================================================
  * SCOPE / SUPPORTED INPUTS
  * =====================================================================
@@ -128,14 +136,20 @@
  *
  *  * CMYK / 4-COMPONENT (Adobe): the 4th component is supported -- the
  *    transcode loop iterates `ncomp` components with [4]-sized
- *    table/component arrays, and the argument parser accepts index 3 / "K".
- *    Real-CMYK caveats to be aware of: Adobe writes an APP14 marker whose
- *    "transform" byte says whether the data is RGB(0), YCbCr(1) or YCCK(2),
- *    and many Adobe CMYK JPEGs store INVERTED ink values. The entropy logic
- *    does not change -- inversion is still a pure per-component coefficient
- *    negation -- but which component means "lightness" vs "ink" depends on
- *    that transform flag, so the K name here is just a positional alias for
- *    index 3, not a semantic guarantee.
+ *    table/component arrays, and the argument parser accepts index 3 / "K"
+ *    (and the --invert-cmyk shorthand for all four).
+ *    Adobe writes an APP14 marker whose "transform" byte says whether the
+ *    data is RGB(0), YCbCr(1) or YCCK(2). PDF-extracted Adobe CMYK/YCCK
+ *    JPEGs are routinely stored at a polarity that makes common decoders
+ *    (libjpeg/ImageMagick, macOS ImageIO/Preview) render them inverted;
+ *    negating all four stored components flips them back -- verified to
+ *    render correctly in both ImageMagick and ImageIO on a real YCCK PDF
+ *    extraction. We do NOT touch the APP14 marker: on YCCK its transform=2
+ *    is what tells the decoder to undo the YCbCr->CMY transform, so dropping
+ *    it makes the decoder treat the chroma channels as raw C/M ink and
+ *    corrupts colours. (The K name is just a positional alias for index 3,
+ *    not a colorimetric guarantee -- which component is "ink" depends on the
+ *    transform flag.)
  *
  *  * PROGRESSIVE (SOF2): needs multiple scans, spectral selection
  *    (Ss..Se), successive approximation (Ah/Al) with AC refinement /
@@ -372,15 +386,26 @@ int main(int argc, char **argv) {
     if (argc != 4) {
         fprintf(stderr,
                 "usage: %s in.jpg out.jpg <channels>\n"
-                "  channels = comma-separated 0|1|2|3 or Y|Cb|Cr|K (e.g. \"Y,Cr\" or \"0,2,3\")\n",
+                "  channels = comma-separated 0|1|2|3 or Y|Cb|Cr|K (e.g. \"Y,Cr\" or \"0,2,3\")\n"
+                "  channels = --invert-cmyk  shorthand for 0,1,2,3 (a 4-component file)\n",
                 argv[0]);
         return 2;
     }
 
     /* parse channel argument: a comma-separated list, built into a bitmask
-     * of component indices. Each listed component will be negated. */
+     * of component indices. Each listed component will be negated.
+     *
+     * --invert-cmyk is shorthand for "0,1,2,3": PDF-extracted Adobe CMYK
+     * JPEGs are commonly stored with a polarity that makes standalone viewers
+     * (Preview, browsers, ImageMagick) render them inverted, and negating all
+     * four components fixes that. We deliberately leave the APP14 "Adobe"
+     * marker untouched -- on YCCK it carries transform=2, which decoders need
+     * to undo the YCbCr->CMY transform; dropping it would corrupt colours.
+     * The "mask must fit in ncomp" check below rejects this on non-4-comp files. */
     int target_mask = 0;
-    {
+    if (!strcmp(argv[3], "--invert-cmyk")) {
+        target_mask = 0xF;
+    } else {
         char *spec = strdup(argv[3]);
         if (!spec) die("oom");
         for (char *tok = strtok(spec, ","); tok; tok = strtok(NULL, ",")) {
@@ -393,8 +418,8 @@ int main(int argc, char **argv) {
             target_mask |= 1 << idx;
         }
         free(spec);
+        if (target_mask == 0) die("no channels specified");
     }
-    if (target_mask == 0) die("no channels specified");
 
     g_in = read_file(argv[1], &g_insize);
     if (g_in[0] != 0xFF || g_in[1] != 0xD8) die("not a JPEG (no SOI)");
