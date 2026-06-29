@@ -161,28 +161,31 @@
  *    none of the Huffman path here applies.
  */
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
 
 /* ------------------------------------------------------------------ */
 /* Whole-file buffer helpers                                          */
 /* ------------------------------------------------------------------ */
 
-static uint8_t *g_in;      /* input file bytes */
-static size_t   g_insize;
+static uint8_t* g_in; /* input file bytes */
+static size_t g_insize;
 
-static void die(const char *msg) { fprintf(stderr, "error: %s\n", msg); exit(1); }
+static void die(const char* msg) {
+    fprintf(stderr, "error: %s\n", msg);
+    exit(1);
+}
 
-static uint8_t *read_file(const char *path, size_t *out) {
-    FILE *f = fopen(path, "rb");
+static uint8_t* read_file(const char* path, size_t* out) {
+    FILE* f = fopen(path, "rb");
     if (!f) die("cannot open input");
     fseek(f, 0, SEEK_END);
     long n = ftell(f);
     fseek(f, 0, SEEK_SET);
     if (n < 2) die("file too small");
-    uint8_t *b = malloc(n);
+    uint8_t* b = malloc(n);
     if (!b) die("oom");
     if (fread(b, 1, n, f) != (size_t)n) die("short read");
     fclose(f);
@@ -202,15 +205,15 @@ typedef struct {
 
 static Huff dc_tab[4], ac_tab[4];
 
-static void build_huff(Huff *h, const uint8_t bits[16], const uint8_t *vals, int nvals) {
+static void build_huff(Huff* h, const uint8_t bits[16], const uint8_t* vals, int nvals) {
     memcpy(h->vals, vals, nvals);
     int code = 0, k = 0;
     for (int len = 1; len <= 16; len++) {
         int cnt = bits[len - 1];
         if (cnt == 0) {
-            h->maxcode[len] = -1;            /* no codes of this length */
+            h->maxcode[len] = -1; /* no codes of this length */
         } else {
-            h->valptr[len]  = k;
+            h->valptr[len] = k;
             h->mincode[len] = code;
             code += cnt;
             h->maxcode[len] = code - 1;
@@ -226,25 +229,28 @@ static void build_huff(Huff *h, const uint8_t bits[16], const uint8_t *vals, int
 /* ------------------------------------------------------------------ */
 
 typedef struct {
-    const uint8_t *data;
+    const uint8_t* data;
     size_t size;
-    size_t pos;        /* next byte to consume */
-    uint8_t curbyte;   /* bits being shifted out, MSB first */
-    int bitcnt;        /* valid bits left in curbyte */
-    int marker;        /* nonzero: marker byte we stopped before */
+    size_t pos;      /* next byte to consume */
+    uint8_t curbyte; /* bits being shifted out, MSB first */
+    int bitcnt;      /* valid bits left in curbyte */
+    int marker;      /* nonzero: marker byte we stopped before */
     int eof;
 } BitReader;
 
-static int getbit(BitReader *br) {
+static int getbit(BitReader* br) {
     if (br->bitcnt == 0) {
-        if (br->pos >= br->size) { br->eof = 1; return 0; }
+        if (br->pos >= br->size) {
+            br->eof = 1;
+            return 0;
+        }
         uint8_t b = br->data[br->pos];
         if (b == 0xFF) {
             uint8_t b2 = (br->pos + 1 < br->size) ? br->data[br->pos + 1] : 0xD9;
             if (b2 == 0x00) {
-                br->pos += 2;             /* stuffed: literal 0xFF data byte */
+                br->pos += 2; /* stuffed: literal 0xFF data byte */
             } else {
-                br->marker = b2;          /* real marker: stop, leave pos at FF */
+                br->marker = b2; /* real marker: stop, leave pos at FF */
                 br->eof = 1;
                 return 0;
             }
@@ -262,7 +268,7 @@ static int getbit(BitReader *br) {
 
 /* Decode one Huffman symbol; also report the matched code (len/value)
  * so we can re-emit it verbatim. */
-static int huff_decode(BitReader *br, Huff *h, int *codelen, int *codeval) {
+static int huff_decode(BitReader* br, Huff* h, int* codelen, int* codeval) {
     int code = 0;
     for (int len = 1; len <= 16; len++) {
         code = (code << 1) | getbit(br);
@@ -275,20 +281,20 @@ static int huff_decode(BitReader *br, Huff *h, int *codelen, int *codeval) {
     return -1; /* invalid stream */
 }
 
-static int read_bits(BitReader *br, int n) {
+static int read_bits(BitReader* br, int n) {
     int v = 0;
     for (int i = 0; i < n; i++) v = (v << 1) | getbit(br);
     return v;
 }
 
 /* Consume a restart marker between MCUs (drop pad bits, skip FF Dn). */
-static void reader_restart(BitReader *br) {
-    br->bitcnt = 0;          /* discard 1-bit padding of the partial byte */
+static void reader_restart(BitReader* br) {
+    br->bitcnt = 0; /* discard 1-bit padding of the partial byte */
     br->eof = 0;
     br->marker = 0;
     if (br->pos + 1 < br->size && br->data[br->pos] == 0xFF &&
         (br->data[br->pos + 1] & 0xF8) == 0xD0) {
-        br->pos += 2;        /* skip FF D0..D7 */
+        br->pos += 2; /* skip FF D0..D7 */
     }
 }
 
@@ -297,13 +303,13 @@ static void reader_restart(BitReader *br) {
 /* ------------------------------------------------------------------ */
 
 typedef struct {
-    uint8_t *buf;
+    uint8_t* buf;
     size_t len, cap;
     uint32_t acc;
     int nbits;
 } BitWriter;
 
-static void w_raw(BitWriter *w, uint8_t byte) {
+static void w_raw(BitWriter* w, uint8_t byte) {
     if (w->len + 1 > w->cap) {
         w->cap = w->cap ? w->cap * 2 : 65536;
         w->buf = realloc(w->buf, w->cap);
@@ -312,12 +318,12 @@ static void w_raw(BitWriter *w, uint8_t byte) {
     w->buf[w->len++] = byte;
 }
 
-static void emit_byte(BitWriter *w, uint8_t byte) {
+static void emit_byte(BitWriter* w, uint8_t byte) {
     w_raw(w, byte);
-    if (byte == 0xFF) w_raw(w, 0x00);   /* byte stuffing */
+    if (byte == 0xFF) w_raw(w, 0x00); /* byte stuffing */
 }
 
-static void put_bit(BitWriter *w, int bit) {
+static void put_bit(BitWriter* w, int bit) {
     w->acc = (w->acc << 1) | (bit & 1);
     if (++w->nbits == 8) {
         emit_byte(w, w->acc & 0xFF);
@@ -326,11 +332,11 @@ static void put_bit(BitWriter *w, int bit) {
     }
 }
 
-static void put_bits(BitWriter *w, int val, int n) {
+static void put_bits(BitWriter* w, int val, int n) {
     for (int i = n - 1; i >= 0; i--) put_bit(w, (val >> i) & 1);
 }
 
-static void w_pad_to_byte(BitWriter *w) {     /* JPEG pads with 1-bits */
+static void w_pad_to_byte(BitWriter* w) { /* JPEG pads with 1-bits */
     while (w->nbits) put_bit(w, 1);
 }
 
@@ -338,19 +344,21 @@ static void w_pad_to_byte(BitWriter *w) {     /* JPEG pads with 1-bits */
 /* Component / scan state                                             */
 /* ------------------------------------------------------------------ */
 
-typedef struct { int id, h, v; } Comp;
+typedef struct {
+    int id, h, v;
+} Comp;
 static Comp comp[4];
-static int  ncomp;
-static int  comp_dc[4], comp_ac[4];  /* DC/AC table id per component (SOF order) */
+static int ncomp;
+static int comp_dc[4], comp_ac[4]; /* DC/AC table id per component (SOF order) */
 
 /* Decode one 8x8 block of a component, re-emitting its tokens, flipping
  * mantissa bits iff this is the target component. */
-static void transcode_block(BitReader *br, BitWriter *w, int ci, int flip) {
+static void transcode_block(BitReader* br, BitWriter* w, int ci, int flip) {
     int cl, cv;
     /* DC */
     int s = huff_decode(br, &dc_tab[comp_dc[ci]], &cl, &cv);
     if (s < 0) die("bad DC code");
-    put_bits(w, cv, cl);                 /* same Huffman symbol */
+    put_bits(w, cv, cl); /* same Huffman symbol */
     if (s > 0) {
         int m = read_bits(br, s);
         if (flip) m = (~m) & ((1 << s) - 1);
@@ -364,10 +372,13 @@ static void transcode_block(BitReader *br, BitWriter *w, int ci, int flip) {
         put_bits(w, cv, cl);
         int r = rs >> 4, sz = rs & 15;
         if (sz == 0) {
-            if (r == 15) { k += 16; continue; }  /* ZRL: 16 zeros */
-            break;                               /* EOB */
+            if (r == 15) {
+                k += 16;
+                continue;
+            }      /* ZRL: 16 zeros */
+            break; /* EOB */
         }
-        k += r;                                  /* skip r zeros */
+        k += r; /* skip r zeros */
         if (k > 63) die("coefficient overflow");
         int m = read_bits(br, sz);
         if (flip) m = (~m) & ((1 << sz) - 1);
@@ -380,9 +391,9 @@ static void transcode_block(BitReader *br, BitWriter *w, int ci, int flip) {
 /* Marker parsing                                                     */
 /* ------------------------------------------------------------------ */
 
-static int rd16(const uint8_t *p) { return (p[0] << 8) | p[1]; }
+static int rd16(const uint8_t* p) { return (p[0] << 8) | p[1]; }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
     if (argc != 4) {
         fprintf(stderr,
                 "usage: %s in.jpg out.jpg <channels>\n"
@@ -406,14 +417,14 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[3], "--invert-cmyk")) {
         target_mask = 0xF;
     } else {
-        char *spec = strdup(argv[3]);
+        char* spec = strdup(argv[3]);
         if (!spec) die("oom");
-        for (char *tok = strtok(spec, ","); tok; tok = strtok(NULL, ",")) {
+        for (char* tok = strtok(spec, ","); tok; tok = strtok(NULL, ",")) {
             int idx = 0;
-            if      (!strcmp(tok, "0") || !strcmp(tok, "Y")  || !strcmp(tok, "y"))  idx = 0;
+            if (!strcmp(tok, "0") || !strcmp(tok, "Y") || !strcmp(tok, "y")) idx = 0;
             else if (!strcmp(tok, "1") || !strcmp(tok, "Cb") || !strcmp(tok, "cb")) idx = 1;
             else if (!strcmp(tok, "2") || !strcmp(tok, "Cr") || !strcmp(tok, "cr")) idx = 2;
-            else if (!strcmp(tok, "3") || !strcmp(tok, "K")  || !strcmp(tok, "k"))  idx = 3;
+            else if (!strcmp(tok, "3") || !strcmp(tok, "K") || !strcmp(tok, "k")) idx = 3;
             else die("channel must be 0|1|2|3 or Y|Cb|Cr|K");
             target_mask |= 1 << idx;
         }
@@ -424,49 +435,59 @@ int main(int argc, char **argv) {
     g_in = read_file(argv[1], &g_insize);
     if (g_in[0] != 0xFF || g_in[1] != 0xD8) die("not a JPEG (no SOI)");
 
-    int Ri = 0;                 /* restart interval (MCUs), 0 = none */
+    int Ri = 0; /* restart interval (MCUs), 0 = none */
     int width = 0, height = 0;
     size_t entropy_start = 0;
     int sof_seen = 0, sos_seen = 0;
 
-    size_t p = 2;               /* after SOI */
+    size_t p = 2; /* after SOI */
     while (p + 1 < g_insize && !sos_seen) {
         if (g_in[p] != 0xFF) die("expected marker");
         uint8_t m = g_in[p + 1];
 
         /* markers with no payload */
-        if (m == 0x01 || (m >= 0xD0 && m <= 0xD7)) { p += 2; continue; }
+        if (m == 0x01 || (m >= 0xD0 && m <= 0xD7)) {
+            p += 2;
+            continue;
+        }
         if (m == 0xD9) die("EOI before scan");
 
         if (p + 3 >= g_insize) die("truncated segment");
-        int L = rd16(&g_in[p + 2]);          /* length incl. these 2 bytes */
-        const uint8_t *seg = &g_in[p + 4];    /* segment body */
+        int L = rd16(&g_in[p + 2]);        /* length incl. these 2 bytes */
+        const uint8_t* seg = &g_in[p + 4]; /* segment body */
         int seglen = L - 2;
 
         switch (m) {
-        case 0xC0: case 0xC1: {               /* SOF0 / SOF1: baseline-ish */
+        case 0xC0:
+        case 0xC1: { /* SOF0 / SOF1: baseline-ish */
             int prec = seg[0];
             height = rd16(&seg[1]);
-            width  = rd16(&seg[3]);
-            ncomp  = seg[5];
+            width = rd16(&seg[3]);
+            ncomp = seg[5];
             if (prec != 8) die("only 8-bit precision supported");
             if (ncomp < 1 || ncomp > 4) die("bad component count");
-            const uint8_t *cp = &seg[6];
+            const uint8_t* cp = &seg[6];
             for (int i = 0; i < ncomp; i++) {
                 comp[i].id = cp[0];
-                comp[i].h  = cp[1] >> 4;
-                comp[i].v  = cp[1] & 15;
+                comp[i].h = cp[1] >> 4;
+                comp[i].v = cp[1] & 15;
                 cp += 3;
             }
             sof_seen = 1;
             break;
         }
-        case 0xC2: die("progressive JPEG (SOF2) not supported");
-        case 0xC3: case 0xC5: case 0xC6: case 0xC7:
-        case 0xC9: case 0xCA: case 0xCB:
+        case 0xC2:
+            die("progressive JPEG (SOF2) not supported");
+        case 0xC3:
+        case 0xC5:
+        case 0xC6:
+        case 0xC7:
+        case 0xC9:
+        case 0xCA:
+        case 0xCB:
             die("unsupported SOF type (arithmetic/lossless/etc.)");
 
-        case 0xC4: {                          /* DHT: one or more tables */
+        case 0xC4: { /* DHT: one or more tables */
             int off = 0;
             while (off < seglen) {
                 uint8_t tcth = seg[off++];
@@ -474,36 +495,40 @@ int main(int argc, char **argv) {
                 if (id > 3) die("bad Huffman table id");
                 uint8_t bits[16];
                 int nv = 0;
-                for (int i = 0; i < 16; i++) { bits[i] = seg[off + i]; nv += bits[i]; }
+                for (int i = 0; i < 16; i++) {
+                    bits[i] = seg[off + i];
+                    nv += bits[i];
+                }
                 off += 16;
-                const uint8_t *vals = &seg[off];
+                const uint8_t* vals = &seg[off];
                 off += nv;
                 build_huff(cls ? &ac_tab[id] : &dc_tab[id], bits, vals, nv);
             }
             break;
         }
-        case 0xDD:                            /* DRI */
+        case 0xDD: /* DRI */
             Ri = rd16(seg);
             break;
 
-        case 0xDA: {                          /* SOS */
+        case 0xDA: { /* SOS */
             if (!sof_seen) die("SOS before SOF");
             int ns = seg[0];
-            const uint8_t *sp = &seg[1];
+            const uint8_t* sp = &seg[1];
             for (int i = 0; i < ns; i++) {
                 int cs = sp[0], td = sp[1] >> 4, ta = sp[1] & 15;
                 sp += 2;
                 int idx = -1;
-                for (int j = 0; j < ncomp; j++) if (comp[j].id == cs) idx = j;
+                for (int j = 0; j < ncomp; j++)
+                    if (comp[j].id == cs) idx = j;
                 if (idx < 0) die("scan references unknown component");
                 comp_dc[idx] = td;
                 comp_ac[idx] = ta;
             }
-            entropy_start = p + 2 + L;        /* first byte of entropy data */
+            entropy_start = p + 2 + L; /* first byte of entropy data */
             sos_seen = 1;
             break;
         }
-        default:                              /* APPn, COM, DQT, etc.: skip */
+        default: /* APPn, COM, DQT, etc.: skip */
             break;
         }
         p += 2 + L;
@@ -518,13 +543,15 @@ int main(int argc, char **argv) {
         if (comp[i].h > hmax) hmax = comp[i].h;
         if (comp[i].v > vmax) vmax = comp[i].v;
     }
-    int mcux = (width  + 8 * hmax - 1) / (8 * hmax);
+    int mcux = (width + 8 * hmax - 1) / (8 * hmax);
     int mcuy = (height + 8 * vmax - 1) / (8 * vmax);
     long total_mcu = (long)mcux * mcuy;
 
     /* transcode the scan */
     BitReader br = {0};
-    br.data = g_in; br.size = g_insize; br.pos = entropy_start;
+    br.data = g_in;
+    br.size = g_insize;
+    br.pos = entropy_start;
     BitWriter w = {0};
 
     int rst_idx = 0;
@@ -533,8 +560,7 @@ int main(int argc, char **argv) {
         for (int ci = 0; ci < ncomp; ci++) {
             int flip = (target_mask >> ci) & 1;
             for (int by = 0; by < comp[ci].v; by++)
-                for (int bx = 0; bx < comp[ci].h; bx++)
-                    transcode_block(&br, &w, ci, flip);
+                for (int bx = 0; bx < comp[ci].h; bx++) transcode_block(&br, &w, ci, flip);
         }
         since_rst++;
         if (Ri && since_rst == Ri && mcu + 1 < total_mcu) {
@@ -558,18 +584,17 @@ int main(int argc, char **argv) {
     }
 
     /* assemble output: headers verbatim + new scan + trailer verbatim */
-    FILE *out = fopen(argv[2], "wb");
+    FILE* out = fopen(argv[2], "wb");
     if (!out) die("cannot open output");
-    fwrite(g_in, 1, entropy_start, out);          /* everything through SOS hdr */
-    fwrite(w.buf, 1, w.len, out);                 /* rewritten entropy data */
+    fwrite(g_in, 1, entropy_start, out);                  /* everything through SOS hdr */
+    fwrite(w.buf, 1, w.len, out);                         /* rewritten entropy data */
     fwrite(g_in + scan_end, 1, g_insize - scan_end, out); /* EOI and anything after */
     fclose(out);
 
     fprintf(stderr, "inverted components");
     for (int i = 0; i < ncomp; i++)
         if ((target_mask >> i) & 1) fprintf(stderr, " %d", i);
-    fprintf(stderr, " (%dx%d, %d comps, Ri=%d) -> %s\n",
-            width, height, ncomp, Ri, argv[2]);
+    fprintf(stderr, " (%dx%d, %d comps, Ri=%d) -> %s\n", width, height, ncomp, Ri, argv[2]);
     free(w.buf);
     free(g_in);
     return 0;
