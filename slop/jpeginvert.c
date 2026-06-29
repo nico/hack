@@ -456,18 +456,24 @@ int main(int argc, char** argv) {
 
         if (p + 3 >= g_insize) die("truncated segment");
         int L = rd16(&g_in[p + 2]);        /* length incl. these 2 bytes */
+        /* The segment must fit in the file. Since seg = g_in+p+4 and
+         * seg+seglen = g_in+p+2+L, this bounds every seg[..] read below to
+         * in-file memory; per-handler checks then guard reads within seglen. */
+        if (L < 2 || p + 2 + (size_t)L > g_insize) die("truncated segment");
         const uint8_t* seg = &g_in[p + 4]; /* segment body */
         int seglen = L - 2;
 
         switch (m) {
         case 0xC0:
         case 0xC1: { /* SOF0 / SOF1: baseline-ish */
+            if (seglen < 6) die("short SOF");
             int prec = seg[0];
             height = rd16(&seg[1]);
             width = rd16(&seg[3]);
             ncomp = seg[5];
             if (prec != 8) die("only 8-bit precision supported");
             if (ncomp < 1 || ncomp > 4) die("bad component count");
+            if (seglen < 6 + 3 * ncomp) die("short SOF");
             const uint8_t* cp = &seg[6];
             for (int i = 0; i < ncomp; i++) {
                 comp[i].id = cp[0];
@@ -499,6 +505,7 @@ int main(int argc, char** argv) {
                 uint8_t tcth = seg[off++];
                 int cls = tcth >> 4, id = tcth & 15;
                 if (id > 3) die("bad Huffman table id");
+                if (off + 16 > seglen) die("short DHT");
                 uint8_t bits[16];
                 int nv = 0;
                 for (int i = 0; i < 16; i++) {
@@ -506,6 +513,7 @@ int main(int argc, char** argv) {
                     nv += bits[i];
                 }
                 off += 16;
+                if (off + nv > seglen) die("short DHT");
                 const uint8_t* vals = &seg[off];
                 off += nv;
                 build_huff(cls ? &ac_tab[id] : &dc_tab[id], bits, vals, nv);
@@ -513,13 +521,16 @@ int main(int argc, char** argv) {
             break;
         }
         case 0xDD: /* DRI */
+            if (seglen < 2) die("short DRI");
             Ri = rd16(seg);
             break;
 
         case 0xDA: { /* SOS */
             if (!sof_seen) die("SOS before SOF");
+            if (seglen < 1) die("short SOS");
             int ns = seg[0];
             if (ns < 1 || ns > 4) die("bad scan component count");
+            if (seglen < 1 + 2 * ns) die("short SOS");
             scan_ncomp = ns;
             const uint8_t* sp = &seg[1];
             for (int i = 0; i < ns; i++) {
