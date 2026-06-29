@@ -102,8 +102,11 @@
  * =====================================================================
  * USAGE
  * =====================================================================
- *   jpeginvert in.jpg out.jpg <channel>
- *   channel = 0|1|2  or  Y|Cb|Cr
+ *   jpeginvert in.jpg out.jpg <channels>
+ *   channels = comma-separated list of 0|1|2|3 or Y|Cb|Cr|K
+ *              (e.g. "Y", "0", "Y,Cr", "0,2,3", "1,2")
+ *   Each listed component is negated; components are independent, so
+ *   negating any subset is still a perfect involution.
  *
  * =====================================================================
  * SCOPE / SUPPORTED INPUTS
@@ -123,23 +126,16 @@
  * and would require full Huffman re-encoding (and possibly re-optimised
  * tables). Keep transforms sign-only to stay on the lossless fast path.
  *
- *  * MULTIPLE CHANNELS: `target` is a single component index, used only
- *    to compute the per-component `flip` flag in the MCU loop. Generalise
- *    it to a set/bitmask and raise `flip` when the current component is a
- *    member. Components are independent, so negating any SUBSET is still a
- *    perfect involution. (e.g. accept "Y,Cr" or "0,2".)
- *
- *  * CMYK / 4-COMPONENT (Adobe): the transcode loop already iterates
- *    `ncomp` components with [4]-sized table/component arrays, so a
- *    4-component file would transcode as-is -- the only blocker is the
- *    argument parser, which accepts just 0|1|2 / Y|Cb|Cr. Extend it to
- *    indices up to ncomp-1 (and names like C|M|Y|K). Real-CMYK caveats to
- *    be aware of: Adobe writes an APP14 marker whose "transform" byte
- *    says whether the data is RGB(0), YCbCr(1) or YCCK(2), and many Adobe
- *    CMYK JPEGs store INVERTED ink values. The entropy logic does not
- *    change -- inversion is still a pure per-component coefficient
- *    negation -- but which component means "lightness" vs "ink" depends
- *    on that transform flag, so map channel names accordingly.
+ *  * CMYK / 4-COMPONENT (Adobe): the 4th component is supported -- the
+ *    transcode loop iterates `ncomp` components with [4]-sized
+ *    table/component arrays, and the argument parser accepts index 3 / "K".
+ *    Real-CMYK caveats to be aware of: Adobe writes an APP14 marker whose
+ *    "transform" byte says whether the data is RGB(0), YCbCr(1) or YCCK(2),
+ *    and many Adobe CMYK JPEGs store INVERTED ink values. The entropy logic
+ *    does not change -- inversion is still a pure per-component coefficient
+ *    negation -- but which component means "lightness" vs "ink" depends on
+ *    that transform flag, so the K name here is just a positional alias for
+ *    index 3, not a semantic guarantee.
  *
  *  * PROGRESSIVE (SOF2): needs multiple scans, spectral selection
  *    (Ss..Se), successive approximation (Ah/Al) with AC refinement /
@@ -374,17 +370,31 @@ static int rd16(const uint8_t *p) { return (p[0] << 8) | p[1]; }
 
 int main(int argc, char **argv) {
     if (argc != 4) {
-        fprintf(stderr, "usage: %s in.jpg out.jpg <channel 0|1|2|Y|Cb|Cr>\n", argv[0]);
+        fprintf(stderr,
+                "usage: %s in.jpg out.jpg <channels>\n"
+                "  channels = comma-separated 0|1|2|3 or Y|Cb|Cr|K (e.g. \"Y,Cr\" or \"0,2,3\")\n",
+                argv[0]);
         return 2;
     }
 
-    /* parse channel argument */
-    int target = -1;
-    const char *c = argv[3];
-    if      (!strcmp(c, "0") || !strcmp(c, "Y")  || !strcmp(c, "y"))  target = 0;
-    else if (!strcmp(c, "1") || !strcmp(c, "Cb") || !strcmp(c, "cb")) target = 1;
-    else if (!strcmp(c, "2") || !strcmp(c, "Cr") || !strcmp(c, "cr")) target = 2;
-    else die("channel must be 0|1|2 or Y|Cb|Cr");
+    /* parse channel argument: a comma-separated list, built into a bitmask
+     * of component indices. Each listed component will be negated. */
+    int target_mask = 0;
+    {
+        char *spec = strdup(argv[3]);
+        if (!spec) die("oom");
+        for (char *tok = strtok(spec, ","); tok; tok = strtok(NULL, ",")) {
+            int idx = 0;
+            if      (!strcmp(tok, "0") || !strcmp(tok, "Y")  || !strcmp(tok, "y"))  idx = 0;
+            else if (!strcmp(tok, "1") || !strcmp(tok, "Cb") || !strcmp(tok, "cb")) idx = 1;
+            else if (!strcmp(tok, "2") || !strcmp(tok, "Cr") || !strcmp(tok, "cr")) idx = 2;
+            else if (!strcmp(tok, "3") || !strcmp(tok, "K")  || !strcmp(tok, "k"))  idx = 3;
+            else die("channel must be 0|1|2|3 or Y|Cb|Cr|K");
+            target_mask |= 1 << idx;
+        }
+        free(spec);
+    }
+    if (target_mask == 0) die("no channels specified");
 
     g_in = read_file(argv[1], &g_insize);
     if (g_in[0] != 0xFF || g_in[1] != 0xD8) die("not a JPEG (no SOI)");
@@ -475,7 +485,7 @@ int main(int argc, char **argv) {
     }
 
     if (!sos_seen) die("no scan found");
-    if (target >= ncomp) die("channel index >= number of components");
+    if (target_mask >> ncomp) die("channel index >= number of components");
 
     /* MCU geometry */
     int hmax = 1, vmax = 1;
@@ -496,7 +506,7 @@ int main(int argc, char **argv) {
     long since_rst = 0;
     for (long mcu = 0; mcu < total_mcu; mcu++) {
         for (int ci = 0; ci < ncomp; ci++) {
-            int flip = (ci == target);
+            int flip = (target_mask >> ci) & 1;
             for (int by = 0; by < comp[ci].v; by++)
                 for (int bx = 0; bx < comp[ci].h; bx++)
                     transcode_block(&br, &w, ci, flip);
@@ -530,8 +540,11 @@ int main(int argc, char **argv) {
     fwrite(g_in + scan_end, 1, g_insize - scan_end, out); /* EOI and anything after */
     fclose(out);
 
-    fprintf(stderr, "inverted component %d (%dx%d, %d comps, Ri=%d) -> %s\n",
-            target, width, height, ncomp, Ri, argv[2]);
+    fprintf(stderr, "inverted components");
+    for (int i = 0; i < ncomp; i++)
+        if ((target_mask >> i) & 1) fprintf(stderr, " %d", i);
+    fprintf(stderr, " (%dx%d, %d comps, Ri=%d) -> %s\n",
+            width, height, ncomp, Ri, argv[2]);
     free(w.buf);
     free(g_in);
     return 0;
