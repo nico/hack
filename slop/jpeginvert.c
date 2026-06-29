@@ -372,10 +372,10 @@ static void transcode_block(BitReader* br, BitWriter* w, int ci, int flip) {
         put_bits(w, cv, cl);
         int r = rs >> 4, sz = rs & 15;
         if (sz == 0) {
-            if (r == 15) {
+            if (r == 15) { /* ZRL: 16 zeros */
                 k += 16;
                 continue;
-            }      /* ZRL: 16 zeros */
+            }
             break; /* EOB */
         }
         k += r; /* skip r zeros */
