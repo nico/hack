@@ -350,6 +350,8 @@ typedef struct {
 static Comp comp[4];
 static int ncomp;
 static int comp_dc[4], comp_ac[4]; /* DC/AC table id per component (SOF order) */
+static int scan_order[4];          /* SOF-component index of each block in MCU order */
+static int scan_ncomp;             /* components listed in SOS (ns) */
 
 /* Decode one 8x8 block of a component, re-emitting its tokens, flipping
  * mantissa bits iff this is the target component. */
@@ -513,6 +515,8 @@ int main(int argc, char** argv) {
         case 0xDA: { /* SOS */
             if (!sof_seen) die("SOS before SOF");
             int ns = seg[0];
+            if (ns < 1 || ns > 4) die("bad scan component count");
+            scan_ncomp = ns;
             const uint8_t* sp = &seg[1];
             for (int i = 0; i < ns; i++) {
                 int cs = sp[0], td = sp[1] >> 4, ta = sp[1] & 15;
@@ -523,6 +527,7 @@ int main(int argc, char** argv) {
                 if (idx < 0) die("scan references unknown component");
                 comp_dc[idx] = td;
                 comp_ac[idx] = ta;
+                scan_order[i] = idx; /* blocks interleave in SOS order, not SOF order */
             }
             entropy_start = p + 2 + L; /* first byte of entropy data */
             sos_seen = 1;
@@ -536,6 +541,23 @@ int main(int argc, char** argv) {
 
     if (!sos_seen) die("no scan found");
     if (target_mask >> ncomp) die("channel index >= number of components");
+
+    /* We only handle a single interleaved scan that carries every component.
+     * A scan with fewer components (ns != ncomp) is non-interleaved: its block
+     * geometry is per-component, not the MCU geometry computed below, and the
+     * remaining components live in separate scans we don't parse. Reject it
+     * rather than silently emit a corrupt stream. */
+    if (scan_ncomp != ncomp)
+        die("non-interleaved scan (ns != ncomp); only a single interleaved scan is supported");
+
+    /* Every component in the scan must reference Huffman tables that a DHT
+     * actually defined; otherwise huff_decode would match against a zeroed
+     * table and silently desync. */
+    for (int si = 0; si < ncomp; si++) {
+        int ci = scan_order[si];
+        if (!dc_tab[comp_dc[ci]].valid) die("scan uses undefined DC Huffman table");
+        if (!ac_tab[comp_ac[ci]].valid) die("scan uses undefined AC Huffman table");
+    }
 
     /* MCU geometry */
     int hmax = 1, vmax = 1;
@@ -557,7 +579,8 @@ int main(int argc, char** argv) {
     int rst_idx = 0;
     long since_rst = 0;
     for (long mcu = 0; mcu < total_mcu; mcu++) {
-        for (int ci = 0; ci < ncomp; ci++) {
+        for (int si = 0; si < ncomp; si++) {
+            int ci = scan_order[si]; /* MCU blocks follow SOS order, not SOF order */
             int flip = (target_mask >> ci) & 1;
             for (int by = 0; by < comp[ci].v; by++)
                 for (int bx = 0; bx < comp[ci].h; bx++) transcode_block(&br, &w, ci, flip);
