@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>sky — real-time atmosphere</title>
+<style>
+  :root{
+    --ink: rgba(255,255,255,.92);
+    --ink-dim: rgba(255,255,255,.55);
+    --panel: rgba(10,14,22,.55);
+    --line: rgba(255,255,255,.14);
+    --accent: #ffd27a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:#000;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    color:var(--ink);}
+  canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:grab}
+  canvas#gl.dragging{cursor:grabbing}
+
+  .hud{position:fixed;left:16px;top:14px;pointer-events:none;
+    text-shadow:0 1px 8px rgba(0,0,0,.6)}
+  .hud h1{font-size:13px;font-weight:600;letter-spacing:.14em;text-transform:uppercase}
+  .hud .sub{margin-top:3px;font-size:12px;color:var(--ink-dim)}
+  .hud .data{margin-top:10px;font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-variant-numeric:tabular-nums;color:var(--ink-dim)}
+  .hud .data b{color:var(--ink);font-weight:500}
+
+  .bar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
+    width:min(680px, calc(100% - 28px));
+    display:flex;flex-direction:column;gap:6px;
+    padding:10px 14px;border-radius:14px;
+    background:var(--panel);border:1px solid var(--line);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+  .bar .row{display:flex;align-items:center;gap:14px;width:100%}
+  .mini{flex:1;display:flex;align-items:center;gap:10px;
+    font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-dim)}
+  .mini input{flex:1;min-width:60px}
+  .bar .clock{font:14px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-variant-numeric:tabular-nums;min-width:52px}
+  input[type=range]{flex:1;appearance:none;-webkit-appearance:none;height:22px;background:transparent}
+  input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--line);border-radius:1px}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;
+    background:var(--accent);margin-top:-6px;box-shadow:0 0 0 3px rgba(0,0,0,.25)}
+  input[type=range]::-moz-range-track{height:2px;background:var(--line)}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-radius:50%;background:var(--accent)}
+  button{appearance:none;border:1px solid var(--line);background:transparent;color:var(--ink);
+    font:12px inherit;padding:6px 12px;border-radius:9px;cursor:pointer;white-space:nowrap}
+  button:hover{border-color:rgba(255,255,255,.35)}
+  button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  button.live-on{border-color:var(--accent);color:var(--accent)}
+  .hint{position:fixed;right:16px;top:14px;font-size:11px;color:var(--ink-dim);
+    text-shadow:0 1px 8px rgba(0,0,0,.6);text-align:right;pointer-events:none}
+  @media (max-width:560px){ .hint{display:none} .hud .data{font-size:11px} }
+  .nogl{position:fixed;inset:0;display:none;place-items:center;color:var(--ink);font-size:14px;padding:24px;text-align:center}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<div class="hud">
+  <h1>Sky</h1>
+  <div class="sub" id="locLabel">Metuchen NJ, 40.54°N 74.36°W</div>
+  <div class="data" id="data"></div>
+</div>
+
+<div class="hint">drag to look · scroll to zoom</div>
+
+<div class="bar">
+  <div class="row">
+    <span class="clock" id="clock">–:–</span>
+    <input type="range" id="timeSlider" min="0" max="1439" step="1" aria-label="Time of day">
+    <button id="nowBtn" class="live-on">Live</button>
+    <button id="sunBtn" title="Point the view at the sun" aria-label="Point the view at the sun">☀</button>
+    <button id="trackBtn" title="Follow the phone's orientation">track</button>
+  </div>
+  <div class="row">
+    <label class="mini">haze<input type="range" id="hazeSlider" min="0" max="100" value="25" aria-label="Haze"></label>
+    <label class="mini">clouds<input type="range" id="cloudSlider" min="0" max="100" value="30" aria-label="Cloud cover"></label>
+    <button id="rainBtn" title="Raindrops on the glass">rain</button>
+    <button id="geoBtn" title="Use your GPS position">Locate me</button>
+  </div>
+</div>
+
+<div class="nogl" id="nogl">Your browser doesn't support WebGL, which this demo needs to render the sky.</div>
+
+<script>
+"use strict";
+/* ---------------- sun position (astronomical, ~arcminute accuracy) ---------- */
+const RAD = Math.PI/180;
+const E_OBL = RAD*23.4397;                                        // obliquity
+const daysJ2000 = date => date.valueOf()/86400000 - 0.5 + 2440588 - 2451545;
+
+function eqToHorizon(ra, dec, d, lat, lng){
+  const H   = RAD*(280.16 + 360.9856235*d) + RAD*lng - ra;        // hour angle
+  const phi = RAD*lat;
+  const alt = Math.asin(Math.sin(phi)*Math.sin(dec) + Math.cos(phi)*Math.cos(dec)*Math.cos(H));
+  const az  = Math.atan2(Math.sin(H), Math.cos(H)*Math.sin(phi) - Math.tan(dec)*Math.cos(phi)); // 0=S, +W
+  return {alt, az};
+}
+function sunPosition(date, lat, lng){
+  const d = daysJ2000(date);
+  const M = RAD*(357.5291 + 0.98560028*d);                        // mean anomaly
+  const C = RAD*(1.9148*Math.sin(M) + 0.02*Math.sin(2*M) + 0.0003*Math.sin(3*M));
+  const L = M + C + RAD*102.9372 + Math.PI;                       // ecliptic longitude
+  const dec = Math.asin(Math.sin(E_OBL)*Math.sin(L));
+  const ra  = Math.atan2(Math.sin(L)*Math.cos(E_OBL), Math.cos(L));
+  return eqToHorizon(ra, dec, d, lat, lng);
+}
+function moonPosition(date, lat, lng){
+  const d = daysJ2000(date);
+  const L = RAD*(218.316 + 13.176396*d);                          // mean longitude
+  const M = RAD*(134.963 + 13.064993*d);                          // mean anomaly
+  const F = RAD*(93.272  + 13.229350*d);                          // mean distance arg
+  const l = L + RAD*6.289*Math.sin(M);                            // ecliptic lon
+  const b = RAD*5.128*Math.sin(F);                                // ecliptic lat
+  const ra  = Math.atan2(Math.sin(l)*Math.cos(E_OBL) - Math.tan(b)*Math.sin(E_OBL), Math.cos(l));
+  const dec = Math.asin(Math.sin(b)*Math.cos(E_OBL) + Math.cos(b)*Math.sin(E_OBL)*Math.sin(l));
+  return eqToHorizon(ra, dec, d, lat, lng);
+}
+// world basis: x = east, y = up, z = north
+function sunDirection(alt, az){
+  const ca = Math.cos(alt);
+  return [ -Math.sin(az)*ca, Math.sin(alt), -Math.cos(az)*ca ];
+}
+
+/* ---------------- state ---------------- */
+let lat = 40.54, lng = -74.36;               // default: Metuchen, NJ
+let live = true;
+let minuteOfDay = 0;                          // used when not live
+let yaw = 0, pitch = 0.08, fov = 70*RAD;
+
+/* ---------------- WebGL ---------------- */
+const canvas = document.getElementById('gl');
+const gl = canvas.getContext('webgl', {antialias:false, alpha:false});
+if(!gl){ document.getElementById('nogl').style.display='grid'; }
+canvas.width = 0;  // force first resize() to allocate the render target
+
+const VS = `
+attribute vec2 aPos;
+void main(){ gl_Position = vec4(aPos, 0.0, 1.0); }`;
+
+const FS = `
+precision highp float;
+
+uniform vec2  uRes;
+uniform vec3  uSunDir;
+uniform vec3  uMoonDir;
+uniform float uYaw, uPitch, uTanHalfFov;
+uniform float uExposure;
+uniform float uMie;        // Mie scattering coefficient (haze)
+uniform float uCoverage;   // cloud coverage 0..1
+uniform float uMoonUp;     // moon illuminated fraction x altitude factor
+uniform float uTime;       // seconds since local midnight, for cloud drift
+uniform sampler2D uNoise;  // 256x256 tiling noise, G = R shifted one z-slice
+
+const float R_EARTH = 6371e3;
+const float R_ATMO  = 6471e3;
+const vec3  BETA_R  = vec3(5.802e-6, 13.558e-6, 33.1e-6);  // Rayleigh scattering
+const float H_R = 8500.0;
+const float H_M = 1200.0;
+const float G   = 0.76;
+const float SUN_I = 22.0;
+const int I_STEPS = 16;
+const int J_STEPS = 8;
+
+vec2 raySphere(vec3 ro, vec3 rd, float r){
+  float b = dot(ro, rd);
+  float c = dot(ro, ro) - r*r;
+  float d = b*b - c;
+  if(d < 0.0) return vec2(1e9, -1e9);
+  d = sqrt(d);
+  return vec2(-b - d, -b + d);
+}
+
+// optical depth from p to top of atmosphere toward the sun
+vec2 lightDepth(vec3 p, vec3 sd){
+  float t1 = raySphere(p, sd, R_ATMO).y;
+  float ds = t1 / float(J_STEPS);
+  float t = 0.0;
+  vec2 od = vec2(0.0);
+  for(int j = 0; j < J_STEPS; j++){
+    vec3 q = p + sd*(t + ds*0.5);
+    float h = length(q) - R_EARTH;
+    od += exp(-h / vec2(H_R, H_M)) * ds;
+    t += ds;
+  }
+  return od;
+}
+
+// single-scattering integral along [0, tMax]; also returns view transmittance
+vec3 scatter(vec3 ro, vec3 rd, float tMax, vec3 sd, out vec3 viewTrans){
+  float mu = dot(rd, sd);
+  float mumu = mu*mu, gg = G*G;
+  float phaseR = 3.0/(16.0*3.14159265)*(1.0 + mumu);
+  float phaseM = 3.0/(8.0*3.14159265) * ((1.0-gg)*(mumu+1.0)) /
+                 (pow(1.0 + gg - 2.0*mu*G, 1.5)*(2.0+gg));
+
+  float ds = tMax / float(I_STEPS);
+  float t = 0.0;
+  vec3 sumR = vec3(0.0), sumM = vec3(0.0);
+  vec2 odView = vec2(0.0);
+
+  for(int i = 0; i < I_STEPS; i++){
+    vec3 p = ro + rd*(t + ds*0.5);
+    float h = length(p) - R_EARTH;
+    vec2 dOd = exp(-h / vec2(H_R, H_M)) * ds;
+    odView += dOd;
+    vec2 odL = lightDepth(p, sd);
+    vec3 att = exp(-(BETA_R*(odView.x + odL.x) + uMie*1.1*(odView.y + odL.y)));
+    sumR += att * dOd.x;
+    sumM += att * dOd.y;
+    t += ds;
+  }
+  viewTrans = exp(-(BETA_R*odView.x + uMie*1.1*odView.y));
+  return SUN_I * (phaseR * BETA_R * sumR + phaseM * uMie * sumM);
+}
+
+float hash13(vec3 p){
+  p = fract(p*0.1031);
+  p += dot(p, p.zyx + 31.32);
+  return fract((p.x + p.y)*p.z);
+}
+float stars(vec3 rd){
+  vec3 p = rd*350.0;
+  vec3 id = floor(p);
+  vec3 f = fract(p) - 0.5;
+  float h = hash13(id);
+  float s = smoothstep(0.9985, 1.0, h) * smoothstep(0.35, 0.0, length(f));
+  return s * (0.3 + 0.7*hash13(id + 17.0));
+}
+
+/* ---------- volumetric cloud field ---------- */
+const float CLOUD_LO = 1400.0;
+const float CLOUD_HI = 2700.0;
+const float SIG_C    = 0.014;     // cloud extinction coefficient
+
+// 3D value noise from a 2D texture: one fetch returns slice z (R) and z+1 (G)
+float noise3(vec3 x){
+  vec3 p = floor(x), f = fract(x);
+  f = f*f*(3.0 - 2.0*f);
+  vec2 uv = (p.xy + vec2(37.0, 239.0)*p.z) + f.xy;
+  vec2 rg = texture2D(uNoise, (uv + 0.5)/256.0).xy;
+  return mix(rg.x, rg.y, f.z);
+}
+// fbm with controllable detail: far samples drop the fine octaves so the
+// field stays smooth relative to the march step (fixes speckle aliasing)
+float fbm3(vec3 p, float detail){
+  float v = 0.5*noise3(p);        p = p*2.3 + vec3(13.1, 7.7, 5.3);
+  v += 0.25*noise3(p);            p = p*2.3 + vec3(13.1, 7.7, 5.3);
+  v += 0.125*detail*noise3(p);    p = p*2.3 + vec3(13.1, 7.7, 5.3);
+  v += 0.0625*detail*noise3(p);
+  return v / (0.75 + 0.1875*detail);
+}
+float fbm3lo(vec3 p){
+  return 0.66*noise3(p) + 0.34*noise3(p*2.3 + vec3(13.1, 7.7, 5.3));
+}
+float cloudShape(float f, float h, float w, float e){
+  float hf = smoothstep(CLOUD_LO - 50.0, CLOUD_LO + 250.0, h)
+           * smoothstep(CLOUD_HI + 50.0, CLOUD_HI - 600.0, h);
+  float cov = uCoverage * smoothstep(0.32, 0.78, w);   // weather map gates coverage
+  float thr = mix(0.86, 0.34, cov);
+  return smoothstep(thr, thr + e, f) * hf;
+}
+vec3 cloudCoord(vec3 p){
+  vec3 q = p*1.1e-3;
+  q.xz += uTime*vec2(0.005, 0.0015);   // wind
+  return q;
+}
+// very low frequency (~18 km) field: cloud banks with clear gaps between
+float weatherAt(vec3 q){
+  return 0.72*noise3(vec3(q.xz*0.05, 11.0)) + 0.28*noise3(vec3(q.xz*0.13, 23.0));
+}
+float densityHi(vec3 p, float detail){
+  float h = length(p) - R_EARTH;
+  if(h < CLOUD_LO - 60.0 || h > CLOUD_HI + 60.0) return 0.0;
+  vec3 q = cloudCoord(p);
+  return cloudShape(fbm3(q, detail), h, weatherAt(q), mix(0.42, 0.22, detail));
+}
+float densityLo(vec3 p){
+  float h = length(p) - R_EARTH;
+  if(h < CLOUD_LO - 60.0 || h > CLOUD_HI + 60.0) return 0.0;
+  vec3 q = cloudCoord(p);
+  return cloudShape(fbm3lo(q), h, weatherAt(q), 0.45);
+}
+// transmittance toward the sun through the cloud field (self-shadowing);
+// wide sample spacing keeps the shadow field smooth — jagged shadows are
+// the main source of pixel speckle in dithered marches
+float lightTrans(vec3 p, vec3 sd){
+  float amt = 0.0, t = 60.0;
+  for(int i = 0; i < 4; i++){
+    amt += densityLo(p + sd*t);
+    t += 140.0;
+  }
+  return exp(-amt * SIG_C * 140.0);
+}
+float hg(float mu, float g){
+  float gg = g*g;
+  return (1.0 - gg) / (4.0*3.14159265*pow(1.0 + gg - 2.0*g*mu, 1.5));
+}
+
+void main(){
+  vec2 uv = (gl_FragCoord.xy*2.0 - uRes) / uRes.y;
+
+  float cy = cos(uYaw),  sy = sin(uYaw);
+  float cp = cos(uPitch), sp = sin(uPitch);
+  vec3 fwd = vec3(sy*cp, sp, cy*cp);
+  vec3 rgt = vec3(cy, 0.0, -sy);
+  vec3 up  = vec3(-sy*sp, cp, -cy*sp);
+  vec3 rd  = normalize(fwd + uTanHalfFov*(uv.x*rgt + uv.y*up));
+
+  vec3 ro = vec3(0.0, R_EARTH + 1.8, 0.0);   // eye level
+  vec3 sd = normalize(uSunDir);
+
+  float tAtmo = raySphere(ro, rd, R_ATMO).y;
+  vec2 eGround = raySphere(ro, rd, R_EARTH);
+  bool hitGround = eGround.x > 0.0 && eGround.x < eGround.y;
+  float tMax = hitGround ? eGround.x : tAtmo;
+
+  vec3 viewTrans;
+  vec3 col = scatter(ro, rd, tMax, sd, viewTrans);
+
+  if(hitGround){
+    vec3 p = ro + rd*eGround.x;
+    vec3 n = normalize(p);
+    float ndl = max(dot(n, sd), 0.0);
+    vec2 odL = lightDepth(p, sd);
+    vec3 sunT = exp(-(BETA_R*odL.x + uMie*1.1*odL.y)) * step(0.0, dot(n, sd));
+    vec3 ambient = vec3(0.06, 0.09, 0.14) * (0.02 + 0.5*smoothstep(-0.12, 0.25, sd.y));
+    // multi-scale grass detail; the fine scales fade out with distance
+    vec2 guv = p.xz;
+    float pn = noise3(vec3(guv*0.05, 3.1));   // ~20 m colour patches
+    float gn = noise3(vec3(guv*1.4,  6.2));   // ~0.7 m clumps
+    float sn = noise3(vec3(guv*9.0,  9.4));   // ~10 cm blades
+    float dfade = exp(-eGround.x*8.0e-3);     // fine detail gone by ~300 m
+    vec3 albedo = vec3(0.115, 0.145, 0.095);
+    albedo *= 0.82 + 0.36*pn + vec3(0.10, 0.16, 0.02)*(pn - 0.5);
+    albedo *= 1.0 + dfade*(0.35*(gn - 0.5) + 0.30*(sn - 0.5));
+    col += albedo * (SUN_I*0.24*sunT*ndl + ambient) * viewTrans;
+  } else {
+    // --- moon: a real sphere lit by the actual sun direction, so the
+    //     phase and its orientation come out correct automatically
+    float mAlpha = 0.0;
+    vec3 mCol = vec3(0.0);
+    vec3 md = normalize(uMoonDir);
+    if(dot(rd, md) > 0.99995){
+      vec3 tu = normalize(cross(md, vec3(0.0, 1.0, 0.0)));
+      vec3 tv = cross(tu, md);
+      vec2 off = vec2(dot(rd, tu), dot(rd, tv)) / 0.0046;  // 0.26 deg radius
+      float r2 = dot(off, off);
+      if(r2 < 1.0){
+        vec3 n = tu*off.x + tv*off.y - md*sqrt(1.0 - r2);
+        float li = max(dot(n, sd), 0.0);
+        mCol = vec3(0.86, 0.84, 0.79) * (li*0.55 + 0.006);  // + faint earthshine
+        mAlpha = smoothstep(1.0, 0.86, r2);
+      }
+    }
+
+    float mu = dot(rd, sd);
+    float disc = smoothstep(0.999955, 0.999985, mu);
+    float night = smoothstep(-0.03, -0.16, sd.y);
+
+    // --- volumetric clouds: raymarch the 1.4–2.7 km slab, light-march
+    //     toward the sun at every sample for self-shadowing
+    float Tc = 1.0;                        // cloud transmittance along the view
+    if(uCoverage > 0.004){
+      float tA = max(raySphere(ro, rd, R_EARTH + CLOUD_LO).y, 0.0);
+      float tB = raySphere(ro, rd, R_EARTH + CLOUD_HI).y;
+      float seg = min(tB - tA, 18000.0);
+      if(seg > 0.0){
+        float stepLen = seg / 54.0;
+        // march-Nyquist LOD: whatever the view, never keep octaves finer
+        // than the step size can resolve (kills grain at any zoom level)
+        float detStep = exp(-max(stepLen - 40.0, 0.0)*6.0e-3);
+        // interleaved-gradient dither: same variance as white noise but
+        // distributes it evenly, so residual undersampling reads as an
+        // even sheen instead of clumpy grain
+        float ign = fract(52.9829189*fract(0.06711056*gl_FragCoord.x + 0.00583715*gl_FragCoord.y));
+        float t = tA + stepLen * ign;
+        float phase = mix(hg(mu, 0.55), hg(mu, -0.15), 0.3); // fwd + back lobe
+        vec2 odC = lightDepth(ro + rd*tA, sd);
+        vec3 sunCol = SUN_I * exp(-(BETA_R*odC.x + uMie*1.1*odC.y))
+                    * smoothstep(-0.12, 0.02, sd.y);   // clouds see the sun a bit longer
+        float dayA = smoothstep(-0.15, 0.25, sd.y);
+        vec3 amb = vec3(0.25, 0.33, 0.48)*0.38*dayA     // daytime skylight
+                 + vec3(0.55, 0.60, 0.70)*0.012*uMoonUp // moonlight (phase & altitude)
+                 + vec3(4.0e-4);                        // starlight + airglow
+        vec3 acc = vec3(0.0);
+        for(int i = 0; i < 54; i++){
+          vec3 p = ro + rd*t;
+          float det = detStep * exp(-t*1.6e-4);   // step-size LOD x distance LOD
+          float d = densityHi(p, det);
+          if(d > 0.01){
+            float lT = lightTrans(p, sd);
+            float ext = d * SIG_C * stepLen;
+            acc += Tc * (sunCol*lT*phase + amb) * (1.0 - exp(-ext));
+            Tc *= exp(-ext);
+            if(Tc < 0.012){ Tc = 0.0; break; }    // effectively opaque
+          }
+          t += stepLen;
+        }
+        float fadeD = exp(-tA*1.0e-5);
+        // occlusion keeps its full strength; only the cloud's own light fades
+        // toward the sky that was behind it (aerial perspective, no x-ray sun)
+        col = col*Tc + mix(col*(1.0 - Tc), acc, fadeD);
+      }
+    }
+
+    // celestial bodies sit behind the cloud layer. The sun's collimated disc
+    // extinguishes much faster than the cloud's diffuse glow (SIG_C is an
+    // effective, multiple-scattering-reduced coefficient), hence Tc^4 for
+    // the direct beam — a grey veil dims the disc to pale, then swallows it
+    float Tdirect = Tc*Tc; Tdirect *= Tdirect;
+    col += disc * viewTrans * SUN_I * 6.0 * Tdirect;
+    // aureole: forward-scattered halo around a partly veiled sun
+    col += pow(max(mu, 0.0), 350.0) * SUN_I * 0.5 * Tc*(1.0 - Tc) * viewTrans;
+    col += stars(rd) * night * viewTrans * 0.6 * (1.0 - mAlpha) * Tc;
+    col += mCol * mAlpha * viewTrans * Tc;
+  }
+
+  col = 1.0 - exp(-uExposure * col);           // filmic-ish tonemap
+  col = pow(col, vec3(1.0/2.2));
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+/* Glass pass: the scene is rendered to a texture; this pass fogs the glass
+   with a blur and lets drops sample the *sharp* scene with a lens offset.
+   Runners sweep both the fog and the static droplets out of their path. */
+const FS_POST = `
+precision highp float;
+uniform sampler2D uScene;
+uniform vec2  uRes;
+uniform float uRain;
+uniform float uClock;
+uniform vec3  uSunNDC;   // sun in camera NDC (xy, in uRes.y-normalised units) + forward depth (z)
+
+vec2 hashv2(vec2 p){
+  vec3 q = fract(vec3(p.xyx)*vec3(0.1031, 0.1030, 0.0973));
+  q += dot(q, q.yzx + 33.33);
+  return fract((q.xx + q.yz)*q.zy);
+}
+// drops that dwell, then slip: long pauses, quick slides, leaving a
+// trail of shrinking beads pinned along their meandering path
+vec3 slideLayer(vec2 st, float t){
+  vec2 grid = vec2(12.0, 3.0);
+  vec2 cr = hashv2(vec2(floor(st.x*grid.x), 7.0));
+  float rate = 0.10 + 0.18*cr.x;                    // slips per second (slow)
+  float ph = t*rate + cr.y*13.7;
+  float trav = floor(ph) + smoothstep(0.70, 1.0, fract(ph)); // dwell 70%, slip 30%
+  trav += t*0.015;                                  // barely-visible creep
+  vec2 uv = st*grid + vec2(0.0, trav + cr.y*23.7);
+  vec2 id = floor(uv);
+  vec2 f  = fract(uv);
+  vec2 h  = hashv2(id + 31.0);
+  float hasDrop = step(h.y, 0.8);
+  float x = 0.5 + (h.x - 0.5)*0.5;
+  x += 0.10*sin(uv.y*2.3 + h.y*6.28);               // meandering path
+  vec2 dp = (f - vec2(x, 0.5))/grid;
+  dp.y *= 0.8;                                      // teardrop squash
+  float R = 0.010*(0.6 + 0.7*h.y);
+  float m = smoothstep(R, R*0.55, length(dp)) * hasDrop;
+  vec2 nrm = (-dp/R)*m;
+  // bead trail: sits on the same path, shrinking with distance above the drop
+  float above = f.y - 0.5;
+  float slot = floor(f.y*5.0);
+  float bh = hashv2(vec2(id.x*7.0 + slot, id.y + 3.0)).x;
+  vec2 bv = vec2((f.x - x)/grid.x, (fract(f.y*5.0) - 0.5)/(5.0*grid.y));
+  float br = R*mix(0.55, 0.18, clamp(above*1.9, 0.0, 1.0));
+  float bm = smoothstep(br, br*0.4, length(bv))
+           * hasDrop * step(0.02, above) * step(bh, 0.65);
+  vec2 bnrm = (-bv/max(br, 1e-4))*bm;
+  // damp film directly on the path — mostly-cleared fog, not a big streak
+  float film = smoothstep(0.010, 0.002, abs(dp.x)) * step(0.0, above) * hasDrop * 0.35;
+  return vec3(nrm + bnrm, max(max(m, bm*0.9), film));
+}
+// small condensation beads; sparse, slowly appearing and evaporating
+vec3 staticLayer(vec2 st, float t, float scale){
+  vec2 uv = st*scale;
+  vec2 id = floor(uv);
+  vec2 f = fract(uv) - 0.5;
+  vec2 h = hashv2(id + 3.7);
+  vec2 dp = (f - (h - 0.5)*0.72)/scale;
+  float life = fract(t*0.025 + h.x*17.0);
+  float R = (0.0012 + 0.0040*h.y)                   // much smaller beads
+          * smoothstep(0.0, 0.12, life) * smoothstep(1.0, 0.82, life)
+          * step(h.x, 0.55);                        // and most cells stay empty
+  float m = smoothstep(R, R*0.5, length(dp*vec2(1.0, 0.92)));
+  return vec3((-dp/max(R, 1e-4))*m, m);
+}
+vec3 rainGlass(vec2 st, float t){
+  vec3 s1 = slideLayer(st, t);
+  vec3 s2 = slideLayer(st*vec2(1.23, 1.10) + 7.3, t*1.17 + 31.0)*0.9;
+  // runners absorb the beads in their path (drops that touch, merge)
+  float swept = clamp((s1.z + s2.z)*1.7, 0.0, 1.0);
+  vec3 c = staticLayer(st, t, 42.0)
+         + staticLayer(st + 4.1, t, 78.0)*0.85
+         + staticLayer(st + 9.7, t, 140.0)*0.65;
+  return s1 + s2 + c*(1.0 - swept);
+}
+// 12-tap disc blur for the fogged glass
+vec3 blurScene(vec2 uv){
+  vec2 r = vec2(uRes.y/uRes.x, 1.0) * 0.018;
+  vec3 s = texture2D(uScene, uv).rgb * 0.2;
+  s += texture2D(uScene, uv + r*vec2( 0.45,  0.00)).rgb*0.1;
+  s += texture2D(uScene, uv + r*vec2(-0.23,  0.39)).rgb*0.1;
+  s += texture2D(uScene, uv + r*vec2(-0.23, -0.39)).rgb*0.1;
+  s += texture2D(uScene, uv + r*vec2( 1.00,  0.00)).rgb*0.0625;
+  s += texture2D(uScene, uv + r*vec2( 0.71,  0.71)).rgb*0.0625;
+  s += texture2D(uScene, uv + r*vec2( 0.00,  1.00)).rgb*0.0625;
+  s += texture2D(uScene, uv + r*vec2(-0.71,  0.71)).rgb*0.0625;
+  s += texture2D(uScene, uv + r*vec2(-1.00,  0.00)).rgb*0.0625;
+  s += texture2D(uScene, uv + r*vec2(-0.71, -0.71)).rgb*0.0625;
+  s += texture2D(uScene, uv + r*vec2( 0.00, -1.00)).rgb*0.0625;
+  s += texture2D(uScene, uv + r*vec2( 0.71, -0.71)).rgb*0.0625;
+  return s;
+}
+void main(){
+  vec2 uv = gl_FragCoord.xy/uRes;
+  if(uRain < 0.5){
+    gl_FragColor = texture2D(uScene, uv);
+    return;
+  }
+  vec3 g = rainGlass(gl_FragCoord.xy/uRes.y, uClock);
+  float wet = clamp(g.z, 0.0, 1.0);
+  vec3 fog = blurScene(uv)*0.985;                   // fogged glass
+  vec2 ruv = clamp(uv + g.xy*vec2(0.14, 0.19), 0.002, 0.998);
+  vec3 refr = texture2D(uScene, ruv).rgb;
+  refr = refr*1.05 - 0.012;                         // slight contrast pop in drops
+  // sun glint: the 8-bit scene texture clips the sun's true brightness, so
+  // drops whose refracted lookup lands near the sun get its energy back
+  // analytically — gated by the scene's brightness there, so clouds occlude it
+  if(uSunNDC.z > 0.0){
+    vec2 sunUV = 0.5 + 0.5*uSunNDC.xy*uRes.y/uRes;
+    vec3 sp = texture2D(uScene, clamp(sunUV, 0.0, 1.0)).rgb;
+    float vis = smoothstep(0.72, 0.97, max(sp.r, max(sp.g, sp.b)));
+    vec2 dv = (ruv - sunUV)*vec2(uRes.x/uRes.y, 1.0);
+    float glint = exp(-dot(dv, dv)*900.0)*vis;
+    refr += glint*vec3(1.0, 0.96, 0.86)*1.6;
+  }
+  gl_FragColor = vec4(mix(fog, refr, wet), 1.0);
+}`;
+
+let sceneProg, postProg, uniS = {}, uniP = {}, sceneTex, fbo;
+if(gl){
+  function sh(type, src){
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src); gl.compileShader(s);
+    if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s));
+    return s;
+  }
+  function mkProg(fsSrc){
+    const p = gl.createProgram();
+    gl.attachShader(p, sh(gl.VERTEX_SHADER, VS));
+    gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fsSrc));
+    gl.linkProgram(p);
+    return p;
+  }
+  sceneProg = mkProg(FS);
+  postProg  = mkProg(FS_POST);
+
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  for(const p of [sceneProg, postProg]){
+    const loc = gl.getAttribLocation(p, 'aPos');
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  }
+
+  ['uRes','uSunDir','uMoonDir','uYaw','uPitch','uTanHalfFov','uExposure','uMie','uCoverage','uTime','uMoonUp']
+    .forEach(n => uniS[n] = gl.getUniformLocation(sceneProg, n));
+  ['uRes','uRain','uClock','uSunNDC']
+    .forEach(n => uniP[n] = gl.getUniformLocation(postProg, n));
+
+  // tiling noise texture: R = random field, G = same field shifted by (37, 239)
+  // so one bilinear fetch yields two adjacent z-slices for 3D value noise
+  {
+    const N = 256, R = new Uint8Array(N*N);
+    for(let i = 0; i < N*N; i++) R[i] = (Math.random()*256) | 0;
+    const px = new Uint8Array(N*N*4);
+    for(let y = 0; y < N; y++) for(let x = 0; x < N; x++){
+      const i = y*N + x;
+      px[i*4]     = R[i];
+      px[i*4 + 1] = R[((y + 239) % N)*N + ((x + 37) % N)];
+      px[i*4 + 3] = 255;
+    }
+    const tex = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, N, N, 0, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.useProgram(sceneProg);
+    gl.uniform1i(gl.getUniformLocation(sceneProg, 'uNoise'), 0);
+  }
+
+  // offscreen scene texture (unit 1) + framebuffer for the glass pass
+  sceneTex = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, sceneTex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  fbo = gl.createFramebuffer();
+  gl.useProgram(postProg);
+  gl.uniform1i(gl.getUniformLocation(postProg, 'uScene'), 1);
+}
+
+function resize(){
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.25);
+  const w = Math.round(innerWidth*dpr), h = Math.round(innerHeight*dpr);
+  if(canvas.width !== w || canvas.height !== h){
+    canvas.width = w; canvas.height = h;
+    if(gl){
+      gl.viewport(0, 0, w, h);
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, sceneTex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, sceneTex, 0);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    }
+  }
+}
+addEventListener('resize', resize);
+
+/* ---------------- interaction ---------------- */
+let drag = null;
+canvas.addEventListener('pointerdown', e => {
+  if(tracking) return;                 // the phone is steering
+  drag = {x:e.clientX, y:e.clientY, yaw, pitch};
+  canvas.setPointerCapture(e.pointerId);
+  canvas.classList.add('dragging');
+});
+canvas.addEventListener('pointermove', e => {
+  if(!drag) return;
+  const s = fov / innerHeight;
+  yaw   = drag.yaw   - (e.clientX - drag.x)*s;
+  pitch = drag.pitch + (e.clientY - drag.y)*s;
+  pitch = Math.max(-1.55, Math.min(1.55, pitch));
+});
+addEventListener('pointerup', () => { drag = null; canvas.classList.remove('dragging'); });
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  fov = Math.max(25*RAD, Math.min(100*RAD, fov * (1 + e.deltaY*0.001)));
+}, {passive:false});
+
+/* ---------------- UI ---------------- */
+const slider   = document.getElementById('timeSlider');
+const clockEl  = document.getElementById('clock');
+const dataEl   = document.getElementById('data');
+const nowBtn   = document.getElementById('nowBtn');
+const geoBtn   = document.getElementById('geoBtn');
+const locLabel = document.getElementById('locLabel');
+
+slider.addEventListener('input', () => {
+  live = false;
+  nowBtn.classList.remove('live-on');
+  minuteOfDay = +slider.value;
+});
+nowBtn.addEventListener('click', () => {
+  live = true;
+  nowBtn.classList.add('live-on');
+});
+geoBtn.addEventListener('click', () => {
+  if(!navigator.geolocation) return;
+  geoBtn.textContent = 'Locating…';
+  navigator.geolocation.getCurrentPosition(pos => {
+    lat = pos.coords.latitude; lng = pos.coords.longitude;
+    locLabel.textContent = `Your position, ${lat.toFixed(2)}°${lat >= 0 ? 'N':'S'} ${Math.abs(lng).toFixed(2)}°${lng >= 0 ? 'E':'W'}`;
+    geoBtn.textContent = 'Locate me';
+  }, () => {
+    geoBtn.textContent = 'Location unavailable';
+    setTimeout(() => geoBtn.textContent = 'Locate me', 2500);
+  });
+});
+
+function currentDate(){
+  const now = new Date();
+  if(live){
+    minuteOfDay = now.getHours()*60 + now.getMinutes();
+    slider.value = minuteOfDay;
+    return now;
+  }
+  const d = new Date(now);
+  d.setHours(Math.floor(minuteOfDay/60), minuteOfDay % 60, 0, 0);
+  return d;
+}
+
+const pad = n => String(n).padStart(2, '0');
+const compass = a => ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'][Math.round(((a%360)+360)%360/22.5)%16];
+
+/* point the camera at the sun on first load */
+let aimed = false;
+
+const hazeSlider  = document.getElementById('hazeSlider');
+const cloudSlider = document.getElementById('cloudSlider');
+const sunBtn      = document.getElementById('sunBtn');
+const rainBtn     = document.getElementById('rainBtn');
+let rain = false;
+let lastSunDir = [0, 1, 0];
+
+sunBtn.addEventListener('click', () => {
+  yaw = Math.atan2(lastSunDir[0], lastSunDir[2]);  // face the sun's azimuth,
+  pitch = 0.03;                                    // eyes level with the horizon
+});
+rainBtn.addEventListener('click', () => {
+  rain = !rain;
+  rainBtn.classList.toggle('live-on', rain);
+});
+
+/* ---- point-the-phone-at-the-sky mode ---- */
+const trackBtn = document.getElementById('trackBtn');
+let tracking = false, trackEv = null, relOffset = null;
+let targetYaw = 0, targetPitch = 0, haveTarget = false;
+
+// only offer it where it can work: touch device with orientation sensors
+if(!('DeviceOrientationEvent' in window) ||
+   !('ontouchstart' in window || navigator.maxTouchPoints > 0)){
+  trackBtn.style.display = 'none';
+}
+
+function onOrient(e){
+  if(e.alpha == null || e.beta == null || e.gamma == null) return;
+  let a = e.alpha;
+  let abs = e.absolute === true;
+  if(typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)){
+    a = 360 - e.webkitCompassHeading;   // iOS: compass-referenced heading
+    abs = true;
+  }
+  // rotation Rz(alpha)·Rx(beta)·Ry(gamma) applied to the device's -z axis
+  // (the direction the back camera looks), in the earth frame E/N/up
+  const ar = a*RAD, br = e.beta*RAD, gr = e.gamma*RAD;
+  const ca = Math.cos(ar), sa = Math.sin(ar);
+  const cb = Math.cos(br), sb = Math.sin(br);
+  const cg = Math.cos(gr), sg = Math.sin(gr);
+  const east  = -ca*sg - sa*sb*cg;
+  const north = -sa*sg + ca*sb*cg;
+  const upv   = -cb*cg;
+  let ty = Math.atan2(east, north);
+  if(!abs){
+    // no compass reference: anchor to wherever the user was looking
+    if(relOffset === null) relOffset = yaw - ty;
+    ty += relOffset;
+  }
+  targetYaw = ty;
+  targetPitch = Math.asin(Math.max(-1, Math.min(1, upv)));
+  haveTarget = true;
+}
+function stopTracking(){
+  tracking = false;
+  trackBtn.classList.remove('live-on');
+  if(trackEv){ removeEventListener(trackEv, onOrient); trackEv = null; }
+}
+trackBtn.addEventListener('click', async () => {
+  if(tracking){ stopTracking(); return; }
+  try{
+    if(typeof DeviceOrientationEvent.requestPermission === 'function'){
+      const r = await DeviceOrientationEvent.requestPermission();  // iOS gesture-gated
+      if(r !== 'granted') throw new Error('denied');
+    }
+    relOffset = null; haveTarget = false;
+    trackEv = ('ondeviceorientationabsolute' in window)
+            ? 'deviceorientationabsolute' : 'deviceorientation';
+    addEventListener(trackEv, onOrient);
+    tracking = true;
+    trackBtn.classList.add('live-on');
+  }catch(_){
+    trackBtn.textContent = 'no sensor';
+    setTimeout(() => trackBtn.textContent = 'track', 2200);
+  }
+});
+
+function frame(){
+  resize();
+  const date = currentDate();
+  const {alt, az} = sunPosition(date, lat, lng);
+  const sd = sunDirection(alt, az);
+  lastSunDir = sd;
+  const moon = moonPosition(date, lat, lng);
+  const mdir = sunDirection(moon.alt, moon.az);
+  // illuminated fraction from the sun–moon elongation
+  const elong = sd[0]*mdir[0] + sd[1]*mdir[1] + sd[2]*mdir[2];
+  const illum = (1 - elong)/2;
+
+  if(!aimed){ yaw = Math.atan2(sd[0], sd[2]); pitch = Math.max(alt, 0.06); aimed = true; }
+
+  if(tracking && haveTarget){
+    let dy = targetYaw - yaw;
+    dy = Math.atan2(Math.sin(dy), Math.cos(dy));   // shortest arc
+    yaw += dy*0.3;                                  // light smoothing vs sensor jitter
+    pitch += (targetPitch - pitch)*0.3;
+    pitch = Math.max(-1.55, Math.min(1.55, pitch));
+  }
+
+  // lift exposure through twilight so dusk colours read; harmless at night
+  const twilight = Math.min(Math.max((0.12 - alt)/0.25, 0), 1);
+  const exposure = 1.0 + 2.2*twilight;
+
+  // haze slider -> Mie coefficient, exponential feel (25 = clean continental air)
+  const mie = 3.996e-6 * Math.pow(2, (hazeSlider.value - 25)/25);
+  const coverage = cloudSlider.value/100;
+  const secs = date.getHours()*3600 + date.getMinutes()*60 + date.getSeconds();
+
+  if(gl){
+    // pass 1: render the scene into the offscreen texture
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.useProgram(sceneProg);
+    gl.uniform2f(uniS.uRes, canvas.width, canvas.height);
+    gl.uniform3f(uniS.uSunDir, sd[0], sd[1], sd[2]);
+    gl.uniform3f(uniS.uMoonDir, mdir[0], mdir[1], mdir[2]);
+    gl.uniform1f(uniS.uYaw, yaw);
+    gl.uniform1f(uniS.uPitch, pitch);
+    gl.uniform1f(uniS.uTanHalfFov, Math.tan(fov/2));
+    gl.uniform1f(uniS.uExposure, exposure);
+    gl.uniform1f(uniS.uMie, mie);
+    gl.uniform1f(uniS.uCoverage, coverage);
+    gl.uniform1f(uniS.uTime, secs);
+    {
+      const s = Math.min(Math.max(mdir[1]/0.25, 0), 1);   // moon altitude ramp
+      gl.uniform1f(uniS.uMoonUp, illum * s*s*(3 - 2*s));  // x illuminated fraction
+    }
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    // pass 2: glass (pass-through when rain is off)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.useProgram(postProg);
+    gl.uniform2f(uniP.uRes, canvas.width, canvas.height);
+    gl.uniform1f(uniP.uRain, rain ? 1 : 0);
+    gl.uniform1f(uniP.uClock, (performance.now()/1000) % 3600);
+    {
+      // project the sun into camera NDC (same basis as the scene shader)
+      const tanH = Math.tan(fov/2);
+      const cy = Math.cos(yaw), sy = Math.sin(yaw);
+      const cp = Math.cos(pitch), sp = Math.sin(pitch);
+      const zc =  sd[0]*sy*cp + sd[1]*sp + sd[2]*cy*cp;   // dot(sun, fwd)
+      const xc =  sd[0]*cy            - sd[2]*sy;          // dot(sun, right)
+      const yc = -sd[0]*sy*sp + sd[1]*cp - sd[2]*cy*sp;    // dot(sun, up)
+      const zs = Math.max(zc, 1e-4);
+      gl.uniform3f(uniP.uSunNDC, xc/(zs*tanH), yc/(zs*tanH), zc);
+    }
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  clockEl.textContent = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  const sunAzDeg  = ((az/RAD + 180) % 360 + 360) % 360;
+  const moonAzDeg = ((moon.az/RAD + 180) % 360 + 360) % 360;
+  const headDeg   = ((yaw/RAD) % 360 + 360) % 360;
+  dataEl.innerHTML =
+    `sun&nbsp; <b>${(alt/RAD).toFixed(1)}°</b> alt · <b>${sunAzDeg.toFixed(0)}°</b> ${compass(sunAzDeg)}<br>` +
+    `moon <b>${(moon.alt/RAD).toFixed(1)}°</b> alt · <b>${moonAzDeg.toFixed(0)}°</b> ${compass(moonAzDeg)} · ${(illum*100).toFixed(0)}% lit<br>` +
+    `view <b>${headDeg.toFixed(0)}°</b> ${compass(headDeg)}`;
+
+  requestAnimationFrame(frame);
+}
+frame();
+</script>
+</body>
+</html>
