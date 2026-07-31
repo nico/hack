@@ -33,10 +33,15 @@
     padding:10px 14px;border-radius:14px;
     background:var(--panel);border:1px solid var(--line);
     backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
-  .bar .row{display:flex;align-items:center;gap:14px;width:100%}
-  .mini{flex:1;display:flex;align-items:center;gap:10px;
+  .bar .row{display:flex;align-items:center;gap:14px;width:100%;flex-wrap:wrap}
+  .bar .row > input[type=range]{min-width:110px}
+  .mini{flex:1;display:flex;align-items:center;gap:10px;min-width:130px;
     font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-dim)}
   .mini input{flex:1;min-width:60px}
+  @media (max-width:480px){
+    .bar{padding:9px 12px;gap:5px}
+    .bar .row{gap:10px}
+  }
   .bar .clock{font:14px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     font-variant-numeric:tabular-nums;min-width:52px}
   input[type=range]{flex:1;appearance:none;-webkit-appearance:none;height:22px;background:transparent}
