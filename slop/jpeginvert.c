@@ -87,6 +87,11 @@
  * (Verified across 4:4:4 / 4:2:2 / 4:2:0, restart markers, low quality,
  * grayscale, and non-multiple-of-8 dimensions.)
  *
+ * Note that "involution" is not the same as "correct": a file read with
+ * the wrong MCU geometry desyncs and comes back the same way, so it
+ * round-trips while producing a garbled negative. That is exactly what
+ * one-component pictures did until the A.2.2 fix below.
+ *
  * It would become lossy ONLY if the operation were changed to do
  * something that requantizes -- it is not lossy as written. The two ways
  * a future edit could break exactness:
@@ -121,7 +126,9 @@
  * =====================================================================
  * Baseline and extended-sequential Huffman JPEG (SOF0 / SOF1), 8-bit,
  * single scan. Chroma subsampling and restart markers (DRI / RSTn) are
- * handled. Rejected: progressive (SOF2) and arithmetic coding.
+ * handled, as is a one-component picture, whose scan is non-interleaved
+ * (see the MCU geometry below). Rejected: progressive (SOF2), arithmetic
+ * coding, and a scan naming only some of the frame's components.
  *
  * =====================================================================
  * EXTENDING THIS (notes for future changes)
@@ -574,14 +581,28 @@ int main(int argc, char** argv) {
         if (!ac_tab[comp_ac[ci]].valid) die("scan uses undefined AC Huffman table");
     }
 
-    /* MCU geometry */
+    /* MCU geometry.
+     *
+     * A.2.3: an MCU of an interleaved scan holds one component's blocks after
+     * another's, as many of each as its sampling factors say, and whole MCUs
+     * cover the picture.
+     *
+     * A.2.2: a scan with a SINGLE component is not interleaved, and then the MCU
+     * is one data unit whatever the sampling factors say. Since we require the
+     * scan to name every component, that's exactly a one-component picture -- and
+     * such a picture may still carry sampling factors above 1x1 (encoders do write
+     * 2x2 for grayscale). Reading it as interleaved gives a quarter as many MCUs
+     * of four blocks each: the same block count, so a file without restarts still
+     * comes out right, but Ri counts MCUs, so the restart markers land in a
+     * quarter of the places they belong and the stream desyncs at the first one. */
+    int interleaved = ncomp > 1;
     int hmax = 1, vmax = 1;
     for (int i = 0; i < ncomp; i++) {
         if (comp[i].h > hmax) hmax = comp[i].h;
         if (comp[i].v > vmax) vmax = comp[i].v;
     }
-    int mcux = (width + 8 * hmax - 1) / (8 * hmax);
-    int mcuy = (height + 8 * vmax - 1) / (8 * vmax);
+    int mcux = interleaved ? (width + 8 * hmax - 1) / (8 * hmax) : (width + 7) / 8;
+    int mcuy = interleaved ? (height + 8 * vmax - 1) / (8 * vmax) : (height + 7) / 8;
     long total_mcu = (long)mcux * mcuy;
 
     /* transcode the scan */
@@ -597,8 +618,8 @@ int main(int argc, char** argv) {
         for (int si = 0; si < ncomp; si++) {
             int ci = scan_order[si]; /* MCU blocks follow SOS order, not SOF order */
             int flip = (target_mask >> ci) & 1;
-            for (int by = 0; by < comp[ci].v; by++)
-                for (int bx = 0; bx < comp[ci].h; bx++) transcode_block(&br, &w, ci, flip);
+            int nblocks = interleaved ? comp[ci].h * comp[ci].v : 1;
+            for (int b = 0; b < nblocks; b++) transcode_block(&br, &w, ci, flip);
         }
         since_rst++;
         if (Ri && since_rst == Ri && mcu + 1 < total_mcu) {
