@@ -16,6 +16,7 @@ tests = [
 'menu_opts',
 'dialog_nocontrols', 'dialog_controls',
 'dialogex_nocontrols', 'dialogex_controls',
+'dialog_style_not',
 'stringtable',
 'stringtable_by_language',
 'accelerators',

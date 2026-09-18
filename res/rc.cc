@@ -1641,6 +1641,7 @@ class Parser {
   bool EvalIntExpression(uint32_t* out, bool* is_32 = nullptr);
   bool EvalIntExpressionUnary(uint32_t* out, bool* is_32);
   bool EvalIntExpressionPrimary(uint32_t* out, bool* is_32);
+  bool EvalStyleExpression(uint32_t* out);
 
   // Takes a kString token and returns a string_view for the interpreted
   // contents of the string ("a" -> a, "a""b" -> a"b, "\n" -> ASCII 0xA, etc).
@@ -1672,6 +1673,7 @@ class Parser {
   bool Is(Token::Type type, const char* error_message = nullptr);
   // If |error_message| is non-nullptr, sets err_ if expected token isn't found.
   bool Match(Token::Type type, const char* error_message = nullptr);
+  bool MatchKeyword(std::string_view keyword);
   const Token& Consume();
 
   // Call this only if !at_end().
@@ -1727,6 +1729,15 @@ bool Parser::Match(Token::Type type, const char* error_message) {
   return true;
 }
 
+bool Parser::MatchKeyword(std::string_view keyword) {
+  if (!Is(Token::kIdentifier) ||
+      !IsEqualAsciiUppercase(cur_token().value_, keyword)) {
+    return false;
+  }
+  Consume();
+  return true;
+}
+
 const Token& Parser::Consume() {
   return tokens_[cur_++];
 }
@@ -1777,6 +1788,48 @@ bool Parser::EvalIntExpressionPrimary(uint32_t* out, bool* is_32) {
     return false;
   const Token& t = Consume();
   *out = t.IntValue(is_32);
+  return true;
+}
+
+bool Parser::EvalStyleExpression(uint32_t* out) {
+  uint32_t value = 0;
+  bool has_value = false;
+  Token::Type op = Token::kPipe;
+
+  for (;;) {
+    bool removes_style = MatchKeyword("NOT");
+    uint32_t operand;
+    if (!EvalIntExpressionUnary(&operand, nullptr))
+      return false;
+
+    if (removes_style) {
+      if (has_value) {
+        *out |= value;
+        has_value = false;
+      }
+      *out &= ~operand;
+    } else if (!has_value) {
+      value = operand;
+      has_value = true;
+    } else {
+      switch (op) {
+        case Token::kPlus:  value += operand; break;
+        case Token::kMinus: value -= operand; break;
+        case Token::kPipe:  value |= operand; break;
+        case Token::kAmp:   value &= operand; break;
+        default: abort();  // Unreachable.
+      }
+    }
+
+    if (!Is(Token::kPlus) && !Is(Token::kMinus) &&
+        !Is(Token::kPipe) && !Is(Token::kAmp)) {
+      break;
+    }
+    op = Consume().type_;
+  }
+
+  if (has_value)
+    *out |= value;
   return true;
 }
 
@@ -2146,8 +2199,9 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
       return false;
   }
 
-  uint32_t id;
-  if (!EvalIntExpression(&id))
+  const uint32_t kDefaultControlStyle = 0x50000000;
+  uint32_t id = kDefaultControlStyle;
+  if (control_type ? !EvalStyleExpression(&id) : !EvalIntExpression(&id))
     return false;
   uint32_t rect[4];
   for (int i = 0; i < 4; ++i)
@@ -2174,7 +2228,8 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
   uint16_t control_class = 0;
   uint32_t default_style = 0;
   if (IsEqualAsciiUppercase(type.value_, "CONTROL")) {
-    default_style = 0x50000000;
+    // The CONTROL style was parsed with its default style above so that NOT
+    // could remove default bits.
     std::string_view type_val = StringContents(*control_type);
     if (IsEqualAsciiUppercase(type_val, "BUTTON"))
       control->clazz = IntOrStringName::MakeInt(kButton);
@@ -2204,10 +2259,8 @@ bool Parser::ParseDialogControl(DialogResource::Control* control,
   // `, style` is only accepted for non-CONTROL controls. CONTROL only has
   // a trailing `, exstyle`, since style precedes `x` there already.
   if (!control_type && Match(Token::kComma)) {
-    uint32_t parsed_style;
-    if (!EvalIntExpression(&parsed_style))
+    if (!EvalStyleExpression(&control->style))
       return false;
-    control->style |= parsed_style;
   }
   // FIXME: The Is(Token::kInt) should really be IsIntExprStart
   // (int "-" "~" "("); currently this wrongly rejects "..., ~0"
