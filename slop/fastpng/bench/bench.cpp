@@ -1,4 +1,5 @@
-// PNG decode benchmark: fastpng vs wuffs, libpng, stb_image, fpng and lodepng, whole image to
+// PNG decode benchmark: fastpng vs wuffs, libpng, stb_image, fpng, lodepng and the Rust png crate
+// (with -DHAVE_RUST_PNG; see build.sh), whole image to
 // 8-bit RGBA, in-process, best of N runs, each into newly allocated output. Every decoder's pixels
 // are compared against wuffs' (fully transparent pixels match whatever their color).
 // See build.sh for how it's built, and README.md for how to run it.
@@ -114,6 +115,27 @@ static bool decode_fpng(uint8_t const* data, size_t size, Image& out)
     return true;
 }
 
+#ifdef HAVE_RUST_PNG
+// The png crate, through rust-png/ (what Chromium's PNG decoding uses).
+extern "C" int rustpng_get_size(uint8_t const* data, size_t size, uint32_t* width, uint32_t* height);
+extern "C" int rustpng_decode(uint8_t const* data, size_t size, bool ignore_checksums, uint8_t* rgba, size_t rgba_size);
+
+static bool decode_rust_png_with(uint8_t const* data, size_t size, Image& out, bool ignore_checksums)
+{
+    uint32_t w, h;
+    if (rustpng_get_size(data, size, &w, &h))
+        return false;
+    out.w = w;
+    out.h = h;
+    out.rgba.resize((size_t)w * h * 4);
+    return rustpng_decode(data, size, ignore_checksums, out.rgba.data(), out.rgba.size()) == 0;
+}
+
+// The crate's defaults: chunk CRCs checked, the zlib Adler-32 not.
+static bool decode_rust_png(uint8_t const* data, size_t size, Image& out) { return decode_rust_png_with(data, size, out, false); }
+static bool decode_rust_png_no_checksums(uint8_t const* data, size_t size, Image& out) { return decode_rust_png_with(data, size, out, true); }
+#endif
+
 static bool decode_lodepng(uint8_t const* data, size_t size, Image& out)
 {
     unsigned w, h;
@@ -138,6 +160,10 @@ static DecoderInfo const decoders[] = {
     { "stb", decode_stb },
     { "fpng", decode_fpng },
     { "lodepng", decode_lodepng },
+#ifdef HAVE_RUST_PNG
+    { "png-rs", decode_rust_png },
+    { "png-rs-nc", decode_rust_png_no_checksums },
+#endif
 };
 static constexpr size_t decoder_count = sizeof(decoders) / sizeof(decoders[0]);
 
@@ -255,7 +281,7 @@ int main(int argc, char** argv)
         return bad != 0;
     }
 
-    printf("%-26s %6s %7s", "file", "MPix", "KB");
+    printf("%-30s %6s %7s", "file", "MPix", "KB");
     for (size_t d = 0; d < decoder_count; ++d) {
         if (enabled[d])
             printf(" %8s", decoders[d].name);
@@ -280,7 +306,7 @@ int main(int argc, char** argv)
             continue;
         }
         char const* name = strrchr(argv[i], '/') ? strrchr(argv[i], '/') + 1 : argv[i];
-        printf("%-26.26s %6.2f %7zu", name, reference.w * (double)reference.h / 1e6, bytes.size() / 1024);
+        printf("%-30.30s %6.2f %7zu", name, reference.w * (double)reference.h / 1e6, bytes.size() / 1024);
         double const fastpng_ms = best_ms(runs, decode_fastpng, bytes.data(), bytes.size());
         for (size_t d = 0; d < decoder_count; ++d) {
             if (!enabled[d])
@@ -299,12 +325,12 @@ int main(int argc, char** argv)
         printf("\n");
         fflush(stdout);
     }
-    printf("%-26s %6s %7s", "TOTAL", "", "");
+    printf("%-30s %6s %7s", "TOTAL", "", "");
     for (size_t d = 0; d < decoder_count; ++d) {
         if (enabled[d])
             printf(" %8.2f", totals[d]);
     }
-    printf("\n%-26s %6s %7s", "fastpng's time / theirs", "", "");
+    printf("\n%-30s %6s %7s", "fastpng's time / theirs", "", "");
     for (size_t d = 0; d < decoder_count; ++d) {
         if (enabled[d])
             printf(" %8.2f", totals[d] > 0 ? fastpng_where_decoded[d] / totals[d] : 0);

@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="720" height="512" viewBox="0 0 720 512" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="t">
-<title id="t">PNG decode time, total over 19 images (lower is better): fastpng is the fastest of the decoders compared</title>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="568" viewBox="0 0 720 568" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="t">
+<title id="t">PNG decode time, total over 41 images and their fpng-written copies (lower is better): fastpng is the fastest of the decoders compared</title>
 <style>
   .title { font-size: 15px; font-weight: 600; fill: #0b0b0b; }
   .panel { font-size: 12.5px; fill: #52514e; }
@@ -19,49 +19,55 @@
     .baseline { stroke: #c3c2b7; }
   }
 </style>
-<rect class="surface" width="720" height="512" rx="8"/>
-<text class="title" x="134" y="22">Total decode time, ms (lower is better) — Apple M4 Max</text>
-<text class="panel" x="134" y="56">19 PNGs as their encoders wrote them</text>
-<text class="name us-text" x="122" y="88.5" text-anchor="end">fastpng</text>
-<path class="us" d="M134.0,75.0 H242.0 A4,4 0 0 1 246.0,79.0 V89.0 A4,4 0 0 1 242.0,93.0 H134.0 Z"><title>fastpng: 64.2 ms</title></path>
-<text class="value" x="254.0" y="88.5">64.2 ms</text>
-<text class="name us-text" x="122" y="116.5" text-anchor="end">fastpng, checked</text>
-<path class="us" d="M134.0,103.0 H250.9 A4,4 0 0 1 254.9,107.0 V117.0 A4,4 0 0 1 250.9,121.0 H134.0 Z"><title>fastpng, checked: 69.3 ms</title></path>
-<text class="value" x="262.9" y="116.5">69.3 ms  ·  1.1× as long</text>
-<text class="name them-text" x="122" y="144.5" text-anchor="end">wuffs</text>
-<path class="them" d="M134.0,131.0 H314.9 A4,4 0 0 1 318.9,135.0 V145.0 A4,4 0 0 1 314.9,149.0 H134.0 Z"><title>wuffs: 106.0 ms</title></path>
-<text class="value" x="326.9" y="144.5">106.0 ms  ·  1.7× as long</text>
-<text class="name them-text" x="122" y="172.5" text-anchor="end">libpng</text>
-<path class="them" d="M134.0,159.0 H325.0 A4,4 0 0 1 329.0,163.0 V173.0 A4,4 0 0 1 325.0,177.0 H134.0 Z"><title>libpng: 111.8 ms</title></path>
-<text class="value" x="337.0" y="172.5">111.8 ms  ·  1.7× as long</text>
-<text class="name them-text" x="122" y="200.5" text-anchor="end">stb_image</text>
-<path class="them" d="M134.0,187.0 H503.8 A4,4 0 0 1 507.8,191.0 V201.0 A4,4 0 0 1 503.8,205.0 H134.0 Z"><title>stb_image: 214.3 ms</title></path>
-<text class="value" x="515.8" y="200.5">214.3 ms  ·  3.3× as long</text>
-<text class="name them-text" x="122" y="228.5" text-anchor="end">lodepng</text>
-<path class="them" d="M134.0,215.0 H526.9 A4,4 0 0 1 530.9,219.0 V229.0 A4,4 0 0 1 526.9,233.0 H134.0 Z"><title>lodepng: 227.5 ms</title></path>
-<text class="value" x="538.9" y="228.5">227.5 ms  ·  3.5× as long</text>
-<line class="baseline" x1="134" x2="134" y1="70" y2="238"/>
-<text class="panel" x="134" y="276">The same images, written by fpng (the only files fpng decodes)</text>
-<text class="name us-text" x="122" y="308.5" text-anchor="end">fastpng</text>
-<path class="us" d="M134.0,295.0 H243.6 A4,4 0 0 1 247.6,299.0 V309.0 A4,4 0 0 1 243.6,313.0 H134.0 Z"><title>fastpng: 65.1 ms</title></path>
-<text class="value" x="255.6" y="308.5">65.1 ms</text>
-<text class="name us-text" x="122" y="336.5" text-anchor="end">fastpng, checked</text>
-<path class="us" d="M134.0,323.0 H254.0 A4,4 0 0 1 258.0,327.0 V337.0 A4,4 0 0 1 254.0,341.0 H134.0 Z"><title>fastpng, checked: 71.1 ms</title></path>
-<text class="value" x="266.0" y="336.5">71.1 ms  ·  1.1× as long</text>
-<text class="name them-text" x="122" y="364.5" text-anchor="end">fpng</text>
-<path class="them" d="M134.0,351.0 H299.6 A4,4 0 0 1 303.6,355.0 V365.0 A4,4 0 0 1 299.6,369.0 H134.0 Z"><title>fpng: 97.2 ms</title></path>
-<text class="value" x="311.6" y="364.5">97.2 ms  ·  1.5× as long</text>
-<text class="name them-text" x="122" y="392.5" text-anchor="end">libpng</text>
-<path class="them" d="M134.0,379.0 H360.1 A4,4 0 0 1 364.1,383.0 V393.0 A4,4 0 0 1 360.1,397.0 H134.0 Z"><title>libpng: 131.9 ms</title></path>
-<text class="value" x="372.1" y="392.5">131.9 ms  ·  2.0× as long</text>
-<text class="name them-text" x="122" y="420.5" text-anchor="end">wuffs</text>
-<path class="them" d="M134.0,407.0 H409.1 A4,4 0 0 1 413.1,411.0 V421.0 A4,4 0 0 1 409.1,425.0 H134.0 Z"><title>wuffs: 160.0 ms</title></path>
-<text class="value" x="421.1" y="420.5">160.0 ms  ·  2.5× as long</text>
-<text class="name them-text" x="122" y="448.5" text-anchor="end">stb_image</text>
-<path class="them" d="M134.0,435.0 H513.2 A4,4 0 0 1 517.2,439.0 V449.0 A4,4 0 0 1 513.2,453.0 H134.0 Z"><title>stb_image: 219.7 ms</title></path>
-<text class="value" x="525.2" y="448.5">219.7 ms  ·  3.4× as long</text>
-<text class="name them-text" x="122" y="476.5" text-anchor="end">lodepng</text>
-<path class="them" d="M134.0,463.0 H560.0 A4,4 0 0 1 564.0,467.0 V477.0 A4,4 0 0 1 560.0,481.0 H134.0 Z"><title>lodepng: 246.5 ms</title></path>
-<text class="value" x="572.0" y="476.5">246.5 ms  ·  3.8× as long</text>
-<line class="baseline" x1="134" x2="134" y1="290" y2="486"/>
+<rect class="surface" width="720" height="568" rx="8"/>
+<text class="title" x="144" y="22">Total decode time, ms (lower is better) — Apple M4 Max</text>
+<text class="panel" x="144" y="56">41 PNGs as their encoders wrote them</text>
+<text class="name us-text" x="132" y="88.5" text-anchor="end">fastpng</text>
+<path class="us" d="M144.0,75.0 H222.0 A4,4 0 0 1 226.0,79.0 V89.0 A4,4 0 0 1 222.0,93.0 H144.0 Z"><title>fastpng: 100.3 ms</title></path>
+<text class="value" x="234.0" y="88.5">100.3 ms</text>
+<text class="name us-text" x="132" y="116.5" text-anchor="end">fastpng, checked</text>
+<path class="us" d="M144.0,103.0 H229.4 A4,4 0 0 1 233.4,107.0 V117.0 A4,4 0 0 1 229.4,121.0 H144.0 Z"><title>fastpng, checked: 109.4 ms</title></path>
+<text class="value" x="241.4" y="116.5">109.4 ms  ·  1.1× as long</text>
+<text class="name them-text" x="132" y="144.5" text-anchor="end">png crate (Rust)</text>
+<path class="them" d="M144.0,131.0 H288.7 A4,4 0 0 1 292.7,135.0 V145.0 A4,4 0 0 1 288.7,149.0 H144.0 Z"><title>png crate (Rust): 181.9 ms</title></path>
+<text class="value" x="300.7" y="144.5">181.9 ms  ·  1.8× as long</text>
+<text class="name them-text" x="132" y="172.5" text-anchor="end">libpng</text>
+<path class="them" d="M144.0,159.0 H329.5 A4,4 0 0 1 333.5,163.0 V173.0 A4,4 0 0 1 329.5,177.0 H144.0 Z"><title>libpng: 231.8 ms</title></path>
+<text class="value" x="341.5" y="172.5">231.8 ms  ·  2.3× as long</text>
+<text class="name them-text" x="132" y="200.5" text-anchor="end">wuffs</text>
+<path class="them" d="M144.0,187.0 H333.1 A4,4 0 0 1 337.1,191.0 V201.0 A4,4 0 0 1 333.1,205.0 H144.0 Z"><title>wuffs: 236.3 ms</title></path>
+<text class="value" x="345.1" y="200.5">236.3 ms  ·  2.4× as long</text>
+<text class="name them-text" x="132" y="228.5" text-anchor="end">stb_image</text>
+<path class="them" d="M144.0,215.0 H382.1 A4,4 0 0 1 386.1,219.0 V229.0 A4,4 0 0 1 382.1,233.0 H144.0 Z"><title>stb_image: 296.2 ms</title></path>
+<text class="value" x="394.1" y="228.5">296.2 ms  ·  3.0× as long</text>
+<text class="name them-text" x="132" y="256.5" text-anchor="end">lodepng</text>
+<path class="them" d="M144.0,243.0 H482.6 A4,4 0 0 1 486.6,247.0 V257.0 A4,4 0 0 1 482.6,261.0 H144.0 Z"><title>lodepng: 419.2 ms</title></path>
+<text class="value" x="494.6" y="256.5">419.2 ms  ·  4.2× as long</text>
+<line class="baseline" x1="144" x2="144" y1="70" y2="266"/>
+<text class="panel" x="144" y="304">The same images, written by fpng (the only files fpng decodes)</text>
+<text class="name us-text" x="132" y="336.5" text-anchor="end">fastpng</text>
+<path class="us" d="M144.0,323.0 H239.9 A4,4 0 0 1 243.9,327.0 V337.0 A4,4 0 0 1 239.9,341.0 H144.0 Z"><title>fastpng: 122.2 ms</title></path>
+<text class="value" x="251.9" y="336.5">122.2 ms</text>
+<text class="name us-text" x="132" y="364.5" text-anchor="end">fastpng, checked</text>
+<path class="us" d="M144.0,351.0 H251.6 A4,4 0 0 1 255.6,355.0 V365.0 A4,4 0 0 1 251.6,369.0 H144.0 Z"><title>fastpng, checked: 136.6 ms</title></path>
+<text class="value" x="263.6" y="364.5">136.6 ms  ·  1.1× as long</text>
+<text class="name them-text" x="132" y="392.5" text-anchor="end">fpng</text>
+<path class="them" d="M144.0,379.0 H277.0 A4,4 0 0 1 281.0,383.0 V393.0 A4,4 0 0 1 277.0,397.0 H144.0 Z"><title>fpng: 167.6 ms</title></path>
+<text class="value" x="289.0" y="392.5">167.6 ms  ·  1.4× as long</text>
+<text class="name them-text" x="132" y="420.5" text-anchor="end">libpng</text>
+<path class="them" d="M144.0,407.0 H338.9 A4,4 0 0 1 342.9,411.0 V421.0 A4,4 0 0 1 338.9,425.0 H144.0 Z"><title>libpng: 243.3 ms</title></path>
+<text class="value" x="350.9" y="420.5">243.3 ms  ·  2.0× as long</text>
+<text class="name them-text" x="132" y="448.5" text-anchor="end">wuffs</text>
+<path class="them" d="M144.0,435.0 H401.5 A4,4 0 0 1 405.5,439.0 V449.0 A4,4 0 0 1 401.5,453.0 H144.0 Z"><title>wuffs: 320.0 ms</title></path>
+<text class="value" x="413.5" y="448.5">320.0 ms  ·  2.6× as long</text>
+<text class="name them-text" x="132" y="476.5" text-anchor="end">png crate (Rust)</text>
+<path class="them" d="M144.0,463.0 H418.3 A4,4 0 0 1 422.3,467.0 V477.0 A4,4 0 0 1 418.3,481.0 H144.0 Z"><title>png crate (Rust): 340.5 ms</title></path>
+<text class="value" x="430.3" y="476.5">340.5 ms  ·  2.8× as long</text>
+<text class="name them-text" x="132" y="504.5" text-anchor="end">stb_image</text>
+<path class="them" d="M144.0,491.0 H476.5 A4,4 0 0 1 480.5,495.0 V505.0 A4,4 0 0 1 476.5,509.0 H144.0 Z"><title>stb_image: 411.7 ms</title></path>
+<text class="value" x="488.5" y="504.5">411.7 ms  ·  3.4× as long</text>
+<text class="name them-text" x="132" y="532.5" text-anchor="end">lodepng</text>
+<path class="them" d="M144.0,519.0 H570.0 A4,4 0 0 1 574.0,523.0 V533.0 A4,4 0 0 1 570.0,537.0 H144.0 Z"><title>lodepng: 526.1 ms</title></path>
+<text class="value" x="582.0" y="532.5">526.1 ms  ·  4.3× as long</text>
+<line class="baseline" x1="144" x2="144" y1="318" y2="542"/>
 </svg>

@@ -1,2 +1,3 @@
 demo
 bench/build/
+bench/rust-png/target/

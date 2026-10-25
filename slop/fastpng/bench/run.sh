@@ -1,0 +1,39 @@
+#!/bin/bash
+# Reproduces the README's numbers: builds png-bench if needed, downloads the images listed in
+# images.txt into build/images/ (once; each checked against its SHA-256), and runs the benchmark on
+# them as written and re-encoded by fpng. Set PNGSUITE to a PngSuite directory to also run --check.
+#   bench/run.sh [png-bench options, e.g. --only fastpng,png-rs]
+set -e
+cd "$(dirname "$0")"
+[ -x build/png-bench ] || ./build.sh
+
+# Wikimedia asks for an identifying User-Agent, and for not hurrying.
+USER_AGENT="fastpng-bench/1.0 (https://github.com/nico/hack/tree/main/slop/fastpng)"
+hash_of() { shasum -a 256 "$1" 2>/dev/null | cut -d' ' -f1; }
+
+mkdir -p build/images
+files=()
+failed=0
+while IFS=$'\t' read -r name source bytes kind sha what; do
+    case "$name" in '#'* | '') continue ;; esac
+    dst="build/images/$name"
+    files+=("$dst")
+    [ "$(hash_of "$dst")" = "$sha" ] && continue
+    # gitiles serves raw files base64-encoded.
+    case "$source" in
+    *'?format=TEXT') curl -sfL -A "$USER_AGENT" "$source" | base64 -d > "$dst.part" ;;
+    *) curl -sfL -A "$USER_AGENT" -o "$dst.part" "$source" ;;
+    esac || { rm -f "$dst.part"; echo "can't download $name from $source" >&2; failed=1; continue; }
+    mv "$dst.part" "$dst"
+    [ "$(hash_of "$dst")" = "$sha" ] || echo "note: $name changed at its source; numbers will differ ($kind)" >&2
+    sleep 1
+done < images.txt
+[ $failed = 0 ] || exit 1
+
+if [ -n "$PNGSUITE" ]; then
+    ./build/png-bench --check "$PNGSUITE"/*.png "${files[@]}"
+fi
+echo "== as written"
+./build/png-bench -n 9 "$@" "${files[@]}"
+echo "== re-encoded by fpng"
+./build/png-bench -n 9 --fpng-reencode "$@" "${files[@]}"

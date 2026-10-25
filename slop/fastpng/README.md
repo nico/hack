@@ -25,32 +25,40 @@ uint8_t* checked = fastpng_decode_alloc(png_bytes, png_size, FASTPNG_RGBA, &opti
 
 ## Speed
 
-![Total decode time over 19 PNGs: fastpng 64.2 ms, fastpng checking checksums 69.3, wuffs 106.0, libpng 111.8, stb_image 214.3, lodepng 227.5; on fpng-written copies fastpng 65.1 ms, fastpng checking checksums 71.1, fpng 97.2, libpng 131.9, wuffs 160.0, stb_image 219.7, lodepng 246.5](speed.svg)
+![Total decode time over 41 PNGs: fastpng 100.3 ms, fastpng checking checksums 109.4, png crate (Rust) 181.9, libpng 231.8, wuffs 236.3, stb_image 296.2, lodepng 419.2; on fpng-written copies fastpng 122.2 ms, fastpng checking checksums 136.6, fpng 167.6, libpng 243.3, wuffs 320.0, png crate 340.5, stb_image 411.7, lodepng 526.1](speed.svg)
 
-Total ms over 19 PNGs (wuffs' test images plus 14 large real-world PNGs; best of 9 runs each, into
-freshly allocated output), Apple M4 Max, clang -O2 for fastpng, -O3 for the others:
+Total ms over 41 public PNGs chosen to be representative of the web and of documents (screenshots,
+photos, maps, charts, sprites, icons, scans, PDF page renders; every color type, bit depths 1 to 16,
+interlaced and not; see `bench/CORPUS.md`), best of 9 runs each, into freshly allocated output.
+Apple M4 Max, clang -O2 for fastpng, -O3 for the C and C++ decoders, release + LTO for the png
+crate. fpng only decodes files fpng wrote, so the second column is the same images re-encoded by
+fpng:
 
-| | fastpng | fastpng, checksums checked | wuffs | wuffs, no checksums | libpng | stb_image | lodepng |
-|---|---|---|---|---|---|---|---|
-| total ms | **64.2** | 69.3 | 106.0 | 101.5 | 111.8 | 214.3 | 227.5 |
-| fastpng's time / theirs | 1.00 | 0.93 | 0.61 | 0.63 | 0.57 | 0.30 | 0.28 |
+| decoder | checksums checked | 41 PNGs, ms | fastpng's time / theirs | fpng-written copies, ms | fastpng's time / theirs |
+|---|---|---|---|---|---|
+| **fastpng** | none | **100.3** | 1.00 | **122.2** | 1.00 |
+| fastpng | CRC + Adler-32 | 109.4 | 0.92 | 136.6 | 0.89 |
+| png crate (Rust; what Chromium uses) | CRC | 181.9 | 0.55 | 340.5 | 0.36 |
+| png crate | none | 179.3 | 0.56 | 336.8 | 0.36 |
+| wuffs | CRC + Adler-32 | 236.3 | 0.42 | 320.0 | 0.38 |
+| wuffs | none | 229.2 | 0.44 | 308.2 | 0.40 |
+| libpng | CRC + Adler-32 | 231.8 | 0.43 | 243.3 | 0.50 |
+| stb_image | none | 296.2 | 0.34 | 411.7 | 0.30 |
+| lodepng | CRC + Adler-32 | 419.2 | 0.24 | 526.1 | 0.23 |
+| fpng | small chunks' CRCs | can't decode | | 167.6 | 0.73 |
 
-fpng only decodes files fpng wrote, so its comparison is on those images re-encoded by fpng:
+With checksums checked, pixels and errors match wuffs' on PngSuite and the 41 images (217 files),
+and on wuffs' test data and SerenityOS's PNG tests. Unchecked, the only difference is PngSuite's two
+files with deliberately broken checksums, which fastpng then decodes.
 
-| | fastpng | fastpng, checksums checked | fpng | wuffs | libpng | stb_image | lodepng |
-|---|---|---|---|---|---|---|---|
-| total ms | **65.1** | 71.1 | 97.2 | 160.0 | 131.9 | 219.7 | 246.5 |
-| fastpng's time / theirs | 1.00 | 0.92 | 0.67 | 0.41 | 0.49 | 0.30 | 0.26 |
+What's checked affects speed, so the table says it: by default fastpng checks no CRCs and not
+the zlib Adler-32 (`FASTPNG_CHECK_CRC` and `FASTPNG_CHECK_ADLER32` turn them on), and the png
+crate by default checks chunk CRCs but not the Adler-32. Compare rows that check the same.
 
-With checksums checked, pixels and errors match wuffs' on PngSuite, wuffs' test data, SerenityOS's
-PNG tests and the images above (238 files). Unchecked, the only difference is PngSuite's two files
-with deliberately broken checksums, which fastpng then decodes.
-
-What's checked, since it affects speed: by default fastpng checks no CRCs and not the zlib
-Adler-32; `FASTPNG_CHECK_CRC` and `FASTPNG_CHECK_ADLER32` turn them on. fpng checks CRCs on the
-small chunks only (not IDAT) and no Adler-32; stb_image checks neither; wuffs ("no checksums"
-column aside), libpng and lodepng check both. So the fair comparison is fastpng unchecked against
-fpng, stb_image and wuffs-no-checksums, and fastpng checked against wuffs, libpng and lodepng.
+Where the png crate's time goes, on the 1600x1600 Paeth-filtered mandrill (21.1 ms vs fastpng's
+9.6): inflate (fdeflate) about 7.6 ms, the same as fastpng's 7.5; unfiltering one row at a time
+about 8.9 ms against fastpng's 1.4 eight rows at a time; and copying between its streaming buffers
+about 3.3 ms.
 
 ## The key ideas
 
@@ -173,9 +181,16 @@ the optional use of CRC32 instructions, with a portable fallback.
   6. the PNG container and API
 - `demo.c`: decodes a file, prints the time, optionally writes a PAM and checks checksums.
 - `bench/`: the comparison, independent of the rest.
+  - `run.sh` reproduces the table: it builds everything, downloads the images listed in
+    `images.txt` into `bench/build/images/` once (checking their SHA-256s), and runs the benchmark
+    on them as written and re-encoded by fpng. With `PNGSUITE=dir` it first runs `--check` on
+    PngSuite. Extra arguments go to png-bench, e.g. `bench/run.sh --only fastpng,png-rs`.
+  - `CORPUS.md` says what's in the image set and why.
   - `build.sh` builds `bench/build/png-bench` against checkouts of wuffs, stb, fpng (which also
-    provides lodepng) and libpng. Paths are set with `WUFFS=`, `STB=`, `FPNG=`, `LIBPNG=`.
-  - `build/png-bench -n 9 *.png` prints a table like the ones above.
+    provides lodepng) and libpng; paths are set with `WUFFS=`, `STB=`, `FPNG=`, `LIBPNG=`. With
+    cargo around, it also builds `rust-png/`, a C-callable wrapper around the png crate (the
+    columns `png-rs`, with the crate's default checks, and `png-rs-nc`, without).
+  - `build/png-bench -n 9 *.png` prints a table with a column per decoder.
   - `--fpng-reencode` benchmarks fpng-encoded copies.
   - `--check` compares fastpng's pixels and errors against wuffs' file by file, with checksums
     checked, and checks that unchecked decoding gives the same pixels.

@@ -1,0 +1,19 @@
+[package]
+name = "rustpng_bench"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# A C-callable wrapper around the png crate (what Chromium's SkPngRustCodec uses), for png-bench.
+[lib]
+crate-type = ["staticlib"]
+path = "src/lib.rs"
+
+[dependencies]
+png = "0.18"
+
+[profile.release]
+opt-level = 3
+codegen-units = 1
+lto = true
+panic = "abort"

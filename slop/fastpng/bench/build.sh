@@ -1,7 +1,8 @@
 #!/bin/bash
 # Builds bench/build/png-bench. The other decoders come from checkouts; override where they are:
 #   WUFFS=~/src/wuffs  STB=~/src/stb  FPNG=~/src/fpng  LIBPNG=$(brew --prefix libpng)
-# The third-party decoders build at -O3 (as wuffs recommends); fastpng at $FASTPNG_FLAGS.
+# The third-party decoders build at -O3 (as wuffs recommends); fastpng at $FASTPNG_FLAGS. With
+# cargo on the PATH (or CARGO=...), the Rust png crate is included too (rust-png/, release + LTO).
 set -e
 cd "$(dirname "$0")"
 WUFFS=${WUFFS:-~/src/wuffs}
@@ -22,7 +23,13 @@ $CC -O3 -DNDEBUG -c -I$STB $B/stb_impl.c -o $B/stb.o &
 $CXX -O3 -DNDEBUG -std=c++17 -fno-strict-aliasing -w -c $FPNG/src/fpng.cpp -o $B/fpng.o &
 $CXX -O3 -DNDEBUG -std=c++17 -w -c $FPNG/src/lodepng.cpp -o $B/lodepng.o &
 $CC $FASTPNG_FLAGS -std=c11 -Wall -Wextra -c ../fastpng.c -o $B/fastpng.o &
+CARGO=${CARGO:-$(command -v cargo || echo ~/.cargo/bin/cargo)}
+RUST_FLAGS=()
+if [ -x "$CARGO" ]; then
+    (cd rust-png && "$CARGO" build --release --quiet --target-dir ../$B/rust-target)
+    RUST_FLAGS=(-DHAVE_RUST_PNG $B/rust-target/release/librustpng_bench.a)
+fi
 wait
-$CXX -O2 -std=c++17 -I.. -I$STB -I$FPNG/src -I$WUFFS/release/c -I$LIBPNG/include bench.cpp \
+$CXX -O2 -std=c++17 -I.. -I$STB -I$FPNG/src -I$WUFFS/release/c -I$LIBPNG/include bench.cpp "${RUST_FLAGS[@]}" \
     $B/fastpng.o $B/wuffs.o $B/stb.o $B/fpng.o $B/lodepng.o -L$LIBPNG/lib -lpng -lz -Wl,-rpath,$LIBPNG/lib -o $B/png-bench
 echo "built $(pwd)/$B/png-bench"
