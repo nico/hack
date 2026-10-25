@@ -1,7 +1,8 @@
 #!/bin/bash
 # Reproduces the README's numbers: builds png-bench if needed, downloads the images listed in
 # images.txt into build/images/ (once; each checked against its SHA-256), and runs the benchmark on
-# them as written and re-encoded by fpng. Set PNGSUITE to a PngSuite directory to also run --check.
+# them as written, re-encoded by fpng, and fed in pieces to the decoders that can resume. Set
+# PNGSUITE to a PngSuite directory to also run --check.
 #   bench/run.sh [png-bench options, e.g. --only fastpng,png-rs]
 set -e
 cd "$(dirname "$0")"
@@ -37,3 +38,7 @@ echo "== as written"
 ./build/png-bench -n 9 "$@" "${files[@]}"
 echo "== re-encoded by fpng"
 ./build/png-bench -n 9 --fpng-reencode "$@" "${files[@]}"
+echo "== decoded as the file arrives, in 64 pieces"
+./build/png-bench -n 9 --incremental 64 "$@" "${files[@]}"
+echo "== what each shows a quarter of the way through"
+./build/png-bench --incremental 8 --preview 2 "$@" "${files[@]}"

@@ -68,5 +68,8 @@ logos, and anything personal.
   photo one is tiny. There's one 16-bit image, matching how rare they are.
 - Commons files are fetched at their current version; if one is re-uploaded, `run.sh` says its
   hash changed.
-- One finding already: fastpng is slower than the png crate on `clipart-4bit.png` (a 4-bit
-  palette whose palette has fewer than 16 entries, so every row takes the per-pixel index check).
+- It has paid off once already: fastpng was slower than the png crate on `clipart-4bit.png` (a
+  4-bit image whose palette has fewer than 16 entries, so every row needs its indices checked),
+  until that check went from per pixel to a byte at a time (0.35 ms now, the png crate 0.45).
+- The same files serve the incremental runs (`--incremental N`, `--preview K`), cut into equal
+  pieces. Only two are interlaced, so the preview means mostly measure rows coming in from the top.

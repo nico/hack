@@ -63,6 +63,36 @@ fpng:
 | lodepng | CRC + Adler-32 | 419.2 | 0.24 | 526.1 | 0.23 |
 | fpng | small chunks' CRCs | can't decode | | 167.6 | 0.73 |
 
+Decoding the same 41 images as they arrive, fed to the decoders that can resume in 64 equal pieces
+(and 256), each resuming where it stopped and showing what it can along the way: libpng's
+progressive reader (rows combined with its "blocky" interlace display), the png crate's reader row
+by row with interlace passes splatted over their blocks (the way Chromium uses it), wuffs'
+suspending decoder, and fastpng's incremental decoder with `FASTPNG_FILL_INTERLACE_PASSES`:
+
+| decoder | checksums checked | 64 pieces, ms | fastpng's time / theirs | 256 pieces, ms | fastpng's time / theirs |
+|---|---|---|---|---|---|
+| **fastpng** | none | **115.6** | 1.00 | **123.1** | 1.00 |
+| png crate (Rust; what Chromium uses) | CRC | 209.8 | 0.55 | 211.0 | 0.58 |
+| libpng | CRC + Adler-32 | 239.6 | 0.48 | 240.6 | 0.51 |
+| wuffs | CRC + Adler-32 | 248.8 | 0.46 | 256.2 | 0.48 |
+
+What each shows a quarter of the way through each file (`png-bench --incremental 8 --preview 2`;
+pixels already at their final value, and PSNR of the whole partial image against the final one,
+averaged over the 41 images):
+
+| decoder | pixels final | PSNR | interlaced images |
+|---|---|---|---|
+| fastpng | 35.2% | 7.4 dB | coarse whole image, refined pass by pass |
+| png crate | 35.2% | 7.4 dB | the same |
+| libpng | 34.2% | 7.3 dB | the same, but nothing yet for one small image |
+| wuffs | 11.3% | 5.1 dB | nothing until the image's data is all there |
+
+fastpng shows exactly what the png crate does: every row whose data has arrived, and interlace
+passes as blocks. wuffs inflates all of an image's data before unfiltering any of it, so it shows
+nothing on the way. Resuming costs fastpng 5% over one-step decoding at 64 pieces and 13% at 256 (the
+numbers here are from a run on a slightly busier machine than the one-step table), while the
+streaming decoders barely notice the piece count; it stays well ahead.
+
 With checksums checked, pixels and errors match wuffs' on PngSuite and the 41 images (217 files),
 and on wuffs' test data and SerenityOS's PNG tests. Unchecked, the only difference is PngSuite's two
 files with deliberately broken checksums, which fastpng then decodes.
@@ -250,6 +280,9 @@ name a different one than a one-step decode would, having met them in another or
     cargo around, it also builds `rust-png/`, a C-callable wrapper around the png crate (the
     columns `png-rs`, with the crate's default checks, and `png-rs-nc`, without).
   - `build/png-bench -n 9 *.png` prints a table with a column per decoder.
+  - `--incremental N` decodes each file fed in N pieces, with the decoders that can resume; with
+    `--preview K` it stops them after K pieces and compares what each shows with the final image
+    (`--preview-dir DIR` writes those partial images as PAM files).
   - `--fpng-reencode` benchmarks fpng-encoded copies.
   - `--check` compares fastpng's pixels and errors against wuffs' file by file, with checksums
     checked, and checks that unchecked decoding gives the same pixels.
