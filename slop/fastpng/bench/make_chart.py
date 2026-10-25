@@ -2,17 +2,18 @@
 # from a png-bench run and rerun: uv run bench/make_chart.py
 import os
 
+# "fastpng, checked" verifies every chunk's CRC and the zlib Adler-32, as wuffs, libpng and lodepng do.
 PANELS = [
     ("19 PNGs as their encoders wrote them", [
-        ("fastpng", 64.0), ("wuffs", 105.5), ("libpng", 111.0), ("stb_image", 215.3), ("lodepng", 230.9),
+        ("fastpng", 64.2), ("fastpng, checked", 69.3), ("wuffs", 106.0), ("libpng", 111.8), ("stb_image", 214.3), ("lodepng", 227.5),
     ]),
     ("The same images, written by fpng (the only files fpng decodes)", [
-        ("fastpng", 66.3), ("fpng", 98.1), ("libpng", 131.3), ("wuffs", 164.7), ("stb_image", 219.8), ("lodepng", 245.5),
+        ("fastpng", 65.1), ("fastpng, checked", 71.1), ("fpng", 97.2), ("libpng", 131.9), ("wuffs", 160.0), ("stb_image", 219.7), ("lodepng", 246.5),
     ]),
 ]
 
 WIDTH = 720
-LABEL_W = 92          # decoder names, right-aligned
+LABEL_W = 122         # decoder names, right-aligned
 BAR_X = LABEL_W + 12
 BAR_MAX_W = 430       # the longest bar; values go after the bar end
 ROW = 28
@@ -41,7 +42,7 @@ for title, rows in PANELS:
     baseline_top = y
     for name, ms in rows:
         w = BAR_MAX_W * ms / scale_max
-        cls = "us" if name == "fastpng" else "them"
+        cls = "us" if name.startswith("fastpng") else "them"
         cy = y + ROW / 2
         parts.append(f'<text class="name {cls}-text" x="{LABEL_W}" y="{cy + 4.5:.1f}" text-anchor="end">{name}</text>')
         parts.append(f'<path class="{cls}" d="{bar_path(BAR_X, cy - BAR_H / 2, w, BAR_H)}"><title>{name}: {ms:.1f} ms</title></path>')

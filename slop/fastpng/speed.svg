@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="720" height="456" viewBox="0 0 720 456" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="t">
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="512" viewBox="0 0 720 512" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="t">
 <title id="t">PNG decode time, total over 19 images (lower is better): fastpng is the fastest of the decoders compared</title>
 <style>
   .title { font-size: 15px; font-weight: 600; fill: #0b0b0b; }
@@ -19,43 +19,49 @@
     .baseline { stroke: #c3c2b7; }
   }
 </style>
-<rect class="surface" width="720" height="456" rx="8"/>
-<text class="title" x="104" y="22">Total decode time, ms (lower is better) — Apple M4 Max</text>
-<text class="panel" x="104" y="56">19 PNGs as their encoders wrote them</text>
-<text class="name us-text" x="92" y="88.5" text-anchor="end">fastpng</text>
-<path class="us" d="M104.0,75.0 H212.1 A4,4 0 0 1 216.1,79.0 V89.0 A4,4 0 0 1 212.1,93.0 H104.0 Z"><title>fastpng: 64.0 ms</title></path>
-<text class="value" x="224.1" y="88.5">64.0 ms</text>
-<text class="name them-text" x="92" y="116.5" text-anchor="end">wuffs</text>
-<path class="them" d="M104.0,103.0 H284.8 A4,4 0 0 1 288.8,107.0 V117.0 A4,4 0 0 1 284.8,121.0 H104.0 Z"><title>wuffs: 105.5 ms</title></path>
-<text class="value" x="296.8" y="116.5">105.5 ms  ·  1.6× as long</text>
-<text class="name them-text" x="92" y="144.5" text-anchor="end">libpng</text>
-<path class="them" d="M104.0,131.0 H294.4 A4,4 0 0 1 298.4,135.0 V145.0 A4,4 0 0 1 294.4,149.0 H104.0 Z"><title>libpng: 111.0 ms</title></path>
-<text class="value" x="306.4" y="144.5">111.0 ms  ·  1.7× as long</text>
-<text class="name them-text" x="92" y="172.5" text-anchor="end">stb_image</text>
-<path class="them" d="M104.0,159.0 H477.1 A4,4 0 0 1 481.1,163.0 V173.0 A4,4 0 0 1 477.1,177.0 H104.0 Z"><title>stb_image: 215.3 ms</title></path>
-<text class="value" x="489.1" y="172.5">215.3 ms  ·  3.4× as long</text>
-<text class="name them-text" x="92" y="200.5" text-anchor="end">lodepng</text>
-<path class="them" d="M104.0,187.0 H504.4 A4,4 0 0 1 508.4,191.0 V201.0 A4,4 0 0 1 504.4,205.0 H104.0 Z"><title>lodepng: 230.9 ms</title></path>
-<text class="value" x="516.4" y="200.5">230.9 ms  ·  3.6× as long</text>
-<line class="baseline" x1="104" x2="104" y1="70" y2="210"/>
-<text class="panel" x="104" y="248">The same images, written by fpng (the only files fpng decodes)</text>
-<text class="name us-text" x="92" y="280.5" text-anchor="end">fastpng</text>
-<path class="us" d="M104.0,267.0 H216.1 A4,4 0 0 1 220.1,271.0 V281.0 A4,4 0 0 1 216.1,285.0 H104.0 Z"><title>fastpng: 66.3 ms</title></path>
-<text class="value" x="228.1" y="280.5">66.3 ms</text>
-<text class="name them-text" x="92" y="308.5" text-anchor="end">fpng</text>
-<path class="them" d="M104.0,295.0 H271.8 A4,4 0 0 1 275.8,299.0 V309.0 A4,4 0 0 1 271.8,313.0 H104.0 Z"><title>fpng: 98.1 ms</title></path>
-<text class="value" x="283.8" y="308.5">98.1 ms  ·  1.5× as long</text>
-<text class="name them-text" x="92" y="336.5" text-anchor="end">libpng</text>
-<path class="them" d="M104.0,323.0 H330.0 A4,4 0 0 1 334.0,327.0 V337.0 A4,4 0 0 1 330.0,341.0 H104.0 Z"><title>libpng: 131.3 ms</title></path>
-<text class="value" x="342.0" y="336.5">131.3 ms  ·  2.0× as long</text>
-<text class="name them-text" x="92" y="364.5" text-anchor="end">wuffs</text>
-<path class="them" d="M104.0,351.0 H388.5 A4,4 0 0 1 392.5,355.0 V365.0 A4,4 0 0 1 388.5,369.0 H104.0 Z"><title>wuffs: 164.7 ms</title></path>
-<text class="value" x="400.5" y="364.5">164.7 ms  ·  2.5× as long</text>
-<text class="name them-text" x="92" y="392.5" text-anchor="end">stb_image</text>
-<path class="them" d="M104.0,379.0 H485.0 A4,4 0 0 1 489.0,383.0 V393.0 A4,4 0 0 1 485.0,397.0 H104.0 Z"><title>stb_image: 219.8 ms</title></path>
-<text class="value" x="497.0" y="392.5">219.8 ms  ·  3.3× as long</text>
-<text class="name them-text" x="92" y="420.5" text-anchor="end">lodepng</text>
-<path class="them" d="M104.0,407.0 H530.0 A4,4 0 0 1 534.0,411.0 V421.0 A4,4 0 0 1 530.0,425.0 H104.0 Z"><title>lodepng: 245.5 ms</title></path>
-<text class="value" x="542.0" y="420.5">245.5 ms  ·  3.7× as long</text>
-<line class="baseline" x1="104" x2="104" y1="262" y2="430"/>
+<rect class="surface" width="720" height="512" rx="8"/>
+<text class="title" x="134" y="22">Total decode time, ms (lower is better) — Apple M4 Max</text>
+<text class="panel" x="134" y="56">19 PNGs as their encoders wrote them</text>
+<text class="name us-text" x="122" y="88.5" text-anchor="end">fastpng</text>
+<path class="us" d="M134.0,75.0 H242.0 A4,4 0 0 1 246.0,79.0 V89.0 A4,4 0 0 1 242.0,93.0 H134.0 Z"><title>fastpng: 64.2 ms</title></path>
+<text class="value" x="254.0" y="88.5">64.2 ms</text>
+<text class="name us-text" x="122" y="116.5" text-anchor="end">fastpng, checked</text>
+<path class="us" d="M134.0,103.0 H250.9 A4,4 0 0 1 254.9,107.0 V117.0 A4,4 0 0 1 250.9,121.0 H134.0 Z"><title>fastpng, checked: 69.3 ms</title></path>
+<text class="value" x="262.9" y="116.5">69.3 ms  ·  1.1× as long</text>
+<text class="name them-text" x="122" y="144.5" text-anchor="end">wuffs</text>
+<path class="them" d="M134.0,131.0 H314.9 A4,4 0 0 1 318.9,135.0 V145.0 A4,4 0 0 1 314.9,149.0 H134.0 Z"><title>wuffs: 106.0 ms</title></path>
+<text class="value" x="326.9" y="144.5">106.0 ms  ·  1.7× as long</text>
+<text class="name them-text" x="122" y="172.5" text-anchor="end">libpng</text>
+<path class="them" d="M134.0,159.0 H325.0 A4,4 0 0 1 329.0,163.0 V173.0 A4,4 0 0 1 325.0,177.0 H134.0 Z"><title>libpng: 111.8 ms</title></path>
+<text class="value" x="337.0" y="172.5">111.8 ms  ·  1.7× as long</text>
+<text class="name them-text" x="122" y="200.5" text-anchor="end">stb_image</text>
+<path class="them" d="M134.0,187.0 H503.8 A4,4 0 0 1 507.8,191.0 V201.0 A4,4 0 0 1 503.8,205.0 H134.0 Z"><title>stb_image: 214.3 ms</title></path>
+<text class="value" x="515.8" y="200.5">214.3 ms  ·  3.3× as long</text>
+<text class="name them-text" x="122" y="228.5" text-anchor="end">lodepng</text>
+<path class="them" d="M134.0,215.0 H526.9 A4,4 0 0 1 530.9,219.0 V229.0 A4,4 0 0 1 526.9,233.0 H134.0 Z"><title>lodepng: 227.5 ms</title></path>
+<text class="value" x="538.9" y="228.5">227.5 ms  ·  3.5× as long</text>
+<line class="baseline" x1="134" x2="134" y1="70" y2="238"/>
+<text class="panel" x="134" y="276">The same images, written by fpng (the only files fpng decodes)</text>
+<text class="name us-text" x="122" y="308.5" text-anchor="end">fastpng</text>
+<path class="us" d="M134.0,295.0 H243.6 A4,4 0 0 1 247.6,299.0 V309.0 A4,4 0 0 1 243.6,313.0 H134.0 Z"><title>fastpng: 65.1 ms</title></path>
+<text class="value" x="255.6" y="308.5">65.1 ms</text>
+<text class="name us-text" x="122" y="336.5" text-anchor="end">fastpng, checked</text>
+<path class="us" d="M134.0,323.0 H254.0 A4,4 0 0 1 258.0,327.0 V337.0 A4,4 0 0 1 254.0,341.0 H134.0 Z"><title>fastpng, checked: 71.1 ms</title></path>
+<text class="value" x="266.0" y="336.5">71.1 ms  ·  1.1× as long</text>
+<text class="name them-text" x="122" y="364.5" text-anchor="end">fpng</text>
+<path class="them" d="M134.0,351.0 H299.6 A4,4 0 0 1 303.6,355.0 V365.0 A4,4 0 0 1 299.6,369.0 H134.0 Z"><title>fpng: 97.2 ms</title></path>
+<text class="value" x="311.6" y="364.5">97.2 ms  ·  1.5× as long</text>
+<text class="name them-text" x="122" y="392.5" text-anchor="end">libpng</text>
+<path class="them" d="M134.0,379.0 H360.1 A4,4 0 0 1 364.1,383.0 V393.0 A4,4 0 0 1 360.1,397.0 H134.0 Z"><title>libpng: 131.9 ms</title></path>
+<text class="value" x="372.1" y="392.5">131.9 ms  ·  2.0× as long</text>
+<text class="name them-text" x="122" y="420.5" text-anchor="end">wuffs</text>
+<path class="them" d="M134.0,407.0 H409.1 A4,4 0 0 1 413.1,411.0 V421.0 A4,4 0 0 1 409.1,425.0 H134.0 Z"><title>wuffs: 160.0 ms</title></path>
+<text class="value" x="421.1" y="420.5">160.0 ms  ·  2.5× as long</text>
+<text class="name them-text" x="122" y="448.5" text-anchor="end">stb_image</text>
+<path class="them" d="M134.0,435.0 H513.2 A4,4 0 0 1 517.2,439.0 V449.0 A4,4 0 0 1 513.2,453.0 H134.0 Z"><title>stb_image: 219.7 ms</title></path>
+<text class="value" x="525.2" y="448.5">219.7 ms  ·  3.4× as long</text>
+<text class="name them-text" x="122" y="476.5" text-anchor="end">lodepng</text>
+<path class="them" d="M134.0,463.0 H560.0 A4,4 0 0 1 564.0,467.0 V477.0 A4,4 0 0 1 560.0,481.0 H134.0 Z"><title>lodepng: 246.5 ms</title></path>
+<text class="value" x="572.0" y="476.5">246.5 ms  ·  3.8× as long</text>
+<line class="baseline" x1="134" x2="134" y1="290" y2="486"/>
 </svg>

@@ -3,9 +3,10 @@
 // Layout:
 //   1. Portable SIMD: 16-byte vectors through compiler vector extensions and builtins.
 //   2. Inflate: a one-shot, libdeflate-style deflate decoder.
-//   3. Unfiltering: PNG's five row filters, several rows at a time where that helps.
-//   4. Unpacking: unfiltered rows to 8-bit RGBA or BGRA.
-//   5. The PNG container: chunks, the image header, and the decode driver.
+//   3. Checksums: CRC-32 and Adler-32, checked only when asked for.
+//   4. Unfiltering: PNG's five row filters, several rows at a time where that helps.
+//   5. Unpacking: unfiltered rows to 8-bit RGBA or BGRA.
+//   6. The PNG container: chunks, the image header, and the decode driver.
 //
 // Needs clang, or gcc 12 or newer, and a little-endian machine. Vector code is written once and
 // compiles to NEON on arm64 and SSE on x86-64; there are no intrinsics.
@@ -642,8 +643,9 @@ FP_INLINE int inflate_fastloop(inflate_state* state, u32 const* litlen_table, u3
 }
 
 // Inflates the raw deflate stream `in` into `out`, which has room for `out_capacity` bytes, and
-// says how many it wrote. The stream may end before the input does.
-FP_NOINLINE int inflate_stream(u8 const* in, size_t in_size, u8* out, size_t out_capacity, size_t* out_size)
+// says how many it wrote and how many input bytes the stream was. The stream may end before the
+// input does.
+FP_NOINLINE int inflate_stream(u8 const* in, size_t in_size, u8* out, size_t out_capacity, size_t* out_size, size_t* in_used)
 {
     // On the stack and not cleared: the tables are written before they're read.
     decode_tables tables;
@@ -870,12 +872,158 @@ FP_NOINLINE int inflate_stream(u8 const* in, size_t in_size, u8* out, size_t out
 #undef REFILL
 #undef CONSUME
 
+    // What the refills read ahead and didn't consume isn't part of the stream.
+    bits_left = (u8)bits_left;
+    size_t const unread = (bits_left >> 3) > overread_count ? (bits_left >> 3) - overread_count : 0;
+    *in_used = (in_next - in) - unread;
     *out_size = out_next - out;
     return FASTPNG_OK;
 }
 
 // ================================================================================================
-// 3. Unfiltering
+// 3. Checksums
+// ================================================================================================
+//
+// Every chunk ends with a CRC-32 of its type and data, and the zlib stream with an Adler-32 of the
+// inflated data. Neither is checked unless asked for (FASTPNG_CHECK_CRC, FASTPNG_CHECK_ADLER32);
+// unasked, none of this runs. When asked: CRCs with the CPU's CRC32 instructions where there are
+// some (8 bytes per instruction), else eight table lookups per 8 bytes; Adler-32 sixteen bytes at
+// a time in vectors, over each batch of rows just before it's unfiltered, while it's in cache.
+
+// CRC-32 as in PNG and zlib: the reflected polynomial 0xedb88320, starting from and finishing
+// with all ones.
+#if defined(__ARM_FEATURE_CRC32)
+// clang and gcc name the CRC32 instruction builtins differently.
+#    if defined(__clang__)
+#        define CRC32_8_BYTES __builtin_arm_crc32d
+#        define CRC32_1_BYTE __builtin_arm_crc32b
+#    else
+#        define CRC32_8_BYTES __builtin_aarch64_crc32x
+#        define CRC32_1_BYTE __builtin_aarch64_crc32b
+#    endif
+
+typedef struct {
+    int unused;
+} crc32_tables;
+
+static void crc32_init(crc32_tables* tables)
+{
+    (void)tables;
+}
+
+static u32 crc32_update(crc32_tables const* tables, u32 crc, u8 const* p, size_t size)
+{
+    (void)tables;
+    for (; size >= 8; size -= 8, p += 8)
+        crc = CRC32_8_BYTES(crc, load_u64(p));
+    for (; size > 0; --size)
+        crc = CRC32_1_BYTE(crc, *p++);
+    return crc;
+}
+#else
+// Slice-by-8, its tables built per decode (a few microseconds) rather than kept in a global.
+typedef struct {
+    u32 t[8][256];
+} crc32_tables;
+
+static void crc32_init(crc32_tables* tables)
+{
+    for (u32 i = 0; i < 256; ++i) {
+        u32 c = i;
+        for (int k = 0; k < 8; ++k)
+            c = (c >> 1) ^ (0xedb88320u & (0u - (c & 1)));
+        tables->t[0][i] = c;
+    }
+    for (int slice = 1; slice < 8; ++slice) {
+        for (u32 i = 0; i < 256; ++i)
+            tables->t[slice][i] = (tables->t[slice - 1][i] >> 8) ^ tables->t[0][tables->t[slice - 1][i] & 0xff];
+    }
+}
+
+static u32 crc32_update(crc32_tables const* tables, u32 crc, u8 const* p, size_t size)
+{
+    u32 const(*t)[256] = tables->t;
+    for (; size >= 8; size -= 8, p += 8) {
+        u64 const v = load_u64(p) ^ crc;
+        crc = t[7][v & 0xff] ^ t[6][(v >> 8) & 0xff] ^ t[5][(v >> 16) & 0xff] ^ t[4][(v >> 24) & 0xff]
+            ^ t[3][(v >> 32) & 0xff] ^ t[2][(v >> 40) & 0xff] ^ t[1][(v >> 48) & 0xff] ^ t[0][v >> 56];
+    }
+    for (; size > 0; --size)
+        crc = (crc >> 8) ^ t[0][(crc ^ *p++) & 0xff];
+    return crc;
+}
+#endif
+
+// Adler-32 (RFC 1950): s1 is 1 plus the sum of the bytes, s2 the sum of s1 after each byte, both
+// modulo 65521. Sixteen bytes add sixteen times s1 (as of before them) to s2, plus each byte
+// weighted by how many of the sixteen it's before the end of. In vectors, each sixteen bytes add
+// into four lanes of byte sums (pairwise) and into sixteen 16-bit column sums, and the running
+// byte sums before each sixteen add up into four more lanes; the weights apply to the column sums
+// once per block, since the weighted sum of every sixteen is the weighted sum of the columns.
+// 256 sixteens keep the columns within 16 bits.
+#define ADLER32_BASE 65521
+#define ADLER32_BLOCK 4096
+
+typedef u16 u16x8 __attribute__((vector_size(16)));
+typedef u32 u32x8 __attribute__((vector_size(32)));
+
+typedef struct {
+    u32 s1;
+    u32 s2;
+} adler32_state;
+
+// The sixteen bytes, added pairwise into eight u16s, then into four u32s.
+FP_INLINE u32x4 sum_bytes_into_four(u8x16 v)
+{
+    u16x8 const pairs = __builtin_convertvector(SHUFFLE(v, v, 0, 2, 4, 6, 8, 10, 12, 14), u16x8) + __builtin_convertvector(SHUFFLE(v, v, 1, 3, 5, 7, 9, 11, 13, 15), u16x8);
+    return __builtin_convertvector(SHUFFLE(pairs, pairs, 0, 2, 4, 6), u32x4) + __builtin_convertvector(SHUFFLE(pairs, pairs, 1, 3, 5, 7), u32x4);
+}
+
+FP_INLINE u64 sum_lanes(u32x4 v)
+{
+    return (u64)v[0] + v[1] + v[2] + v[3];
+}
+
+FP_INLINE u64 weighted_sum(u16x8 columns, u32x8 weights)
+{
+    u32x8 const products = __builtin_convertvector(columns, u32x8) * weights;
+    return sum_lanes(SHUFFLE(products, products, 0, 1, 2, 3) + SHUFFLE(products, products, 4, 5, 6, 7));
+}
+
+// Out of line: inlined into the row loop, it slowed the unfiltering around it by half.
+FP_NOINLINE void adler32_update(adler32_state* state, u8 const* p, size_t size)
+{
+    u32x8 const first_weights = { 16, 15, 14, 13, 12, 11, 10, 9 };
+    u32x8 const second_weights = { 8, 7, 6, 5, 4, 3, 2, 1 };
+    u32 s1 = state->s1;
+    u32 s2 = state->s2;
+    while (size >= 16) {
+        size_t const block = size < ADLER32_BLOCK ? size - size % 16 : ADLER32_BLOCK;
+        u32x4 bytes = { 0 }, sums_before = { 0 };
+        u16x8 first_columns = { 0 }, second_columns = { 0 };
+        for (size_t i = 0; i < block; i += 16) {
+            u8x16 const v = load16(p + i);
+            sums_before += bytes;
+            bytes += sum_bytes_into_four(v);
+            first_columns += __builtin_convertvector(SHUFFLE(v, v, 0, 1, 2, 3, 4, 5, 6, 7), u16x8);
+            second_columns += __builtin_convertvector(SHUFFLE(v, v, 8, 9, 10, 11, 12, 13, 14, 15), u16x8);
+        }
+        u64 const weighted = weighted_sum(first_columns, first_weights) + weighted_sum(second_columns, second_weights);
+        s2 = (u32)((s2 + (u64)s1 * block + 16 * sum_lanes(sums_before) + weighted) % ADLER32_BASE);
+        s1 = (u32)((s1 + sum_lanes(bytes)) % ADLER32_BASE);
+        p += block;
+        size -= block;
+    }
+    for (; size > 0; --size) {
+        s1 += *p++;
+        s2 += s1;
+    }
+    state->s1 = s1 % ADLER32_BASE;
+    state->s2 = s2 % ADLER32_BASE;
+}
+
+// ================================================================================================
+// 4. Unfiltering
 // ================================================================================================
 //
 // https://www.w3.org/TR/png-3/#9Filter-types. Each row starts with a filter type, and its bytes
@@ -1228,7 +1376,7 @@ static void unfilter_rows(filter_type const* filters, u8** rows, size_t count, u
 }
 
 // ================================================================================================
-// 4. Unpacking
+// 5. Unpacking
 // ================================================================================================
 //
 // Each unfiltered row becomes 4-byte pixels right away. 8-bit layouts move with one shuffle per
@@ -1440,7 +1588,7 @@ static int unpack_row(unpacker const* u, u8 const* row, u8* out)
 }
 
 // ================================================================================================
-// 5. The PNG container
+// 6. The PNG container
 // ================================================================================================
 
 static u8 const png_signature[8] = { 0x89, 'P', 'N', 'G', 13, 10, 26, 10 };
@@ -1528,7 +1676,8 @@ static int parse_header(u8 const* png, size_t png_size, png_header* h)
     return FASTPNG_OK;
 }
 
-static int parse_chunks(u8 const* png, size_t png_size, png_header* h)
+// Reads the chunks up to IEND; with `crc_tables`, checks each one's CRC (of its type and data).
+static int parse_chunks(u8 const* png, size_t png_size, png_header* h, crc32_tables const* crc_tables)
 {
     int const error = parse_header(png, png_size, h);
     if (error)
@@ -1536,7 +1685,11 @@ static int parse_chunks(u8 const* png, size_t png_size, png_header* h)
     u8 const* p = png + 8;
     u32 type, length;
     u8 const* data;
-    while (next_chunk(&p, png + png_size, &type, &data, &length) && type != CHUNK('I', 'E', 'N', 'D')) {
+    while (next_chunk(&p, png + png_size, &type, &data, &length)) {
+        if (crc_tables && ~crc32_update(crc_tables, ~0u, data - 4, length + 4) != read_be32(data + length))
+            return FASTPNG_ERROR_BAD_CHECKSUM;
+        if (type == CHUNK('I', 'E', 'N', 'D'))
+            break;
         switch (type) {
         case CHUNK('P', 'L', 'T', 'E'):
             h->palette = data;
@@ -1649,7 +1802,8 @@ typedef struct {
     u8* row_buffer; // A pass's unpacked row, before it's spread out.
 } row_sink;
 
-static int decode_rows(u8* data, size_t width, size_t height, size_t row_bytes, unsigned bpp, unpacker* u, row_sink const* sink, bool interlace_pass)
+// With `adler`, adds each batch of filtered rows to the Adler-32 before unfiltering it in place.
+static int decode_rows(u8* data, size_t width, size_t height, size_t row_bytes, unsigned bpp, unpacker* u, row_sink const* sink, bool interlace_pass, adler32_state* adler)
 {
     // The row above the first is all zeros.
     u8* zero_row = calloc(row_bytes + 16, 1);
@@ -1673,6 +1827,8 @@ static int decode_rows(u8* data, size_t width, size_t height, size_t row_bytes, 
         }
         if (error)
             break;
+        if (adler)
+            adler32_update(adler, data + y * (row_bytes + 1), count * (row_bytes + 1));
         unfilter_rows(filters, rows, count, above, row_bytes, bpp);
         above = rows[count - 1];
         for (size_t i = 0; i < count && !error; ++i) {
@@ -1719,9 +1875,9 @@ int fastpng_get_size(void const* png, size_t png_size, uint32_t* width, uint32_t
 
 // Parses the chunks and works out the size of the filtered rows, each with its filter byte;
 // rejects images whose data can't be there, before anything big is allocated.
-static int parse_and_size(u8 const* png, size_t png_size, png_header* h, size_t* inflated_size)
+static int parse_and_size(u8 const* png, size_t png_size, png_header* h, size_t* inflated_size, crc32_tables const* crc_tables)
 {
-    int const error = parse_chunks(png, png_size, h);
+    int const error = parse_chunks(png, png_size, h, crc_tables);
     if (error)
         return error;
     size_t size = 0;
@@ -1746,14 +1902,17 @@ static int parse_and_size(u8 const* png, size_t png_size, png_header* h, size_t*
     return FASTPNG_OK;
 }
 
-int fastpng_decode(void const* png_bytes, size_t png_size, fastpng_format format, void* pixels, size_t stride)
+int fastpng_decode(void const* png_bytes, size_t png_size, fastpng_format format, void* pixels, size_t stride, unsigned flags)
 {
     if (!png_bytes || !pixels)
         return FASTPNG_ERROR_BAD_ARGUMENT;
     u8 const* const png = png_bytes;
+    crc32_tables crc_tables;
+    if (flags & FASTPNG_CHECK_CRC)
+        crc32_init(&crc_tables);
     png_header h;
     size_t inflated_size;
-    int error = parse_and_size(png, png_size, &h, &inflated_size);
+    int error = parse_and_size(png, png_size, &h, &inflated_size, (flags & FASTPNG_CHECK_CRC) ? &crc_tables : NULL);
     if (error)
         return error;
     if (stride < (size_t)h.width * 4)
@@ -1765,7 +1924,7 @@ int fastpng_decode(void const* png_bytes, size_t png_size, fastpng_format format
         return FASTPNG_ERROR_OUT_OF_MEMORY;
     size_t const zlib_size = h.idat_count == 1 ? h.first_idat_size : h.idat_total;
 
-    // The zlib wrapper: deflate, no preset dictionary. The Adler-32 at the end isn't checked.
+    // The zlib wrapper: deflate, no preset dictionary, and at the end the inflated data's Adler-32.
     u8* inflated = NULL;
     if (zlib_size < 2 || (zlib[0] & 0x0f) != 8 || (zlib[0] >> 4) > 7 || ((zlib[0] << 8) | zlib[1]) % 31 != 0 || (zlib[1] & 0x20)) {
         error = FASTPNG_ERROR_BAD_ZLIB;
@@ -1779,7 +1938,8 @@ int fastpng_decode(void const* png_bytes, size_t png_size, fastpng_format format
         goto done;
     }
     size_t produced = 0;
-    error = inflate_stream(zlib + 2, zlib_size - 2, inflated, capacity, &produced);
+    size_t deflate_size = 0;
+    error = inflate_stream(zlib + 2, zlib_size - 2, inflated, capacity, &produced, &deflate_size);
     if (error)
         goto done;
     if (produced < inflated_size) {
@@ -1787,12 +1947,14 @@ int fastpng_decode(void const* png_bytes, size_t png_size, fastpng_format format
         goto done;
     }
 
+    adler32_state adler_state = { 1, 0 };
+    adler32_state* const adler = (flags & FASTPNG_CHECK_ADLER32) ? &adler_state : NULL;
     unpacker u;
     build_unpacker(&h, format == FASTPNG_BGRA, &u);
     unsigned const bpp = (h.depth * h.channels + 7) / 8;
     if (!h.interlaced) {
         row_sink const sink = { pixels, stride, 0, 1, 0, 1, NULL };
-        error = decode_rows(inflated, h.width, h.height, row_bytes_for(h.width, &h), bpp, &u, &sink, false);
+        error = decode_rows(inflated, h.width, h.height, row_bytes_for(h.width, &h), bpp, &u, &sink, false, adler);
     } else {
         u8* row_buffer = malloc((size_t)h.width * 4 + 16);
         if (!row_buffer) {
@@ -1807,10 +1969,20 @@ int fastpng_decode(void const* png_bytes, size_t png_size, fastpng_format format
                 continue;
             size_t const row_bytes = row_bytes_for(w, &h);
             row_sink const sink = { pixels, stride, adam7_x0[pass], adam7_dx[pass], adam7_y0[pass], adam7_dy[pass], row_buffer };
-            error = decode_rows(data, w, ph, row_bytes, bpp, &u, &sink, true);
+            error = decode_rows(data, w, ph, row_bytes, bpp, &u, &sink, true, adler);
             data += (row_bytes + 1) * ph;
         }
         free(row_buffer);
+    }
+
+    if (!error && adler) {
+        // Any data past the image's rows counts too.
+        adler32_update(adler, inflated + inflated_size, produced - inflated_size);
+        size_t const trailer = 2 + deflate_size;
+        if (zlib_size < trailer || zlib_size - trailer < 4)
+            error = FASTPNG_ERROR_TRUNCATED;
+        else if (read_be32(zlib + trailer) != ((adler->s2 << 16) | adler->s1))
+            error = FASTPNG_ERROR_BAD_CHECKSUM;
     }
 
 done:
@@ -1819,11 +1991,11 @@ done:
     return error;
 }
 
-uint8_t* fastpng_decode_alloc(void const* png, size_t png_size, fastpng_format format, uint32_t* width, uint32_t* height, int* error_out)
+uint8_t* fastpng_decode_alloc(void const* png, size_t png_size, fastpng_format format, unsigned flags, uint32_t* width, uint32_t* height, int* error_out)
 {
     png_header header;
     size_t inflated_size;
-    int error = png ? parse_and_size(png, png_size, &header, &inflated_size) : FASTPNG_ERROR_BAD_ARGUMENT;
+    int error = png ? parse_and_size(png, png_size, &header, &inflated_size, NULL) : FASTPNG_ERROR_BAD_ARGUMENT;
     uint32_t const w = header.width;
     uint32_t const h = header.height;
     uint8_t* pixels = NULL;
@@ -1833,7 +2005,7 @@ uint8_t* fastpng_decode_alloc(void const* png, size_t png_size, fastpng_format f
             error = FASTPNG_ERROR_TOO_LARGE;
         else if (!(pixels = malloc(bytes)))
             error = FASTPNG_ERROR_OUT_OF_MEMORY;
-        else if ((error = fastpng_decode(png, png_size, format, pixels, (size_t)w * 4)) != FASTPNG_OK) {
+        else if ((error = fastpng_decode(png, png_size, format, pixels, (size_t)w * 4, flags)) != FASTPNG_OK) {
             free(pixels);
             pixels = NULL;
         }
@@ -1859,6 +2031,7 @@ char const* fastpng_error_string(int error)
     case FASTPNG_ERROR_BAD_PALETTE: return "bad palette";
     case FASTPNG_ERROR_OUT_OF_MEMORY: return "out of memory";
     case FASTPNG_ERROR_BAD_ARGUMENT: return "bad argument";
+    case FASTPNG_ERROR_BAD_CHECKSUM: return "checksum mismatch";
     }
     return "unknown error";
 }

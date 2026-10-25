@@ -25,19 +25,27 @@ enum {
     FASTPNG_ERROR_BAD_PALETTE = -6,     // missing PLTE, or an index past its end
     FASTPNG_ERROR_OUT_OF_MEMORY = -7,
     FASTPNG_ERROR_BAD_ARGUMENT = -8,
+    FASTPNG_ERROR_BAD_CHECKSUM = -9,    // a chunk's CRC or the zlib Adler-32 is wrong (when checked)
+};
+
+// Flags for fastpng_decode(): which checksums to verify. With neither (0), none are computed.
+enum {
+    FASTPNG_CHECK_CRC = 1,      // every chunk's CRC-32, up to IEND
+    FASTPNG_CHECK_ADLER32 = 2,  // the zlib stream's Adler-32 of the inflated data
+    FASTPNG_CHECK_ALL = FASTPNG_CHECK_CRC | FASTPNG_CHECK_ADLER32,
 };
 
 // Reads the image size from the header. Returns FASTPNG_OK or an error.
 int fastpng_get_size(void const* png, size_t png_size, uint32_t* width, uint32_t* height);
 
 // Decodes the image (the first frame of an APNG) into `pixels`, `stride` bytes per row, 4 bytes
-// per pixel in `format`. Returns FASTPNG_OK or an error; on error `pixels` may be partly written.
-// Gamma, color profiles and checksums are ignored.
-int fastpng_decode(void const* png, size_t png_size, fastpng_format format, void* pixels, size_t stride);
+// per pixel in `format`, verifying the checksums `flags` asks for. Returns FASTPNG_OK or an error;
+// on error `pixels` may be partly written. Gamma and color profiles are ignored.
+int fastpng_decode(void const* png, size_t png_size, fastpng_format format, void* pixels, size_t stride, unsigned flags);
 
 // Like fastpng_decode(), into a malloc()ed buffer of width * height * 4 bytes, or NULL on error
 // (with the error in *error when it's not NULL).
-uint8_t* fastpng_decode_alloc(void const* png, size_t png_size, fastpng_format format, uint32_t* width, uint32_t* height, int* error);
+uint8_t* fastpng_decode_alloc(void const* png, size_t png_size, fastpng_format format, unsigned flags, uint32_t* width, uint32_t* height, int* error);
 
 char const* fastpng_error_string(int error);
 

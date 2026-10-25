@@ -2,49 +2,53 @@
 
 (Probably. On an Apple M4 Max, against the decoders below.)
 
-`fastpng.c` is a complete PNG decoder in one C file, about 1,800 lines with comments, with a
+`fastpng.c` is a complete PNG decoder in one C file, about 2,000 lines with comments, with a
 four-function API in `fastpng.h`. It decodes every PNG type (all color types and bit depths,
 palettes, tRNS transparency, Adam7 interlacing) to 8-bit RGBA or BGRA. It's a port of the decoder
 in SerenityOS's LibGfx and LibCompress, which grew these techniques while chasing PDF rendering
 speed.
 
 ```
-make && ./demo image.png -n 10 -o out.pam
+make && ./demo image.png -n 10 -o out.pam [--check-crc] [--check-adler32]
 ```
 
 ```c
 #include "fastpng.h"
 uint32_t w, h;
 int error;
-uint8_t* rgba = fastpng_decode_alloc(png_bytes, png_size, FASTPNG_RGBA, &w, &h, &error);
+uint8_t* rgba = fastpng_decode_alloc(png_bytes, png_size, FASTPNG_RGBA, 0, &w, &h, &error);
+// Or verify every chunk's CRC and the zlib Adler-32 (about 8% slower):
+uint8_t* checked = fastpng_decode_alloc(png_bytes, png_size, FASTPNG_RGBA, FASTPNG_CHECK_ALL, &w, &h, &error);
 ```
 
 ## Speed
 
-![Total decode time over 19 PNGs: fastpng 64.0 ms, wuffs 105.5, libpng 111.0, stb_image 215.3, lodepng 230.9; on fpng-written copies fastpng 66.3 ms, fpng 98.1, libpng 131.3, wuffs 164.7, stb_image 219.8, lodepng 245.5](speed.svg)
+![Total decode time over 19 PNGs: fastpng 64.2 ms, fastpng checking checksums 69.3, wuffs 106.0, libpng 111.8, stb_image 214.3, lodepng 227.5; on fpng-written copies fastpng 65.1 ms, fastpng checking checksums 71.1, fpng 97.2, libpng 131.9, wuffs 160.0, stb_image 219.7, lodepng 246.5](speed.svg)
 
 Total ms over 19 PNGs (wuffs' test images plus 14 large real-world PNGs; best of 9 runs each, into
 freshly allocated output), Apple M4 Max, clang -O2 for fastpng, -O3 for the others:
 
-| | fastpng | wuffs | wuffs, no checksums | libpng | stb_image | lodepng |
-|---|---|---|---|---|---|---|
-| total ms | **64.0** | 105.5 | 101.4 | 111.0 | 215.3 | 230.9 |
-| fastpng's time / theirs | 1.00 | 0.61 | 0.63 | 0.58 | 0.30 | 0.28 |
+| | fastpng | fastpng, checksums checked | wuffs | wuffs, no checksums | libpng | stb_image | lodepng |
+|---|---|---|---|---|---|---|---|
+| total ms | **64.2** | 69.3 | 106.0 | 101.5 | 111.8 | 214.3 | 227.5 |
+| fastpng's time / theirs | 1.00 | 0.93 | 0.61 | 0.63 | 0.57 | 0.30 | 0.28 |
 
 fpng only decodes files fpng wrote, so its comparison is on those images re-encoded by fpng:
 
-| | fastpng | fpng | wuffs | libpng | stb_image | lodepng |
-|---|---|---|---|---|---|---|
-| total ms | **66.3** | 98.1 | 164.7 | 131.3 | 219.8 | 245.5 |
-| fastpng's time / theirs | 1.00 | 0.68 | 0.40 | 0.50 | 0.30 | 0.27 |
+| | fastpng | fastpng, checksums checked | fpng | wuffs | libpng | stb_image | lodepng |
+|---|---|---|---|---|---|---|---|
+| total ms | **65.1** | 71.1 | 97.2 | 160.0 | 131.9 | 219.7 | 246.5 |
+| fastpng's time / theirs | 1.00 | 0.92 | 0.67 | 0.41 | 0.49 | 0.30 | 0.26 |
 
-Pixels match wuffs' on PngSuite, wuffs' test data and the images above, except PngSuite's two
-files with deliberately broken checksums, which wuffs rejects and fastpng (not checking
-checksums) decodes.
+With checksums checked, pixels and errors match wuffs' on PngSuite, wuffs' test data, SerenityOS's
+PNG tests and the images above (238 files). Unchecked, the only difference is PngSuite's two files
+with deliberately broken checksums, which fastpng then decodes.
 
-What's checked, since it affects speed: fastpng checks no CRCs and not the zlib Adler-32. fpng
-checks CRCs on the small chunks only (not IDAT) and no Adler-32; stb_image checks neither; wuffs
-("no checksums" column aside), libpng and lodepng check both.
+What's checked, since it affects speed: by default fastpng checks no CRCs and not the zlib
+Adler-32; `FASTPNG_CHECK_CRC` and `FASTPNG_CHECK_ADLER32` turn them on. fpng checks CRCs on the
+small chunks only (not IDAT) and no Adler-32; stb_image checks neither; wuffs ("no checksums"
+column aside), libpng and lodepng check both. So the fair comparison is fastpng unchecked against
+fpng, stb_image and wuffs-no-checksums, and fastpng checked against wuffs, libpng and lodepng.
 
 ## The key ideas
 
@@ -122,10 +126,24 @@ the chain or run several at once:
   pixels. The tables already include tRNS alpha and the low-bit-depth scaling (1, 3, 15 → 255). The
   palette index check is per row, not per pixel.
 
+**Checksums, when asked for.** Unasked, none of this code runs.
+
+- *CRC-32 on the CPU's CRC32 instructions* (8 bytes each, about 12 GB/s here) where the target has
+  them, through `__builtin_arm_crc32d` behind `__ARM_FEATURE_CRC32`; elsewhere slice-by-8 tables,
+  built per decode instead of kept in a global.
+- *Adler-32 in vectors, at about 28 GB/s.* Each 16 bytes add pairwise into four lanes of byte sums
+  and into sixteen 16-bit column sums. The 16..1 weights apply to the column sums once per 4 KB
+  block, not per byte: the weighted sum of every 16 bytes is the weighted sum of the columns.
+- *Adler-32 while it's in cache.* It runs over each 16-row batch of inflated data just before that
+  batch is unfiltered in place, which also has to come first since unfiltering changes the bytes.
+- *Out of line on purpose.* Inlined into the row loop, the Adler-32 code slowed the unfiltering
+  around it by half: checking cost 2x the decode time on some images instead of 1.2x.
+
 **Portable SIMD without intrinsics.** All vector code uses GCC/clang vector extensions
 (`vector_size`, element-wise operators, comparison masks, casts) and `__builtin_shufflevector` with
 constant indices. Clang turns that into tbl/ext/uabd/uhadd/uqadd on NEON and pshufb/palignr on SSE.
-Section 1 of `fastpng.c` has the handful of helpers; nothing is architecture-specific.
+Section 1 of `fastpng.c` has the handful of helpers; nothing is architecture-specific, except
+the optional use of CRC32 instructions, with a portable fallback.
 
 ## Limits and trade-offs
 
@@ -142,21 +160,24 @@ Section 1 of `fastpng.c` has the handful of helpers; nothing is architecture-spe
 - `fastpng.h`, `fastpng.c`: the decoder. `fastpng.c` sections:
   1. portable SIMD
   2. inflate
-  3. unfiltering
-  4. unpacking
-  5. the PNG container and API
-- `demo.c`: decodes a file, prints the time, optionally writes a PAM.
+  3. checksums
+  4. unfiltering
+  5. unpacking
+  6. the PNG container and API
+- `demo.c`: decodes a file, prints the time, optionally writes a PAM and checks checksums.
 - `bench/`: the comparison, independent of the rest.
   - `build.sh` builds `bench/build/png-bench` against checkouts of wuffs, stb, fpng (which also
     provides lodepng) and libpng. Paths are set with `WUFFS=`, `STB=`, `FPNG=`, `LIBPNG=`.
   - `build/png-bench -n 9 *.png` prints a table like the ones above.
   - `--fpng-reencode` benchmarks fpng-encoded copies.
-  - `--check` compares fastpng's pixels against wuffs' file by file.
+  - `--check` compares fastpng's pixels and errors against wuffs' file by file, with checksums
+    checked, and checks that unchecked decoding gives the same pixels.
   - `--only fastpng,wuffs` limits the columns.
   - `make_chart.py` regenerates `speed.svg` from the totals written into it:
     `uv run bench/make_chart.py`.
   - `fuzz.c` is a mutation fuzzer (also a libFuzzer target) that runs under ASan/UBSan. It checks
-    that corrupt files fail cleanly and that BGRA is RGBA swapped. Its first run caught an
+    that corrupt files fail cleanly in every checksum mode, that BGRA is RGBA swapped, and that a
+    file that decodes with checksums decodes the same without. Its first run caught an
     allocation sized from a corrupt header, now rejected using the 1032:1 deflate bound.
 
 ## Credits

@@ -33,7 +33,7 @@ struct Image {
 
 typedef bool (*Decoder)(uint8_t const*, size_t, Image&);
 
-static bool decode_fastpng(uint8_t const* data, size_t size, Image& out)
+static bool decode_fastpng_with(uint8_t const* data, size_t size, Image& out, unsigned flags)
 {
     uint32_t w, h;
     if (fastpng_get_size(data, size, &w, &h))
@@ -41,8 +41,11 @@ static bool decode_fastpng(uint8_t const* data, size_t size, Image& out)
     out.w = w;
     out.h = h;
     out.rgba.resize((size_t)w * h * 4);
-    return fastpng_decode(data, size, FASTPNG_RGBA, out.rgba.data(), (size_t)w * 4) == FASTPNG_OK;
+    return fastpng_decode(data, size, FASTPNG_RGBA, out.rgba.data(), (size_t)w * 4, flags) == FASTPNG_OK;
 }
+
+static bool decode_fastpng(uint8_t const* data, size_t size, Image& out) { return decode_fastpng_with(data, size, out, 0); }
+static bool decode_fastpng_checked(uint8_t const* data, size_t size, Image& out) { return decode_fastpng_with(data, size, out, FASTPNG_CHECK_ALL); }
 
 static bool decode_wuffs_with(uint8_t const* data, size_t size, Image& out, bool ignore_checksum)
 {
@@ -127,6 +130,7 @@ struct DecoderInfo {
 
 static DecoderInfo const decoders[] = {
     { "fastpng", decode_fastpng },
+    { "fp-chk", decode_fastpng_checked },
     { "wuffs", decode_wuffs },
     { "wuffs-nc", decode_wuffs_no_checksum },
     { "libpng", decode_libpng },
@@ -222,23 +226,31 @@ int main(int argc, char** argv)
     fpng::fpng_init();
 
     if (check_only) {
-        // Correctness only: which files fastpng decodes differently from wuffs (or fails on).
+        // Correctness only: which files fastpng decodes differently from wuffs (or fails on), with
+        // checksums checked like wuffs does, and without (where only corrupt checksums may differ).
         int bad = 0, total = 0;
         for (int i = first; i < argc; ++i) {
             std::vector<uint8_t> bytes;
             if (!read_file(argv[i], bytes))
                 continue;
-            Image reference, ours;
+            Image reference, ours, checked;
             bool const reference_ok = decode_wuffs(bytes.data(), bytes.size(), reference);
             bool const ours_ok = decode_fastpng(bytes.data(), bytes.size(), ours);
+            bool const checked_ok = decode_fastpng_checked(bytes.data(), bytes.size(), checked);
             ++total;
-            if (reference_ok != ours_ok || (ours_ok && count_diffs(ours, reference))) {
+            if (reference_ok != checked_ok || (checked_ok && count_diffs(checked, reference))) {
                 ++bad;
-                printf("%s: wuffs %s, fastpng %s, %zd pixels differ\n", argv[i], reference_ok ? "ok" : "fails", ours_ok ? "ok" : "fails",
-                    reference_ok && ours_ok ? (ssize_t)count_diffs(ours, reference) : -1);
+                printf("%s: wuffs %s, fastpng with checksums %s, %zd pixels differ\n", argv[i], reference_ok ? "ok" : "fails", checked_ok ? "ok" : "fails",
+                    reference_ok && checked_ok ? (ssize_t)count_diffs(checked, reference) : -1);
+            }
+            if (checked_ok && (!ours_ok || count_diffs(ours, checked))) {
+                ++bad;
+                printf("%s: fastpng without checksums decodes differently from with them\n", argv[i]);
+            } else if (!checked_ok && ours_ok) {
+                printf("%s: (only a checksum is wrong: fastpng decodes it without checking)\n", argv[i]);
             }
         }
-        printf("%d of %d files decode differently from wuffs\n", bad, total);
+        printf("%d of %d files decode differently from wuffs (with checksums checked)\n", bad, total);
         return bad != 0;
     }
 
