@@ -1399,6 +1399,7 @@ typedef struct {
     bool bgra;
     u32 table[256]; // Palette or low-bit-depth grays, as finished pixels.
     unsigned palette_size;
+    u8 invalid_bytes[256]; // For a 1-, 2- or 4-bit palette: which bytes hold an index past it.
     bool has_transparent_value;
     u16 transparent_gray;
     u8 transparent_samples[6]; // RGB as stored: 3 bytes at 8 bits, 6 big-endian at 16.
@@ -1499,13 +1500,20 @@ static void unpack_through_table(u8 const* row, u8* out, size_t width, u32 const
         unpack_low_bit_depth_4(row, out, width, table);
 }
 
-static bool palette_indices_valid(u8 const* row, size_t width, unsigned depth, unsigned palette_size)
+// Whether a row of 1-, 2- or 4-bit palette indices stays within the palette: a byte at a time
+// through `invalid_bytes`, which says which bytes hold an index past it. The last byte's unused
+// samples can be anything, so its used ones are checked one by one.
+static bool palette_indices_valid(u8 const* row, size_t width, unsigned depth, unsigned palette_size, u8 const* invalid_bytes)
 {
     unsigned const per_byte = 8 / depth;
-    unsigned const mask = (1u << depth) - 1;
-    for (size_t x = 0; x < width; ++x) {
-        unsigned const sample = depth == 8 ? row[x] : (row[x / per_byte] >> (8 - depth * (x % per_byte + 1))) & mask;
-        if (sample >= palette_size)
+    size_t const whole_bytes = width / per_byte;
+    u8 invalid = 0;
+    for (size_t i = 0; i < whole_bytes; ++i)
+        invalid |= invalid_bytes[row[i]];
+    if (invalid)
+        return false;
+    for (size_t x = whole_bytes * per_byte; x < width; ++x) {
+        if (((row[whole_bytes] >> (8 - depth * (x % per_byte + 1))) & ((1u << depth) - 1)) >= palette_size)
             return false;
     }
     return true;
@@ -1573,7 +1581,7 @@ FP_INLINE int unpack_row_in_format(unpacker const* u, u8 const* row, u8* out, bo
                 store_u32(out + 4 * x, u->table[row[x]]);
         } else {
             // A palette as big as the bit depth allows can't be indexed past.
-            if (u->palette_size < (1u << u->depth) && !palette_indices_valid(row, width, u->depth, u->palette_size))
+            if (u->palette_size < (1u << u->depth) && !palette_indices_valid(row, width, u->depth, u->palette_size, u->invalid_bytes))
                 return FASTPNG_ERROR_BAD_PALETTE;
             unpack_through_table(row, out, width, u->table, u->depth);
         }
@@ -1750,6 +1758,13 @@ static void build_unpacker(png_header const* h, bool bgra, unpacker* u)
 
     if (h->color == COLOR_PALETTE) {
         u->palette_size = h->palette_size;
+        if (h->depth < 8) {
+            unsigned const per_byte = 8 / h->depth;
+            for (unsigned byte = 0; byte < 256; ++byte) {
+                for (unsigned k = 0; k < per_byte; ++k)
+                    u->invalid_bytes[byte] |= ((byte >> (h->depth * k)) & ((1u << h->depth) - 1)) >= h->palette_size;
+            }
+        }
         for (unsigned i = 0; i < 256; ++i) {
             if (i < h->palette_size) {
                 u8 const* rgb = h->palette + 3 * i;
