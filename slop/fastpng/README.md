@@ -63,8 +63,25 @@ fpng:
 | lodepng | CRC + Adler-32 | 419.2 | 0.24 | 526.1 | 0.23 |
 | fpng | small chunks' CRCs | can't decode | | 167.6 | 0.73 |
 
-Decoding the same 41 images as they arrive, fed to the decoders that can resume in 64 equal pieces
-(and 256), each resuming where it stopped and showing what it can along the way: libpng's
+With checksums checked, pixels and errors match wuffs' on PngSuite and the 41 images (217 files),
+and on wuffs' test data and SerenityOS's PNG tests. Unchecked, the only difference is PngSuite's two
+files with deliberately broken checksums, which fastpng then decodes.
+
+What's checked affects speed, so the table says it: by default fastpng checks no CRCs and not
+the zlib Adler-32 (`FASTPNG_CHECK_CRC` and `FASTPNG_CHECK_ADLER32` turn them on), and the png
+crate by default checks chunk CRCs but not the Adler-32. Compare rows that check the same.
+
+Where the png crate's time goes, on the 1600x1600 Paeth-filtered mandrill (21.1 ms vs fastpng's
+9.6): inflate (fdeflate) about 7.6 ms, the same as fastpng's 7.5; unfiltering one row at a time
+about 8.9 ms against fastpng's 1.4 eight rows at a time; and copying between its streaming buffers
+about 3.3 ms.
+
+## Incremental speed
+
+![Total decode time over the 41 PNGs fed in pieces: in 64 pieces fastpng 115.6 ms, png crate (Rust) 209.8, libpng 239.6, wuffs 248.8; in 256 pieces fastpng 123.1 ms, png crate 211.0, libpng 240.6, wuffs 256.2](incremental.svg)
+
+The same 41 images, fed in 64 equal pieces (and 256) to the decoders that can resume, each picking
+up where it stopped and showing what it can along the way: libpng's
 progressive reader (rows combined with its "blocky" interlace display), the png crate's reader row
 by row with interlace passes splatted over their blocks (the way Chromium uses it), wuffs'
 suspending decoder, and fastpng's incremental decoder with `FASTPNG_FILL_INTERLACE_PASSES`:
@@ -92,19 +109,6 @@ passes as blocks. wuffs inflates all of an image's data before unfiltering any o
 nothing on the way. Resuming costs fastpng 5% over one-step decoding at 64 pieces and 13% at 256 (the
 numbers here are from a run on a slightly busier machine than the one-step table), while the
 streaming decoders barely notice the piece count; it stays well ahead.
-
-With checksums checked, pixels and errors match wuffs' on PngSuite and the 41 images (217 files),
-and on wuffs' test data and SerenityOS's PNG tests. Unchecked, the only difference is PngSuite's two
-files with deliberately broken checksums, which fastpng then decodes.
-
-What's checked affects speed, so the table says it: by default fastpng checks no CRCs and not
-the zlib Adler-32 (`FASTPNG_CHECK_CRC` and `FASTPNG_CHECK_ADLER32` turn them on), and the png
-crate by default checks chunk CRCs but not the Adler-32. Compare rows that check the same.
-
-Where the png crate's time goes, on the 1600x1600 Paeth-filtered mandrill (21.1 ms vs fastpng's
-9.6): inflate (fdeflate) about 7.6 ms, the same as fastpng's 7.5; unfiltering one row at a time
-about 8.9 ms against fastpng's 1.4 eight rows at a time; and copying between its streaming buffers
-about 3.3 ms.
 
 ## The key ideas
 
@@ -287,7 +291,7 @@ name a different one than a one-step decode would, having met them in another or
   - `--check` compares fastpng's pixels and errors against wuffs' file by file, with checksums
     checked, and checks that unchecked decoding gives the same pixels.
   - `--only fastpng,wuffs` limits the columns.
-  - `make_chart.py` regenerates `speed.svg` from the totals written into it:
+  - `make_chart.py` regenerates `speed.svg` and `incremental.svg` from the totals written into it:
     `uv run bench/make_chart.py`.
   - `incremental.c` tests and times incremental decoding against one step and against starting
     over at every piece: `clang -O2 -I.. incremental.c ../fastpng.c -o build/incremental`, then

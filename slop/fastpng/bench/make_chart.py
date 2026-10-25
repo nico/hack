@@ -1,14 +1,24 @@
-# Writes ../speed.svg, the README's chart, from png-bench totals (ms). Update the numbers below
-# from a png-bench run and rerun: uv run bench/make_chart.py
+# Writes ../speed.svg and ../incremental.svg, the README's charts, from png-bench totals (ms).
+# Update the numbers below from a png-bench run and rerun: uv run bench/make_chart.py
 import os
 
 # "fastpng, checked" verifies every chunk's CRC and the zlib Adler-32, as wuffs, libpng and lodepng do.
-PANELS = [
+SPEED = [
     ("41 PNGs as their encoders wrote them", [
         ("fastpng", 100.3), ("fastpng, checked", 109.4), ("png crate (Rust)", 181.9), ("libpng", 231.8), ("wuffs", 236.3), ("stb_image", 296.2), ("lodepng", 419.2),
     ]),
     ("The same images, written by fpng (the only files fpng decodes)", [
         ("fastpng", 122.2), ("fastpng, checked", 136.6), ("fpng", 167.6), ("libpng", 243.3), ("wuffs", 320.0), ("png crate (Rust)", 340.5), ("stb_image", 411.7), ("lodepng", 526.1),
+    ]),
+]
+
+# Fed in equal pieces, each decoder resuming where it stopped (png-bench --incremental N).
+INCREMENTAL = [
+    ("41 PNGs fed in 64 pieces", [
+        ("fastpng", 115.6), ("png crate (Rust)", 209.8), ("libpng", 239.6), ("wuffs", 248.8),
+    ]),
+    ("The same, in 256 pieces", [
+        ("fastpng", 123.1), ("png crate (Rust)", 211.0), ("libpng", 240.6), ("wuffs", 256.2),
     ]),
 ]
 
@@ -22,8 +32,6 @@ TITLE_H = 30
 PANEL_GAP = 22
 TOP = 40
 
-scale_max = max(ms for _, rows in PANELS for _, ms in rows)
-
 
 def bar_path(x, y, w, h, r=4):
     # Square at the baseline, 4px rounded at the data end.
@@ -32,29 +40,31 @@ def bar_path(x, y, w, h, r=4):
             f"V{y + h - r:.1f} A{r},{r} 0 0 1 {x + w - r:.1f},{y + h:.1f} H{x:.1f} Z")
 
 
-parts = []
-y = TOP
-for title, rows in PANELS:
-    rows = sorted(rows, key=lambda row: row[1])
-    fastest = dict(rows)["fastpng"]
-    parts.append(f'<text class="panel" x="{BAR_X}" y="{y + 16}">{title}</text>')
-    y += TITLE_H
-    baseline_top = y
-    for name, ms in rows:
-        w = BAR_MAX_W * ms / scale_max
-        cls = "us" if name.startswith("fastpng") else "them"
-        cy = y + ROW / 2
-        parts.append(f'<text class="name {cls}-text" x="{LABEL_W}" y="{cy + 4.5:.1f}" text-anchor="end">{name}</text>')
-        parts.append(f'<path class="{cls}" d="{bar_path(BAR_X, cy - BAR_H / 2, w, BAR_H)}"><title>{name}: {ms:.1f} ms</title></path>')
-        ratio = "" if name == "fastpng" else f"  ·  {ms / fastest:.1f}× as long"
-        parts.append(f'<text class="value" x="{BAR_X + w + 8:.1f}" y="{cy + 4.5:.1f}">{ms:.1f} ms{ratio}</text>')
-        y += ROW
-    parts.append(f'<line class="baseline" x1="{BAR_X}" x2="{BAR_X}" y1="{baseline_top}" y2="{y}"/>')
-    y += PANEL_GAP
+def write_chart(filename, panels, description):
+    scale_max = max(ms for _, rows in panels for _, ms in rows)
+    parts = []
+    y = TOP
+    for title, rows in panels:
+        rows = sorted(rows, key=lambda row: row[1])
+        fastest = dict(rows)["fastpng"]
+        parts.append(f'<text class="panel" x="{BAR_X}" y="{y + 16}">{title}</text>')
+        y += TITLE_H
+        baseline_top = y
+        for name, ms in rows:
+            w = BAR_MAX_W * ms / scale_max
+            cls = "us" if name.startswith("fastpng") else "them"
+            cy = y + ROW / 2
+            parts.append(f'<text class="name {cls}-text" x="{LABEL_W}" y="{cy + 4.5:.1f}" text-anchor="end">{name}</text>')
+            parts.append(f'<path class="{cls}" d="{bar_path(BAR_X, cy - BAR_H / 2, w, BAR_H)}"><title>{name}: {ms:.1f} ms</title></path>')
+            ratio = "" if name == "fastpng" else f"  ·  {ms / fastest:.1f}× as long"
+            parts.append(f'<text class="value" x="{BAR_X + w + 8:.1f}" y="{cy + 4.5:.1f}">{ms:.1f} ms{ratio}</text>')
+            y += ROW
+        parts.append(f'<line class="baseline" x1="{BAR_X}" x2="{BAR_X}" y1="{baseline_top}" y2="{y}"/>')
+        y += PANEL_GAP
 
-height = y + 4
-svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{height}" viewBox="0 0 {WIDTH} {height}" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="t">
-<title id="t">PNG decode time, total over 41 images and their fpng-written copies (lower is better): fastpng is the fastest of the decoders compared</title>
+    height = y + 4
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{height}" viewBox="0 0 {WIDTH} {height}" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="t">
+<title id="t">{description}</title>
 <style>
   .title {{ font-size: 15px; font-weight: 600; fill: #0b0b0b; }}
   .panel {{ font-size: 12.5px; fill: #52514e; }}
@@ -79,8 +89,13 @@ svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{heigh
 {chr(10).join(parts)}
 </svg>
 '''
+    out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", filename)
+    with open(out, "w") as f:
+        f.write(svg)
+    print(f"wrote {os.path.normpath(out)}")
 
-out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "speed.svg")
-with open(out, "w") as f:
-    f.write(svg)
-print(f"wrote {os.path.normpath(out)}")
+
+write_chart("speed.svg", SPEED,
+            "PNG decode time, total over 41 images and their fpng-written copies (lower is better): fastpng is the fastest of the decoders compared")
+write_chart("incremental.svg", INCREMENTAL,
+            "PNG decode time with the data arriving in pieces, total over 41 images (lower is better): fastpng is the fastest of the decoders that can resume")
