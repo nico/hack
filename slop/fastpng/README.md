@@ -71,6 +71,12 @@ What's checked affects speed, so the table says it: by default fastpng checks no
 the zlib Adler-32 (`FASTPNG_CHECK_CRC` and `FASTPNG_CHECK_ADLER32` turn them on), and the png
 crate by default checks chunk CRCs but not the Adler-32. Compare rows that check the same.
 
+libpng here is Homebrew's (1.6.58, with its NEON filters), which inflates with macOS's system zlib.
+Apple's zlib is 2-5x faster than stock zlib at inflating, which is most of libpng's time on dense
+images. Built against stock zlib 1.3.1, the same libpng takes 382.8 ms instead of 230.8, and wuffs
+is then 1.6x as fast as libpng, close to what it claims. Elsewhere, expect libpng's numbers to look
+like that.
+
 Where the png crate's time goes, on the 1600x1600 Paeth-filtered mandrill (21.1 ms vs fastpng's
 9.6): inflate (fdeflate) about 7.6 ms, the same as fastpng's 7.5; unfiltering one row at a time
 about 8.9 ms against fastpng's 1.4 eight rows at a time; and copying between its streaming buffers
