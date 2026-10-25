@@ -2,14 +2,15 @@
 
 (Probably. On an Apple M4 Max, against the decoders below.)
 
-`fastpng.c` is a complete PNG decoder in one C file, about 2,000 lines with comments, with a
-four-function API in `fastpng.h`. It decodes every PNG type (all color types and bit depths,
-palettes, tRNS transparency, Adam7 interlacing) to 8-bit RGBA or BGRA. It's a port of the decoder
+`fastpng.c` is a complete PNG decoder in one C file, about 2,300 lines with comments, with a
+small API in `fastpng.h`. It decodes every PNG type (all color types and bit depths, palettes, tRNS
+transparency, Adam7 interlacing) to 8-bit RGBA or BGRA, in one step or incrementally as the file
+arrives. It's a port of the decoder
 in SerenityOS's LibGfx and LibCompress, which grew these techniques while chasing PDF rendering
 speed.
 
 ```
-make && ./demo image.png -n 10 -o out.pam [--check-crc] [--check-adler32] [--max-pixels N]
+make && ./demo image.png -n 10 -o out.pam [--pieces N] [--check-crc] [--check-adler32] [--max-pixels N]
 ```
 
 ```c
@@ -21,6 +22,21 @@ uint8_t* rgba = fastpng_decode_alloc(png_bytes, png_size, FASTPNG_RGBA, NULL, &w
 // (the default limit is 2^28 pixels, about 268 megapixels):
 fastpng_options const options = { FASTPNG_CHECK_ALL, 1000000000 };
 uint8_t* checked = fastpng_decode_alloc(png_bytes, png_size, FASTPNG_RGBA, &options, &w, &h, &error);
+```
+
+Decoding as the file arrives, for progressive rendering (each update gets all of it received so
+far):
+
+```c
+// Interlaced images show a coarse version early, sharper with each pass.
+fastpng_options const options = { FASTPNG_FILL_INTERLACE_PASSES, 0 };
+fastpng_decoder* decoder = fastpng_decoder_create(&options);
+// Once the first 33 bytes are there: fastpng_get_size(received, received_size, NULL, &w, &h),
+// and allocate w * h * 4 bytes of pixels. Then, each time more data arrives:
+fastpng_progress progress;
+int status = fastpng_decoder_update(decoder, received, received_size, all_received, FASTPNG_RGBA, pixels, w * 4, &progress);
+// FASTPNG_NEED_MORE_DATA: draw rows 0 to progress.rows_shown - 1; FASTPNG_OK: done.
+fastpng_decoder_destroy(decoder);
 ```
 
 ## Speed
@@ -155,6 +171,47 @@ constant indices. Clang turns that into tbl/ext/uabd/uhadd/uqadd on NEON and psh
 Section 1 of `fastpng.c` has the handful of helpers; nothing is architecture-specific, except
 the optional use of CRC32 instructions, with a portable fallback.
 
+## Incremental decoding
+
+A browser keeps a downloading image's bytes in memory anyway, so what matters is decoding what
+has arrived and, when more arrives, going on from there instead of starting over: starting over
+every time is quadratic in the image size. `fastpng_decoder_update()` takes all of the file so far
+each time and decodes only what's new:
+
+- *Inflate stops between symbols.* With more input possibly coming, it starts a block header or a
+  symbol only when the longest possible one is all there, so it never uses the zero bits a refill
+  makes up past the end, and saves where it stopped (bit position, block state, the current block's
+  tables). The fast loop is unchanged.
+- *Rows show as soon as their data is in.* Rows are unfiltered in place, but deflate matches copy
+  from the last 32 KiB of output, which must still be the filtered bytes. So rows still in reach
+  are unfiltered from copies in a small side buffer and unpacked right away; once inflate is past
+  them, they're only added to the Adler-32 (when checked), and the last one shown, kept in the side
+  buffer, is the row above the next. Each row is unfiltered once either way.
+- *Block headers are read with what's there.* If a dynamic Huffman header (up to a few hundred
+  bytes) turns out to need more input than has arrived, inflate goes back to the header's start and
+  waits, instead of waiting for the largest possible header up front.
+- *One IDAT chunk is still read in place*; several are joined as they arrive. Big buffers wait
+  until enough image data has arrived to plausibly fill them (deflate's 1032:1 bound again).
+- *One-step decoding is the same code*, a single update with complete data. It got no slower:
+  +0.4% cycles over the corpus, with the same instructions, and unchanged on small files.
+
+- *Progressive display.* Each update reports `rows_final` (rows from the top that won't change),
+  `rows_shown` (rows worth drawing now) and `passes_done`. A non-interlaced image comes in from the
+  top. An interlaced one is final only at the end, but its point is to look like something sooner:
+  with `FASTPNG_FILL_INTERLACE_PASSES`, each pass's pixels are spread over the block they stand for
+  (8x8 after the first pass, then 4x8, 4x4, 2x4, 2x2, 1x2, and the last pass's single pixels), so
+  the whole image shows coarse once the first pass is in, about 1/64 of its data, and sharpens pass
+  by pass. Adam7's blocks only ever hold pixels of later passes, so filling never covers a decoded
+  pixel, and the fill only runs while the image is incomplete.
+
+Over the 41-image corpus, in 64 pieces, decoding takes 5% longer than in one step (13% in 256
+pieces); starting over at every piece would take 32x (125x) as long. `bench/incremental.c` checks
+after every piece that the rows reported final already have their final pixels, that an interlaced
+image's rows shown match a preview worked out independently from the finished image (by passes
+done, or including the pass under way), and at the end that the result is identical to one step,
+for random piece sizes down to a byte at a time. In a file with several problems, the error may
+name a different one than a one-step decode would, having met them in another order.
+
 ## Limits and trade-offs
 
 - Ignores gamma, chromaticities and ICC profiles (like wuffs and stb_image), and APNG animation (it
@@ -179,7 +236,9 @@ the optional use of CRC32 instructions, with a portable fallback.
   4. unfiltering
   5. unpacking
   6. the PNG container and API
-- `demo.c`: decodes a file, prints the time, optionally writes a PAM and checks checksums.
+- `demo.c`: decodes a file, in one step or in pieces (`--pieces N`, printing the progress after
+  each: rows final, rows shown, passes done), prints the time, optionally writes a PAM and checks
+  checksums.
 - `bench/`: the comparison, independent of the rest.
   - `run.sh` reproduces the table: it builds everything, downloads the images listed in
     `images.txt` into `bench/build/images/` once (checking their SHA-256s), and runs the benchmark
@@ -197,9 +256,13 @@ the optional use of CRC32 instructions, with a portable fallback.
   - `--only fastpng,wuffs` limits the columns.
   - `make_chart.py` regenerates `speed.svg` from the totals written into it:
     `uv run bench/make_chart.py`.
+  - `incremental.c` tests and times incremental decoding against one step and against starting
+    over at every piece: `clang -O2 -I.. incremental.c ../fastpng.c -o build/incremental`, then
+    `build/incremental -p 64 build/images/*.png`.
   - `fuzz.c` is a mutation fuzzer (also a libFuzzer target) that runs under ASan/UBSan. It checks
-    that corrupt files fail cleanly in every checksum mode, that BGRA is RGBA swapped, and that a
-    file that decodes with checksums decodes the same without. Its first run caught an
+    that corrupt files fail cleanly in every checksum mode, that BGRA is RGBA swapped, that a
+    file that decodes with checksums decodes the same without, and that decoding in random pieces
+    gives the same result as in one step. Its first run caught an
     allocation sized from a corrupt header, now rejected using the 1032:1 deflate bound.
 
 ## Credits

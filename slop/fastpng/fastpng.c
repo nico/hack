@@ -15,6 +15,7 @@
 
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
 
 #if !defined(__clang__) && (!defined(__GNUC__) || __GNUC__ < 12)
@@ -642,19 +643,55 @@ FP_INLINE int inflate_fastloop(inflate_state* state, u32 const* litlen_table, u3
     return result;
 }
 
-// Inflates the raw deflate stream `in` into `out`, which has room for `out_capacity` bytes, and
-// says how many it wrote and how many input bytes the stream was. The stream may end before the
-// input does.
-FP_NOINLINE int inflate_stream(u8 const* in, size_t in_size, u8* out, size_t out_capacity, size_t* out_size, size_t* in_used)
-{
-    // On the stack and not cleared: the tables are written before they're read.
+// An inflate's state between calls, so that it can stop where the input runs out and go on when
+// there's more: where it stopped, and the current block's tables.
+typedef enum {
+    INFLATE_BLOCK_START,
+    INFLATE_HUFFMAN_BLOCK,
+    INFLATE_STORED_BLOCK,
+    INFLATE_DONE,
+} inflate_position;
+
+typedef struct {
+    u64 consumed_bits; // of the deflate data
+    size_t out_size;
+    inflate_position position;
+    bool final_block; // the current block, or the one just finished, is the stream's last
+    bool fixed_code; // the current Huffman block uses the fixed code
+    bool fixed_tables_built;
+    u32 stored_left; // bytes of the current stored block still to copy
+    // Not cleared: the tables are written before they're read.
     decode_tables tables;
     decode_tables fixed_tables;
-    bool fixed_tables_built = false;
+} inflater;
 
+static void inflater_init(inflater* z)
+{
+    z->consumed_bits = 0;
+    z->out_size = 0;
+    z->position = INFLATE_BLOCK_START;
+    z->final_block = false;
+    z->fixed_code = false;
+    z->fixed_tables_built = false;
+    z->stored_left = 0;
+}
+
+#define INFLATE_NEED_MORE 1
+// The most input a symbol can take: a length and an offset, each with its extra bits.
+#define MAX_SYMBOL_BITS (MAX_CODE_LENGTH + MAX_EXTRA_LENGTH_BITS + MAX_CODE_LENGTH + MAX_EXTRA_OFFSET_BITS)
+
+// Goes on inflating the raw deflate stream `in` into `out`, which has room for `out_capacity`
+// bytes, from where `z` stopped. Returns FASTPNG_OK at the end of the stream (z->out_size is then
+// what it wrote, and z->consumed_bits rounded up how much input the stream was), or an error. When
+// `in_complete` is false, more input may follow: then it decodes a symbol only when the longest
+// one would be all there, and reads a block header with what's there, going back to the header's
+// start when that turns out to be too little; either way it stops with INFLATE_NEED_MORE, to be
+// called again with the same input and more after it.
+FP_NOINLINE int inflate_resume(inflater* z, u8 const* in, size_t in_size, bool in_complete, u8* out, size_t out_capacity)
+{
     u8 const* const in_end = in + in_size;
     u8 const* const in_fastloop_end = in_end - (in_size < FASTLOOP_BYTES_READ ? in_size : FASTLOOP_BYTES_READ);
-    u8 const* in_next = in;
+    u8 const* in_next = in + (z->consumed_bits >> 3);
     u64 bitbuf = 0;
     u64 saved_bitbuf = 0;
     u32 bits_left = 0;
@@ -662,7 +699,8 @@ FP_NOINLINE int inflate_stream(u8 const* in, size_t in_size, u8* out, size_t out
 
     u8* const out_end = out + out_capacity;
     u8* const out_fastloop_end = out_end - (out_capacity < FASTLOOP_BYTES_WRITTEN ? out_capacity : FASTLOOP_BYTES_WRITTEN);
-    u8* out_next = out;
+    u8* out_next = out + z->out_size;
+    int result;
 
     // Near the end of the input: a word when there's one, else bytes, zeroes past the end.
 #define REFILL()                                                                \
@@ -674,7 +712,7 @@ FP_NOINLINE int inflate_stream(u8 const* in, size_t in_size, u8* out, size_t out
                 if (LIKELY(in_next != in_end)) {                                \
                     bitbuf |= (u64)*in_next++ << (u8)bits_left;                 \
                 } else if (++overread_count > 8) {                              \
-                    return FASTPNG_ERROR_TRUNCATED;                             \
+                    goto out_of_input;                                          \
                 }                                                               \
                 bits_left += 8;                                                 \
             }                                                                   \
@@ -685,143 +723,214 @@ FP_NOINLINE int inflate_stream(u8 const* in, size_t in_size, u8* out, size_t out
         bitbuf >>= (count);     \
         bits_left -= (count);   \
     } while (0)
+    // The input bits not yet used, not counting the zeros a refill makes up past the end.
+#define BITS_AVAILABLE() ((int64_t)(u8)bits_left - 8 * (int64_t)overread_count + 8 * (int64_t)(in_end - in_next))
+    // A block header that fails because the input ran out, while more may come, is read later.
+#define HEADER_FAILED(error)                                \
+    do {                                                    \
+        if (!in_complete && BITS_AVAILABLE() < 0)           \
+            goto read_header_later;                         \
+        return (error);                                     \
+    } while (0)
+    typedef struct {
+        u8 const* in_next;
+        u64 bitbuf;
+        u32 bits_left;
+        size_t overread_count;
+        bool final_block;
+    } header_checkpoint;
+    header_checkpoint header_start = { in_next, 0, 0, 0, false };
+    bool in_header = false;
 
-    bool final_block = false;
-    while (!final_block) {
+    if (z->consumed_bits & 7) {
         REFILL();
-        final_block = bitbuf & 1;
-        unsigned const block_type = (bitbuf >> 1) & 3;
+        CONSUME(z->consumed_bits & 7);
+    }
 
-        if (block_type == 0) {
-            // Stored: the input continues at the next byte, which the refills have read ahead of.
-            CONSUME(3);
-            bits_left = (u8)bits_left;
-            if (overread_count > (bits_left >> 3))
-                return FASTPNG_ERROR_TRUNCATED;
-            in_next -= (bits_left >> 3) - overread_count;
-            overread_count = 0;
-            bitbuf = 0;
-            bits_left = 0;
-            if (in_end - in_next < 4)
-                return FASTPNG_ERROR_TRUNCATED;
-            u16 const length = in_next[0] | (in_next[1] << 8);
-            u16 const negated_length = in_next[2] | (in_next[3] << 8);
-            in_next += 4;
-            if ((length ^ 0xffff) != negated_length)
-                return FASTPNG_ERROR_BAD_ZLIB;
-            if (length > in_end - in_next)
-                return FASTPNG_ERROR_TRUNCATED;
-            if (length > out_end - out_next)
+    for (;;) {
+        if (z->position == INFLATE_DONE) {
+            result = FASTPNG_OK;
+            break;
+        }
+
+        if (z->position == INFLATE_STORED_BLOCK) {
+            // Byte-aligned, with nothing in the bit buffer.
+            size_t length = z->stored_left;
+            if (length > (size_t)(in_end - in_next)) {
+                if (in_complete)
+                    return FASTPNG_ERROR_TRUNCATED;
+                length = in_end - in_next;
+            }
+            if (length > (size_t)(out_end - out_next))
                 return FASTPNG_ERROR_BAD_ZLIB;
             memcpy(out_next, in_next, length);
             in_next += length;
             out_next += length;
+            z->stored_left -= length;
+            if (z->stored_left) {
+                result = INFLATE_NEED_MORE;
+                break;
+            }
+            z->position = INFLATE_BLOCK_START;
             continue;
         }
 
-        decode_tables const* t;
-        if (block_type == 1) {
-            CONSUME(3);
-            if (!fixed_tables_built) {
-                build_fixed_tables(&fixed_tables);
-                fixed_tables_built = true;
+        if (z->position == INFLATE_BLOCK_START) {
+            if (z->final_block) {
+                z->position = INFLATE_DONE;
+                continue;
             }
-            t = &fixed_tables;
-        } else if (block_type == 2) {
-            // RFC 1951 3.2.7: the counts, the code-length code's lengths, and through that code
-            // the lengths of the other two.
-            unsigned const litlen_count = 257 + ((bitbuf >> 3) & bit_mask(5));
-            unsigned const offset_count = 1 + ((bitbuf >> 8) & bit_mask(5));
-            unsigned const precode_count = 4 + ((bitbuf >> 13) & bit_mask(4));
-            CONSUME(17);
+            // With more input possibly coming, the header is read with what's there; if it turns
+            // out to need more (it took bits past the end, or failed on them), it's read again
+            // from here when there is.
+            header_start = (header_checkpoint) { in_next, bitbuf, bits_left, overread_count, z->final_block };
+            in_header = true;
+            REFILL();
+            z->final_block = bitbuf & 1;
+            unsigned const block_type = (bitbuf >> 1) & 3;
 
-            u8 precode_lengths[PRECODE_SYMBOL_COUNT] = { 0 };
-            for (unsigned i = 0; i < precode_count; ++i) {
-                if ((u8)bits_left < 3)
-                    REFILL();
-                precode_lengths[precode_order[i]] = bitbuf & bit_mask(3);
+            if (block_type == 0) {
+                // Stored: the input continues at the next byte, which the refills have read ahead of.
                 CONSUME(3);
+                bits_left = (u8)bits_left;
+                if (overread_count > (bits_left >> 3))
+                    HEADER_FAILED(FASTPNG_ERROR_TRUNCATED);
+                in_next -= (bits_left >> 3) - overread_count;
+                overread_count = 0;
+                bitbuf = 0;
+                bits_left = 0;
+                if (in_end - in_next < 4) {
+                    if (!in_complete)
+                        goto read_header_later;
+                    return FASTPNG_ERROR_TRUNCATED;
+                }
+                u16 const length = in_next[0] | (in_next[1] << 8);
+                u16 const negated_length = in_next[2] | (in_next[3] << 8);
+                in_next += 4;
+                if ((length ^ 0xffff) != negated_length)
+                    HEADER_FAILED(FASTPNG_ERROR_BAD_ZLIB);
+                in_header = false;
+                z->stored_left = length;
+                z->position = INFLATE_STORED_BLOCK;
+                // An empty block at the very end, as a sync flush leaves, ends the stream too.
+                if (length == 0 && in_next == in_end && in_complete)
+                    z->position = INFLATE_DONE;
+                continue;
             }
-            if (!build_decode_table(tables.precode, precode_lengths, PRECODE_SYMBOL_COUNT, CODE_PRECODE, PRECODE_TABLE_BITS, MAX_PRECODE_LENGTH, tables.sorted_symbols, NULL, NULL))
-                return FASTPNG_ERROR_BAD_ZLIB;
 
-            u8* const lengths = tables.lengths;
-            unsigned const wanted = litlen_count + offset_count;
-            unsigned i = 0;
-            do {
-                if ((u8)bits_left < MAX_PRECODE_LENGTH + 7)
-                    REFILL();
-                u32 const entry = tables.precode[bitbuf & bit_mask(PRECODE_TABLE_BITS)];
-                bitbuf >>= (u8)entry;
-                bits_left -= entry;
-                unsigned const symbol = entry >> 16;
-                if (symbol < 16) {
-                    lengths[i++] = symbol;
-                    continue;
+            if (block_type == 1) {
+                CONSUME(3);
+                if (!z->fixed_tables_built) {
+                    build_fixed_tables(&z->fixed_tables);
+                    z->fixed_tables_built = true;
                 }
-                // A run. The short ones write their longest run whole, which the array's slack
-                // allows, and the count is checked once at the end.
-                if (symbol == 16) {
-                    if (i == 0)
-                        return FASTPNG_ERROR_BAD_ZLIB;
-                    unsigned const count = 3 + (bitbuf & bit_mask(2));
-                    CONSUME(2);
-                    u8 const previous = lengths[i - 1];
-                    for (unsigned j = 0; j < 6; ++j)
-                        lengths[i + j] = previous;
-                    i += count;
-                } else if (symbol == 17) {
-                    unsigned const count = 3 + (bitbuf & bit_mask(3));
+                z->fixed_code = true;
+            } else if (block_type == 2) {
+                // RFC 1951 3.2.7: the counts, the code-length code's lengths, and through that code
+                // the lengths of the other two.
+                decode_tables* const t = &z->tables;
+                unsigned const litlen_count = 257 + ((bitbuf >> 3) & bit_mask(5));
+                unsigned const offset_count = 1 + ((bitbuf >> 8) & bit_mask(5));
+                unsigned const precode_count = 4 + ((bitbuf >> 13) & bit_mask(4));
+                CONSUME(17);
+
+                u8 precode_lengths[PRECODE_SYMBOL_COUNT] = { 0 };
+                for (unsigned i = 0; i < precode_count; ++i) {
+                    if ((u8)bits_left < 3)
+                        REFILL();
+                    precode_lengths[precode_order[i]] = bitbuf & bit_mask(3);
                     CONSUME(3);
-                    for (unsigned j = 0; j < 10; ++j)
-                        lengths[i + j] = 0;
-                    i += count;
-                } else {
-                    unsigned const count = 11 + (bitbuf & bit_mask(7));
-                    CONSUME(7);
-                    memset(&lengths[i], 0, count);
-                    i += count;
                 }
-            } while (i < wanted);
-            if (i != wanted)
-                return FASTPNG_ERROR_BAD_ZLIB;
+                if (!build_decode_table(t->precode, precode_lengths, PRECODE_SYMBOL_COUNT, CODE_PRECODE, PRECODE_TABLE_BITS, MAX_PRECODE_LENGTH, t->sorted_symbols, NULL, NULL))
+                    HEADER_FAILED(FASTPNG_ERROR_BAD_ZLIB);
 
-            if (!build_decode_table(tables.offset, lengths + litlen_count, offset_count, CODE_OFFSET, OFFSET_TABLE_BITS, MAX_CODE_LENGTH, tables.sorted_symbols, NULL, NULL))
-                return FASTPNG_ERROR_BAD_ZLIB;
-            unsigned length_counts[MAX_CODE_LENGTH + 1];
-            if (!build_decode_table(tables.litlen, lengths, litlen_count, CODE_LITLEN, LITLEN_TABLE_BITS, MAX_CODE_LENGTH, tables.sorted_symbols, &tables.litlen_bits, length_counts))
-                return FASTPNG_ERROR_BAD_ZLIB;
-            for (unsigned symbol = 256; symbol < litlen_count; ++symbol)
-                length_counts[lengths[symbol]]--;
-            // Pairing visits every entry, which a block in the last few input bytes can't repay.
-            tables.literals_paired = (size_t)(in_end - in_next) >= 2 * LITLEN_TABLE_SIZE && pair_literals(tables.litlen, tables.litlen_bits, length_counts);
-            t = &tables;
-        } else {
-            return FASTPNG_ERROR_BAD_ZLIB;
+                u8* const lengths = t->lengths;
+                unsigned const wanted = litlen_count + offset_count;
+                unsigned i = 0;
+                do {
+                    if ((u8)bits_left < MAX_PRECODE_LENGTH + 7)
+                        REFILL();
+                    u32 const entry = t->precode[bitbuf & bit_mask(PRECODE_TABLE_BITS)];
+                    bitbuf >>= (u8)entry;
+                    bits_left -= entry;
+                    unsigned const symbol = entry >> 16;
+                    if (symbol < 16) {
+                        lengths[i++] = symbol;
+                        continue;
+                    }
+                    // A run. The short ones write their longest run whole, which the array's slack
+                    // allows, and the count is checked once at the end.
+                    if (symbol == 16) {
+                        if (i == 0)
+                            HEADER_FAILED(FASTPNG_ERROR_BAD_ZLIB);
+                        unsigned const count = 3 + (bitbuf & bit_mask(2));
+                        CONSUME(2);
+                        u8 const previous = lengths[i - 1];
+                        for (unsigned j = 0; j < 6; ++j)
+                            lengths[i + j] = previous;
+                        i += count;
+                    } else if (symbol == 17) {
+                        unsigned const count = 3 + (bitbuf & bit_mask(3));
+                        CONSUME(3);
+                        for (unsigned j = 0; j < 10; ++j)
+                            lengths[i + j] = 0;
+                        i += count;
+                    } else {
+                        unsigned const count = 11 + (bitbuf & bit_mask(7));
+                        CONSUME(7);
+                        memset(&lengths[i], 0, count);
+                        i += count;
+                    }
+                } while (i < wanted);
+                if (i != wanted)
+                    HEADER_FAILED(FASTPNG_ERROR_BAD_ZLIB);
+
+                if (!build_decode_table(t->offset, lengths + litlen_count, offset_count, CODE_OFFSET, OFFSET_TABLE_BITS, MAX_CODE_LENGTH, t->sorted_symbols, NULL, NULL))
+                    HEADER_FAILED(FASTPNG_ERROR_BAD_ZLIB);
+                unsigned length_counts[MAX_CODE_LENGTH + 1];
+                if (!build_decode_table(t->litlen, lengths, litlen_count, CODE_LITLEN, LITLEN_TABLE_BITS, MAX_CODE_LENGTH, t->sorted_symbols, &t->litlen_bits, length_counts))
+                    HEADER_FAILED(FASTPNG_ERROR_BAD_ZLIB);
+                for (unsigned symbol = 256; symbol < litlen_count; ++symbol)
+                    length_counts[lengths[symbol]]--;
+                // Pairing visits every entry, which a block in the last few input bytes can't repay.
+                t->literals_paired = (size_t)(in_end - in_next) >= 2 * LITLEN_TABLE_SIZE && pair_literals(t->litlen, t->litlen_bits, length_counts);
+                z->fixed_code = false;
+            } else {
+                HEADER_FAILED(FASTPNG_ERROR_BAD_ZLIB);
+            }
+            in_header = false;
+            if (!in_complete && BITS_AVAILABLE() < 0)
+                goto read_header_later;
+            z->position = INFLATE_HUFFMAN_BLOCK;
+            continue;
         }
 
+        // The symbols of a Huffman block.
+        decode_tables const* const t = z->fixed_code ? &z->fixed_tables : &z->tables;
         u32 const* const litlen_table = t->litlen;
         u32 const* const offset_table = t->offset;
         u64 const litlen_mask = bit_mask(t->litlen_bits);
-
-        // The symbols of the block.
         for (;;) {
             if (in_next < in_fastloop_end && out_next < out_fastloop_end) {
                 inflate_state state = { in_next, bitbuf, bits_left, out_next };
-                int const result = t->literals_paired
+                int const fastloop_result = t->literals_paired
                     ? inflate_fastloop(&state, litlen_table, offset_table, litlen_mask, in_fastloop_end, out_fastloop_end, out, true)
                     : inflate_fastloop(&state, litlen_table, offset_table, litlen_mask, in_fastloop_end, out_fastloop_end, out, false);
                 in_next = state.in_next;
                 bitbuf = state.bitbuf;
                 bits_left = state.bits_left;
                 out_next = state.out_next;
-                if (result < 0)
-                    return result;
-                if (result == 1)
+                if (fastloop_result < 0)
+                    return fastloop_result;
+                if (fastloop_result == 1)
                     break;
             }
 
             // One symbol, with everything checked: near the end of the input or the output.
+            if (!in_complete && BITS_AVAILABLE() < MAX_SYMBOL_BITS) {
+                result = INFLATE_NEED_MORE;
+                goto stop;
+            }
             REFILL();
             u32 entry = litlen_table[bitbuf & litlen_mask];
             saved_bitbuf = bitbuf;
@@ -868,16 +977,33 @@ FP_NOINLINE int inflate_stream(u8 const* in, size_t in_size, u8* out, size_t out
                 *dst++ = *src++;
             } while (dst < out_next);
         }
+        z->position = INFLATE_BLOCK_START;
     }
 #undef REFILL
 #undef CONSUME
+#undef BITS_AVAILABLE
+#undef HEADER_FAILED
+    goto stop;
 
-    // What the refills read ahead and didn't consume isn't part of the stream.
-    bits_left = (u8)bits_left;
-    size_t const unread = (bits_left >> 3) > overread_count ? (bits_left >> 3) - overread_count : 0;
-    *in_used = (in_next - in) - unread;
-    *out_size = out_next - out;
-    return FASTPNG_OK;
+out_of_input:
+    if (!in_complete && in_header)
+        goto read_header_later;
+    return FASTPNG_ERROR_TRUNCATED;
+
+read_header_later:
+    in_next = header_start.in_next;
+    bitbuf = header_start.bitbuf;
+    bits_left = header_start.bits_left;
+    overread_count = header_start.overread_count;
+    z->final_block = header_start.final_block;
+    z->position = INFLATE_BLOCK_START;
+    result = INFLATE_NEED_MORE;
+
+stop:
+    // What the refills read ahead and didn't consume isn't used yet.
+    z->consumed_bits = 8 * (u64)(in_next - in + overread_count) - (u8)bits_left;
+    z->out_size = out_next - out;
+    return result;
 }
 
 // ================================================================================================
@@ -1612,28 +1738,7 @@ typedef struct {
     unsigned palette_size;
     u8 const* transparency; // tRNS.
     unsigned transparency_size;
-    // The image data: IDAT chunks' contents, in order. When there's one, it's used in place.
-    u8 const* first_idat;
-    size_t first_idat_size;
-    size_t idat_count;
-    size_t idat_total;
 } png_header;
-
-// Steps to the next chunk: its type, data and length. False at the end of the file, or at a chunk
-// that runs past it.
-static bool next_chunk(u8 const** p, u8 const* end, u32* type, u8 const** data, u32* length)
-{
-    if (end - *p < 12)
-        return false;
-    u32 const chunk_length = read_be32(*p);
-    if (chunk_length > (size_t)(end - *p) - 12)
-        return false;
-    *type = read_be32(*p + 4);
-    *data = *p + 8;
-    *length = chunk_length;
-    *p += 12 + chunk_length;
-    return true;
-}
 
 #define CHUNK(a, b, c, d) (((u32)(a) << 24) | ((u32)(b) << 16) | ((u32)(c) << 8) | (u32)(d))
 
@@ -1682,70 +1787,6 @@ static int parse_header(u8 const* png, size_t png_size, png_header* h)
         return FASTPNG_ERROR_BAD_HEADER;
     }
     return FASTPNG_OK;
-}
-
-// Reads the chunks up to IEND; with `crc_tables`, checks each one's CRC (of its type and data).
-static int parse_chunks(u8 const* png, size_t png_size, png_header* h, crc32_tables const* crc_tables)
-{
-    int const error = parse_header(png, png_size, h);
-    if (error)
-        return error;
-    u8 const* p = png + 8;
-    u32 type, length;
-    u8 const* data;
-    while (next_chunk(&p, png + png_size, &type, &data, &length)) {
-        if (crc_tables && ~crc32_update(crc_tables, ~0u, data - 4, length + 4) != read_be32(data + length))
-            return FASTPNG_ERROR_BAD_CHECKSUM;
-        if (type == CHUNK('I', 'E', 'N', 'D'))
-            break;
-        switch (type) {
-        case CHUNK('P', 'L', 'T', 'E'):
-            h->palette = data;
-            h->palette_size = length / 3 > 256 ? 256 : length / 3;
-            break;
-        case CHUNK('t', 'R', 'N', 'S'):
-            h->transparency = data;
-            h->transparency_size = length;
-            break;
-        case CHUNK('I', 'D', 'A', 'T'):
-            if (h->idat_count++ == 0) {
-                h->first_idat = data;
-                h->first_idat_size = length;
-            }
-            h->idat_total += length;
-            break;
-        }
-    }
-    if (h->idat_count == 0)
-        return FASTPNG_ERROR_TRUNCATED;
-    if (h->color == COLOR_PALETTE && !h->palette)
-        return FASTPNG_ERROR_BAD_PALETTE;
-    return FASTPNG_OK;
-}
-
-// The image data as one zlib stream: the IDAT chunk itself when there's one, else a copy of all
-// of them joined (most encoders write many chunks of a few KB; an inflater reading segmented
-// input would save this copy, about 1-2% of the decode).
-static u8 const* gather_image_data(u8 const* png, size_t png_size, png_header const* h, u8** to_free)
-{
-    *to_free = NULL;
-    if (h->idat_count == 1)
-        return h->first_idat;
-    u8* joined = malloc(h->idat_total ? h->idat_total : 1);
-    if (!joined)
-        return NULL;
-    size_t at = 0;
-    u8 const* p = png + 8;
-    u32 type, length;
-    u8 const* data;
-    while (next_chunk(&p, png + png_size, &type, &data, &length) && type != CHUNK('I', 'E', 'N', 'D')) {
-        if (type == CHUNK('I', 'D', 'A', 'T')) {
-            memcpy(joined + at, data, length);
-            at += length;
-        }
-    }
-    *to_free = joined;
-    return joined;
 }
 
 static void build_unpacker(png_header const* h, bool bgra, unpacker* u)
@@ -1805,63 +1846,6 @@ static void build_unpacker(png_header const* h, bool bgra, unpacker* u)
     }
 }
 
-// Rows of one image (or interlace pass) in the inflated data: unfiltered 16 at a time, in place,
-// and each unpacked right after. `emit` gets each unpacked row.
-#define ROWS_PER_BATCH 16
-
-typedef struct {
-    u8* pixels;
-    size_t stride;
-    // For interlace passes: where a pass's pixel (x, y) goes.
-    size_t x0, dx, y0, dy;
-    u8* row_buffer; // A pass's unpacked row, before it's spread out.
-} row_sink;
-
-// With `adler`, adds each batch of filtered rows to the Adler-32 before unfiltering it in place.
-static int decode_rows(u8* data, size_t width, size_t height, size_t row_bytes, unsigned bpp, unpacker* u, row_sink const* sink, bool interlace_pass, adler32_state* adler)
-{
-    // The row above the first is all zeros.
-    u8* zero_row = calloc(row_bytes + 16, 1);
-    if (!zero_row)
-        return FASTPNG_ERROR_OUT_OF_MEMORY;
-    u->width = width;
-    u8 const* above = zero_row;
-    int error = FASTPNG_OK;
-    for (size_t y = 0; y < height && !error; y += ROWS_PER_BATCH) {
-        size_t const count = height - y < ROWS_PER_BATCH ? height - y : ROWS_PER_BATCH;
-        filter_type filters[ROWS_PER_BATCH];
-        u8* rows[ROWS_PER_BATCH];
-        for (size_t i = 0; i < count; ++i) {
-            u8* const filtered = data + (y + i) * (row_bytes + 1);
-            if (filtered[0] > FILTER_PAETH) {
-                error = FASTPNG_ERROR_BAD_ZLIB;
-                break;
-            }
-            filters[i] = (filter_type)filtered[0];
-            rows[i] = filtered + 1;
-        }
-        if (error)
-            break;
-        if (adler)
-            adler32_update(adler, data + y * (row_bytes + 1), count * (row_bytes + 1));
-        unfilter_rows(filters, rows, count, above, row_bytes, bpp);
-        above = rows[count - 1];
-        for (size_t i = 0; i < count && !error; ++i) {
-            size_t const out_y = sink->y0 + (y + i) * sink->dy;
-            if (!interlace_pass) {
-                error = unpack_row(u, rows[i], sink->pixels + out_y * sink->stride);
-                continue;
-            }
-            error = unpack_row(u, rows[i], sink->row_buffer);
-            u8* const out_row = sink->pixels + out_y * sink->stride;
-            for (size_t x = 0; x < width; ++x)
-                memcpy(out_row + 4 * (sink->x0 + x * sink->dx), sink->row_buffer + 4 * x, 4);
-        }
-    }
-    free(zero_row);
-    return error;
-}
-
 // Sizes are worked out in 64 bits whatever size_t is (a width can be 2^31 - 1 pixels of 8 bytes),
 // and checked against this before anything is allocated: 1 TiB, or less than half the address
 // space, so adding a margin to a size that passed can't overflow either.
@@ -1876,6 +1860,10 @@ static u8 const adam7_x0[7] = { 0, 4, 0, 2, 0, 1, 0 };
 static u8 const adam7_y0[7] = { 0, 0, 4, 0, 2, 0, 1 };
 static u8 const adam7_dx[7] = { 8, 8, 4, 4, 2, 2, 1 };
 static u8 const adam7_dy[7] = { 8, 8, 8, 4, 4, 2, 2 };
+// The block each pass's pixel stands for until later passes fill it in. Each block holds only
+// pixels of later passes, so filling it never covers a pixel already decoded.
+static u8 const adam7_fill_width[7] = { 8, 4, 4, 2, 2, 1, 1 };
+static u8 const adam7_fill_height[7] = { 8, 8, 4, 4, 2, 2, 1 };
 
 static size_t pass_size(u32 full, unsigned start, unsigned step)
 {
@@ -1940,127 +1928,490 @@ int fastpng_get_size(void const* png, size_t png_size, fastpng_options const* op
     return FASTPNG_OK;
 }
 
-// Parses the chunks and works out the sizes of the filtered rows and of the pixels; rejects
-// images whose data can't be there, before anything big is allocated. The sizes fit in size_t,
-// and so does everything smaller computed from them (row sizes, offsets into the rows).
-static int parse_and_size(u8 const* png, size_t png_size, u64 max_pixels, png_header* h, size_t* inflated_size, size_t* pixels_size, crc32_tables const* crc_tables)
+#define ROWS_PER_BATCH 16
+
+// The decoder: everything that carries over from one call with part of the file to the next.
+struct fastpng_decoder {
+    fastpng_options options;
+    int status; // FASTPNG_NEED_MORE_DATA until the image is done or failed; then that, for good.
+
+    // The header and the chunks: where the next one starts, and what's been seen. PLTE and tRNS
+    // are copied, since the caller's buffer may move between calls.
+    bool have_header;
+    png_header header;
+    u64 inflated_size;
+    size_t next_chunk;
+    u8 palette[3 * 256];
+    u8 transparency[256];
+    bool zlib_complete; // IEND is there, so all the image data is (IDAT chunks needn't be consecutive)
+
+    // The image data: IDAT chunks' contents, in order. While there's one chunk, it's read in place
+    // (where it is in the file, so that it can be found again); once there's a second, the data is
+    // joined in `joined`. `current_idat` is the chunk being read, and how much of it is taken.
+    size_t idat_count;
+    size_t first_idat; // offset of the first chunk's data
+    u32 first_idat_length;
+    size_t current_idat;
+    u32 current_idat_taken;
+    u8* joined;
+    size_t joined_size;
+    size_t joined_capacity;
+
+    crc32_tables crc_tables;
+    inflater z;
+    u8* inflated; // allocated once enough image data is there to plausibly fill it
+    bool inflate_done;
+
+    // Rows: unpacked so far, per interlace pass (a non-interlaced image is one pass).
+    unpacker u;
+    unsigned pass;
+    size_t pass_row;
+    size_t pass_offset; // of the pass's first row in `inflated`
+    u8* zero_row;
+    u8* row_buffer; // an interlace pass's unpacked row, before it's spread out
+    // How far the pixels have got, ahead of the rows unfiltered in place, and copies of rows to
+    // unfilter while inflate can still copy from them.
+    unsigned shown_pass;
+    size_t shown_row;
+    u8* side;
+    size_t side_row_size;
+    bool last_shown_in_side; // the row above the next is the last row shown from a copy
+    adler32_state adler;
+};
+
+static void decoder_init(fastpng_decoder* d, fastpng_options const* options)
 {
-    int error = parse_chunks(png, png_size, h, crc_tables);
-    if (error)
-        return error;
-    u64 inflated, pixels;
-    if ((error = image_sizes(h, max_pixels, &inflated, &pixels)))
-        return error;
-    // Deflate expands at most 1032:1 (a 258-byte match in two bits, roughly), so a few bytes of
-    // image data can't claim gigapixels.
-    if (inflated / 1032 > (u64)h->idat_total + 64)
-        return FASTPNG_ERROR_TRUNCATED;
-    *inflated_size = (size_t)inflated;
-    *pixels_size = (size_t)pixels;
+    memset(d, 0, offsetof(fastpng_decoder, crc_tables));
+    d->options = resolve_options(options);
+    d->status = FASTPNG_NEED_MORE_DATA;
+    if (d->options.flags & FASTPNG_CHECK_CRC)
+        crc32_init(&d->crc_tables);
+    inflater_init(&d->z);
+    d->inflated = NULL;
+    d->inflate_done = false;
+    d->pass = 0;
+    d->pass_row = 0;
+    d->pass_offset = 0;
+    d->zero_row = NULL;
+    d->row_buffer = NULL;
+    d->shown_pass = 0;
+    d->shown_row = 0;
+    d->side = NULL;
+    d->side_row_size = 0;
+    d->last_shown_in_side = false;
+    d->adler = (adler32_state) { 1, 0 };
+}
+
+static void decoder_free(fastpng_decoder* d)
+{
+    free(d->joined);
+    free(d->inflated);
+    free(d->zero_row);
+    free(d->row_buffer);
+    free(d->side);
+}
+
+static bool check_crc(fastpng_decoder const* d, u8 const* chunk_data, u32 length)
+{
+    return !(d->options.flags & FASTPNG_CHECK_CRC) || ~crc32_update(&d->crc_tables, ~0u, chunk_data - 4, (size_t)length + 4) == read_be32(chunk_data + length);
+}
+
+// Appends IDAT bytes to the joined image data.
+static bool join(fastpng_decoder* d, u8 const* data, size_t size)
+{
+    if (d->joined_capacity - d->joined_size < size) {
+        size_t capacity = d->joined_capacity ? d->joined_capacity * 2 : 65536;
+        while (capacity - d->joined_size < size)
+            capacity *= 2;
+        u8* const joined = realloc(d->joined, capacity);
+        if (!joined)
+            return false;
+        d->joined = joined;
+        d->joined_capacity = capacity;
+    }
+    memcpy(d->joined + d->joined_size, data, size);
+    d->joined_size += size;
+    return true;
+}
+
+// Reads the header and then the chunks that are there, up to IEND. IDAT chunks are read as far
+// as they've arrived; any other chunk once it's whole.
+static int read_chunks(fastpng_decoder* d, u8 const* png, size_t size)
+{
+    if (!d->have_header) {
+        if (size < 8 + 25)
+            return size >= 8 && memcmp(png, png_signature, 8) != 0 ? FASTPNG_ERROR_NOT_PNG : FASTPNG_NEED_MORE_DATA;
+        int error = parse_header(png, size, &d->header);
+        u64 pixels_size;
+        if (!error)
+            error = image_sizes(&d->header, d->options.max_pixels, &d->inflated_size, &pixels_size);
+        if (error)
+            return error;
+        if (!check_crc(d, png + 16, 13))
+            return FASTPNG_ERROR_BAD_CHECKSUM;
+        d->have_header = true;
+        d->next_chunk = 8 + 25;
+    }
+    while (d->next_chunk <= size && size - d->next_chunk >= 8) {
+        size_t const at = d->next_chunk;
+        u32 const length = read_be32(png + at);
+        u32 const type = read_be32(png + at + 4);
+        if (length > 0x7fffffff)
+            return FASTPNG_ERROR_BAD_HEADER;
+        u8 const* const data = png + at + 8;
+        size_t const arrived = size - at - 8;
+        bool const whole = arrived >= (u64)length + 4;
+
+        if (type == CHUNK('I', 'D', 'A', 'T')) {
+            if (at != d->current_idat || d->idat_count == 0) {
+                d->current_idat = at;
+                d->current_idat_taken = 0;
+                if (++d->idat_count == 1) {
+                    d->first_idat = at + 8;
+                    d->first_idat_length = length;
+                } else if (d->idat_count == 2 && !join(d, png + d->first_idat, d->first_idat_length)) {
+                    return FASTPNG_ERROR_OUT_OF_MEMORY;
+                }
+            }
+            u32 const taken = arrived < length ? (u32)arrived : length;
+            if (d->idat_count > 1 && !join(d, data + d->current_idat_taken, taken - d->current_idat_taken))
+                return FASTPNG_ERROR_OUT_OF_MEMORY;
+            d->current_idat_taken = taken;
+            if (!whole)
+                return FASTPNG_NEED_MORE_DATA;
+        } else {
+            if (!whole)
+                return FASTPNG_NEED_MORE_DATA;
+            if (type == CHUNK('I', 'E', 'N', 'D')) {
+                d->zlib_complete = true;
+                return check_crc(d, data, length) ? FASTPNG_OK : FASTPNG_ERROR_BAD_CHECKSUM;
+            }
+            if (type == CHUNK('P', 'L', 'T', 'E') && !d->idat_count) {
+                d->header.palette_size = length / 3 > 256 ? 256 : length / 3;
+                memcpy(d->palette, data, 3 * d->header.palette_size);
+                d->header.palette = d->palette;
+            } else if (type == CHUNK('t', 'R', 'N', 'S') && !d->idat_count) {
+                d->header.transparency_size = length > 256 ? 256 : length;
+                memcpy(d->transparency, data, d->header.transparency_size);
+                d->header.transparency = d->transparency;
+            }
+        }
+        if (!check_crc(d, data, length))
+            return FASTPNG_ERROR_BAD_CHECKSUM;
+        d->next_chunk = at + 12 + length;
+    }
+    return FASTPNG_NEED_MORE_DATA;
+}
+
+// Where interlace pass `pass` is (pass 0 of a non-interlaced image being all of it): its size, and
+// where its pixel (x, y) goes.
+typedef struct {
+    size_t width, height, row_bytes;
+    size_t x0, dx, y0, dy;
+} pass_geometry;
+
+static pass_geometry geometry_of(png_header const* h, unsigned pass)
+{
+    pass_geometry g;
+    if (!h->interlaced) {
+        g = (pass_geometry) { h->width, h->height, 0, 0, 1, 0, 1 };
+    } else {
+        g = (pass_geometry) { pass_size(h->width, adam7_x0[pass], adam7_dx[pass]), pass_size(h->height, adam7_y0[pass], adam7_dy[pass]), 0, adam7_x0[pass], adam7_dx[pass], adam7_y0[pass], adam7_dy[pass] };
+    }
+    g.row_bytes = (size_t)row_bytes_for(g.width, h);
+    return g;
+}
+
+// Where pass `pass`'s rows start in the inflated data.
+static size_t offset_of_pass(png_header const* h, unsigned pass)
+{
+    size_t offset = 0;
+    for (unsigned p = 0; p < pass; ++p) {
+        pass_geometry const g = geometry_of(h, p);
+        if (g.width && g.height)
+            offset += (g.row_bytes + 1) * g.height;
+    }
+    return offset;
+}
+
+// Unfilters `count` rows of a pass in place (`filtered` points at each one's filter byte), the
+// row above the first being `above`, and unpacks those from `first_unpacked` on into the pixels:
+// an interlaced row spread to its pixels, and with `fill` over the blocks they stand for.
+static int unfilter_and_unpack(fastpng_decoder* d, unsigned pass, pass_geometry const* g, size_t y, u8* const* filtered, size_t count, u8 const* above, size_t first_unpacked, bool fill, u8* pixels, size_t stride)
+{
+    png_header const* const h = &d->header;
+    filter_type filters[ROWS_PER_BATCH];
+    u8* rows[ROWS_PER_BATCH];
+    for (size_t i = 0; i < count; ++i) {
+        if (filtered[i][0] > FILTER_PAETH)
+            return FASTPNG_ERROR_BAD_ZLIB;
+        filters[i] = (filter_type)filtered[i][0];
+        rows[i] = filtered[i] + 1;
+    }
+    unfilter_rows(filters, rows, count, above, g->row_bytes, (h->depth * h->channels + 7) / 8);
+    d->u.width = g->width;
+    for (size_t i = first_unpacked; i < count; ++i) {
+        size_t const out_y = g->y0 + (y + i) * g->dy;
+        u8* const out_row = pixels + out_y * stride;
+        int const error = unpack_row(&d->u, rows[i], h->interlaced ? d->row_buffer : out_row);
+        if (error)
+            return error;
+        if (!h->interlaced)
+            continue;
+        if (!fill) {
+            for (size_t x = 0; x < g->width; ++x)
+                memcpy(out_row + 4 * (g->x0 + x * g->dx), d->row_buffer + 4 * x, 4);
+            continue;
+        }
+        // Each pixel over its block: across in this row, then this row down the block's other
+        // rows (which hold no pixels of this pass or earlier ones).
+        size_t const fill_width = adam7_fill_width[pass];
+        for (size_t x = 0; x < g->width; ++x) {
+            size_t const out_x = g->x0 + x * g->dx;
+            for (size_t k = 0; k < fill_width && out_x + k < h->width; ++k)
+                memcpy(out_row + 4 * (out_x + k), d->row_buffer + 4 * x, 4);
+        }
+        for (size_t k = 1; k < adam7_fill_height[pass] && out_y + k < h->height; ++k)
+            memcpy(out_row + k * stride, out_row, (size_t)h->width * 4);
+    }
     return FASTPNG_OK;
 }
 
-int fastpng_decode(void const* png_bytes, size_t png_size, fastpng_format format, void* pixels, size_t stride, fastpng_options const* options_or_null)
+// Unfilters and unpacks the rows inflate has finished since last time, in batches of 16, while
+// they're in cache; each batch is first added to the Adler-32 (when checked). Rows are unfiltered
+// in place, each one becoming the row above the next. But while inflate is going, deflate matches
+// may still copy from its last 32 KiB of output, which must stay the filtered bytes: rows in reach
+// are unfiltered from copies instead, in `side`, and unpacked, so the pixels are there right away.
+// Once inflate is past them they're only added to the Adler-32; the last of them, kept in `side`,
+// is the row above the next. `shown_pass` and `shown_row` say how far the pixels have got.
+static int decode_rows(fastpng_decoder* d, u8* pixels, size_t stride)
 {
-    if (!png_bytes || !pixels)
-        return FASTPNG_ERROR_BAD_ARGUMENT;
-    fastpng_options const options = resolve_options(options_or_null);
-    unsigned const flags = options.flags;
-    u8 const* const png = png_bytes;
-    crc32_tables crc_tables;
-    if (flags & FASTPNG_CHECK_CRC)
-        crc32_init(&crc_tables);
-    png_header h;
-    size_t inflated_size, pixels_size;
-    int error = parse_and_size(png, png_size, options.max_pixels, &h, &inflated_size, &pixels_size, (flags & FASTPNG_CHECK_CRC) ? &crc_tables : NULL);
-    if (error)
-        return error;
-    if ((u64)stride < (u64)h.width * 4)
-        return FASTPNG_ERROR_BAD_ARGUMENT;
+    png_header const* const h = &d->header;
+    unsigned const passes = h->interlaced ? 7 : 1;
+    // Filling interlace blocks is for showing the image before it's complete; once all the data is
+    // decoded, later passes would cover the fill before anyone sees it.
+    bool const fill = (d->options.flags & FASTPNG_FILL_INTERLACE_PASSES) && !d->inflate_done;
+    adler32_state* const adler = (d->options.flags & FASTPNG_CHECK_ADLER32) ? &d->adler : NULL;
+    size_t const safe = d->inflate_done ? d->z.out_size : d->z.out_size > 32768 ? d->z.out_size - 32768 : 0;
 
-    u8* joined;
-    u8 const* zlib = gather_image_data(png, png_size, &h, &joined);
-    if (!zlib)
-        return FASTPNG_ERROR_OUT_OF_MEMORY;
-    size_t const zlib_size = h.idat_count == 1 ? h.first_idat_size : h.idat_total;
-
-    // The zlib wrapper: deflate, no preset dictionary, and at the end the inflated data's Adler-32.
-    u8* inflated = NULL;
-    if (zlib_size < 2 || (zlib[0] & 0x0f) != 8 || (zlib[0] >> 4) > 7 || ((zlib[0] << 8) | zlib[1]) % 31 != 0 || (zlib[1] & 0x20)) {
-        error = FASTPNG_ERROR_BAD_ZLIB;
-        goto done;
-    }
-    // Room for the fast loop's overrun past the end.
-    size_t const capacity = inflated_size + FASTLOOP_BYTES_WRITTEN + 1;
-    inflated = malloc(capacity);
-    if (!inflated) {
-        error = FASTPNG_ERROR_OUT_OF_MEMORY;
-        goto done;
-    }
-    size_t produced = 0;
-    size_t deflate_size = 0;
-    error = inflate_stream(zlib + 2, zlib_size - 2, inflated, capacity, &produced, &deflate_size);
-    if (error)
-        goto done;
-    if (produced < inflated_size) {
-        error = FASTPNG_ERROR_TRUNCATED;
-        goto done;
-    }
-
-    adler32_state adler_state = { 1, 0 };
-    adler32_state* const adler = (flags & FASTPNG_CHECK_ADLER32) ? &adler_state : NULL;
-    unpacker u;
-    build_unpacker(&h, format == FASTPNG_BGRA, &u);
-    unsigned const bpp = (h.depth * h.channels + 7) / 8;
-    if (!h.interlaced) {
-        row_sink const sink = { pixels, stride, 0, 1, 0, 1, NULL };
-        error = decode_rows(inflated, h.width, h.height, (size_t)row_bytes_for(h.width, &h), bpp, &u, &sink, false, adler);
-    } else {
-        u8* row_buffer = malloc((size_t)h.width * 4 + 16);
-        if (!row_buffer) {
-            error = FASTPNG_ERROR_OUT_OF_MEMORY;
-            goto done;
+    for (; d->pass < passes; ++d->pass, d->pass_row = 0) {
+        pass_geometry const g = geometry_of(h, d->pass);
+        if (!g.width || !g.height)
+            continue;
+        size_t const row_stride = g.row_bytes + 1;
+        size_t const ready = safe < d->pass_offset ? 0 : (safe - d->pass_offset) / row_stride;
+        size_t const rows = ready < g.height ? ready : g.height;
+        u8* const data = d->inflated + d->pass_offset;
+        while (d->pass_row < rows) {
+            size_t const y = d->pass_row;
+            size_t const count = rows - y < ROWS_PER_BATCH ? rows - y : ROWS_PER_BATCH;
+            u8* filtered[ROWS_PER_BATCH];
+            for (size_t i = 0; i < count; ++i)
+                filtered[i] = data + (y + i) * row_stride;
+            if (adler)
+                adler32_update(adler, filtered[0], count * row_stride);
+            // Rows already shown are done; the rest are unfiltered here, after the row above,
+            // which is in place or (when it was shown from a copy) in `side`.
+            size_t shown = d->shown_pass > d->pass ? count : d->shown_pass == d->pass && d->shown_row > y ? d->shown_row - y : 0;
+            shown = shown < count ? shown : count;
+            if (shown < count) {
+                size_t const first = y + shown;
+                u8 const* above = d->zero_row;
+                if (first)
+                    above = shown || d->last_shown_in_side ? d->side + ROWS_PER_BATCH * d->side_row_size + 1 : filtered[shown] - row_stride + 1;
+                int const error = unfilter_and_unpack(d, d->pass, &g, first, filtered + shown, count - shown, above, 0, fill, pixels, stride);
+                if (error)
+                    return error;
+                d->last_shown_in_side = false;
+            }
+            d->pass_row += count;
         }
-        u8* data = inflated;
-        for (int pass = 0; pass < 7 && !error; ++pass) {
-            size_t const w = pass_size(h.width, adam7_x0[pass], adam7_dx[pass]);
-            size_t const ph = pass_size(h.height, adam7_y0[pass], adam7_dy[pass]);
-            if (!w || !ph)
-                continue;
-            size_t const row_bytes = (size_t)row_bytes_for(w, &h);
-            row_sink const sink = { pixels, stride, adam7_x0[pass], adam7_dx[pass], adam7_y0[pass], adam7_dy[pass], row_buffer };
-            error = decode_rows(data, w, ph, row_bytes, bpp, &u, &sink, true, adler);
-            data += (row_bytes + 1) * ph;
+        if (d->pass_row < g.height)
+            break;
+        d->pass_offset += row_stride * g.height;
+    }
+    if (d->shown_pass < d->pass || (d->shown_pass == d->pass && d->shown_row < d->pass_row)) {
+        d->shown_pass = d->pass;
+        d->shown_row = d->pass_row;
+    }
+    if (d->pass >= passes)
+        return FASTPNG_OK;
+    if (d->inflate_done)
+        return FASTPNG_NEED_MORE_DATA;
+
+    // Rows finished but in inflate's reach, from copies.
+    for (; d->shown_pass < passes; ++d->shown_pass, d->shown_row = 0) {
+        pass_geometry const g = geometry_of(h, d->shown_pass);
+        if (!g.width || !g.height)
+            continue;
+        size_t const row_stride = g.row_bytes + 1;
+        size_t const offset = offset_of_pass(h, d->shown_pass);
+        size_t const ready = d->z.out_size < offset ? 0 : (d->z.out_size - offset) / row_stride;
+        size_t const rows = ready < g.height ? ready : g.height;
+        if (d->shown_row >= rows)
+            break;
+        // A batch of rows and the row above it, at the image's widest.
+        if (!d->side) {
+            d->side_row_size = (size_t)row_bytes_for(h->width, h) + 1 + 16;
+            if (!(d->side = malloc((ROWS_PER_BATCH + 1) * d->side_row_size)))
+                return FASTPNG_ERROR_OUT_OF_MEMORY;
         }
-        free(row_buffer);
+        u8* const carry = d->side + ROWS_PER_BATCH * d->side_row_size; // the last row shown, unfiltered
+        while (d->shown_row < rows) {
+            size_t const y = d->shown_row;
+            size_t const count = rows - y < ROWS_PER_BATCH ? rows - y : ROWS_PER_BATCH;
+            u8* filtered[ROWS_PER_BATCH];
+            for (size_t i = 0; i < count; ++i) {
+                filtered[i] = d->side + i * d->side_row_size;
+                memcpy(filtered[i], d->inflated + offset + (y + i) * row_stride, row_stride);
+            }
+            // The row above: none, the last one shown from a copy, or unfiltered in place.
+            u8 const* above = d->zero_row;
+            if (y)
+                above = d->last_shown_in_side ? carry + 1 : d->inflated + offset + (y - 1) * row_stride + 1;
+            int const error = unfilter_and_unpack(d, d->shown_pass, &g, y, filtered, count, above, 0, fill, pixels, stride);
+            if (error)
+                return error;
+            memcpy(carry, filtered[count - 1], row_stride);
+            d->last_shown_in_side = true;
+            d->shown_row += count;
+        }
+        if (d->shown_row < g.height)
+            break;
+    }
+    return FASTPNG_NEED_MORE_DATA;
+}
+
+// One step with the file as far as it's arrived (`complete`: that's all of it).
+static int decoder_update(fastpng_decoder* d, u8 const* png, size_t size, bool complete, fastpng_format format, u8* pixels, size_t stride)
+{
+    int status = read_chunks(d, png, size);
+    if (status < 0)
+        return status;
+    if (!d->have_header)
+        return complete ? FASTPNG_ERROR_TRUNCATED : FASTPNG_NEED_MORE_DATA;
+    if ((u64)stride < (u64)d->header.width * 4)
+        return FASTPNG_ERROR_BAD_ARGUMENT;
+    if (!d->idat_count)
+        return complete || d->zlib_complete ? FASTPNG_ERROR_TRUNCATED : FASTPNG_NEED_MORE_DATA;
+    bool const zlib_complete = d->zlib_complete || complete;
+
+    // The zlib data so far: deflate, no preset dictionary, and at the end the inflated data's Adler-32.
+    u8 const* const zlib = d->idat_count == 1 ? png + d->first_idat : d->joined;
+    size_t const zlib_size = d->idat_count == 1 ? d->current_idat_taken : d->joined_size;
+    if (zlib_size < 2)
+        return zlib_complete ? FASTPNG_ERROR_TRUNCATED : FASTPNG_NEED_MORE_DATA;
+    if ((zlib[0] & 0x0f) != 8 || (zlib[0] >> 4) > 7 || ((zlib[0] << 8) | zlib[1]) % 31 != 0 || (zlib[1] & 0x20))
+        return FASTPNG_ERROR_BAD_ZLIB;
+
+    size_t const capacity = (size_t)d->inflated_size + FASTLOOP_BYTES_WRITTEN + 1;
+    if (!d->inflated) {
+        // Deflate expands at most 1032:1 (a 258-byte match in two bits, roughly), so a few bytes
+        // of image data can't claim gigapixels: the buffers wait until the data could fill them.
+        if (d->inflated_size / 1032 > (u64)zlib_size + 64)
+            return zlib_complete ? FASTPNG_ERROR_TRUNCATED : FASTPNG_NEED_MORE_DATA;
+        png_header const* const h = &d->header;
+        if (h->color == COLOR_PALETTE && !h->palette)
+            return FASTPNG_ERROR_BAD_PALETTE;
+        build_unpacker(h, format == FASTPNG_BGRA, &d->u);
+        // Room for the fast loop's overrun past the end; the row above the first is all zeros.
+        d->inflated = malloc(capacity);
+        d->zero_row = calloc((size_t)row_bytes_for(h->width, h) + 16, 1);
+        d->row_buffer = h->interlaced ? malloc((size_t)h->width * 4 + 16) : NULL;
+        if (!d->inflated || !d->zero_row || (h->interlaced && !d->row_buffer))
+            return FASTPNG_ERROR_OUT_OF_MEMORY;
     }
 
-    if (!error && adler) {
+    if (!d->inflate_done) {
+        status = inflate_resume(&d->z, zlib + 2, zlib_size - 2, zlib_complete, d->inflated, capacity);
+        if (status < 0)
+            return status;
+        d->inflate_done = status == FASTPNG_OK;
+        if (d->inflate_done && d->z.out_size < d->inflated_size)
+            return FASTPNG_ERROR_TRUNCATED;
+    }
+    status = decode_rows(d, pixels, stride);
+    if (status < 0 || status == FASTPNG_NEED_MORE_DATA)
+        return status;
+    if (!d->inflate_done)
+        return FASTPNG_NEED_MORE_DATA;
+
+    if (d->options.flags & FASTPNG_CHECK_ADLER32) {
         // Any data past the image's rows counts too.
-        adler32_update(adler, inflated + inflated_size, produced - inflated_size);
-        size_t const trailer = 2 + deflate_size;
+        adler32_update(&d->adler, d->inflated + d->inflated_size, d->z.out_size - (size_t)d->inflated_size);
+        size_t const trailer = 2 + (size_t)((d->z.consumed_bits + 7) / 8);
         if (zlib_size < trailer || zlib_size - trailer < 4)
-            error = FASTPNG_ERROR_TRUNCATED;
-        else if (read_be32(zlib + trailer) != ((adler->s2 << 16) | adler->s1))
-            error = FASTPNG_ERROR_BAD_CHECKSUM;
+            return zlib_complete ? FASTPNG_ERROR_TRUNCATED : FASTPNG_NEED_MORE_DATA;
+        if (read_be32(zlib + trailer) != ((d->adler.s2 << 16) | d->adler.s1))
+            return FASTPNG_ERROR_BAD_CHECKSUM;
     }
+    return FASTPNG_OK;
+}
 
-done:
-    free(inflated);
-    free(joined);
+fastpng_decoder* fastpng_decoder_create(fastpng_options const* options)
+{
+    fastpng_decoder* const d = malloc(sizeof(*d));
+    if (d)
+        decoder_init(d, options);
+    return d;
+}
+
+int fastpng_decoder_update(fastpng_decoder* d, void const* png, size_t png_size, bool complete, fastpng_format format, void* pixels, size_t stride, fastpng_progress* progress)
+{
+    if (!d || !png || !pixels)
+        return FASTPNG_ERROR_BAD_ARGUMENT;
+    if (d->status == FASTPNG_NEED_MORE_DATA) {
+        d->status = decoder_update(d, png, png_size, complete, format, pixels, stride);
+        if (d->status == FASTPNG_NEED_MORE_DATA && complete)
+            d->status = FASTPNG_ERROR_TRUNCATED;
+    }
+    if (progress) {
+        // A non-interlaced image's rows are final as they're unpacked; an interlaced one's when the
+        // last pass is done. With blocks filled, the first pass's rows each cover 8 rows.
+        bool const interlaced = d->have_header && d->header.interlaced;
+        unsigned const passes = interlaced ? 7 : 1;
+        progress->passes_done = d->status == FASTPNG_OK ? passes : d->have_header ? d->shown_pass : 0;
+        bool const all_rows = progress->passes_done >= passes;
+        progress->rows_final = all_rows ? d->header.height : d->have_header && !interlaced ? (uint32_t)d->shown_row : 0;
+        progress->rows_shown = progress->rows_final;
+        if (interlaced && !all_rows && (d->options.flags & FASTPNG_FILL_INTERLACE_PASSES)) {
+            u64 const covered = d->shown_pass >= 1 ? d->header.height : (u64)d->shown_row * 8;
+            progress->rows_shown = (uint32_t)(covered < d->header.height ? covered : d->header.height);
+        }
+    }
+    return d->status;
+}
+
+void fastpng_decoder_destroy(fastpng_decoder* d)
+{
+    if (!d)
+        return;
+    decoder_free(d);
+    free(d);
+}
+
+int fastpng_decode(void const* png, size_t png_size, fastpng_format format, void* pixels, size_t stride, fastpng_options const* options)
+{
+    if (!png || !pixels)
+        return FASTPNG_ERROR_BAD_ARGUMENT;
+    // One step with all of the file; on the stack, like the tables were.
+    fastpng_decoder d;
+    decoder_init(&d, options);
+    int error = decoder_update(&d, png, png_size, true, format, pixels, stride);
+    if (error == FASTPNG_NEED_MORE_DATA)
+        error = FASTPNG_ERROR_TRUNCATED;
+    decoder_free(&d);
     return error;
 }
 
 uint8_t* fastpng_decode_alloc(void const* png, size_t png_size, fastpng_format format, fastpng_options const* options, uint32_t* width, uint32_t* height, int* error_out)
 {
-    png_header header = { 0 };
-    size_t inflated_size, pixels_size;
-    int error = png ? parse_and_size(png, png_size, resolve_options(options).max_pixels, &header, &inflated_size, &pixels_size, NULL) : FASTPNG_ERROR_BAD_ARGUMENT;
-    uint32_t const w = header.width;
-    uint32_t const h = header.height;
+    uint32_t w = 0, h = 0;
+    int error = png ? fastpng_get_size(png, png_size, options, &w, &h) : FASTPNG_ERROR_BAD_ARGUMENT;
     uint8_t* pixels = NULL;
     if (!error) {
-        if (!(pixels = malloc(pixels_size)))
+        // fastpng_get_size() said w * h * 4 fits.
+        if (!(pixels = malloc((size_t)w * h * 4)))
             error = FASTPNG_ERROR_OUT_OF_MEMORY;
         else if ((error = fastpng_decode(png, png_size, format, pixels, (size_t)w * 4, options)) != FASTPNG_OK) {
             free(pixels);

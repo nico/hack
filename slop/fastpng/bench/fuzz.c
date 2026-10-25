@@ -33,11 +33,58 @@ static void decode_both_ways_with(uint8_t const* data, size_t size, unsigned fla
     free(bgra);
 }
 
+static uint64_t piece_rng = 0x9e3779b97f4a7c15ull;
+
+// Decoding in random pieces gives the same result as in one step: the same pixels, or an error
+// (which may name a different problem in a file with several, met in another order).
+static void decode_in_pieces(uint8_t const* data, size_t size)
+{
+    uint32_t w, h;
+    if (fastpng_get_size(data, size, NULL, &w, &h) != FASTPNG_OK)
+        return;
+    size_t const bytes = (size_t)w * h * 4;
+    uint8_t* once = malloc(bytes);
+    uint8_t* pieces = malloc(bytes);
+    if (!once || !pieces) {
+        free(once);
+        free(pieces);
+        return;
+    }
+    int const expected = fastpng_decode(data, size, FASTPNG_RGBA, once, (size_t)w * 4, NULL);
+    // Every other time with interlace blocks filled, which changes only what's shown on the way.
+    fastpng_options const fill = { FASTPNG_FILL_INTERLACE_PASSES, 0 };
+    fastpng_decoder* d = fastpng_decoder_create(piece_rng & 1 ? &fill : NULL);
+    int status = FASTPNG_NEED_MORE_DATA;
+    size_t have = 0;
+    while (status == FASTPNG_NEED_MORE_DATA && have < size) {
+        piece_rng ^= piece_rng << 13;
+        piece_rng ^= piece_rng >> 7;
+        piece_rng ^= piece_rng << 17;
+        have += 1 + piece_rng % (size / 8 + 1);
+        if (have > size)
+            have = size;
+        status = fastpng_decoder_update(d, data, have, have == size, FASTPNG_RGBA, pieces, (size_t)w * 4, NULL);
+    }
+    fastpng_decoder_destroy(d);
+    if ((status == FASTPNG_OK) != (expected == FASTPNG_OK) || (status == FASTPNG_OK && memcmp(once, pieces, bytes) != 0)) {
+        fprintf(stderr, "decoding in pieces: %s, in one step: %s (input in build/fuzz-failure.png)\n", fastpng_error_string(status), fastpng_error_string(expected));
+        FILE* f = fopen("build/fuzz-failure.png", "wb");
+        if (f) {
+            fwrite(data, 1, size, f);
+            fclose(f);
+        }
+        abort();
+    }
+    free(once);
+    free(pieces);
+}
+
 // Without checksums and with each of them; a file that decodes when checked decodes unchecked.
 static void decode_both_ways(uint8_t const* data, size_t size)
 {
     uint32_t w, h;
     int error;
+    decode_in_pieces(data, size);
     decode_both_ways_with(data, size, 0);
     decode_both_ways_with(data, size, FASTPNG_CHECK_CRC);
     decode_both_ways_with(data, size, FASTPNG_CHECK_ADLER32);
