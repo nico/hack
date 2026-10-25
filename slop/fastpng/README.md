@@ -9,16 +9,18 @@ in SerenityOS's LibGfx and LibCompress, which grew these techniques while chasin
 speed.
 
 ```
-make && ./demo image.png -n 10 -o out.pam [--check-crc] [--check-adler32]
+make && ./demo image.png -n 10 -o out.pam [--check-crc] [--check-adler32] [--max-pixels N]
 ```
 
 ```c
 #include "fastpng.h"
 uint32_t w, h;
 int error;
-uint8_t* rgba = fastpng_decode_alloc(png_bytes, png_size, FASTPNG_RGBA, 0, &w, &h, &error);
-// Or verify every chunk's CRC and the zlib Adler-32 (about 8% slower):
-uint8_t* checked = fastpng_decode_alloc(png_bytes, png_size, FASTPNG_RGBA, FASTPNG_CHECK_ALL, &w, &h, &error);
+uint8_t* rgba = fastpng_decode_alloc(png_bytes, png_size, FASTPNG_RGBA, NULL, &w, &h, &error);
+// Or verify every chunk's CRC and the zlib Adler-32 (about 8% slower), and allow up to 1 gigapixel
+// (the default limit is 2^28 pixels, about 268 megapixels):
+fastpng_options const options = { FASTPNG_CHECK_ALL, 1000000000 };
+uint8_t* checked = fastpng_decode_alloc(png_bytes, png_size, FASTPNG_RGBA, &options, &w, &h, &error);
 ```
 
 ## Speed
@@ -150,10 +152,15 @@ the optional use of CRC32 instructions, with a portable fallback.
 - Ignores gamma, chromaticities and ICC profiles (like wuffs and stb_image), and APNG animation (it
   decodes the default image). 16-bit samples keep their high byte.
 - Holds the whole inflated image in memory: one buffer of height × (row bytes + 1), plus the
-  output. A streaming decoder would use far less memory, at some speed.
+  output. A streaming decoder would use far less memory, at some speed. Images over
+  `max_pixels` (by default 2^28, about 268 megapixels or 1 GiB of output) are rejected from the
+  header, before anything big is allocated, so decoding needs at most about 3 GiB by default
+  (plus a copy of the compressed data when it's split over several chunks). Image data also can't
+  claim more than deflate's 1032:1 expansion of its size.
 - Single-threaded by design.
 - Needs clang, or gcc 12+ (gcc's build is ~15% slower), and a little-endian CPU. Tested on arm64
-  (correctness and fuzzing, clang and gcc). It also builds for x86-64, but hasn't been run there.
+  (correctness and fuzzing, clang and gcc) and on wasm32 with SIMD under wasmtime (byte-identical
+  output). It also builds for x86-64, but hasn't been run there.
 
 ## Files
 

@@ -15,8 +15,9 @@ static void decode_both_ways_with(uint8_t const* data, size_t size, unsigned fla
 {
     uint32_t w, h;
     int error;
-    uint8_t* rgba = fastpng_decode_alloc(data, size, FASTPNG_RGBA, flags, &w, &h, &error);
-    uint8_t* bgra = fastpng_decode_alloc(data, size, FASTPNG_BGRA, flags, &w, &h, &error);
+    fastpng_options const options = { flags, 0 };
+    uint8_t* rgba = fastpng_decode_alloc(data, size, FASTPNG_RGBA, &options, &w, &h, &error);
+    uint8_t* bgra = fastpng_decode_alloc(data, size, FASTPNG_BGRA, &options, &w, &h, &error);
     if (rgba && bgra) {
         for (size_t i = 0; i < (size_t)w * h * 4; i += 4) {
             if (rgba[i] != bgra[i + 2] || rgba[i + 1] != bgra[i + 1] || rgba[i + 2] != bgra[i] || rgba[i + 3] != bgra[i + 3]) {
@@ -40,9 +41,10 @@ static void decode_both_ways(uint8_t const* data, size_t size)
     decode_both_ways_with(data, size, 0);
     decode_both_ways_with(data, size, FASTPNG_CHECK_CRC);
     decode_both_ways_with(data, size, FASTPNG_CHECK_ADLER32);
-    uint8_t* checked = fastpng_decode_alloc(data, size, FASTPNG_RGBA, FASTPNG_CHECK_ALL, &w, &h, &error);
+    fastpng_options const check_all = { FASTPNG_CHECK_ALL, 0 };
+    uint8_t* checked = fastpng_decode_alloc(data, size, FASTPNG_RGBA, &check_all, &w, &h, &error);
     if (checked) {
-        uint8_t* unchecked = fastpng_decode_alloc(data, size, FASTPNG_RGBA, 0, &w, &h, &error);
+        uint8_t* unchecked = fastpng_decode_alloc(data, size, FASTPNG_RGBA, NULL, &w, &h, &error);
         if (!unchecked || memcmp(checked, unchecked, (size_t)w * h * 4) != 0) {
             fprintf(stderr, "decoding with checksums and without differs\n");
             abort();

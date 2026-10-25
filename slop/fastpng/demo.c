@@ -1,7 +1,7 @@
 // fastpng demo: decodes a PNG, says how long it took, and optionally writes the pixels as a PAM
 // (RGBA) file that most image viewers and ImageMagick read.
 //
-//   ./demo image.png [-n repeats] [-o out.pam] [--check-crc] [--check-adler32]
+//   ./demo image.png [-n repeats] [-o out.pam] [--check-crc] [--check-adler32] [--max-pixels N]
 
 #define _POSIX_C_SOURCE 199309L // clock_gettime
 
@@ -42,21 +42,23 @@ int main(int argc, char** argv)
     char const* input = NULL;
     char const* output = NULL;
     int repeats = 1;
-    unsigned flags = 0;
+    fastpng_options options = { 0, 0 };
     for (int i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], "-n") && i + 1 < argc)
             repeats = atoi(argv[++i]);
         else if (!strcmp(argv[i], "-o") && i + 1 < argc)
             output = argv[++i];
         else if (!strcmp(argv[i], "--check-crc"))
-            flags |= FASTPNG_CHECK_CRC;
+            options.flags |= FASTPNG_CHECK_CRC;
         else if (!strcmp(argv[i], "--check-adler32"))
-            flags |= FASTPNG_CHECK_ADLER32;
+            options.flags |= FASTPNG_CHECK_ADLER32;
+        else if (!strcmp(argv[i], "--max-pixels") && i + 1 < argc)
+            options.max_pixels = strtoull(argv[++i], NULL, 0);
         else
             input = argv[i];
     }
     if (!input || repeats < 1) {
-        fprintf(stderr, "usage: %s image.png [-n repeats] [-o out.pam] [--check-crc] [--check-adler32]\n", argv[0]);
+        fprintf(stderr, "usage: %s image.png [-n repeats] [-o out.pam] [--check-crc] [--check-adler32] [--max-pixels N]\n", argv[0]);
         return 1;
     }
 
@@ -68,7 +70,7 @@ int main(int argc, char** argv)
     }
 
     uint32_t width, height;
-    int error = fastpng_get_size(png, size, &width, &height);
+    int error = fastpng_get_size(png, size, &options, &width, &height);
     if (error) {
         fprintf(stderr, "%s: %s\n", input, fastpng_error_string(error));
         return 1;
@@ -82,7 +84,7 @@ int main(int argc, char** argv)
     double best = 1e30;
     for (int r = 0; r < repeats; ++r) {
         double const start = now_ms();
-        error = fastpng_decode(png, size, FASTPNG_RGBA, pixels, (size_t)width * 4, flags);
+        error = fastpng_decode(png, size, FASTPNG_RGBA, pixels, (size_t)width * 4, &options);
         double const elapsed = now_ms() - start;
         if (error) {
             fprintf(stderr, "%s: %s\n", input, fastpng_error_string(error));

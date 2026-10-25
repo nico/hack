@@ -36,12 +36,13 @@ typedef bool (*Decoder)(uint8_t const*, size_t, Image&);
 static bool decode_fastpng_with(uint8_t const* data, size_t size, Image& out, unsigned flags)
 {
     uint32_t w, h;
-    if (fastpng_get_size(data, size, &w, &h))
+    fastpng_options const options = { flags, 0 };
+    if (fastpng_get_size(data, size, &options, &w, &h))
         return false;
     out.w = w;
     out.h = h;
     out.rgba.resize((size_t)w * h * 4);
-    return fastpng_decode(data, size, FASTPNG_RGBA, out.rgba.data(), (size_t)w * 4, flags) == FASTPNG_OK;
+    return fastpng_decode(data, size, FASTPNG_RGBA, out.rgba.data(), (size_t)w * 4, &options) == FASTPNG_OK;
 }
 
 static bool decode_fastpng(uint8_t const* data, size_t size, Image& out) { return decode_fastpng_with(data, size, out, 0); }

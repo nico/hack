@@ -1867,10 +1867,25 @@ static size_t pass_size(u32 full, unsigned start, unsigned step)
     return full > start ? (full - start + step - 1) / step : 0;
 }
 
-// The size of the filtered rows, each with its filter byte, and of the decoded pixels;
-// FASTPNG_ERROR_TOO_LARGE when either is more than fastpng allocates.
-static int image_sizes(png_header const* h, u64* inflated_size, u64* pixels_size)
+// The options with the defaults filled in.
+static fastpng_options resolve_options(fastpng_options const* options)
 {
+    fastpng_options resolved = { 0, FASTPNG_DEFAULT_MAX_PIXELS };
+    if (options) {
+        resolved.flags = options->flags;
+        if (options->max_pixels)
+            resolved.max_pixels = options->max_pixels;
+    }
+    return resolved;
+}
+
+// The size of the filtered rows, each with its filter byte, and of the decoded pixels;
+// FASTPNG_ERROR_TOO_LARGE when the image has more than `max_pixels` pixels or either size is more
+// than fastpng allocates.
+static int image_sizes(png_header const* h, u64 max_pixels, u64* inflated_size, u64* pixels_size)
+{
+    if ((u64)h->width * h->height > max_pixels)
+        return FASTPNG_ERROR_TOO_LARGE;
     u64 inflated = 0;
     if (!h->interlaced) {
         if (__builtin_mul_overflow(row_bytes_for(h->width, h) + 1, (u64)h->height, &inflated))
@@ -1894,13 +1909,15 @@ static int image_sizes(png_header const* h, u64* inflated_size, u64* pixels_size
     return FASTPNG_OK;
 }
 
-int fastpng_get_size(void const* png, size_t png_size, uint32_t* width, uint32_t* height)
+int fastpng_get_size(void const* png, size_t png_size, fastpng_options const* options, uint32_t* width, uint32_t* height)
 {
+    if (!png)
+        return FASTPNG_ERROR_BAD_ARGUMENT;
     png_header h;
     int error = parse_header(png, png_size, &h);
     u64 inflated_size, pixels_size;
     if (!error)
-        error = image_sizes(&h, &inflated_size, &pixels_size);
+        error = image_sizes(&h, resolve_options(options).max_pixels, &inflated_size, &pixels_size);
     if (error)
         return error;
     *width = h.width;
@@ -1911,13 +1928,13 @@ int fastpng_get_size(void const* png, size_t png_size, uint32_t* width, uint32_t
 // Parses the chunks and works out the sizes of the filtered rows and of the pixels; rejects
 // images whose data can't be there, before anything big is allocated. The sizes fit in size_t,
 // and so does everything smaller computed from them (row sizes, offsets into the rows).
-static int parse_and_size(u8 const* png, size_t png_size, png_header* h, size_t* inflated_size, size_t* pixels_size, crc32_tables const* crc_tables)
+static int parse_and_size(u8 const* png, size_t png_size, u64 max_pixels, png_header* h, size_t* inflated_size, size_t* pixels_size, crc32_tables const* crc_tables)
 {
     int error = parse_chunks(png, png_size, h, crc_tables);
     if (error)
         return error;
     u64 inflated, pixels;
-    if ((error = image_sizes(h, &inflated, &pixels)))
+    if ((error = image_sizes(h, max_pixels, &inflated, &pixels)))
         return error;
     // Deflate expands at most 1032:1 (a 258-byte match in two bits, roughly), so a few bytes of
     // image data can't claim gigapixels.
@@ -1928,17 +1945,19 @@ static int parse_and_size(u8 const* png, size_t png_size, png_header* h, size_t*
     return FASTPNG_OK;
 }
 
-int fastpng_decode(void const* png_bytes, size_t png_size, fastpng_format format, void* pixels, size_t stride, unsigned flags)
+int fastpng_decode(void const* png_bytes, size_t png_size, fastpng_format format, void* pixels, size_t stride, fastpng_options const* options_or_null)
 {
     if (!png_bytes || !pixels)
         return FASTPNG_ERROR_BAD_ARGUMENT;
+    fastpng_options const options = resolve_options(options_or_null);
+    unsigned const flags = options.flags;
     u8 const* const png = png_bytes;
     crc32_tables crc_tables;
     if (flags & FASTPNG_CHECK_CRC)
         crc32_init(&crc_tables);
     png_header h;
     size_t inflated_size, pixels_size;
-    int error = parse_and_size(png, png_size, &h, &inflated_size, &pixels_size, (flags & FASTPNG_CHECK_CRC) ? &crc_tables : NULL);
+    int error = parse_and_size(png, png_size, options.max_pixels, &h, &inflated_size, &pixels_size, (flags & FASTPNG_CHECK_CRC) ? &crc_tables : NULL);
     if (error)
         return error;
     if ((u64)stride < (u64)h.width * 4)
@@ -2017,18 +2036,18 @@ done:
     return error;
 }
 
-uint8_t* fastpng_decode_alloc(void const* png, size_t png_size, fastpng_format format, unsigned flags, uint32_t* width, uint32_t* height, int* error_out)
+uint8_t* fastpng_decode_alloc(void const* png, size_t png_size, fastpng_format format, fastpng_options const* options, uint32_t* width, uint32_t* height, int* error_out)
 {
     png_header header = { 0 };
     size_t inflated_size, pixels_size;
-    int error = png ? parse_and_size(png, png_size, &header, &inflated_size, &pixels_size, NULL) : FASTPNG_ERROR_BAD_ARGUMENT;
+    int error = png ? parse_and_size(png, png_size, resolve_options(options).max_pixels, &header, &inflated_size, &pixels_size, NULL) : FASTPNG_ERROR_BAD_ARGUMENT;
     uint32_t const w = header.width;
     uint32_t const h = header.height;
     uint8_t* pixels = NULL;
     if (!error) {
         if (!(pixels = malloc(pixels_size)))
             error = FASTPNG_ERROR_OUT_OF_MEMORY;
-        else if ((error = fastpng_decode(png, png_size, format, pixels, (size_t)w * 4, flags)) != FASTPNG_OK) {
+        else if ((error = fastpng_decode(png, png_size, format, pixels, (size_t)w * 4, options)) != FASTPNG_OK) {
             free(pixels);
             pixels = NULL;
         }
@@ -2048,7 +2067,7 @@ char const* fastpng_error_string(int error)
     case FASTPNG_OK: return "ok";
     case FASTPNG_ERROR_NOT_PNG: return "not a PNG file";
     case FASTPNG_ERROR_BAD_HEADER: return "bad or unsupported image header";
-    case FASTPNG_ERROR_TOO_LARGE: return "image too large";
+    case FASTPNG_ERROR_TOO_LARGE: return "image too large (over the pixel limit, or for memory)";
     case FASTPNG_ERROR_TRUNCATED: return "truncated data";
     case FASTPNG_ERROR_BAD_ZLIB: return "bad zlib/deflate data";
     case FASTPNG_ERROR_BAD_PALETTE: return "bad palette";
