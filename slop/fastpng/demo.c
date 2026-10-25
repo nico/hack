@@ -3,6 +3,8 @@
 //
 //   ./demo image.png [-n repeats] [-o out.pam] [--check-crc] [--check-adler32]
 
+#define _POSIX_C_SOURCE 199309L // clock_gettime
+
 #include "fastpng.h"
 
 #include <stdio.h>

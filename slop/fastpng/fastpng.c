@@ -1847,7 +1847,12 @@ static int decode_rows(u8* data, size_t width, size_t height, size_t row_bytes, 
     return error;
 }
 
-static size_t row_bytes_for(size_t width, png_header const* h)
+// Sizes are worked out in 64 bits whatever size_t is (a width can be 2^31 - 1 pixels of 8 bytes),
+// and checked against this before anything is allocated: 1 TiB, or less than half the address
+// space, so adding a margin to a size that passed can't overflow either.
+#define MAX_BUFFER_BYTES ((u64)SIZE_MAX / 4 < ((u64)1 << 40) ? (u64)SIZE_MAX / 4 : ((u64)1 << 40))
+
+static u64 row_bytes_for(u64 width, png_header const* h)
 {
     return (width * h->channels * h->depth + 7) / 8;
 }
@@ -1862,10 +1867,40 @@ static size_t pass_size(u32 full, unsigned start, unsigned step)
     return full > start ? (full - start + step - 1) / step : 0;
 }
 
+// The size of the filtered rows, each with its filter byte, and of the decoded pixels;
+// FASTPNG_ERROR_TOO_LARGE when either is more than fastpng allocates.
+static int image_sizes(png_header const* h, u64* inflated_size, u64* pixels_size)
+{
+    u64 inflated = 0;
+    if (!h->interlaced) {
+        if (__builtin_mul_overflow(row_bytes_for(h->width, h) + 1, (u64)h->height, &inflated))
+            return FASTPNG_ERROR_TOO_LARGE;
+    } else {
+        for (int pass = 0; pass < 7; ++pass) {
+            u64 const w = pass_size(h->width, adam7_x0[pass], adam7_dx[pass]);
+            u64 const ph = pass_size(h->height, adam7_y0[pass], adam7_dy[pass]);
+            u64 pass_bytes;
+            if (w && ph && (__builtin_mul_overflow(row_bytes_for(w, h) + 1, ph, &pass_bytes) || __builtin_add_overflow(inflated, pass_bytes, &inflated)))
+                return FASTPNG_ERROR_TOO_LARGE;
+        }
+    }
+    u64 pixels;
+    if (__builtin_mul_overflow((u64)h->width * 4, (u64)h->height, &pixels))
+        return FASTPNG_ERROR_TOO_LARGE;
+    if (inflated > MAX_BUFFER_BYTES || pixels > MAX_BUFFER_BYTES)
+        return FASTPNG_ERROR_TOO_LARGE;
+    *inflated_size = inflated;
+    *pixels_size = pixels;
+    return FASTPNG_OK;
+}
+
 int fastpng_get_size(void const* png, size_t png_size, uint32_t* width, uint32_t* height)
 {
     png_header h;
-    int const error = parse_header(png, png_size, &h);
+    int error = parse_header(png, png_size, &h);
+    u64 inflated_size, pixels_size;
+    if (!error)
+        error = image_sizes(&h, &inflated_size, &pixels_size);
     if (error)
         return error;
     *width = h.width;
@@ -1873,32 +1908,23 @@ int fastpng_get_size(void const* png, size_t png_size, uint32_t* width, uint32_t
     return FASTPNG_OK;
 }
 
-// Parses the chunks and works out the size of the filtered rows, each with its filter byte;
-// rejects images whose data can't be there, before anything big is allocated.
-static int parse_and_size(u8 const* png, size_t png_size, png_header* h, size_t* inflated_size, crc32_tables const* crc_tables)
+// Parses the chunks and works out the sizes of the filtered rows and of the pixels; rejects
+// images whose data can't be there, before anything big is allocated. The sizes fit in size_t,
+// and so does everything smaller computed from them (row sizes, offsets into the rows).
+static int parse_and_size(u8 const* png, size_t png_size, png_header* h, size_t* inflated_size, size_t* pixels_size, crc32_tables const* crc_tables)
 {
-    int const error = parse_chunks(png, png_size, h, crc_tables);
+    int error = parse_chunks(png, png_size, h, crc_tables);
     if (error)
         return error;
-    size_t size = 0;
-    if (!h->interlaced) {
-        if (__builtin_mul_overflow(row_bytes_for(h->width, h) + 1, (size_t)h->height, &size))
-            return FASTPNG_ERROR_TOO_LARGE;
-    } else {
-        for (int pass = 0; pass < 7; ++pass) {
-            size_t const w = pass_size(h->width, adam7_x0[pass], adam7_dx[pass]);
-            size_t const ph = pass_size(h->height, adam7_y0[pass], adam7_dy[pass]);
-            if (w && ph)
-                size += (row_bytes_for(w, h) + 1) * ph;
-        }
-    }
-    if (size > ((size_t)1 << 40))
-        return FASTPNG_ERROR_TOO_LARGE;
+    u64 inflated, pixels;
+    if ((error = image_sizes(h, &inflated, &pixels)))
+        return error;
     // Deflate expands at most 1032:1 (a 258-byte match in two bits, roughly), so a few bytes of
     // image data can't claim gigapixels.
-    if (size / 1032 > h->idat_total + 64)
+    if (inflated / 1032 > (u64)h->idat_total + 64)
         return FASTPNG_ERROR_TRUNCATED;
-    *inflated_size = size;
+    *inflated_size = (size_t)inflated;
+    *pixels_size = (size_t)pixels;
     return FASTPNG_OK;
 }
 
@@ -1911,11 +1937,11 @@ int fastpng_decode(void const* png_bytes, size_t png_size, fastpng_format format
     if (flags & FASTPNG_CHECK_CRC)
         crc32_init(&crc_tables);
     png_header h;
-    size_t inflated_size;
-    int error = parse_and_size(png, png_size, &h, &inflated_size, (flags & FASTPNG_CHECK_CRC) ? &crc_tables : NULL);
+    size_t inflated_size, pixels_size;
+    int error = parse_and_size(png, png_size, &h, &inflated_size, &pixels_size, (flags & FASTPNG_CHECK_CRC) ? &crc_tables : NULL);
     if (error)
         return error;
-    if (stride < (size_t)h.width * 4)
+    if ((u64)stride < (u64)h.width * 4)
         return FASTPNG_ERROR_BAD_ARGUMENT;
 
     u8* joined;
@@ -1954,7 +1980,7 @@ int fastpng_decode(void const* png_bytes, size_t png_size, fastpng_format format
     unsigned const bpp = (h.depth * h.channels + 7) / 8;
     if (!h.interlaced) {
         row_sink const sink = { pixels, stride, 0, 1, 0, 1, NULL };
-        error = decode_rows(inflated, h.width, h.height, row_bytes_for(h.width, &h), bpp, &u, &sink, false, adler);
+        error = decode_rows(inflated, h.width, h.height, (size_t)row_bytes_for(h.width, &h), bpp, &u, &sink, false, adler);
     } else {
         u8* row_buffer = malloc((size_t)h.width * 4 + 16);
         if (!row_buffer) {
@@ -1967,7 +1993,7 @@ int fastpng_decode(void const* png_bytes, size_t png_size, fastpng_format format
             size_t const ph = pass_size(h.height, adam7_y0[pass], adam7_dy[pass]);
             if (!w || !ph)
                 continue;
-            size_t const row_bytes = row_bytes_for(w, &h);
+            size_t const row_bytes = (size_t)row_bytes_for(w, &h);
             row_sink const sink = { pixels, stride, adam7_x0[pass], adam7_dx[pass], adam7_y0[pass], adam7_dy[pass], row_buffer };
             error = decode_rows(data, w, ph, row_bytes, bpp, &u, &sink, true, adler);
             data += (row_bytes + 1) * ph;
@@ -1993,17 +2019,14 @@ done:
 
 uint8_t* fastpng_decode_alloc(void const* png, size_t png_size, fastpng_format format, unsigned flags, uint32_t* width, uint32_t* height, int* error_out)
 {
-    png_header header;
-    size_t inflated_size;
-    int error = png ? parse_and_size(png, png_size, &header, &inflated_size, NULL) : FASTPNG_ERROR_BAD_ARGUMENT;
+    png_header header = { 0 };
+    size_t inflated_size, pixels_size;
+    int error = png ? parse_and_size(png, png_size, &header, &inflated_size, &pixels_size, NULL) : FASTPNG_ERROR_BAD_ARGUMENT;
     uint32_t const w = header.width;
     uint32_t const h = header.height;
     uint8_t* pixels = NULL;
     if (!error) {
-        size_t bytes;
-        if (__builtin_mul_overflow((size_t)w * 4, (size_t)h, &bytes))
-            error = FASTPNG_ERROR_TOO_LARGE;
-        else if (!(pixels = malloc(bytes)))
+        if (!(pixels = malloc(pixels_size)))
             error = FASTPNG_ERROR_OUT_OF_MEMORY;
         else if ((error = fastpng_decode(png, png_size, format, pixels, (size_t)w * 4, flags)) != FASTPNG_OK) {
             free(pixels);

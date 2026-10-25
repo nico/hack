@@ -35,7 +35,9 @@ enum {
     FASTPNG_CHECK_ALL = FASTPNG_CHECK_CRC | FASTPNG_CHECK_ADLER32,
 };
 
-// Reads the image size from the header. Returns FASTPNG_OK or an error.
+// Reads the image size from the header. Returns FASTPNG_OK or an error, FASTPNG_ERROR_TOO_LARGE
+// when the image is more than fastpng would decode; after FASTPNG_OK, width * height * 4 fits in
+// a size_t, so a caller can allocate the pixels with it.
 int fastpng_get_size(void const* png, size_t png_size, uint32_t* width, uint32_t* height);
 
 // Decodes the image (the first frame of an APNG) into `pixels`, `stride` bytes per row, 4 bytes
