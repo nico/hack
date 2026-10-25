@@ -21,6 +21,8 @@ uint8_t* rgba = fastpng_decode_alloc(png_bytes, png_size, FASTPNG_RGBA, &w, &h, 
 
 ## Speed
 
+![Total decode time over 19 PNGs: fastpng 64.0 ms, wuffs 105.5, libpng 111.0, stb_image 215.3, lodepng 230.9; on fpng-written copies fastpng 66.3 ms, fpng 98.1, libpng 131.3, wuffs 164.7, stb_image 219.8, lodepng 245.5](speed.svg)
+
 Total ms over 19 PNGs (wuffs' test images plus 14 large real-world PNGs; best of 9 runs each, into
 freshly allocated output), Apple M4 Max, clang -O2 for fastpng, -O3 for the others:
 
@@ -151,6 +153,8 @@ Section 1 of `fastpng.c` has the handful of helpers; nothing is architecture-spe
   - `--fpng-reencode` benchmarks fpng-encoded copies.
   - `--check` compares fastpng's pixels against wuffs' file by file.
   - `--only fastpng,wuffs` limits the columns.
+  - `make_chart.py` regenerates `speed.svg` from the totals written into it:
+    `uv run bench/make_chart.py`.
   - `fuzz.c` is a mutation fuzzer (also a libFuzzer target) that runs under ASan/UBSan. It checks
     that corrupt files fail cleanly and that BGRA is RGBA swapped. Its first run caught an
     allocation sized from a corrupt header, now rejected using the 1032:1 deflate bound.
