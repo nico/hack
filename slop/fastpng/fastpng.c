@@ -1612,7 +1612,25 @@ FP_INLINE void unpack_low_bit_depth(u8 const* row, u8* out, size_t width, u32 co
         store_u32(out + 4 * x, table[(row[x / per_byte] >> (8 - depth * (x % per_byte + 1))) & mask]);
 }
 
-FP_NOINLINE void unpack_low_bit_depth_1(u8 const* row, u8* out, size_t width, u32 const* table) { unpack_low_bit_depth(row, out, width, table, 1); }
+// 1-bit samples pick one of two colors, so instead of a lookup, each bit becomes a lane mask that
+// selects table[1] over table[0], four pixels at a time.
+FP_NOINLINE void unpack_low_bit_depth_1(u8 const* row, u8* out, size_t width, u32 const* table)
+{
+    u32x4 const zero = (u32x4) { 0 } + table[0];
+    u32x4 const one = (u32x4) { 0 } + table[1];
+    u32x4 const high_bits = { 0x80, 0x40, 0x20, 0x10 };
+    u32x4 const low_bits = { 0x08, 0x04, 0x02, 0x01 };
+    size_t x = 0;
+    for (; x + 8 <= width; x += 8) {
+        u32x4 const byte = (u32x4) { 0 } + row[x / 8];
+        u32x4 const high = (u32x4)((byte & high_bits) != 0);
+        u32x4 const low = (u32x4)((byte & low_bits) != 0);
+        store16(out + 4 * x, (u8x16)((high & one) | (~high & zero)));
+        store16(out + 4 * x + 16, (u8x16)((low & one) | (~low & zero)));
+    }
+    for (; x < width; ++x)
+        store_u32(out + 4 * x, table[(row[x / 8] >> (7 - x % 8)) & 1]);
+}
 FP_NOINLINE void unpack_low_bit_depth_2(u8 const* row, u8* out, size_t width, u32 const* table) { unpack_low_bit_depth(row, out, width, table, 2); }
 FP_NOINLINE void unpack_low_bit_depth_4(u8 const* row, u8* out, size_t width, u32 const* table) { unpack_low_bit_depth(row, out, width, table, 4); }
 
