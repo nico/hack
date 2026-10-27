@@ -1644,15 +1644,25 @@ static void unpack_through_table(u8 const* row, u8* out, size_t width, u32 const
         unpack_low_bit_depth_4(row, out, width, table);
 }
 
-// Whether a row of 1-, 2- or 4-bit palette indices stays within the palette: a byte at a time
+// Whether a row of 1-, 2- or 4-bit palette indices stays within the palette: 16 bytes at a time,
+// each sample in them shifted down, masked and compared with the palette size, then the bytes left
 // through `invalid_bytes`, which says which bytes hold an index past it. The last byte's unused
 // samples can be anything, so its used ones are checked one by one.
-static bool palette_indices_valid(u8 const* row, size_t width, unsigned depth, unsigned palette_size, u8 const* invalid_bytes)
+FP_INLINE bool palette_indices_valid_at(u8 const* row, size_t width, unsigned const depth, unsigned palette_size, u8 const* invalid_bytes)
 {
     unsigned const per_byte = 8 / depth;
     size_t const whole_bytes = width / per_byte;
-    u8 invalid = 0;
-    for (size_t i = 0; i < whole_bytes; ++i)
+    u8x16 const mask = splat8((1u << depth) - 1);
+    u8x16 const size = splat8(palette_size);
+    u8x16 past = { 0 };
+    size_t i = 0;
+    for (; i + 16 <= whole_bytes; i += 16) {
+        u8x16 const bytes = load16(row + i);
+        for (unsigned shift = 0; shift < 8; shift += depth)
+            past |= (u8x16)(((bytes >> shift) & mask) >= size);
+    }
+    u8 invalid = (((u64x2)past)[0] | ((u64x2)past)[1]) != 0;
+    for (; i < whole_bytes; ++i)
         invalid |= invalid_bytes[row[i]];
     if (invalid)
         return false;
@@ -1661,6 +1671,19 @@ static bool palette_indices_valid(u8 const* row, size_t width, unsigned depth, u
             return false;
     }
     return true;
+}
+
+FP_NOINLINE bool palette_indices_valid_1(u8 const* row, size_t width, unsigned palette_size, u8 const* invalid_bytes) { return palette_indices_valid_at(row, width, 1, palette_size, invalid_bytes); }
+FP_NOINLINE bool palette_indices_valid_2(u8 const* row, size_t width, unsigned palette_size, u8 const* invalid_bytes) { return palette_indices_valid_at(row, width, 2, palette_size, invalid_bytes); }
+FP_NOINLINE bool palette_indices_valid_4(u8 const* row, size_t width, unsigned palette_size, u8 const* invalid_bytes) { return palette_indices_valid_at(row, width, 4, palette_size, invalid_bytes); }
+
+static bool palette_indices_valid(u8 const* row, size_t width, unsigned depth, unsigned palette_size, u8 const* invalid_bytes)
+{
+    if (depth == 1)
+        return palette_indices_valid_1(row, width, palette_size, invalid_bytes);
+    if (depth == 2)
+        return palette_indices_valid_2(row, width, palette_size, invalid_bytes);
+    return palette_indices_valid_4(row, width, palette_size, invalid_bytes);
 }
 
 FP_INLINE int unpack_row_in_format(unpacker const* u, u8 const* row, u8* out, bool const bgra)
