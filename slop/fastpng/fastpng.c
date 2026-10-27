@@ -103,6 +103,11 @@ FP_INLINE void store_u32(u8* p, u32 v)
     memcpy(p, &v, sizeof(v));
 }
 
+FP_INLINE void store_u64(u8* p, u64 v)
+{
+    memcpy(p, &v, sizeof(v));
+}
+
 FP_INLINE u32 read_be32(u8 const* p)
 {
     return ((u32)p[0] << 24) | ((u32)p[1] << 16) | ((u32)p[2] << 8) | p[3];
@@ -1524,6 +1529,7 @@ typedef struct {
     size_t width;
     bool bgra;
     u32 table[256]; // Palette or low-bit-depth grays, as finished pixels.
+    u64 pairs[256]; // At 4 bits: the two pixels each byte stands for, the first in the low half.
     unsigned palette_size;
     u8 invalid_bytes[256]; // For a 1-, 2- or 4-bit palette: which bytes hold an index past it.
     bool has_transparent_value;
@@ -1632,16 +1638,24 @@ FP_NOINLINE void unpack_low_bit_depth_1(u8 const* row, u8* out, size_t width, u3
         store_u32(out + 4 * x, table[(row[x / 8] >> (7 - x % 8)) & 1]);
 }
 FP_NOINLINE void unpack_low_bit_depth_2(u8 const* row, u8* out, size_t width, u32 const* table) { unpack_low_bit_depth(row, out, width, table, 2); }
-FP_NOINLINE void unpack_low_bit_depth_4(u8 const* row, u8* out, size_t width, u32 const* table) { unpack_low_bit_depth(row, out, width, table, 4); }
-
-static void unpack_through_table(u8 const* row, u8* out, size_t width, u32 const* table, unsigned depth)
+// At 4 bits, a byte's two pixels are one lookup and one store.
+FP_NOINLINE void unpack_low_bit_depth_4(u8 const* row, u8* out, size_t width, u32 const* table, u64 const* pairs)
 {
-    if (depth == 1)
-        unpack_low_bit_depth_1(row, out, width, table);
-    else if (depth == 2)
-        unpack_low_bit_depth_2(row, out, width, table);
+    size_t x = 0;
+    for (; x + 2 <= width; x += 2)
+        store_u64(out + 4 * x, pairs[row[x / 2]]);
+    if (x < width)
+        store_u32(out + 4 * x, table[row[x / 2] >> 4]);
+}
+
+static void unpack_through_table(unpacker const* u, u8 const* row, u8* out)
+{
+    if (u->depth == 1)
+        unpack_low_bit_depth_1(row, out, u->width, u->table);
+    else if (u->depth == 2)
+        unpack_low_bit_depth_2(row, out, u->width, u->table);
     else
-        unpack_low_bit_depth_4(row, out, width, table);
+        unpack_low_bit_depth_4(row, out, u->width, u->table, u->pairs);
 }
 
 // Whether a row of 1-, 2- or 4-bit palette indices stays within the palette: 16 bytes at a time,
@@ -1692,7 +1706,7 @@ FP_INLINE int unpack_row_in_format(unpacker const* u, u8 const* row, u8* out, bo
     switch (u->color) {
     case COLOR_GRAY:
         if (u->depth < 8) {
-            unpack_through_table(row, out, width, u->table, u->depth);
+            unpack_through_table(u, row, out);
         } else if (u->depth == 8 && !u->has_transparent_value) {
             unpack_gray_8(row, out, width);
         } else {
@@ -1750,7 +1764,7 @@ FP_INLINE int unpack_row_in_format(unpacker const* u, u8 const* row, u8* out, bo
             // A palette as big as the bit depth allows can't be indexed past.
             if (u->palette_size < (1u << u->depth) && !palette_indices_valid(row, width, u->depth, u->palette_size, u->invalid_bytes))
                 return FASTPNG_ERROR_BAD_PALETTE;
-            unpack_through_table(row, out, width, u->table, u->depth);
+            unpack_through_table(u, row, out);
         }
         return FASTPNG_OK;
     }
@@ -1884,6 +1898,10 @@ static void build_unpacker(png_header const* h, bool bgra, unpacker* u)
             u32 const alpha = u->has_transparent_value && value == u->transparent_gray ? 0 : 0xff;
             u->table[value] = (alpha << 24) | gray * 0x010101u;
         }
+    }
+    if (h->depth == 4 && (h->color == COLOR_GRAY || h->color == COLOR_PALETTE)) {
+        for (unsigned byte = 0; byte < 256; ++byte)
+            u->pairs[byte] = u->table[byte >> 4] | (u64)u->table[byte & 15] << 32;
     }
 }
 
