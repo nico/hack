@@ -67,13 +67,33 @@ static size_t read_short(void* context, uint64_t offset, uint8_t const** data)
     return 1 + next_random() % r->max_read;
 }
 
+// The file in separately allocated segments, as a reader for fastpng_decoder_update_from():
+// segment k holds the file's bytes from at[k] to at[k + 1].
+typedef struct {
+    size_t const* at;
+    unsigned char* const* segment;
+    size_t cursor;
+} segment_reader;
+
+static size_t read_segments(void* context, uint64_t offset, uint8_t const** data)
+{
+    segment_reader* r = context;
+    if (offset < r->at[r->cursor])
+        r->cursor = 0;
+    while (offset >= r->at[r->cursor + 1])
+        ++r->cursor;
+    *data = r->segment[r->cursor] + (offset - r->at[r->cursor]);
+    return r->at[r->cursor + 1] - offset;
+}
+
 // Decodes `png` in `pieces` pieces (random cut points when `random_cuts`), copying the data into a
 // buffer that grows as a browser's would, or with `segment_bytes`, into separately allocated
-// segments of that size, passed as spans (SIZE_MAX: random sizes, some a few bytes), or with
-// `short_reads`, from one buffer through a callback that returns a few bytes at a time. With `reference`, checks after each piece that the rows
-// reported final have their final pixels, and with `previews` (an interlaced image's, for each
-// number of passes, decoded with blocks filled) that each row shown is as it should be after the
-// passes done or after the one going on. Returns the final status.
+// segments of that size, read through a callback (SIZE_MAX: random sizes, some a few bytes), or
+// with `short_reads`, from one buffer through a callback that returns a few bytes at a time. With
+// `reference`, checks after each piece that the rows reported final have their final pixels, and
+// with `previews` (an interlaced image's, for each number of passes, decoded with blocks filled)
+// that each row shown is as it should be after the passes done or after the one going on. Returns
+// the final status.
 static int decode_in_pieces(unsigned char const* png, size_t size, int pieces, int random_cuts, size_t segment_bytes, bool short_reads, unsigned flags, unsigned char* pixels, size_t stride, unsigned char const* reference, unsigned char* const* previews, uint32_t height, char const* name)
 {
     fastpng_options const options = { flags, 0 };
@@ -83,7 +103,6 @@ static int decode_in_pieces(unsigned char const* png, size_t size, int pieces, i
     size_t segment_count = 0;
     size_t* segment_at = malloc((size + 1) * sizeof(size_t));
     unsigned char** segment = malloc((size + 1) * sizeof(unsigned char*));
-    fastpng_span* spans = malloc((size + 1) * sizeof(fastpng_span));
     bool const segmented = segment_bytes != 0;
     if (segmented) {
         size_t const typical = size / 16 + 1;
@@ -96,6 +115,7 @@ static int decode_in_pieces(unsigned char const* png, size_t size, int pieces, i
         }
         segment_at[segment_count] = size;
     }
+    segment_reader segments = { segment_at, segment, 0 };
     size_t have = 0;
     int status = FASTPNG_NEED_MORE_DATA;
     fastpng_progress last = { 0, 0, 0 };
@@ -110,15 +130,14 @@ static int decode_in_pieces(unsigned char const* png, size_t size, int pieces, i
         have = next;
         fastpng_progress progress;
         if (segmented) {
-            size_t span_count = 0;
+            // The new bytes go into their segments; the last one with any may be partly filled.
             for (size_t k = 0; k < segment_count && segment_at[k] < have; ++k) {
                 size_t const end = segment_at[k + 1] < have ? segment_at[k + 1] : have;
                 size_t const from = segment_at[k] > had ? segment_at[k] : had;
                 if (end > from)
                     memcpy(segment[k] + (from - segment_at[k]), png + from, end - from);
-                spans[span_count++] = (fastpng_span) { segment[k], end - segment_at[k] };
             }
-            status = fastpng_decoder_update_spans(d, spans, span_count, have == size, FASTPNG_RGBA, pixels, stride, &progress);
+            status = fastpng_decoder_update_from(d, read_segments, &segments, have, have == size, FASTPNG_RGBA, pixels, stride, &progress);
         } else if (short_reads) {
             short_reader reader = { received, 97 };
             status = fastpng_decoder_update_from(d, read_short, &reader, have, have == size, FASTPNG_RGBA, pixels, stride, &progress);
@@ -157,7 +176,6 @@ static int decode_in_pieces(unsigned char const* png, size_t size, int pieces, i
         free(segment[k]);
     free(segment_at);
     free(segment);
-    free(spans);
     return status;
 }
 

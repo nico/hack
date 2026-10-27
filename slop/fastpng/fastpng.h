@@ -105,14 +105,6 @@ void fastpng_decoder_destroy(fastpng_decoder* decoder);
 typedef size_t (*fastpng_read_fn)(void* context, uint64_t offset, uint8_t const** data);
 int fastpng_decoder_update_from(fastpng_decoder* decoder, fastpng_read_fn read, void* context, uint64_t size, bool complete, fastpng_format format, void* pixels, size_t stride, fastpng_progress* progress);
 
-// Like fastpng_decoder_update_from(), with the file so far as a list of pieces, in order. Each
-// call gets all of it again (the pieces may move, be split or joined differently, and the last
-// may grow).
-typedef struct {
-    void const* data;
-    size_t size;
-} fastpng_span;
-int fastpng_decoder_update_spans(fastpng_decoder* decoder, fastpng_span const* spans, size_t span_count, bool complete, fastpng_format format, void* pixels, size_t stride, fastpng_progress* progress);
 
 char const* fastpng_error_string(int error);
 

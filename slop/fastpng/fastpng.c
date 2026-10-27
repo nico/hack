@@ -2568,47 +2568,25 @@ fastpng_decoder* fastpng_decoder_create(fastpng_options const* options)
     return d;
 }
 
-// The spans, as a reader: the span last looked in is where the next search starts.
+// One buffer, as a reader.
 typedef struct {
-    fastpng_span const* spans;
-    size_t count;
-    size_t cursor;
-    u64 cursor_start;
-} span_reader;
+    u8 const* data;
+    size_t size;
+} buffer_reader;
 
-static size_t read_spans(void* context, uint64_t offset, uint8_t const** data)
+static size_t read_buffer(void* context, uint64_t offset, uint8_t const** data)
 {
-    span_reader* r = context;
-    if (offset < r->cursor_start) {
-        r->cursor = 0;
-        r->cursor_start = 0;
-    }
-    while (r->cursor < r->count && offset - r->cursor_start >= r->spans[r->cursor].size)
-        r->cursor_start += r->spans[r->cursor++].size;
-    if (r->cursor == r->count)
-        return 0;
-    size_t const skip = (size_t)(offset - r->cursor_start);
-    *data = (u8 const*)r->spans[r->cursor].data + skip;
-    return r->spans[r->cursor].size - skip;
+    buffer_reader const* r = context;
+    *data = r->data + offset;
+    return r->size - (size_t)offset;
 }
 
 int fastpng_decoder_update(fastpng_decoder* d, void const* png, size_t png_size, bool complete, fastpng_format format, void* pixels, size_t stride, fastpng_progress* progress)
 {
     if (!png)
         return FASTPNG_ERROR_BAD_ARGUMENT;
-    fastpng_span const span = { png, png_size };
-    return fastpng_decoder_update_spans(d, &span, 1, complete, format, pixels, stride, progress);
-}
-
-int fastpng_decoder_update_spans(fastpng_decoder* d, fastpng_span const* spans, size_t span_count, bool complete, fastpng_format format, void* pixels, size_t stride, fastpng_progress* progress)
-{
-    if (!spans && span_count)
-        return FASTPNG_ERROR_BAD_ARGUMENT;
-    span_reader reader = { spans, span_count, 0, 0 };
-    u64 size = 0;
-    for (size_t i = 0; i < span_count; ++i)
-        size += spans[i].size;
-    return fastpng_decoder_update_from(d, read_spans, &reader, size, complete, format, pixels, stride, progress);
+    buffer_reader reader = { png, png_size };
+    return fastpng_decoder_update_from(d, read_buffer, &reader, png_size, complete, format, pixels, stride, progress);
 }
 
 int fastpng_decoder_update_from(fastpng_decoder* d, fastpng_read_fn read, void* context, uint64_t size, bool complete, fastpng_format format, void* pixels, size_t stride, fastpng_progress* progress)
@@ -2660,10 +2638,9 @@ int fastpng_decode(void const* png, size_t png_size, fastpng_format format, void
     // One step with all of the file; on the stack, like the tables were.
     fastpng_decoder d;
     decoder_init(&d, options);
-    fastpng_span const span = { png, png_size };
-    span_reader reader = { &span, 1, 0, 0 };
+    buffer_reader reader = { png, png_size };
     source s;
-    source_init(&s, read_spans, &reader, png_size);
+    source_init(&s, read_buffer, &reader, png_size);
     int error = decoder_update(&d, &s, true, format, pixels, stride);
     if (error == FASTPNG_NEED_MORE_DATA)
         error = FASTPNG_ERROR_TRUNCATED;
