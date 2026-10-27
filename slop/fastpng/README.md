@@ -241,7 +241,12 @@ each time and decodes only what's new:
 - *Block headers are read with what's there.* If a dynamic Huffman header (up to a few hundred
   bytes) turns out to need more input than has arrived, inflate goes back to the header's start and
   waits, instead of waiting for the largest possible header up front.
-- *One IDAT chunk is still read in place*; several are joined as they arrive. Big buffers wait
+- *The file can be in pieces.* `fastpng_decoder_update_spans()` takes the file as a list of
+  buffers, such as the ones it arrived in. Chunks are found by their offset in the file, and the
+  image data is inflated where it is, a piece at a time (an IDAT chunk's data within one buffer):
+  each up to a few bytes from its end, then the bytes on either side of where it meets the next
+  are copied together (at most 1 KiB, more than any block header) and inflated from the copy, and
+  then on in place in the next. So several IDAT chunks are no longer joined either. Big buffers wait
   until enough image data has arrived to plausibly fill them (deflate's 1032:1 bound again).
 - *One-step decoding is the same code*, a single update with complete data. It got no slower:
   +0.4% cycles over the corpus, with the same instructions, and unchanged on small files.
@@ -255,12 +260,14 @@ each time and decodes only what's new:
   by pass. Adam7's blocks only ever hold pixels of later passes, so filling never covers a decoded
   pixel, and the fill only runs while the image is incomplete.
 
-Over the 41-image corpus, in 64 pieces, decoding takes 5% longer than in one step (13% in 256
-pieces); starting over at every piece would take 32x (125x) as long. `bench/incremental.c` checks
+Over the 41-image corpus, into an already allocated buffer, decoding in 64 pieces takes 10% longer
+than in one step (19% in 256 pieces), and with the file in 4 KiB buffers, another 2-3%; starting
+over at every piece would take 32x (127x) as long. `bench/incremental.c` checks
 after every piece that the rows reported final already have their final pixels, that an interlaced
 image's rows shown match a preview worked out independently from the finished image (by passes
 done, or including the pass under way), and at the end that the result is identical to one step,
-for random piece sizes down to a byte at a time. In a file with several problems, the error may
+for random piece sizes down to a byte at a time, in one buffer or in buffers of random sizes down
+to a byte, with and without checksums checked. In a file with several problems, the error may
 name a different one than a one-step decode would, having met them in another order.
 
 ## Limits and trade-offs
@@ -314,13 +321,13 @@ name a different one than a one-step decode would, having met them in another or
     over, for a profiler such as `sample` to watch.
   - `make_chart.py` regenerates `speed.svg` and `incremental.svg` from the totals written into it:
     `uv run bench/make_chart.py`.
-  - `incremental.c` tests and times incremental decoding against one step and against starting
-    over at every piece: `clang -O2 -I.. incremental.c ../fastpng.c -o build/incremental`, then
+  - `incremental.c` tests and times incremental decoding against one step, against the file in
+    4 KiB buffers, and against starting over at every piece: `clang -O2 -I.. incremental.c ../fastpng.c -o build/incremental`, then
     `build/incremental -p 64 build/images/*.png`.
   - `fuzz.c` is a mutation fuzzer (also a libFuzzer target) that runs under ASan/UBSan. It checks
     that corrupt files fail cleanly in every checksum mode, that BGRA is RGBA swapped, that a
     file that decodes with checksums decodes the same without, and that decoding in random pieces
-    gives the same result as in one step. Its first run caught an
+    (in one buffer or several) gives the same result as in one step. Its first run caught an
     allocation sized from a corrupt header, now rejected using the 1032:1 deflate bound.
 
 ## Credits

@@ -54,6 +54,19 @@ static void decode_in_pieces(uint8_t const* data, size_t size)
     // Every other time with interlace blocks filled, which changes only what's shown on the way.
     fastpng_options const fill = { FASTPNG_FILL_INTERLACE_PASSES, 0 };
     fastpng_decoder* d = fastpng_decoder_create(piece_rng & 1 ? &fill : NULL);
+    // Every other pair of times in separately allocated segments of a few bytes to a few hundred.
+    bool const segmented = piece_rng & 2;
+    size_t segment_count = 0;
+    fastpng_span* segments = segmented ? malloc((size + 1) * sizeof(fastpng_span)) : NULL;
+    fastpng_span* spans = segmented ? malloc((size + 1) * sizeof(fastpng_span)) : NULL;
+    for (size_t at = 0; segmented && at < size; ++segment_count) {
+        size_t n = 1 + (at * 7919 + piece_rng) % 300;
+        n = n < size - at ? n : size - at;
+        void* copy = malloc(n);
+        memcpy(copy, data + at, n);
+        segments[segment_count] = (fastpng_span) { copy, n };
+        at += n;
+    }
     int status = FASTPNG_NEED_MORE_DATA;
     size_t have = 0;
     while (status == FASTPNG_NEED_MORE_DATA && have < size) {
@@ -63,9 +76,24 @@ static void decode_in_pieces(uint8_t const* data, size_t size)
         have += 1 + piece_rng % (size / 8 + 1);
         if (have > size)
             have = size;
-        status = fastpng_decoder_update(d, data, have, have == size, FASTPNG_RGBA, pieces, (size_t)w * 4, NULL);
+        if (segmented) {
+            size_t span_count = 0;
+            for (size_t k = 0, at = 0; k < segment_count && at < have; at += segments[k++].size) {
+                spans[span_count] = segments[k];
+                if (spans[span_count].size > have - at)
+                    spans[span_count].size = have - at;
+                ++span_count;
+            }
+            status = fastpng_decoder_update_spans(d, spans, span_count, have == size, FASTPNG_RGBA, pieces, (size_t)w * 4, NULL);
+        } else {
+            status = fastpng_decoder_update(d, data, have, have == size, FASTPNG_RGBA, pieces, (size_t)w * 4, NULL);
+        }
     }
     fastpng_decoder_destroy(d);
+    for (size_t k = 0; k < segment_count; ++k)
+        free((void*)segments[k].data);
+    free(segments);
+    free(spans);
     if ((status == FASTPNG_OK) != (expected == FASTPNG_OK) || (status == FASTPNG_OK && memcmp(once, pieces, bytes) != 0)) {
         fprintf(stderr, "decoding in pieces: %s, in one step: %s (input in build/fuzz-failure.png)\n", fastpng_error_string(status), fastpng_error_string(expected));
         FILE* f = fopen("build/fuzz-failure.png", "wb");

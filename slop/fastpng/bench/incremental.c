@@ -1,14 +1,15 @@
 // Tests and times fastpng's incremental decoding. For each file: decodes it in one step; then
 // feeds it to a decoder in random pieces, checking after each that the rows reported final already
 // have their final pixels, and at the end that the pixels and the result match the one-step
-// decode. Then times one step, incremental decoding in `pieces` pieces, and decoding from scratch
-// at every piece (what a decoder that can't resume does):
+// decode. Then times one step, incremental decoding in `pieces` pieces (in one buffer, and in
+// 4 KiB buffers), and decoding from scratch at every piece (what a decoder that can't resume does):
 //   clang -O2 -I.. incremental.c ../fastpng.c -o build/incremental
 //   build/incremental [-p pieces] [-t trials] file.png...
 
 #include "fastpng.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,15 +52,33 @@ static void interlace_preview(unsigned char const* final, uint32_t w, uint32_t h
 }
 
 // Decodes `png` in `pieces` pieces (random cut points when `random_cuts`), copying the data into a
-// buffer that grows as a browser's would. With `reference`, checks after each piece that the rows
+// buffer that grows as a browser's would, or with `segment_bytes`, into separately allocated
+// segments of that size, passed as spans (SIZE_MAX: random sizes, some a few bytes). With `reference`, checks after each piece that the rows
 // reported final have their final pixels, and with `previews` (an interlaced image's, for each
 // number of passes, decoded with blocks filled) that each row shown is as it should be after the
 // passes done or after the one going on. Returns the final status.
-static int decode_in_pieces(unsigned char const* png, size_t size, int pieces, int random_cuts, unsigned flags, unsigned char* pixels, size_t stride, unsigned char const* reference, unsigned char* const* previews, uint32_t height, char const* name)
+static int decode_in_pieces(unsigned char const* png, size_t size, int pieces, int random_cuts, size_t segment_bytes, unsigned flags, unsigned char* pixels, size_t stride, unsigned char const* reference, unsigned char* const* previews, uint32_t height, char const* name)
 {
     fastpng_options const options = { flags, 0 };
     fastpng_decoder* d = fastpng_decoder_create(&options);
     unsigned char* received = malloc(size ? size : 1);
+    // Segments: where each starts in the file, and its own buffer.
+    size_t segment_count = 0;
+    size_t* segment_at = malloc((size + 1) * sizeof(size_t));
+    unsigned char** segment = malloc((size + 1) * sizeof(unsigned char*));
+    fastpng_span* spans = malloc((size + 1) * sizeof(fastpng_span));
+    bool const segmented = segment_bytes != 0;
+    if (segmented) {
+        size_t const typical = size / 16 + 1;
+        for (size_t at = 0; at < size; ++segment_count) {
+            size_t n = segment_bytes != SIZE_MAX ? segment_bytes : next_random() % 4 == 0 ? 1 + next_random() % 16 : 1 + next_random() % (2 * typical);
+            n = n < size - at ? n : size - at;
+            segment_at[segment_count] = at;
+            segment[segment_count] = malloc(n);
+            at += n;
+        }
+        segment_at[segment_count] = size;
+    }
     size_t have = 0;
     int status = FASTPNG_NEED_MORE_DATA;
     fastpng_progress last = { 0, 0, 0 };
@@ -69,10 +88,23 @@ static int decode_in_pieces(unsigned char const* png, size_t size, int pieces, i
             next = size;
         if (next <= have)
             continue;
+        size_t const had = have;
         memcpy(received + have, png + have, next - have);
         have = next;
         fastpng_progress progress;
-        status = fastpng_decoder_update(d, received, have, have == size, FASTPNG_RGBA, pixels, stride, &progress);
+        if (segmented) {
+            size_t span_count = 0;
+            for (size_t k = 0; k < segment_count && segment_at[k] < have; ++k) {
+                size_t const end = segment_at[k + 1] < have ? segment_at[k + 1] : have;
+                size_t const from = segment_at[k] > had ? segment_at[k] : had;
+                if (end > from)
+                    memcpy(segment[k] + (from - segment_at[k]), png + from, end - from);
+                spans[span_count++] = (fastpng_span) { segment[k], end - segment_at[k] };
+            }
+            status = fastpng_decoder_update_spans(d, spans, span_count, have == size, FASTPNG_RGBA, pixels, stride, &progress);
+        } else {
+            status = fastpng_decoder_update(d, received, have, have == size, FASTPNG_RGBA, pixels, stride, &progress);
+        }
         if (progress.rows_final < last.rows_final || progress.rows_shown < last.rows_shown || progress.passes_done < last.passes_done || progress.rows_shown < progress.rows_final) {
             fprintf(stderr, "%s: progress went back or doesn't add up\n", name);
             exit(1);
@@ -101,6 +133,11 @@ static int decode_in_pieces(unsigned char const* png, size_t size, int pieces, i
     }
     fastpng_decoder_destroy(d);
     free(received);
+    for (size_t k = 0; k < segment_count; ++k)
+        free(segment[k]);
+    free(segment_at);
+    free(segment);
+    free(spans);
     return status;
 }
 
@@ -115,8 +152,8 @@ int main(int argc, char** argv)
         else if (!strcmp(argv[first], "-t"))
             trials = atoi(argv[first + 1]);
     }
-    double total_once = 0, total_pieces = 0, total_restart = 0;
-    printf("%-30s %9s %12s %14s   (ms; %d pieces)\n", "file", "one step", "incremental", "from scratch", pieces);
+    double total_once = 0, total_pieces = 0, total_segments = 0, total_restart = 0;
+    printf("%-30s %9s %12s %12s %14s   (ms; %d pieces)\n", "file", "one step", "incremental", "4K segments", "from scratch", pieces);
     for (int i = first; i < argc; ++i) {
         FILE* f = fopen(argv[i], "rb");
         if (!f)
@@ -139,6 +176,8 @@ int main(int argc, char** argv)
         unsigned char* reference = malloc(stride * h);
         unsigned char* pixels = malloc(stride * h);
         int const expected = fastpng_decode(png, size, FASTPNG_RGBA, reference, stride, NULL);
+        fastpng_options const check_all = { FASTPNG_CHECK_ALL, 0 };
+        int const expected_checked = fastpng_decode(png, size, FASTPNG_RGBA, pixels, stride, &check_all);
 
         // An interlaced image's previews, for checking the blocks filled in as it arrives.
         bool const interlaced = size > 28 && png[28] == 1;
@@ -150,13 +189,17 @@ int main(int argc, char** argv)
             }
         }
 
-        // Correctness: random pieces, a few times over, with interlace blocks filled every other time.
+        // Correctness: random pieces, a few times over, with interlace blocks filled every other time,
+        // in segments every other pair of times, and with checksums checked every other four.
         for (int t = 0; t < trials; ++t) {
             bool const fill = t % 2;
-            int const status = decode_in_pieces(png, size, pieces, 1, fill ? FASTPNG_FILL_INTERLACE_PASSES : 0, pixels, stride, expected == FASTPNG_OK ? reference : NULL, fill && previews[1] ? previews : NULL, h, name);
+            bool const checked = t / 4 % 2;
+            int const want = checked ? expected_checked : expected;
+            unsigned const flags = (fill ? FASTPNG_FILL_INTERLACE_PASSES : 0) | (checked ? FASTPNG_CHECK_ALL : 0);
+            int const status = decode_in_pieces(png, size, pieces, 1, t / 2 % 2 ? SIZE_MAX : 0, flags, pixels, stride, want == FASTPNG_OK ? reference : NULL, fill && previews[1] ? previews : NULL, h, name);
             // An error may name a different problem in a file with several, met in another order.
-            if ((status == FASTPNG_OK) != (expected == FASTPNG_OK) || (status == FASTPNG_OK && memcmp(pixels, reference, stride * h) != 0)) {
-                fprintf(stderr, "%s: in pieces: %s, in one step: %s%s\n", name, fastpng_error_string(status), fastpng_error_string(expected), status == expected ? " (pixels differ)" : "");
+            if ((status == FASTPNG_OK) != (want == FASTPNG_OK) || (status == FASTPNG_OK && memcmp(pixels, reference, stride * h) != 0)) {
+                fprintf(stderr, "%s: in pieces: %s, in one step: %s%s\n", name, fastpng_error_string(status), fastpng_error_string(want), status == want ? " (pixels differ)" : "");
                 return 1;
             }
         }
@@ -168,14 +211,17 @@ int main(int argc, char** argv)
         }
 
         // Time: best of a few runs each.
-        double once = 1e30, in_pieces = 1e30, restart = 1e30;
+        double once = 1e30, in_pieces = 1e30, in_segments = 1e30, restart = 1e30;
         for (int r = 0; r < 5; ++r) {
             double t = now_ms();
             fastpng_decode(png, size, FASTPNG_RGBA, pixels, stride, NULL);
             once = (t = now_ms() - t) < once ? t : once;
             t = now_ms();
-            decode_in_pieces(png, size, pieces, 0, FASTPNG_FILL_INTERLACE_PASSES, pixels, stride, NULL, NULL, h, name);
+            decode_in_pieces(png, size, pieces, 0, 0, FASTPNG_FILL_INTERLACE_PASSES, pixels, stride, NULL, NULL, h, name);
             in_pieces = (t = now_ms() - t) < in_pieces ? t : in_pieces;
+            t = now_ms();
+            decode_in_pieces(png, size, pieces, 0, 4096, FASTPNG_FILL_INTERLACE_PASSES, pixels, stride, NULL, NULL, h, name);
+            in_segments = (t = now_ms() - t) < in_segments ? t : in_segments;
             if (r < 2) {
                 // From scratch on each prefix, the way a decoder that can't resume would.
                 t = now_ms();
@@ -187,14 +233,15 @@ int main(int argc, char** argv)
                 restart = (t = now_ms() - t) < restart ? t : restart;
             }
         }
-        printf("%-30.30s %9.2f %12.2f %14.2f\n", name, once, in_pieces, restart);
+        printf("%-30.30s %9.2f %12.2f %12.2f %14.2f\n", name, once, in_pieces, in_segments, restart);
         total_once += once;
         total_pieces += in_pieces;
+        total_segments += in_segments;
         total_restart += restart;
         free(png);
         free(reference);
         free(pixels);
     }
-    printf("%-30s %9.2f %12.2f %14.2f\n", "TOTAL", total_once, total_pieces, total_restart);
+    printf("%-30s %9.2f %12.2f %12.2f %14.2f\n", "TOTAL", total_once, total_pieces, total_segments, total_restart);
     return 0;
 }

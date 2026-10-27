@@ -95,6 +95,16 @@ fastpng_decoder* fastpng_decoder_create(fastpng_options const* options);
 int fastpng_decoder_update(fastpng_decoder* decoder, void const* png, size_t png_size, bool complete, fastpng_format format, void* pixels, size_t stride, fastpng_progress* progress);
 void fastpng_decoder_destroy(fastpng_decoder* decoder);
 
+// Like fastpng_decoder_update(), with the file received so far in pieces, in order: say, the
+// buffers it arrived in. Each call gets all of it again (the pieces may move, be split or joined
+// differently, and the last may grow). The image data is read in place; only the bytes around
+// where pieces meet are copied together.
+typedef struct {
+    void const* data;
+    size_t size;
+} fastpng_span;
+int fastpng_decoder_update_spans(fastpng_decoder* decoder, fastpng_span const* spans, size_t span_count, bool complete, fastpng_format format, void* pixels, size_t stride, fastpng_progress* progress);
+
 char const* fastpng_error_string(int error);
 
 #ifdef __cplusplus
