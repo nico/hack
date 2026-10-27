@@ -31,6 +31,11 @@ while IFS=$'\t' read -r name source bytes kind sha what; do
 done < images.txt
 [ $failed = 0 ] || exit 1
 
+# Every decode gets freshly allocated output. macOS's malloc keeps some freed large blocks mapped
+# for reuse, which makes a big image's time depend on what earlier decodes left behind; without
+# that cache, each decode faults its output in, whichever decoder and file came before.
+export MallocLargeCache=0
+
 if [ -n "$PNGSUITE" ]; then
     ./build/png-bench --check "$PNGSUITE"/*.png "${files[@]}"
 fi
