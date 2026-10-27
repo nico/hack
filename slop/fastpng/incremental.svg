@@ -23,30 +23,30 @@
 <text class="title" x="144" y="22">Total decode time, ms (lower is better) — Apple M4 Max</text>
 <text class="panel" x="144" y="56">41 PNGs fed in 64 pieces</text>
 <text class="name us-text" x="132" y="88.5" text-anchor="end">fastpng</text>
-<path class="us" d="M144.0,75.0 H334.0 A4,4 0 0 1 338.0,79.0 V89.0 A4,4 0 0 1 334.0,93.0 H144.0 Z"><title>fastpng: 115.6 ms</title></path>
-<text class="value" x="346.0" y="88.5">115.6 ms</text>
+<path class="us" d="M144.0,75.0 H336.8 A4,4 0 0 1 340.8,79.0 V89.0 A4,4 0 0 1 336.8,93.0 H144.0 Z"><title>fastpng: 121.9 ms</title></path>
+<text class="value" x="348.8" y="88.5">121.9 ms</text>
 <text class="name them-text" x="132" y="116.5" text-anchor="end">png crate (Rust)</text>
-<path class="them" d="M144.0,103.0 H492.1 A4,4 0 0 1 496.1,107.0 V117.0 A4,4 0 0 1 492.1,121.0 H144.0 Z"><title>png crate (Rust): 209.8 ms</title></path>
-<text class="value" x="504.1" y="116.5">209.8 ms  ·  1.8× as long</text>
+<path class="them" d="M144.0,103.0 H487.8 A4,4 0 0 1 491.8,107.0 V117.0 A4,4 0 0 1 487.8,121.0 H144.0 Z"><title>png crate (Rust): 215.4 ms</title></path>
+<text class="value" x="499.8" y="116.5">215.4 ms  ·  1.8× as long</text>
 <text class="name them-text" x="132" y="144.5" text-anchor="end">libpng</text>
-<path class="them" d="M144.0,131.0 H542.1 A4,4 0 0 1 546.1,135.0 V145.0 A4,4 0 0 1 542.1,149.0 H144.0 Z"><title>libpng: 239.6 ms</title></path>
-<text class="value" x="554.1" y="144.5">239.6 ms  ·  2.1× as long</text>
+<path class="them" d="M144.0,131.0 H534.0 A4,4 0 0 1 538.0,135.0 V145.0 A4,4 0 0 1 534.0,149.0 H144.0 Z"><title>libpng: 244.0 ms</title></path>
+<text class="value" x="546.0" y="144.5">244.0 ms  ·  2.0× as long</text>
 <text class="name them-text" x="132" y="172.5" text-anchor="end">wuffs</text>
-<path class="them" d="M144.0,159.0 H557.6 A4,4 0 0 1 561.6,163.0 V173.0 A4,4 0 0 1 557.6,177.0 H144.0 Z"><title>wuffs: 248.8 ms</title></path>
-<text class="value" x="569.6" y="172.5">248.8 ms  ·  2.2× as long</text>
+<path class="them" d="M144.0,159.0 H556.9 A4,4 0 0 1 560.9,163.0 V173.0 A4,4 0 0 1 556.9,177.0 H144.0 Z"><title>wuffs: 258.2 ms</title></path>
+<text class="value" x="568.9" y="172.5">258.2 ms  ·  2.1× as long</text>
 <line class="baseline" x1="144" x2="144" y1="70" y2="182"/>
 <text class="panel" x="144" y="220">The same, in 256 pieces</text>
 <text class="name us-text" x="132" y="252.5" text-anchor="end">fastpng</text>
-<path class="us" d="M144.0,239.0 H346.6 A4,4 0 0 1 350.6,243.0 V253.0 A4,4 0 0 1 346.6,257.0 H144.0 Z"><title>fastpng: 123.1 ms</title></path>
-<text class="value" x="358.6" y="252.5">123.1 ms</text>
+<path class="us" d="M144.0,239.0 H350.2 A4,4 0 0 1 354.2,243.0 V253.0 A4,4 0 0 1 350.2,257.0 H144.0 Z"><title>fastpng: 130.2 ms</title></path>
+<text class="value" x="362.2" y="252.5">130.2 ms</text>
 <text class="name them-text" x="132" y="280.5" text-anchor="end">png crate (Rust)</text>
-<path class="them" d="M144.0,267.0 H494.1 A4,4 0 0 1 498.1,271.0 V281.0 A4,4 0 0 1 494.1,285.0 H144.0 Z"><title>png crate (Rust): 211.0 ms</title></path>
-<text class="value" x="506.1" y="280.5">211.0 ms  ·  1.7× as long</text>
+<path class="them" d="M144.0,267.0 H489.9 A4,4 0 0 1 493.9,271.0 V281.0 A4,4 0 0 1 489.9,285.0 H144.0 Z"><title>png crate (Rust): 216.7 ms</title></path>
+<text class="value" x="501.9" y="280.5">216.7 ms  ·  1.7× as long</text>
 <text class="name them-text" x="132" y="308.5" text-anchor="end">libpng</text>
-<path class="them" d="M144.0,295.0 H543.8 A4,4 0 0 1 547.8,299.0 V309.0 A4,4 0 0 1 543.8,313.0 H144.0 Z"><title>libpng: 240.6 ms</title></path>
-<text class="value" x="555.8" y="308.5">240.6 ms  ·  2.0× as long</text>
+<path class="them" d="M144.0,295.0 H538.4 A4,4 0 0 1 542.4,299.0 V309.0 A4,4 0 0 1 538.4,313.0 H144.0 Z"><title>libpng: 246.7 ms</title></path>
+<text class="value" x="550.4" y="308.5">246.7 ms  ·  1.9× as long</text>
 <text class="name them-text" x="132" y="336.5" text-anchor="end">wuffs</text>
-<path class="them" d="M144.0,323.0 H570.0 A4,4 0 0 1 574.0,327.0 V337.0 A4,4 0 0 1 570.0,341.0 H144.0 Z"><title>wuffs: 256.2 ms</title></path>
-<text class="value" x="582.0" y="336.5">256.2 ms  ·  2.1× as long</text>
+<path class="them" d="M144.0,323.0 H570.0 A4,4 0 0 1 574.0,327.0 V337.0 A4,4 0 0 1 570.0,341.0 H144.0 Z"><title>wuffs: 266.3 ms</title></path>
+<text class="value" x="582.0" y="336.5">266.3 ms  ·  2.0× as long</text>
 <line class="baseline" x1="144" x2="144" y1="234" y2="346"/>
 </svg>

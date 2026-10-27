@@ -6,20 +6,20 @@ import os
 # Blend2D can't decode the one 16-bit image; its first total is over the other 40 (the "*").
 SPEED = [
     ("41 PNGs as their encoders wrote them", [
-        ("fastpng", 100.3), ("fastpng, checked", 109.4), ("Blend2D*", 147.9), ("png crate (Rust)", 181.9), ("libpng", 231.8), ("wuffs", 236.3), ("stb_image", 296.2), ("lodepng", 419.2),
+        ("fastpng", 113.8), ("fastpng, checked", 122.1), ("Blend2D*", 161.9), ("png crate (Rust)", 191.9), ("libpng", 242.4), ("wuffs", 252.3), ("stb_image", 305.9), ("lodepng", 421.2),
     ]),
     ("The same images, written by fpng (the only files fpng decodes)", [
-        ("fastpng", 122.2), ("fastpng, checked", 136.6), ("Blend2D", 149.8), ("fpng", 167.6), ("libpng", 243.3), ("wuffs", 320.0), ("png crate (Rust)", 340.5), ("stb_image", 411.7), ("lodepng", 526.1),
+        ("fastpng", 136.9), ("fastpng, checked", 152.0), ("Blend2D", 167.0), ("fpng", 177.8), ("libpng", 254.2), ("wuffs", 334.2), ("png crate (Rust)", 351.5), ("stb_image", 416.5), ("lodepng", 531.9),
     ]),
 ]
 
 # Fed in equal pieces, each decoder resuming where it stopped (png-bench --incremental N).
 INCREMENTAL = [
     ("41 PNGs fed in 64 pieces", [
-        ("fastpng", 115.6), ("png crate (Rust)", 209.8), ("libpng", 239.6), ("wuffs", 248.8),
+        ("fastpng", 121.9), ("png crate (Rust)", 215.4), ("libpng", 244.0), ("wuffs", 258.2),
     ]),
     ("The same, in 256 pieces", [
-        ("fastpng", 123.1), ("png crate (Rust)", 211.0), ("libpng", 240.6), ("wuffs", 256.2),
+        ("fastpng", 130.2), ("png crate (Rust)", 216.7), ("libpng", 246.7), ("wuffs", 266.3),
     ]),
 ]
 

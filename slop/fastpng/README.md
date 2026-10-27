@@ -41,28 +41,28 @@ fastpng_decoder_destroy(decoder);
 
 ## Speed
 
-![Total decode time over 41 PNGs: fastpng 100.3 ms, fastpng checking checksums 109.4, Blend2D 147.9 (without the one 16-bit image, which it can't decode), png crate (Rust) 181.9, libpng 231.8, wuffs 236.3, stb_image 296.2, lodepng 419.2; on fpng-written copies fastpng 122.2 ms, fastpng checking checksums 136.6, Blend2D 149.8, fpng 167.6, libpng 243.3, wuffs 320.0, png crate 340.5, stb_image 411.7, lodepng 526.1](speed.svg)
+![Total decode time over 41 PNGs: fastpng 113.8 ms, fastpng checking checksums 122.1, Blend2D 161.9 (without the one 16-bit image, which it can't decode), png crate (Rust) 191.9, libpng 242.4, wuffs 252.3, stb_image 305.9, lodepng 421.2; on fpng-written copies fastpng 136.9 ms, fastpng checking checksums 152.0, Blend2D 167.0, fpng 177.8, libpng 254.2, wuffs 334.2, png crate 351.5, stb_image 416.5, lodepng 531.9](speed.svg)
 
 Total ms over 41 public PNGs chosen to be representative of the web and of documents (screenshots,
 photos, maps, charts, sprites, icons, scans, PDF page renders; every color type, bit depths 1 to 16,
-interlaced and not; see `bench/CORPUS.md`), best of 9 runs each, into freshly allocated output.
-Apple M4 Max, clang -O2 for fastpng, -O3 for the C and C++ decoders, release + LTO for the png
-crate. fpng only decodes files fpng wrote, so the second column is the same images re-encoded by
-fpng:
+interlaced and not; see `bench/CORPUS.md`), best of 9 runs each, into freshly allocated output
+(which each decode faults in; see `bench/run.sh`). Apple M4 Max, clang -O2 for fastpng, -O3 for the
+C and C++ decoders, release + LTO for the png crate. fpng only decodes files fpng wrote, so the
+second column is the same images re-encoded by fpng:
 
 | decoder | checksums checked | 41 PNGs, ms | fastpng's time / theirs | fpng-written copies, ms | fastpng's time / theirs |
 |---|---|---|---|---|---|
-| **fastpng** | none | **100.3** | 1.00 | **122.2** | 1.00 |
-| fastpng | CRC + Adler-32 | 109.4 | 0.92 | 136.6 | 0.89 |
-| Blend2D | none | 147.9 (40 files: no 16-bit) | 0.66 | 149.8 | 0.79 |
-| png crate (Rust; what Chromium uses) | CRC | 181.9 | 0.55 | 340.5 | 0.36 |
-| png crate | none | 179.3 | 0.56 | 336.8 | 0.36 |
-| wuffs | CRC + Adler-32 | 236.3 | 0.42 | 320.0 | 0.38 |
-| wuffs | none | 229.2 | 0.44 | 308.2 | 0.40 |
-| libpng | CRC + Adler-32 | 231.8 | 0.43 | 243.3 | 0.50 |
-| stb_image | none | 296.2 | 0.34 | 411.7 | 0.30 |
-| lodepng | CRC + Adler-32 | 419.2 | 0.24 | 526.1 | 0.23 |
-| fpng | small chunks' CRCs | can't decode | | 167.6 | 0.73 |
+| **fastpng** | none | **113.8** | 1.00 | **136.9** | 1.00 |
+| fastpng | CRC + Adler-32 | 122.1 | 0.93 | 152.0 | 0.90 |
+| Blend2D | none | 161.9 (40 files: no 16-bit) | 0.69 | 167.0 | 0.82 |
+| png crate (Rust; what Chromium uses) | CRC | 191.9 | 0.59 | 351.5 | 0.39 |
+| png crate | none | 189.5 | 0.60 | 346.6 | 0.39 |
+| libpng | CRC + Adler-32 | 242.4 | 0.47 | 254.2 | 0.54 |
+| wuffs | CRC + Adler-32 | 252.3 | 0.45 | 334.2 | 0.41 |
+| wuffs | none | 245.3 | 0.46 | 323.9 | 0.42 |
+| stb_image | none | 305.9 | 0.37 | 416.5 | 0.33 |
+| lodepng | CRC + Adler-32 | 421.2 | 0.27 | 531.9 | 0.26 |
+| fpng | small chunks' CRCs | can't decode | | 177.8 | 0.77 |
 
 With checksums checked, pixels and errors match wuffs' on PngSuite and the 41 images (217 files),
 and on wuffs' test data and SerenityOS's PNG tests. Unchecked, the only difference is PngSuite's two
@@ -74,13 +74,13 @@ crate by default checks chunk CRCs but not the Adler-32. Compare rows that check
 
 libpng here is Homebrew's (1.6.58, with its NEON filters), which inflates with macOS's system zlib.
 Apple's zlib is 2-5x faster than stock zlib at inflating, which is most of libpng's time on dense
-images. Built against stock zlib 1.3.1, the same libpng takes 382.8 ms instead of 230.8, and wuffs
-is then 1.6x as fast as libpng, close to what it claims. Elsewhere, expect libpng's numbers to look
-like that.
+images. Built against stock zlib 1.3.1, the same libpng takes 393.2 ms instead of 243.3 (in a run of
+its own), and wuffs is then 1.6x as fast as libpng, close to what it claims. Elsewhere, expect
+libpng's numbers to look like that.
 
 [Blend2D](https://blend2d.com/blog/png-image-codec.html)'s decoder (v0.21.3) claims about twice
 libpng's and wuffs' speed, measured on x86 with AVX2. Here it's about 1.5x as fast as both, and
-fastpng takes 0.66x its time. On ARM, Blend2D's inflate runs its portable 64-bit fast loop (its AVX2
+fastpng takes 0.69x its time. On ARM, Blend2D's inflate runs its portable 64-bit fast loop (its AVX2
 loop is x86-only), with NEON unfiltering, and it's built as its CMake release build does (-O2,
 static, no JIT). It decodes to its own formats: premultiplied BGRA (BGRX for opaque images), so its
 time includes premultiplying, which a compositor wants anyway, and its pixels are compared with
@@ -96,7 +96,7 @@ about 3.3 ms.
 
 ## Incremental speed
 
-![Total decode time over the 41 PNGs fed in pieces: in 64 pieces fastpng 115.6 ms, png crate (Rust) 209.8, libpng 239.6, wuffs 248.8; in 256 pieces fastpng 123.1 ms, png crate 211.0, libpng 240.6, wuffs 256.2](incremental.svg)
+![Total decode time over the 41 PNGs fed in pieces: in 64 pieces fastpng 121.9 ms, png crate (Rust) 215.4, libpng 244.0, wuffs 258.2; in 256 pieces fastpng 130.2 ms, png crate 216.7, libpng 246.7, wuffs 266.3](incremental.svg)
 
 The same 41 images, fed in 64 equal pieces (and 256) to the decoders that can resume, each picking
 up where it stopped and showing what it can along the way: libpng's
@@ -106,10 +106,10 @@ suspending decoder, and fastpng's incremental decoder with `FASTPNG_FILL_INTERLA
 
 | decoder | checksums checked | 64 pieces, ms | fastpng's time / theirs | 256 pieces, ms | fastpng's time / theirs |
 |---|---|---|---|---|---|
-| **fastpng** | none | **115.6** | 1.00 | **123.1** | 1.00 |
-| png crate (Rust; what Chromium uses) | CRC | 209.8 | 0.55 | 211.0 | 0.58 |
-| libpng | CRC + Adler-32 | 239.6 | 0.48 | 240.6 | 0.51 |
-| wuffs | CRC + Adler-32 | 248.8 | 0.46 | 256.2 | 0.48 |
+| **fastpng** | none | **121.9** | 1.00 | **130.2** | 1.00 |
+| png crate (Rust; what Chromium uses) | CRC | 215.4 | 0.57 | 216.7 | 0.60 |
+| libpng | CRC + Adler-32 | 244.0 | 0.50 | 246.7 | 0.53 |
+| wuffs | CRC + Adler-32 | 258.2 | 0.47 | 266.3 | 0.49 |
 
 What each shows a quarter of the way through each file (`png-bench --incremental 8 --preview 2`;
 pixels already at their final value, and PSNR of the whole partial image against the final one,
@@ -124,9 +124,8 @@ averaged over the 41 images):
 
 fastpng shows exactly what the png crate does: every row whose data has arrived, and interlace
 passes as blocks. wuffs inflates all of an image's data before unfiltering any of it, so it shows
-nothing on the way. Resuming costs fastpng 5% over one-step decoding at 64 pieces and 13% at 256 (the
-numbers here are from a run on a slightly busier machine than the one-step table), while the
-streaming decoders barely notice the piece count; it stays well ahead.
+nothing on the way. Resuming costs fastpng 7% over one-step decoding at 64 pieces and 14% at 256,
+while the streaming decoders barely notice the piece count; it stays well ahead.
 
 ## The key ideas
 
