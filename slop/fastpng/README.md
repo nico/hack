@@ -2,12 +2,11 @@
 
 (Probably. On an Apple M4 Max, against the decoders below.)
 
-`fastpng.c` is a complete PNG decoder in one C file, about 2,300 lines with comments, with a
-small API in `fastpng.h`. It decodes every PNG type (all color types and bit depths, palettes, tRNS
-transparency, Adam7 interlacing) to 8-bit RGBA or BGRA, in one step or incrementally as the file
-arrives. It's a port of the decoder
-in SerenityOS's LibGfx and LibCompress, which grew these techniques while chasing PDF rendering
-speed.
+`fastpng.c` is a complete PNG decoder in one C file, about 2,700 lines with comments (see Files for
+where they go), with a small API in `fastpng.h`. It decodes every PNG type (all color types and bit
+depths, palettes, tRNS transparency, Adam7 interlacing) to 8-bit RGBA or BGRA, in one step or
+incrementally as the file arrives. It's a port of the decoder in SerenityOS's LibGfx and
+LibCompress, which grew these techniques while chasing PDF rendering speed.
 
 ```
 make && ./demo image.png -n 10 -o out.pam [--pieces N] [--check-crc] [--check-adler32] [--max-pixels N]
@@ -290,13 +289,23 @@ a one-step decode would, having met them in another order.
 
 ## Files
 
-- `fastpng.h`, `fastpng.c`: the decoder. `fastpng.c` sections:
-  1. portable SIMD
-  2. inflate
-  3. checksums
-  4. unfiltering
-  5. unpacking
-  6. the PNG container and API
+Where `fastpng.c`'s 2,700 lines, comments included, go:
+
+| section | lines |
+|---|---|
+| 1. portable SIMD | 80 |
+| 2. inflate | 900, about 125 of them for stopping and resuming |
+| 3. checksums (CRC-32, Adler-32) | 140 |
+| 4. unfiltering | 350 |
+| 5. unpacking to RGBA or BGRA | 275 |
+| 6. the PNG container and API | 900 |
+| &emsp;core: chunks, sizes, rows, interlacing, the API | 500 |
+| &emsp;input in pieces: the read callback, IDAT data inflated where it is | 180 |
+| &emsp;incremental decoding and progressive display | 230 |
+
+The rest, about 40 lines, is includes and a few definitions.
+
+- `fastpng.h`, `fastpng.c`: the decoder.
 - `demo.c`: decodes a file, in one step or in pieces (`--pieces N`, printing the progress after
   each: rows final, rows shown, passes done), prints the time, optionally writes a PAM and checks
   checksums.
