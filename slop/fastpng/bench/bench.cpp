@@ -24,6 +24,7 @@
 #include "wuffs-v0.4.c"
 
 #include <algorithm>
+#include <memory>
 #include <math.h>
 #include <chrono>
 #include <stdio.h>
@@ -32,9 +33,45 @@
 #include <string>
 #include <vector>
 
+// Output pixels. Like a decoder's own buffer, they start uninitialized, so that no decoder pays
+// for zeroing them first (a std::vector's resize() would); a buffer a decoder allocates itself is
+// adopted, not copied.
+struct Pixels {
+    std::unique_ptr<uint8_t, decltype(&free)> owned { nullptr, free };
+    std::vector<uint8_t> filled; // for decoders that only fill a std::vector
+    uint8_t* pointer { nullptr };
+    size_t count { 0 };
+
+    void resize(size_t size)
+    {
+        owned.reset((uint8_t*)malloc(size ? size : 1));
+        pointer = owned.get();
+        count = size;
+    }
+    void resize_zeroed(size_t size)
+    {
+        resize(size);
+        memset(pointer, 0, size);
+    }
+    void adopt(uint8_t* malloced, size_t size)
+    {
+        owned.reset(malloced);
+        pointer = malloced;
+        count = size;
+    }
+    void use_filled()
+    {
+        pointer = filled.data();
+        count = filled.size();
+    }
+    uint8_t* data() const { return pointer; }
+    size_t size() const { return count; }
+    uint8_t& operator[](size_t i) const { return pointer[i]; }
+};
+
 struct Image {
     int w { 0 }, h { 0 };
-    std::vector<uint8_t> rgba;
+    Pixels rgba;
 #ifdef HAVE_BLEND2D
     BLImage native; // Blend2D's pixels, left in its format (rgba stays empty)
 #endif
@@ -107,8 +144,7 @@ static bool decode_stb(uint8_t const* data, size_t size, Image& out)
         return false;
     out.w = w;
     out.h = h;
-    out.rgba.assign(pixels, pixels + (size_t)w * h * 4);
-    stbi_image_free(pixels);
+    out.rgba.adopt(pixels, (size_t)w * h * 4); // stbi_image_free() is free()
     return true;
 }
 
@@ -116,8 +152,9 @@ static bool decode_stb(uint8_t const* data, size_t size, Image& out)
 static bool decode_fpng(uint8_t const* data, size_t size, Image& out)
 {
     uint32_t w, h, channels;
-    if (fpng::fpng_decode_memory(data, (uint32_t)size, out.rgba, w, h, channels, 4) != fpng::FPNG_DECODE_SUCCESS)
+    if (fpng::fpng_decode_memory(data, (uint32_t)size, out.rgba.filled, w, h, channels, 4) != fpng::FPNG_DECODE_SUCCESS)
         return false;
+    out.rgba.use_filled();
     out.w = w;
     out.h = h;
     return true;
@@ -128,6 +165,15 @@ static bool decode_fpng(uint8_t const* data, size_t size, Image& out)
 static int pieces = 64;
 // With --preview: stop after this many pieces, leaving the partial image (buffers start zeroed).
 static int stop_after = 0;
+
+// A partial image's pixels not decoded yet are zeros.
+static void resize_for_pieces(Pixels& pixels, size_t size)
+{
+    if (stop_after)
+        pixels.resize_zeroed(size);
+    else
+        pixels.resize(size);
+}
 
 static size_t end_of_piece(size_t size, int k)
 {
@@ -141,7 +187,7 @@ static bool incremental_fastpng(uint8_t const* data, size_t size, Image& out)
         return false;
     out.w = w;
     out.h = h;
-    out.rgba.resize((size_t)w * h * 4);
+    resize_for_pieces(out.rgba, (size_t)w * h * 4);
     fastpng_options const options = { FASTPNG_FILL_INTERLACE_PASSES, 0 };
     fastpng_decoder* decoder = fastpng_decoder_create(&options);
     int status = FASTPNG_NEED_MORE_DATA;
@@ -168,7 +214,7 @@ static void libpng_info(png_structp png, png_infop info)
     png_read_update_info(png, info);
     state->out->w = png_get_image_width(png, info);
     state->out->h = png_get_image_height(png, info);
-    state->out->rgba.assign((size_t)state->out->w * state->out->h * 4, 0);
+    resize_for_pieces(state->out->rgba, (size_t)state->out->w * state->out->h * 4);
 }
 
 static void libpng_row(png_structp png, png_bytep row, png_uint_32 y, int)
@@ -229,7 +275,7 @@ static bool incremental_wuffs(uint8_t const* data, size_t size, Image& out)
             out.w = wuffs_base__pixel_config__width(&ic.pixcfg);
             out.h = wuffs_base__pixel_config__height(&ic.pixcfg);
             wuffs_base__pixel_config__set(&ic.pixcfg, WUFFS_BASE__PIXEL_FORMAT__RGBA_NONPREMUL, WUFFS_BASE__PIXEL_SUBSAMPLING__NONE, out.w, out.h);
-            out.rgba.resize((size_t)out.w * out.h * 4);
+            resize_for_pieces(out.rgba, (size_t)out.w * out.h * 4);
             if (wuffs_base__pixel_buffer__set_from_slice(&pb, &ic.pixcfg, wuffs_base__make_slice_u8(out.rgba.data(), out.rgba.size())).repr)
                 return false;
             workbuf.resize(wuffs_png__decoder__workbuf_len(dec).max_incl + 1);
@@ -275,7 +321,7 @@ static bool incremental_rust_png(uint8_t const* data, size_t size, Image& out)
         return false;
     out.w = w;
     out.h = h;
-    out.rgba.resize((size_t)w * h * 4);
+    resize_for_pieces(out.rgba, (size_t)w * h * 4);
     void* stream = rustpng_stream_create(false);
     int status = 1;
     size_t have = 0;
@@ -294,8 +340,10 @@ static bool incremental_rust_png(uint8_t const* data, size_t size, Image& out)
 static bool decode_lodepng(uint8_t const* data, size_t size, Image& out)
 {
     unsigned w, h;
-    if (lodepng::decode(out.rgba, w, h, data, size, LCT_RGBA, 8))
+    unsigned char* pixels;
+    if (lodepng_decode_memory(&pixels, &w, &h, data, size, LCT_RGBA, 8))
         return false;
+    out.rgba.adopt(pixels, (size_t)w * h * 4);
     out.w = w;
     out.h = h;
     return true;
@@ -424,7 +472,7 @@ static bool fpng_reencode(std::vector<uint8_t>& bytes)
         opaque = source.rgba[p] == 0xff;
     std::vector<uint8_t> pixels;
     for (size_t p = 0; p < source.rgba.size(); p += 4)
-        pixels.insert(pixels.end(), source.rgba.begin() + p, source.rgba.begin() + p + (opaque ? 3 : 4));
+        pixels.insert(pixels.end(), source.rgba.data() + p, source.rgba.data() + p + (opaque ? 3 : 4));
     std::vector<uint8_t> encoded;
     if (!fpng::fpng_encode_image_to_memory(pixels.data(), source.w, source.h, opaque ? 3 : 4, encoded))
         return false;
@@ -440,6 +488,8 @@ int main(int argc, char** argv)
     std::vector<bool> enabled(max_decoder_count, true);
     std::string only;
     char const* preview_dir = nullptr;
+    char const* profile = nullptr;
+    double seconds = 5;
     int first = 1;
     for (; first < argc && argv[first][0] == '-'; ++first) {
         if (!strcmp(argv[first], "-n") && first + 1 < argc) {
@@ -458,14 +508,51 @@ int main(int argc, char** argv)
             check_only = true;
         } else if (!strcmp(argv[first], "--only") && first + 1 < argc) {
             only = std::string(",") + argv[++first] + ",";
+        } else if (!strcmp(argv[first], "--profile") && first + 1 < argc) {
+            profile = argv[++first];
+        } else if (!strcmp(argv[first], "--seconds") && first + 1 < argc) {
+            seconds = atof(argv[++first]);
         } else {
-            fprintf(stderr, "usage: %s [-n runs] [--incremental pieces [--preview piece [--preview-dir dir]]] [--fpng-reencode] [--check] [--only fastpng,wuffs,...] file.png...\n", argv[0]);
+            fprintf(stderr, "usage: %s [-n runs] [--incremental pieces [--preview piece [--preview-dir dir]]] [--fpng-reencode] [--check] [--only fastpng,wuffs,...] [--profile decoder [--seconds s]] file.png...\n", argv[0]);
             return 1;
         }
     }
     for (size_t d = 0; d < decoder_count && !only.empty(); ++d)
         enabled[d] = only.find(std::string(",") + table[d].name + ",") != std::string::npos;
     fpng::fpng_init();
+
+    if (profile) {
+        // Only the one decoder, over and over, for a profiler (e.g. `sample`) to watch.
+        size_t d = 0;
+        while (d < decoder_count && strcmp(table[d].name, profile) != 0)
+            ++d;
+        if (d == decoder_count) {
+            fprintf(stderr, "no decoder %s\n", profile);
+            return 1;
+        }
+        std::vector<std::vector<uint8_t>> files(argc - first);
+        for (int i = first; i < argc; ++i) {
+            if (!read_file(argv[i], files[i - first]) || (reencode && !fpng_reencode(files[i - first]))) {
+                fprintf(stderr, "can't read %s\n", argv[i]);
+                return 1;
+            }
+        }
+        double const start = now_ms();
+        long passes = 0;
+        double best = 1e30;
+        while (now_ms() - start < seconds * 1000) {
+            double const t = now_ms();
+            for (auto const& bytes : files) {
+                Image image;
+                if (!table[d].decode(bytes.data(), bytes.size(), image))
+                    return 1;
+            }
+            best = std::min(best, now_ms() - t);
+            ++passes;
+        }
+        printf("%s: %ld passes over %zu files, best %.3f ms\n", profile, passes, files.size(), best);
+        return 0;
+    }
 
     if (check_only) {
         // Correctness only: which files fastpng decodes differently from wuffs (or fails on), with
@@ -590,7 +677,8 @@ int main(int argc, char** argv)
         }
         char const* name = strrchr(argv[i], '/') ? strrchr(argv[i], '/') + 1 : argv[i];
         printf("%-30.30s %6.2f %7zu", name, reference.w * (double)reference.h / 1e6, bytes.size() / 1024);
-        double const fastpng_ms = best_ms(runs, table[0].decode, bytes.data(), bytes.size());
+        // The last row compares with fastpng's time, when it's among the decoders run.
+        double const fastpng_ms = enabled[0] ? best_ms(runs, table[0].decode, bytes.data(), bytes.size()) : 0;
         for (size_t d = 0; d < decoder_count; ++d) {
             if (!enabled[d])
                 continue;
@@ -613,10 +701,13 @@ int main(int argc, char** argv)
         if (enabled[d])
             printf(" %8.2f", totals[d]);
     }
-    printf("\n%-30s %6s %7s", "fastpng's time / theirs", "", "");
-    for (size_t d = 0; d < decoder_count; ++d) {
-        if (enabled[d])
-            printf(" %8.2f", totals[d] > 0 ? fastpng_where_decoded[d] / totals[d] : 0);
-    }
     printf("\n");
+    if (enabled[0]) {
+        printf("%-30s %6s %7s", "fastpng's time / theirs", "", "");
+        for (size_t d = 0; d < decoder_count; ++d) {
+            if (enabled[d])
+                printf(" %8.2f", totals[d] > 0 ? fastpng_where_decoded[d] / totals[d] : 0);
+        }
+        printf("\n");
+    }
 }

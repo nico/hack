@@ -310,7 +310,9 @@ name a different one than a one-step decode would, having met them in another or
   - `--fpng-reencode` benchmarks fpng-encoded copies.
   - `--check` compares fastpng's pixels and errors against wuffs' file by file, with checksums
     checked, and checks that unchecked decoding gives the same pixels.
-  - `--only fastpng,wuffs` limits the columns.
+  - `--only fastpng,wuffs` limits the columns (the last row, against fastpng, needs fastpng).
+  - `--profile blend2d --seconds 5 file.png` decodes the files with just that decoder, over and
+    over, for a profiler such as `sample` to watch.
   - `make_chart.py` regenerates `speed.svg` and `incremental.svg` from the totals written into it:
     `uv run bench/make_chart.py`.
   - `incremental.c` tests and times incremental decoding against one step and against starting
