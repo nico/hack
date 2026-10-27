@@ -1529,12 +1529,14 @@ typedef struct {
     size_t width;
     bool bgra;
     u32 table[256]; // Palette or low-bit-depth grays, as finished pixels.
-    u64 pairs[256]; // At 4 bits: the two pixels each byte stands for, the first in the low half.
     unsigned palette_size;
     u8 invalid_bytes[256]; // For a 1-, 2- or 4-bit palette: which bytes hold an index past it.
     bool has_transparent_value;
     u16 transparent_gray;
     u8 transparent_samples[6]; // RGB as stored: 3 bytes at 8 bits, 6 big-endian at 16.
+    // Last, so that it isn't cleared: at 4 bits, the two pixels each byte stands for, the first in
+    // the low half (set only then).
+    u64 pairs[256];
 } unpacker;
 
 FP_INLINE u32 make_pixel(u32 r, u32 g, u32 b, u32 a, bool bgra)
@@ -1846,7 +1848,7 @@ static int parse_header(u8 const* png, size_t png_size, png_header* h)
 
 static void build_unpacker(png_header const* h, bool bgra, unpacker* u)
 {
-    memset(u, 0, sizeof(*u));
+    memset(u, 0, offsetof(unpacker, pairs));
     u->color = h->color;
     u->depth = h->depth;
     u->width = h->width;
