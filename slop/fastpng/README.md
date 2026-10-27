@@ -260,15 +260,15 @@ each time and decodes only what's new:
   by pass. Adam7's blocks only ever hold pixels of later passes, so filling never covers a decoded
   pixel, and the fill only runs while the image is incomplete.
 
-Over the 41-image corpus, into an already allocated buffer, decoding in 64 pieces takes 10% longer
-than in one step (19% in 256 pieces), and with the file in 4 KiB buffers, another 2-3%; starting
-over at every piece would take 32x (127x) as long. `bench/incremental.c` checks
-after every piece that the rows reported final already have their final pixels, that an interlaced
-image's rows shown match a preview worked out independently from the finished image (by passes
-done, or including the pass under way), and at the end that the result is identical to one step,
-for random piece sizes down to a byte at a time, in one buffer or in buffers of random sizes down
-to a byte, with and without checksums checked. In a file with several problems, the error may
-name a different one than a one-step decode would, having met them in another order.
+Over the 41-image corpus, into an already allocated buffer, decoding in 64 pieces takes 9% longer
+than in one step (17% in 256 pieces), and with the file in 4 KiB buffers, another 2% (3%); starting
+over at every piece would take 32x (126x) as long. `bench/incremental.c` checks after every piece
+that the rows reported final already have their final pixels, that an interlaced image's rows shown
+match a preview worked out independently from the finished image (by passes done, or including the
+pass under way), and at the end that the result is identical to one step, for random piece sizes
+down to a byte at a time, in one buffer or in buffers of random sizes down to a byte, with and
+without checksums checked. In a file with several problems, the error may name a different one than
+a one-step decode would, having met them in another order.
 
 ## Limits and trade-offs
 
