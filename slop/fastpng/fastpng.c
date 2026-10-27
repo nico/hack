@@ -1605,23 +1605,9 @@ FP_INLINE void unpack_rgba_8(u8 const* row, u8* out, size_t width, bool const bg
     }
 }
 
-// 1-, 2- or 4-bit samples, packed from each byte's high bits down, through the table.
-FP_INLINE void unpack_low_bit_depth(u8 const* row, u8* out, size_t width, u32 const* table, unsigned const depth)
-{
-    unsigned const per_byte = 8 / depth;
-    unsigned const mask = (1u << depth) - 1;
-    size_t x = 0;
-    for (; x + per_byte <= width; x += per_byte) {
-        u8 const byte = row[x / per_byte];
-        for (unsigned k = 0; k < per_byte; ++k)
-            store_u32(out + 4 * (x + k), table[(byte >> (8 - depth * (k + 1))) & mask]);
-    }
-    for (; x < width; ++x)
-        store_u32(out + 4 * x, table[(row[x / per_byte] >> (8 - depth * (x % per_byte + 1))) & mask]);
-}
-
-// 1-bit samples pick one of two colors, so instead of a lookup, each bit becomes a lane mask that
-// selects table[1] over table[0], four pixels at a time.
+// 1-, 2- or 4-bit samples, packed from each byte's high bits down, become pixels through the
+// table. 1-bit samples pick one of two colors, so instead of a lookup, each bit becomes a lane mask
+// that selects table[1] over table[0], four pixels at a time.
 FP_NOINLINE void unpack_low_bit_depth_1(u8 const* row, u8* out, size_t width, u32 const* table)
 {
     u32x4 const zero = (u32x4) { 0 } + table[0];
@@ -1639,7 +1625,24 @@ FP_NOINLINE void unpack_low_bit_depth_1(u8 const* row, u8* out, size_t width, u3
     for (; x < width; ++x)
         store_u32(out + 4 * x, table[(row[x / 8] >> (7 - x % 8)) & 1]);
 }
-FP_NOINLINE void unpack_low_bit_depth_2(u8 const* row, u8* out, size_t width, u32 const* table) { unpack_low_bit_depth(row, out, width, table, 2); }
+
+// At 2 bits, a byte's four pixels are all looked up before any is stored: `out` could alias the
+// table as far as the compiler knows, and this way it can store them in pairs.
+FP_NOINLINE void unpack_low_bit_depth_2(u8 const* row, u8* out, size_t width, u32 const* table)
+{
+    size_t x = 0;
+    for (; x + 4 <= width; x += 4) {
+        u8 const byte = row[x / 4];
+        u32 const p0 = table[byte >> 6], p1 = table[(byte >> 4) & 3], p2 = table[(byte >> 2) & 3], p3 = table[byte & 3];
+        store_u32(out + 4 * x, p0);
+        store_u32(out + 4 * x + 4, p1);
+        store_u32(out + 4 * x + 8, p2);
+        store_u32(out + 4 * x + 12, p3);
+    }
+    for (; x < width; ++x)
+        store_u32(out + 4 * x, table[(row[x / 4] >> (6 - 2 * (x % 4))) & 3]);
+}
+
 // At 4 bits, a byte's two pixels are one lookup and one store.
 FP_NOINLINE void unpack_low_bit_depth_4(u8 const* row, u8* out, size_t width, u32 const* table, u64 const* pairs)
 {
