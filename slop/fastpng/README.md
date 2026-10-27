@@ -8,6 +8,14 @@ depths, palettes, tRNS transparency, Adam7 interlacing) to 8-bit RGBA or BGRA, i
 incrementally as the file arrives. It's a port of the decoder in SerenityOS's LibGfx and
 LibCompress, which grew these techniques while chasing PDF rendering speed.
 
+It's an experiment in how fast a PNG decoder can go while doing what a browser needs: all of the
+file is in memory, but in pieces (the buffers it arrived in), not one contiguous block; when it
+arrives slowly over the network, what's there should show as it comes, without decoding it all again
+each time; and the result is the whole bitmap in memory, not rows handed to a callback. Those
+requirements shape the design: with the whole bitmap there, inflate writes into one buffer of known
+size and rows are unfiltered in place, several at a time, while the input is read in place, piece by
+piece.
+
 ```
 make && ./demo image.png -n 10 -o out.pam [--pieces N] [--check-crc] [--check-adler32] [--max-pixels N]
 ```
@@ -35,6 +43,8 @@ fastpng_decoder* decoder = fastpng_decoder_create(&options);
 fastpng_progress progress;
 int status = fastpng_decoder_update(decoder, received, received_size, all_received, FASTPNG_RGBA, pixels, w * 4, &progress);
 // FASTPNG_NEED_MORE_DATA: draw rows 0 to progress.rows_shown - 1; FASTPNG_OK: done.
+// For a file held in pieces, fastpng_decoder_update_from() takes a callback instead, which returns
+// the bytes at a given offset, as many as are contiguous there.
 fastpng_decoder_destroy(decoder);
 ```
 
