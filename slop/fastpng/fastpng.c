@@ -1995,40 +1995,51 @@ int fastpng_get_size(void const* png, size_t png_size, fastpng_options const* op
 
 #define ROWS_PER_BATCH 16
 
-// The file as far as it's arrived, in pieces (one, unless the caller has it in several).
+// The file as far as it's arrived (`size` bytes), read through the caller's callback, whose last
+// answer is kept for reads nearby.
 typedef struct {
-    fastpng_span const* spans;
-    size_t count;
+    fastpng_read_fn read;
+    void* context;
     u64 size;
-    size_t cursor; // the span last looked in, and where it starts in the file
-    u64 cursor_start;
+    u64 view_start; // the last answer: where it starts in the file, and its bytes
+    u8 const* view;
+    size_t view_size;
+    bool broken; // the callback said nothing was there, short of `size`
 } source;
 
-static void source_init(source* s, fastpng_span const* spans, size_t count)
+static void source_init(source* s, fastpng_read_fn read, void* context, u64 size)
 {
-    s->spans = spans;
-    s->count = count;
-    s->size = 0;
-    for (size_t i = 0; i < count; ++i)
-        s->size += spans[i].size;
-    s->cursor = 0;
-    s->cursor_start = 0;
+    s->read = read;
+    s->context = context;
+    s->size = size;
+    s->view_start = 0;
+    s->view = NULL;
+    s->view_size = 0;
+    s->broken = false;
 }
 
-// How many bytes from `offset` on are in one piece, at *data; 0 at the end.
+// How many bytes from `offset` on are in one piece, at *data; 0 at the end. A callback that
+// returns nothing short of the end gets zeros in its place, and the update fails.
 static size_t source_view(source* s, u64 offset, u8 const** data)
 {
-    if (offset < s->cursor_start) {
-        s->cursor = 0;
-        s->cursor_start = 0;
-    }
-    while (s->cursor < s->count && offset - s->cursor_start >= s->spans[s->cursor].size)
-        s->cursor_start += s->spans[s->cursor++].size;
-    if (s->cursor == s->count)
+    if (offset >= s->size)
         return 0;
-    size_t const skip = (size_t)(offset - s->cursor_start);
-    *data = (u8 const*)s->spans[s->cursor].data + skip;
-    return s->spans[s->cursor].size - skip;
+    if (offset < s->view_start || offset - s->view_start >= s->view_size) {
+        u8 const* view = NULL;
+        size_t size = s->read(s->context, offset, &view);
+        if (!size || !view) {
+            static u8 const zeros[64];
+            s->broken = true;
+            view = zeros;
+            size = sizeof(zeros);
+        }
+        s->view_start = offset;
+        s->view = view;
+        s->view_size = size < s->size - offset ? size : (size_t)(s->size - offset);
+    }
+    size_t const skip = (size_t)(offset - s->view_start);
+    *data = s->view + skip;
+    return s->view_size - skip;
 }
 
 // Copies `size` bytes from `offset` on, which have all arrived.
@@ -2557,6 +2568,30 @@ fastpng_decoder* fastpng_decoder_create(fastpng_options const* options)
     return d;
 }
 
+// The spans, as a reader: the span last looked in is where the next search starts.
+typedef struct {
+    fastpng_span const* spans;
+    size_t count;
+    size_t cursor;
+    u64 cursor_start;
+} span_reader;
+
+static size_t read_spans(void* context, uint64_t offset, uint8_t const** data)
+{
+    span_reader* r = context;
+    if (offset < r->cursor_start) {
+        r->cursor = 0;
+        r->cursor_start = 0;
+    }
+    while (r->cursor < r->count && offset - r->cursor_start >= r->spans[r->cursor].size)
+        r->cursor_start += r->spans[r->cursor++].size;
+    if (r->cursor == r->count)
+        return 0;
+    size_t const skip = (size_t)(offset - r->cursor_start);
+    *data = (u8 const*)r->spans[r->cursor].data + skip;
+    return r->spans[r->cursor].size - skip;
+}
+
 int fastpng_decoder_update(fastpng_decoder* d, void const* png, size_t png_size, bool complete, fastpng_format format, void* pixels, size_t stride, fastpng_progress* progress)
 {
     if (!png)
@@ -2567,17 +2602,30 @@ int fastpng_decoder_update(fastpng_decoder* d, void const* png, size_t png_size,
 
 int fastpng_decoder_update_spans(fastpng_decoder* d, fastpng_span const* spans, size_t span_count, bool complete, fastpng_format format, void* pixels, size_t stride, fastpng_progress* progress)
 {
-    if (!d || (!spans && span_count) || !pixels)
+    if (!spans && span_count)
+        return FASTPNG_ERROR_BAD_ARGUMENT;
+    span_reader reader = { spans, span_count, 0, 0 };
+    u64 size = 0;
+    for (size_t i = 0; i < span_count; ++i)
+        size += spans[i].size;
+    return fastpng_decoder_update_from(d, read_spans, &reader, size, complete, format, pixels, stride, progress);
+}
+
+int fastpng_decoder_update_from(fastpng_decoder* d, fastpng_read_fn read, void* context, uint64_t size, bool complete, fastpng_format format, void* pixels, size_t stride, fastpng_progress* progress)
+{
+    if (!d || !read || !pixels)
         return FASTPNG_ERROR_BAD_ARGUMENT;
     if (d->status == FASTPNG_NEED_MORE_DATA) {
-        source s;
-        source_init(&s, spans, span_count);
         // Less of the file than last time would leave data already relied on missing.
-        if (s.size < d->file_size)
+        if (size < d->file_size)
             return FASTPNG_ERROR_BAD_ARGUMENT;
-        d->file_size = s.size;
+        d->file_size = size;
+        source s;
+        source_init(&s, read, context, size);
         d->status = decoder_update(d, &s, complete, format, pixels, stride);
-        if (d->status == FASTPNG_NEED_MORE_DATA && complete)
+        if (s.broken)
+            d->status = FASTPNG_ERROR_BAD_ARGUMENT;
+        else if (d->status == FASTPNG_NEED_MORE_DATA && complete)
             d->status = FASTPNG_ERROR_TRUNCATED;
     }
     if (progress) {
@@ -2613,8 +2661,9 @@ int fastpng_decode(void const* png, size_t png_size, fastpng_format format, void
     fastpng_decoder d;
     decoder_init(&d, options);
     fastpng_span const span = { png, png_size };
+    span_reader reader = { &span, 1, 0, 0 };
     source s;
-    source_init(&s, &span, 1);
+    source_init(&s, read_spans, &reader, png_size);
     int error = decoder_update(&d, &s, true, format, pixels, stride);
     if (error == FASTPNG_NEED_MORE_DATA)
         error = FASTPNG_ERROR_TRUNCATED;

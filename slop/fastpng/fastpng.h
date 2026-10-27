@@ -95,10 +95,19 @@ fastpng_decoder* fastpng_decoder_create(fastpng_options const* options);
 int fastpng_decoder_update(fastpng_decoder* decoder, void const* png, size_t png_size, bool complete, fastpng_format format, void* pixels, size_t stride, fastpng_progress* progress);
 void fastpng_decoder_destroy(fastpng_decoder* decoder);
 
-// Like fastpng_decoder_update(), with the file received so far in pieces, in order: say, the
-// buffers it arrived in. Each call gets all of it again (the pieces may move, be split or joined
-// differently, and the last may grow). The image data is read in place; only the bytes around
-// where pieces meet are copied together.
+// Like fastpng_decoder_update(), with the file received so far (`size` bytes) read through a
+// callback, for a file held in pieces: say, the buffers it arrived in. `read` points *data at the
+// file's bytes from `offset` on and returns how many there are in one piece (at least one, while
+// `offset` is short of `size`); the bytes must stay put for the call. The decoder asks for few
+// offsets, mostly at or just behind where it stopped, and reads image data in place: only the
+// bytes around where pieces meet are copied together. A callback that returns nothing short of
+// `size` makes the update fail with FASTPNG_ERROR_BAD_ARGUMENT.
+typedef size_t (*fastpng_read_fn)(void* context, uint64_t offset, uint8_t const** data);
+int fastpng_decoder_update_from(fastpng_decoder* decoder, fastpng_read_fn read, void* context, uint64_t size, bool complete, fastpng_format format, void* pixels, size_t stride, fastpng_progress* progress);
+
+// Like fastpng_decoder_update_from(), with the file so far as a list of pieces, in order. Each
+// call gets all of it again (the pieces may move, be split or joined differently, and the last
+// may grow).
 typedef struct {
     void const* data;
     size_t size;

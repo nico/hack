@@ -241,13 +241,17 @@ each time and decodes only what's new:
 - *Block headers are read with what's there.* If a dynamic Huffman header (up to a few hundred
   bytes) turns out to need more input than has arrived, inflate goes back to the header's start and
   waits, instead of waiting for the largest possible header up front.
-- *The file can be in pieces.* `fastpng_decoder_update_spans()` takes the file as a list of
-  buffers, such as the ones it arrived in. Chunks are found by their offset in the file, and the
-  image data is inflated where it is, a piece at a time (an IDAT chunk's data within one buffer):
-  each up to a few bytes from its end, then the bytes on either side of where it meets the next
-  are copied together (at most 1 KiB, more than any block header) and inflated from the copy, and
-  then on in place in the next. So several IDAT chunks are no longer joined either. Big buffers wait
-  until enough image data has arrived to plausibly fill them (deflate's 1032:1 bound again).
+- *The file can be in pieces.* `fastpng_decoder_update_from()` reads the file through a callback
+  that returns the bytes at a given offset, as many as are contiguous there (Chromium's
+  `SegmentReader::GetSomeData()` has that shape), and `fastpng_decoder_update_spans()` takes a list
+  of buffers instead. The decoder asks for few offsets, mostly at or just behind where it stopped,
+  so through the callback an update's cost doesn't grow with how much of the file has arrived (a
+  span list is walked each time). Chunks are found by their offset in the file, and the image data
+  is inflated where it is, a piece at a time (an IDAT chunk's data within one buffer): each up to a
+  few bytes from its end, then the bytes on either side of where it meets the next are copied
+  together (at most 1 KiB, more than any block header) and inflated from the copy, and then on in
+  place in the next. Several IDAT chunks aren't joined either. Big buffers wait until enough image
+  data has arrived to plausibly fill them (deflate's 1032:1 bound again).
 - *One-step decoding is the same code*, a single update with complete data. It got no slower:
   +0.4% cycles over the corpus, with the same instructions, and unchanged on small files.
 

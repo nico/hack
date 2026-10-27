@@ -51,13 +51,30 @@ static void interlace_preview(unsigned char const* final, uint32_t w, uint32_t h
     }
 }
 
+// A reader for fastpng_decoder_update_from() that returns a few bytes at a time, at most
+// `max_read` (0: none at all, which the decoder must reject).
+typedef struct {
+    unsigned char const* data;
+    size_t max_read;
+} short_reader;
+
+static size_t read_short(void* context, uint64_t offset, uint8_t const** data)
+{
+    short_reader const* r = context;
+    if (!r->max_read)
+        return 0;
+    *data = r->data + offset;
+    return 1 + next_random() % r->max_read;
+}
+
 // Decodes `png` in `pieces` pieces (random cut points when `random_cuts`), copying the data into a
 // buffer that grows as a browser's would, or with `segment_bytes`, into separately allocated
-// segments of that size, passed as spans (SIZE_MAX: random sizes, some a few bytes). With `reference`, checks after each piece that the rows
+// segments of that size, passed as spans (SIZE_MAX: random sizes, some a few bytes), or with
+// `short_reads`, from one buffer through a callback that returns a few bytes at a time. With `reference`, checks after each piece that the rows
 // reported final have their final pixels, and with `previews` (an interlaced image's, for each
 // number of passes, decoded with blocks filled) that each row shown is as it should be after the
 // passes done or after the one going on. Returns the final status.
-static int decode_in_pieces(unsigned char const* png, size_t size, int pieces, int random_cuts, size_t segment_bytes, unsigned flags, unsigned char* pixels, size_t stride, unsigned char const* reference, unsigned char* const* previews, uint32_t height, char const* name)
+static int decode_in_pieces(unsigned char const* png, size_t size, int pieces, int random_cuts, size_t segment_bytes, bool short_reads, unsigned flags, unsigned char* pixels, size_t stride, unsigned char const* reference, unsigned char* const* previews, uint32_t height, char const* name)
 {
     fastpng_options const options = { flags, 0 };
     fastpng_decoder* d = fastpng_decoder_create(&options);
@@ -102,6 +119,9 @@ static int decode_in_pieces(unsigned char const* png, size_t size, int pieces, i
                 spans[span_count++] = (fastpng_span) { segment[k], end - segment_at[k] };
             }
             status = fastpng_decoder_update_spans(d, spans, span_count, have == size, FASTPNG_RGBA, pixels, stride, &progress);
+        } else if (short_reads) {
+            short_reader reader = { received, 97 };
+            status = fastpng_decoder_update_from(d, read_short, &reader, have, have == size, FASTPNG_RGBA, pixels, stride, &progress);
         } else {
             status = fastpng_decoder_update(d, received, have, have == size, FASTPNG_RGBA, pixels, stride, &progress);
         }
@@ -190,16 +210,29 @@ int main(int argc, char** argv)
         }
 
         // Correctness: random pieces, a few times over, with interlace blocks filled every other time,
-        // in segments every other pair of times, and with checksums checked every other four.
+        // in segments every other pair of times, with checksums checked every other four, and read
+        // through a callback a few bytes at a time instead of in one buffer every other eight.
         for (int t = 0; t < trials; ++t) {
             bool const fill = t % 2;
             bool const checked = t / 4 % 2;
+            bool const short_reads = t / 8 % 2 && !(t / 2 % 2);
             int const want = checked ? expected_checked : expected;
             unsigned const flags = (fill ? FASTPNG_FILL_INTERLACE_PASSES : 0) | (checked ? FASTPNG_CHECK_ALL : 0);
-            int const status = decode_in_pieces(png, size, pieces, 1, t / 2 % 2 ? SIZE_MAX : 0, flags, pixels, stride, want == FASTPNG_OK ? reference : NULL, fill && previews[1] ? previews : NULL, h, name);
+            int const status = decode_in_pieces(png, size, pieces, 1, t / 2 % 2 ? SIZE_MAX : 0, short_reads, flags, pixels, stride, want == FASTPNG_OK ? reference : NULL, fill && previews[1] ? previews : NULL, h, name);
             // An error may name a different problem in a file with several, met in another order.
             if ((status == FASTPNG_OK) != (want == FASTPNG_OK) || (status == FASTPNG_OK && memcmp(pixels, reference, stride * h) != 0)) {
                 fprintf(stderr, "%s: in pieces: %s, in one step: %s%s\n", name, fastpng_error_string(status), fastpng_error_string(want), status == want ? " (pixels differ)" : "");
+                return 1;
+            }
+        }
+        // A callback that returns nothing is rejected, not waited on.
+        {
+            fastpng_decoder* d = fastpng_decoder_create(NULL);
+            short_reader none = { png, 0 };
+            int const status = fastpng_decoder_update_from(d, read_short, &none, size, true, FASTPNG_RGBA, pixels, stride, NULL);
+            fastpng_decoder_destroy(d);
+            if (size && status != FASTPNG_ERROR_BAD_ARGUMENT) {
+                fprintf(stderr, "%s: a callback returning nothing gave %s\n", name, fastpng_error_string(status));
                 return 1;
             }
         }
@@ -217,10 +250,10 @@ int main(int argc, char** argv)
             fastpng_decode(png, size, FASTPNG_RGBA, pixels, stride, NULL);
             once = (t = now_ms() - t) < once ? t : once;
             t = now_ms();
-            decode_in_pieces(png, size, pieces, 0, 0, FASTPNG_FILL_INTERLACE_PASSES, pixels, stride, NULL, NULL, h, name);
+            decode_in_pieces(png, size, pieces, 0, 0, false, FASTPNG_FILL_INTERLACE_PASSES, pixels, stride, NULL, NULL, h, name);
             in_pieces = (t = now_ms() - t) < in_pieces ? t : in_pieces;
             t = now_ms();
-            decode_in_pieces(png, size, pieces, 0, 4096, FASTPNG_FILL_INTERLACE_PASSES, pixels, stride, NULL, NULL, h, name);
+            decode_in_pieces(png, size, pieces, 0, 4096, false, FASTPNG_FILL_INTERLACE_PASSES, pixels, stride, NULL, NULL, h, name);
             in_segments = (t = now_ms() - t) < in_segments ? t : in_segments;
             if (r < 2) {
                 // From scratch on each prefix, the way a decoder that can't resume would.
