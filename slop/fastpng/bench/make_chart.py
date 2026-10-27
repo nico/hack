@@ -3,12 +3,13 @@
 import os
 
 # "fastpng, checked" verifies every chunk's CRC and the zlib Adler-32, as wuffs, libpng and lodepng do.
+# Blend2D can't decode the one 16-bit image; its first total is over the other 40 (the "*").
 SPEED = [
     ("41 PNGs as their encoders wrote them", [
-        ("fastpng", 100.3), ("fastpng, checked", 109.4), ("png crate (Rust)", 181.9), ("libpng", 231.8), ("wuffs", 236.3), ("stb_image", 296.2), ("lodepng", 419.2),
+        ("fastpng", 100.3), ("fastpng, checked", 109.4), ("Blend2D*", 147.9), ("png crate (Rust)", 181.9), ("libpng", 231.8), ("wuffs", 236.3), ("stb_image", 296.2), ("lodepng", 419.2),
     ]),
     ("The same images, written by fpng (the only files fpng decodes)", [
-        ("fastpng", 122.2), ("fastpng, checked", 136.6), ("fpng", 167.6), ("libpng", 243.3), ("wuffs", 320.0), ("png crate (Rust)", 340.5), ("stb_image", 411.7), ("lodepng", 526.1),
+        ("fastpng", 122.2), ("fastpng, checked", 136.6), ("Blend2D", 149.8), ("fpng", 167.6), ("libpng", 243.3), ("wuffs", 320.0), ("png crate (Rust)", 340.5), ("stb_image", 411.7), ("lodepng", 526.1),
     ]),
 ]
 
@@ -40,7 +41,7 @@ def bar_path(x, y, w, h, r=4):
             f"V{y + h - r:.1f} A{r},{r} 0 0 1 {x + w - r:.1f},{y + h:.1f} H{x:.1f} Z")
 
 
-def write_chart(filename, panels, description):
+def write_chart(filename, panels, description, footnote=None):
     scale_max = max(ms for _, rows in panels for _, ms in rows)
     parts = []
     y = TOP
@@ -62,6 +63,9 @@ def write_chart(filename, panels, description):
         parts.append(f'<line class="baseline" x1="{BAR_X}" x2="{BAR_X}" y1="{baseline_top}" y2="{y}"/>')
         y += PANEL_GAP
 
+    if footnote:
+        parts.append(f'<text class="panel" x="{BAR_X}" y="{y}">{footnote}</text>')
+        y += 14
     height = y + 4
     svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{height}" viewBox="0 0 {WIDTH} {height}" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="t">
 <title id="t">{description}</title>
@@ -96,6 +100,7 @@ def write_chart(filename, panels, description):
 
 
 write_chart("speed.svg", SPEED,
-            "PNG decode time, total over 41 images and their fpng-written copies (lower is better): fastpng is the fastest of the decoders compared")
+            "PNG decode time, total over 41 images and their fpng-written copies (lower is better): fastpng is the fastest of the decoders compared",
+            "* Over 40 of the images: Blend2D can't decode the 16-bit one.")
 write_chart("incremental.svg", INCREMENTAL,
             "PNG decode time with the data arriving in pieces, total over 41 images (lower is better): fastpng is the fastest of the decoders that can resume")

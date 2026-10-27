@@ -41,7 +41,7 @@ fastpng_decoder_destroy(decoder);
 
 ## Speed
 
-![Total decode time over 41 PNGs: fastpng 100.3 ms, fastpng checking checksums 109.4, png crate (Rust) 181.9, libpng 231.8, wuffs 236.3, stb_image 296.2, lodepng 419.2; on fpng-written copies fastpng 122.2 ms, fastpng checking checksums 136.6, fpng 167.6, libpng 243.3, wuffs 320.0, png crate 340.5, stb_image 411.7, lodepng 526.1](speed.svg)
+![Total decode time over 41 PNGs: fastpng 100.3 ms, fastpng checking checksums 109.4, Blend2D 147.9 (without the one 16-bit image, which it can't decode), png crate (Rust) 181.9, libpng 231.8, wuffs 236.3, stb_image 296.2, lodepng 419.2; on fpng-written copies fastpng 122.2 ms, fastpng checking checksums 136.6, Blend2D 149.8, fpng 167.6, libpng 243.3, wuffs 320.0, png crate 340.5, stb_image 411.7, lodepng 526.1](speed.svg)
 
 Total ms over 41 public PNGs chosen to be representative of the web and of documents (screenshots,
 photos, maps, charts, sprites, icons, scans, PDF page renders; every color type, bit depths 1 to 16,
@@ -54,6 +54,7 @@ fpng:
 |---|---|---|---|---|---|
 | **fastpng** | none | **100.3** | 1.00 | **122.2** | 1.00 |
 | fastpng | CRC + Adler-32 | 109.4 | 0.92 | 136.6 | 0.89 |
+| Blend2D | none | 147.9 (40 files: no 16-bit) | 0.66 | 149.8 | 0.79 |
 | png crate (Rust; what Chromium uses) | CRC | 181.9 | 0.55 | 340.5 | 0.36 |
 | png crate | none | 179.3 | 0.56 | 336.8 | 0.36 |
 | wuffs | CRC + Adler-32 | 236.3 | 0.42 | 320.0 | 0.38 |
@@ -76,6 +77,17 @@ Apple's zlib is 2-5x faster than stock zlib at inflating, which is most of libpn
 images. Built against stock zlib 1.3.1, the same libpng takes 382.8 ms instead of 230.8, and wuffs
 is then 1.6x as fast as libpng, close to what it claims. Elsewhere, expect libpng's numbers to look
 like that.
+
+[Blend2D](https://blend2d.com/blog/png-image-codec.html)'s decoder (v0.21.3) claims about twice
+libpng's and wuffs' speed, measured on x86 with AVX2. Here it's about 1.5x as fast as both, and
+fastpng takes 0.66x its time. On ARM, Blend2D's inflate runs its portable 64-bit fast loop (its AVX2
+loop is x86-only), with NEON unfiltering, and it's built as its CMake release build does (-O2,
+static, no JIT). It decodes to its own formats: premultiplied BGRA (BGRX for opaque images), so its
+time includes premultiplying, which a compositor wants anyway, and its pixels are compared with
+wuffs' premultiplied, give or take 1 for rounding. It checks no checksums. It wins on a few files:
+the 1-bit newspaper scan, the 4-bit clipart and the pixel art. It can't decode 16-bit images,
+ignores tRNS on RGB images, and gets Adam7's pass 6 wrong in small 2- and 4-bit palette images
+(PngSuite's `s0?i3p0?` and `s37i3p04`); the corpus has none of those but the 16-bit photo.
 
 Where the png crate's time goes, on the 1600x1600 Paeth-filtered mandrill (21.1 ms vs fastpng's
 9.6): inflate (fdeflate) about 7.6 ms, the same as fastpng's 7.5; unfiltering one row at a time
@@ -288,7 +300,9 @@ name a different one than a one-step decode would, having met them in another or
   - `build.sh` builds `bench/build/png-bench` against checkouts of wuffs, stb, fpng (which also
     provides lodepng) and libpng; paths are set with `WUFFS=`, `STB=`, `FPNG=`, `LIBPNG=`. With
     cargo around, it also builds `rust-png/`, a C-callable wrapper around the png crate (the
-    columns `png-rs`, with the crate's default checks, and `png-rs-nc`, without).
+    columns `png-rs`, with the crate's default checks, and `png-rs-nc`, without). With a Blend2D
+    checkout (`BLEND2D=`, default `~/src/blend2d`) and cmake, it builds that too (the `blend2d`
+    column).
   - `build/png-bench -n 9 *.png` prints a table with a column per decoder.
   - `--incremental N` decodes each file fed in N pieces, with the decoders that can resume; with
     `--preview K` it stops them after K pieces and compares what each shows with the final image

@@ -1,7 +1,8 @@
-// PNG decode benchmark: fastpng vs wuffs, libpng, stb_image, fpng, lodepng and the Rust png crate
-// (with -DHAVE_RUST_PNG; see build.sh), whole image to
-// 8-bit RGBA, in-process, best of N runs, each into newly allocated output. Every decoder's pixels
-// are compared against wuffs' (fully transparent pixels match whatever their color).
+// PNG decode benchmark: fastpng vs wuffs, libpng, stb_image, fpng, lodepng, the Rust png crate (with
+// -DHAVE_RUST_PNG) and Blend2D (with -DHAVE_BLEND2D; see build.sh), whole image to 8-bit RGBA
+// (Blend2D: to its own premultiplied BGRA), in-process, best of N runs, each into newly allocated
+// output. Every decoder's pixels are compared against wuffs' (fully transparent pixels match
+// whatever their color).
 // See build.sh for how it's built, and README.md for how to run it.
 
 #include "fastpng.h"
@@ -9,6 +10,9 @@
 #include "lodepng.h"
 #include "stb_image.h"
 #include <png.h>
+#ifdef HAVE_BLEND2D
+#include <blend2d/blend2d.h>
+#endif
 
 #define WUFFS_CONFIG__MODULES
 #define WUFFS_CONFIG__MODULE__BASE
@@ -31,6 +35,9 @@
 struct Image {
     int w { 0 }, h { 0 };
     std::vector<uint8_t> rgba;
+#ifdef HAVE_BLEND2D
+    BLImage native; // Blend2D's pixels, left in its format (rgba stays empty)
+#endif
 };
 
 typedef bool (*Decoder)(uint8_t const*, size_t, Image&);
@@ -294,6 +301,19 @@ static bool decode_lodepng(uint8_t const* data, size_t size, Image& out)
     return true;
 }
 
+#ifdef HAVE_BLEND2D
+// Into a BLImage: BGRA premultiplied by alpha (PRGB32), or with the alpha byte unused when the
+// image has no alpha (XRGB32), which is what Blend2D decodes to. It checks no CRCs or Adler-32.
+static bool decode_blend2d(uint8_t const* data, size_t size, Image& out)
+{
+    if (out.native.read_from_data(data, size) != BL_SUCCESS)
+        return false;
+    out.w = out.native.width();
+    out.h = out.native.height();
+    return true;
+}
+#endif
+
 struct DecoderInfo {
     char const* name;
     Decoder decode;
@@ -311,6 +331,9 @@ static DecoderInfo const decoders[] = {
 #ifdef HAVE_RUST_PNG
     { "png-rs", decode_rust_png },
     { "png-rs-nc", decode_rust_png_no_checksums },
+#endif
+#ifdef HAVE_BLEND2D
+    { "blend2d", decode_blend2d },
 #endif
 };
 // The decoders that can resume, decoding in pieces (--incremental), each checking what it does by
@@ -333,6 +356,27 @@ static size_t count_diffs(Image const& a, Image const& b)
     if (a.w != b.w || a.h != b.h)
         return SIZE_MAX;
     size_t n = 0;
+#ifdef HAVE_BLEND2D
+    if (!a.native.is_empty()) {
+        // Against `b`'s pixels premultiplied and swizzled the same way, give or take rounding.
+        BLImageData data;
+        a.native.get_data(&data);
+        bool const has_alpha = data.format == BL_FORMAT_PRGB32;
+        for (int y = 0; y < a.h; ++y) {
+            uint8_t const* row = (uint8_t const*)data.pixel_data + y * data.stride;
+            for (int x = 0; x < a.w; ++x) {
+                uint8_t const* want = &b.rgba[4 * ((size_t)y * b.w + x)];
+                unsigned const alpha = has_alpha ? want[3] : 255;
+                uint8_t const* got = row + 4 * x;
+                bool differs = has_alpha && got[3] != alpha;
+                for (int c = 0; c < 3; ++c)
+                    differs |= abs((int)got[c] - (int)(want[2 - c] * alpha + 127) / 255) > 1;
+                n += differs;
+            }
+        }
+        return n;
+    }
+#endif
     for (size_t i = 0; i < a.rgba.size(); i += 4)
         n += memcmp(&a.rgba[i], &b.rgba[i], 4) != 0 && !(a.rgba[i + 3] == 0 && b.rgba[i + 3] == 0);
     return n;
