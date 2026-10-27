@@ -84,13 +84,9 @@ fastpng takes 0.66x its time. On ARM, Blend2D's inflate runs its portable 64-bit
 loop is x86-only), with NEON unfiltering, and it's built as its CMake release build does (-O2,
 static, no JIT). It decodes to its own formats: premultiplied BGRA (BGRX for opaque images), so its
 time includes premultiplying, which a compositor wants anyway, and its pixels are compared with
-wuffs' premultiplied, give or take 1 for rounding. It checks no checksums. It was ahead on three
-files, which led to fastpng expanding 1-bit samples with vector selects, checking low-bit palette
-indices 16 bytes at a time and unpacking 4-bit samples a byte's pair at a time; now the 1-bit
-newspaper scan takes 3.95 ms against its 6.88, and the 4-bit clipart (0.21 vs 0.22) and the pixel
-art (1.89 vs 1.94) are ties. It can't decode 16-bit images, ignores tRNS on RGB images, and gets
-Adam7's pass 6 wrong in small 2- and 4-bit palette images (PngSuite's `s0?i3p0?` and `s37i3p04`);
-the corpus has none of those but the 16-bit photo.
+wuffs' premultiplied, give or take 1 for rounding. It checks no checksums. It can't decode 16-bit
+images, ignores tRNS on RGB images, and gets Adam7's pass 6 wrong in small 2- and 4-bit palette
+images (PngSuite's `s0?i3p0?` and `s37i3p04`); the corpus has none of those but the 16-bit photo.
 
 Where the png crate's time goes, on the 1600x1600 Paeth-filtered mandrill (21.1 ms vs fastpng's
 9.6): inflate (fdeflate) about 7.6 ms, the same as fastpng's 7.5; unfiltering one row at a time
